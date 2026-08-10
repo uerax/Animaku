@@ -1,5 +1,44 @@
 # Animaku 项目状态
 
+## [2026-08-05] 全仓代码审查（bug / 优化 / 设计）
+
+- 状态：审查完成，未改代码（待用户点名要修哪些）
+- 优先级：P1-P3 混合
+- 描述：对 98 个 TS/TSX 文件做分区域审查（4 子代理 + 亲自逐行核实关键发现 + `pnpm typecheck` 全通过 + git 工作区 clean）。剔除代理误报约 8 条（见备注）。下面仅列经亲自读码确认的发现，按严重度排序。
+- 涉及文件：见下方清单
+- 经确认的真实发现：
+  - **P1-1** `apps/server/src/routes/plugin.ts:102-109` — chapters cache key 用 `source`（去尾斜杠），loader 传 `body.source.trim()`（未去尾斜杠），key 与执行 URL 脱节。建议行 109 改 `chaptersWithRule(rule, source)`。
+  - **P1-2** `apps/web/src/player/VideoPlayer.tsx:1171-1228` — src 切换/unmount 的 cleanup 未清理 `countdownIntervalRef`（行 835 创建）。倒计时进行中换源/离开会导致 interval 泄漏，到 0 误触发 `onNextRef`。建议 cleanup 加 `cancelCountdown()`。
+  - **P1-3** `apps/web/src/lib/use-watch-session.ts:954-968` — `onProgress` 未 memo，高频 timeupdate→upsertHistory→父重渲染→新闭包→播放器重渲染。建议 useCallback + ref。
+  - **P2-1** `use-watch-session.ts:1059-1068` — `resolvedPlayerSettings` 未 useMemo，每次 render 新引用突破播放器 memo。
+  - **P2-2** `apps/web/src/lib/async-pool.ts` — `mapPool` Promise.all 并发异常处理不彻底（其余 worker 不取消）；且全仓无调用方（死代码）。
+  - **P2-3** `apps/server/src/routes/bangumi.ts:202,271` — search/subject 用 cacheGet+cacheSet 非 single-flight（plugin 路由已用 cacheGetOrSet）。高并发 stampede 风险（低）。
+  - **P2-4** `apps/server/src/routes/media.ts:51-57` — `cancelBody` 的 `void res?.body?.cancel()` 未 catch，reject 成 unhandledRejection（全局兜底）。建议 `.catch(()=>{})`。
+  - **P2-5** `apps/server/src/routes/media.ts:267-289` — body 流阶段无超时（connectTimeoutSignal 在 headers 后 clear）。慢 body 可挂起。
+  - **P2-6** `apps/web/src/pages/CollectPage.tsx:46` — 硬编码 limit=50 无分页，收藏 >50 看不全。
+  - **P2-7** `apps/web/src/player/EmbedPlayer.tsx:53` — className `bg-[var(--kz-accent)]hover:...` 缺空格，Tailwind 当成单类名 → "新窗口打开"按钮无背景/圆角/hover（对照行 44 正确写法）。真实 UI 缺陷。
+  - **P2-8** `apps/server/src/lib/anime1.ts:461` — resolve 用原生 fetch 而非 fetchPublic，绕过 SSRF/重定向逐跳检查（URL 是硬编码常量，风险低，但与全仓不一致）。
+  - **P3-1** `debounced-storage.ts:25-30` — pagehide/visibilitychange 每实例注册一次（现 2 实例）。
+  - **P3-2** `SiteFooter.tsx:66` — 无 React.memo，`getSiteBranding()` 每次渲染调用（可移模块级）。
+  - **P3-3** `default-plugins/*.json`（除 Anime1/libvio）缺显式 `requiresFullMediaProxy:false`，靠 name/baseURL 字符串回退。
+  - **P3-4** `packages/shared/src/plugin.ts:425` — `type` 字段不校验，libvio `"type":"release"` 无 release 块，字段仅展示用易误导。
+  - **P3-5** `useWatchLayoutMode.ts:24-25` — effect 内 apply() 冗余（同值不重渲染，无害）。
+  - **P3-6** `format.ts:4` — isM3u8 条件冗余（`.m3u8` 被 `m3u8` 涵盖，可简化）。
+  - **P3-7** `HistoryPage.tsx:53` — `cover: h.cover||''` 空值塞进 URLSearchParams（URL 不优雅，非 bug）。
+  - **P3-8** `roads-cache.ts:96-101` — Object.keys 不反映 LRU（覆盖旧 key 位置不变），当前源受 `k!==sourceUrl` 保护，影响小。
+  - **P3-9** `VideoPlayer.tsx:835-845` — 倒计时 interval 与"立即播放"按钮在 tick 恰好已入队的极窄窗口可能重复触发 onNextRef（概率极低，建议加 called flag 防护）。
+  - **设计建议**：缓存层（ttl-cache 与 release.ts 自带 Map）可收敛；错误响应格式不统一（{error,message} vs {ok:false,message}，注意 api.ts 已定义 ApiErrorBody 但路由未全用）；player_aaaa resolve 串行两段超时可 Promise.allSettled 并行；vite manualChunks 用字符串匹配 pnpm 路径较脆。
+  - **P2-9** `apps/server/src/lib/release.ts:34` — cacheGet 用 `key.split('|')[1]` 反推 fetchHour，但 cacheKey 格式是 `${pageUrl}:${fetchHour}:${domainIndex}`（用 `:` 分隔，行 109/121）。split 分隔符不匹配 → fetchHour 永远回退默认 2，用户配的 fetchHour（如 12h）在 TTL 判断时被忽略。且 CacheEntry（行 22-25）只存 url+fetchedAt 没存 fetchHour。正确修复：CacheEntry 加 fetchHour 字段，cacheSet 时存入，cacheGet 直接读 entry.fetchHour。当前无内置插件带 release 块（libvio 的 `"type":"release"` 是孤立字段无 release 配置），仅影响自定义 release 规则。
+  - **P3-10** `apps/web/src/main.tsx` 未显式 import `./lib/bangumi-image-host`（副作用：setBangumiImageHost）。当前靠 App.tsx→Layout→settings.ts 传递触发，时序上正确但脆弱（依赖 import 顺序）。建议 main.tsx 顶部显式 import。
+  - **P3-11** `packages/shared/src/plugin.ts:425` + 各 JSON — `api`/`type` 字段 rule-engine 从不读取（grep 确认无 `.api`/`rule.type` 引用），纯遗留兼容。libvio `"type":"release"` 是孤立字段（无 release 块），`isReleaseRule` 返回 false，字段误导维护者。
+  - **P2-10** `apps/web/src/player/media/canvas-danmaku.ts:533-541` — seek 到密集段时，`trySpawn(p,retro=true)` 车道满返回 false 仍 `cursor++` 跳过，该弹幕永久丢失显示机会。属弹幕引擎取舍（优先保当前可见性而非补全历史），影响有限，可选优化。
+  - **P3-12（死接口）** `apps/web/src/player/types.ts` VideoPlayerProps.onEnded — WatchPage 从未传 onEnded（行 205-212 只传 onProgress/onPrev/onNext/onMediaAuthExpired/onMediaLoadFailed），onEndedRef.current 恒 undefined。代理 P0-1/P1-3 称"autoNext 不调 onEnded 致历史不存"系误报：历史走 onProgress（timeupdate 高频），不依赖 onEnded。onEnded 是冗余字段，可清理。
+  - **P3-13** canvas-danmaku `durationFor`（行 485）用 `settings.speed`（弹幕速度倍率），不含视频 `playbackRate`。2x 播放时弹幕 age 增长 2x 但 duration 不缩放 → 车道更易满 → 丢弹幕。属设计取舍（弹幕速度独立于视频倍速），非 bug，改它需重定义速度语义。
+  - **P2-11** `apps/web/src/lib/use-watch-session.ts` `pickSource`（行 445）用 `roadLoading` state 做重入判断，state 在 async 闭包里是快照值，快速双击同源可能并发两次 chapters 请求（第二次 abort 第一次）。建议改用 ref 跟踪进行中状态。
+- 已知非 bug（无需修）：m3u8-ad-filter 对"同 host 57-group 无 DISCONTINUITY 广告"无法识别——设计限制，STATE 07-03 已记录。`parseBangumiInfoMeta`/`estimateAirProgress`/`dateToWeekday` 等解析均健壮（含 NaN/空值守卫）。`bangumiImageUrl` host 改写幂等（REWRITABLE_HOSTS 集合 + currentHost 判断）。`preferResizedCover` 已修（已有 /r/N/ 也换 host）。
+- 已剔除的代理误报：media.ts cookie 分支非死代码；release.ts pageUrl 含 `|` 臆测（但 release.ts:34 的 split('|') vs key 用 ':' 是真实 bug，见 P2-9）；useWatchLayoutMode 首屏闪烁不存在；anime1 fetch 判 P0 SSRF 偏重；bangumi single-flight 判 P0 偏重；isPrivateHost 重复检查是防御深度。
+- 备注：共享包/构建配置子代理（ad42fd3c）多次催促未返回报告，已停掉，该区域由本人独立核实补全（plugin.ts 校验、m3u8-ad-filter、bangumi.ts/bangumi-image.ts/history.ts/danmaku.ts/player.ts/api.ts、default-plugins 全部 JSON、Dockerfile/vite.config/docker-compose/env/tsconfig）。typecheck 全通过。
+
 ## [2026-08-05] LIBVIO 搜索：api(suggest) → 静态 html 搜索
 
 - 状态：已完成
