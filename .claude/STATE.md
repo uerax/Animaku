@@ -1,5 +1,21 @@
 # Animaku 项目状态
 
+## [2026-08-12] M3U8 去广告算法多维打分模型升级
+
+- 状态：已完成
+- 优先级：P1
+- 描述：升级 `packages/shared/src/m3u8-ad-filter.ts` 中的 `filterAds` 算法，从硬编码二元规则迁移至多维度加权打分模型。
+  - **核心改进**：
+    1. **URI 全路径规范化**：修改 `parseOriginAndDir` 精确提取完整的 URL 目录路径（包含深层子路径），提升地理位置特征区分度。
+    2. **动态 Query 与文件名归一化（`normalizeUriForSignature`）**：去除 URI 中的 Query 参数（如 `token`, `t`, `sign`）并将数字和哈希换为通配符，能有效召回带动态随机参数的同款广告模板。
+    3. **正片签名保护与异构重复判定**：提取全片累积时长最大的 `mainSig`，仅对非正片主签名的重复短组计算 `isRepeatedSig`，避免误将正片转码分组判为广告。
+    4. **KEY 不一致与切片时长异动判定**：整合 `#EXT-X-KEY`（加密与未加密/密钥更换）及切片偏离均值的异常程度。
+    5. **多维打分引擎与收紧 Safeguard**：综合计算 Location、Signature、Key 突变、时长偏离等风险得分；结合真实场景（24-25 min 视频中广告一般 <= 1 min），将 Safeguard 防误杀熔断保护阈值从原 35% 严格收紧至 8% (2/25)，并收紧短组时长阈值（<= 90s/60s）。
+    6. **切片模长离群检测 (`isSegCountAnomaly`)**：成功破解隐蔽同 Host/Path 的形态 B 广告（如 `cnvod.jimxtc.com` 实测案例）。通过分析全片 52 组切片分布，自动捕获偏离主导转码模数（如 5/10/15 切片/组）的孤立插播短组（如 2/3/4 切片/组），经 ffprobe 探查准确判定并切除 34.87s 的 30fps 中插广告（占全片 2.43% < 8%）。
+    7. **智能 Referer 识别与自动回退 baseURL 机制**：重构 `apps/server/src/routes/media.ts` 中的 `resolveEffectiveReferer`。规则无显式 `referer` 时自动取 `rule.baseURL` 平台目标域名发给 CDN，插件无需手写 `referer`；仅当客户端 Referer 为本地回环（`localhost` / `127.0.0.1`）且无 `baseURL` 时自动回退伪装为 `target.origin/`。
+  - **验证**：单测覆盖跨域名广告（100% 切除）、MXdm 多组同 Location 0 误杀、动态带参广告模板命中切除；全仓 `pnpm typecheck` 通过。
+- 涉及文件：packages/shared/src/m3u8-ad-filter.ts
+
 ## [2026-08-11] M3U8 去广告算法重构（防误杀与多维度特征识别）
 
 - 状态：已完成

@@ -17,6 +17,43 @@ function originFromReferer(referer: string): string {
 }
 
 /**
+ * Resolve effective referer/origin for upstream media requests.
+ *
+ * - If reqReferer is a valid external platform URL (e.g. from plugin JSON `rule.referer` / `rule.baseURL`),
+ *   preserve it so anti-hotlink checks pass on source sites like LIBVIO/MXdm.
+ * - If reqReferer is empty or a local loopback address (e.g. localhost, 127.0.0.1),
+ *   fallback to target's own origin (`target.origin/`) so CDNs treat it as same-site playback.
+ */
+function resolveEffectiveReferer(
+  reqReferer: string | undefined,
+  target: URL,
+): { referer: string; origin: string } {
+  const raw = (reqReferer || '').trim()
+
+  if (!raw) {
+    return { referer: `${target.origin}/`, origin: target.origin }
+  }
+
+  try {
+    const refUrl = new URL(raw)
+
+    // Check if referer is local / loopback
+    const isLocal =
+      /^(localhost|127\.0\.0\.1|0\.0\.0\.0)$/i.test(refUrl.hostname) ||
+      refUrl.hostname.endsWith('.invalid')
+
+    if (isLocal) {
+      return { referer: `${target.origin}/`, origin: target.origin }
+    }
+
+    // Preserve valid non-local referers (e.g. from plugin JSON rules)
+    return { referer: raw, origin: refUrl.origin }
+  } catch {
+    return { referer: `${target.origin}/`, origin: target.origin }
+  }
+}
+
+/**
  * Abort only until response headers arrive. Do NOT use AbortSignal.timeout()
  * for media proxy: that timer stays armed during body streaming and aborts
  * long progressive mp4 / HLS segments after ~20s → uncaught TimeoutError in
@@ -245,14 +282,17 @@ mediaRoutes.get('/proxy', async (c) => {
     }
   }
 
-  const origin = originFromReferer(referer)
+  const { referer: effectiveReferer, origin } = resolveEffectiveReferer(
+    referer,
+    target,
+  )
   const headers: Record<string, string> = {
     'User-Agent': config.defaultUserAgent,
     Accept: '*/*',
     'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
   }
-  if (referer) {
-    headers.Referer = referer
+  if (effectiveReferer) {
+    headers.Referer = effectiveReferer
     if (origin) headers.Origin = origin
   }
   if (cookie) {
@@ -397,7 +437,7 @@ mediaRoutes.get('/proxy', async (c) => {
     // When full media proxy is off, never rewrite segments through us even if
     // client sent fullProxy/cookie (cookie on m3u8 master is rare; still hybrid).
     const rewriteOpts: RewriteOpts = {
-      referer,
+      referer: effectiveReferer,
       cookie: config.mediaFullProxy ? cookie : '',
       adFilter,
       fullProxy,

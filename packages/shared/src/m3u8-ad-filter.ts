@@ -161,25 +161,44 @@ export function parseMediaPlaylist(
 
 function parseOriginAndDir(uri: string): { origin: string; dir: string } {
   try {
-    const m = uri.match(/^(https?:\/\/[^/?#]+)(\/[^?#]*\/)?/i)
+    const m = uri.match(/^(https?:\/\/[^/?#]+)([^?#]*)/i)
     if (!m) return { origin: '', dir: '' }
-    return { origin: m[1]!.toLowerCase(), dir: m[2] || '/' }
+    const origin = m[1]!.toLowerCase()
+    const path = m[2] || '/'
+    const dir = path.includes('/')
+      ? path.slice(0, path.lastIndexOf('/') + 1)
+      : '/'
+    return { origin, dir }
   } catch {
     return { origin: '', dir: '' }
   }
 }
 
+/** Normalize URI for signature comparison by stripping query parameters and replacing numeric/hash patterns in filenames. */
+export function normalizeUriForSignature(uri: string): string {
+  try {
+    // Strip query strings and hash anchors
+    const clean = uri.replace(/[?#].*$/, '')
+    const lastSlashIndex = clean.lastIndexOf('/')
+    if (lastSlashIndex === -1) return clean
+
+    const dir = clean.slice(0, lastSlashIndex + 1)
+    const filename = clean.slice(lastSlashIndex + 1)
+
+    // Normalize numbers and hex hashes (e.g. ad_102.ts -> ad_*.ts, a1b2c3d4.ts -> *.ts)
+    const normalizedFile = filename
+      .replace(/\d+/g, '*')
+      .replace(/[a-f0-9]{16,}/gi, '*')
+
+    return `${dir}${normalizedFile}`
+  } catch {
+    return uri
+  }
+}
+
 /**
- * Filter ad segments using location (origin + directory) and repetition signals.
- *
- * Real-world observations:
- * - Type A (e.g. omofun): Ads reside on a different CDN host or directory path from content.
- *   → Group(s) with origin/dir differing from the main content stream (< 120s) are dropped.
- * - Type B (e.g. MXdm): Transcoding produces dozens of discontinuity groups, but ALL segments
- *   share the exact same origin and directory path.
- *   → Whole stream is preserved intact (0% false positives).
- * - Repeated ads: Identical short segment sequences inserted across multiple groups (e.g. G1 & G3).
- *   → Flagged and dropped.
+ * Filter ad segments using a multi-dimensional scoring model.
+ * Evaluates location (origin + full dir), URI pattern signatures, key changes, and duration anomalies.
  */
 export function filterAds(segments: M3u8Segment[]): M3u8Segment[] {
   if (segments.length === 0) return segments
@@ -193,15 +212,20 @@ export function filterAds(segments: M3u8Segment[]): M3u8Segment[] {
 
   if (groups.size <= 1) return segments
 
-  // Calculate total duration per (origin + dir)
+  // 1. Calculate total duration and key usage per (origin + dir)
   const locDuration = new Map<string, number>()
+  const keyDuration = new Map<string, number>()
+
   for (const seg of segments) {
     const { origin, dir } = parseOriginAndDir(seg.uri)
-    const key = `${origin}${dir}`
-    locDuration.set(key, (locDuration.get(key) || 0) + seg.duration)
+    const locKey = `${origin}${dir}`
+    locDuration.set(locKey, (locDuration.get(locKey) || 0) + seg.duration)
+
+    const keyLine = seg.keyLine || 'NONE'
+    keyDuration.set(keyLine, (keyDuration.get(keyLine) || 0) + seg.duration)
   }
 
-  // Determine main stream location (origin + dir with max duration)
+  // Determine main location and main key line
   let mainLoc = ''
   let maxLocDur = 0
   for (const [loc, dur] of locDuration) {
@@ -211,55 +235,141 @@ export function filterAds(segments: M3u8Segment[]): M3u8Segment[] {
     }
   }
 
-  const totalDuration = segments.reduce((s, seg) => s + seg.duration, 0)
-  const adGroups = new Set<number>()
+  let mainKeyLine = 'NONE'
+  let maxKeyDur = 0
+  for (const [kLine, dur] of keyDuration) {
+    if (dur > maxKeyDur) {
+      maxKeyDur = dur
+      mainKeyLine = kLine
+    }
+  }
 
-  // Track group signatures for repetition detection
+  // Calculate main stream average segment duration & variance
+  const mainLocSegments = segments.filter((s) => {
+    const { origin, dir } = parseOriginAndDir(s.uri)
+    return `${origin}${dir}` === mainLoc
+  })
+  const mainAvgDuration =
+    mainLocSegments.length > 0
+      ? mainLocSegments.reduce((s, seg) => s + seg.duration, 0) /
+        mainLocSegments.length
+      : 0
+
+  const totalDuration = segments.reduce((s, seg) => s + seg.duration, 0)
+
+  // 2. Track group normalized signatures for repetition detection
   const groupSignatures = new Map<number, { sig: string; duration: number }>()
+  const sigCounts = new Map<string, number>()
+  const sigDurations = new Map<string, number>()
 
   for (const [groupId, segs] of groups) {
     const groupDuration = segs.reduce((sum, s) => sum + s.duration, 0)
-    const sig = segs.map((s) => s.uri).sort().join('|')
+    const sig = segs
+      .map((s) => normalizeUriForSignature(s.uri))
+      .sort()
+      .join('|')
     groupSignatures.set(groupId, { sig, duration: groupDuration })
 
+    sigCounts.set(sig, (sigCounts.get(sig) || 0) + 1)
+    sigDurations.set(sig, (sigDurations.get(sig) || 0) + groupDuration)
+  }
+
+  // Find the signature pattern with maximum total duration (main stream signature)
+  let mainSig = ''
+  let maxSigDur = 0
+  for (const [sig, dur] of sigDurations) {
+    if (dur > maxSigDur) {
+      maxSigDur = dur
+      mainSig = sig
+    }
+  }
+
+  // 3. Analyze group segment count distribution to detect isolated fractional groups (e.g. 2, 3 or 4 segs vs standard 5/10/15 segs)
+  const segCountFreq = new Map<number, number>()
+  for (const [, segs] of groups) {
+    segCountFreq.set(segs.length, (segCountFreq.get(segs.length) || 0) + 1)
+  }
+
+  let dominantSegCount = 5
+  let maxFreq = 0
+  for (const [count, freq] of segCountFreq) {
+    if (freq > maxFreq) {
+      maxFreq = freq
+      dominantSegCount = count
+    }
+  }
+
+  // 4. Score each group using the multi-dimensional feature model
+  const adGroups = new Set<number>()
+
+  for (const [groupId, segs] of groups) {
+    const groupDuration = segs.reduce((sum, s) => sum + s.duration, 0)
+    const { sig } = groupSignatures.get(groupId)!
+
     let hasMainLoc = false
+    let hasMainKey = false
+    let groupTotalSegDuration = 0
+
     for (const s of segs) {
       const { origin, dir } = parseOriginAndDir(s.uri)
       if (`${origin}${dir}` === mainLoc) {
         hasMainLoc = true
-        break
       }
+      if ((s.keyLine || 'NONE') === mainKeyLine) {
+        hasMainKey = true
+      }
+      groupTotalSegDuration += s.duration
     }
 
-    // Rule 1: Group is outside main origin/dir and duration < 120s
-    if (!hasMainLoc && groupDuration < 120) {
+    const groupAvgDuration =
+      segs.length > 0 ? groupTotalSegDuration / segs.length : 0
+
+    // Feature Calculations
+    const isDiffLoc = !hasMainLoc
+    // Only flag repeated signature if it's NOT the main stream signature
+    const isRepeatedSig =
+      sig !== mainSig &&
+      (sigCounts.get(sig) || 0) > 1 &&
+      (sigDurations.get(sig) || 0) < 120
+
+    const isKeyMismatch = !hasMainKey && mainKeyLine !== 'NONE'
+    // Anomaly: segment duration deviates significantly from main stream avg duration
+    const isDurationAnomaly =
+      mainAvgDuration > 0 &&
+      Math.abs(groupAvgDuration - mainAvgDuration) / mainAvgDuration > 0.4
+
+    // Anomaly: group segment count is an isolated fractional count compared to the dominant stream pattern
+    const isSegCountAnomaly =
+      segs.length < dominantSegCount &&
+      (segCountFreq.get(segs.length) || 0) <= Math.max(2, Math.floor(groups.size * 0.05))
+
+    let score = 0
+
+    if (isDiffLoc && groupDuration <= 90) score += 45
+    if (isRepeatedSig && groupDuration <= 90) score += 45
+    if (isKeyMismatch && groupDuration <= 90) score += 30
+    if (isDurationAnomaly && groupDuration <= 90) score += 20
+    if (isSegCountAnomaly && groupDuration <= 90) score += 40
+
+    if (groupDuration <= 60) score += 25
+    else if (groupDuration <= 90) score += 15
+    else if (groupDuration > 240) score -= 50
+
+    if (score >= 60) {
       adGroups.add(groupId)
-    }
-  }
-
-  // Rule 2: Repeated short groups (e.g. same pre-roll / mid-roll ad template)
-  const sigCounts = new Map<string, number>()
-  for (const [, { sig, duration }] of groupSignatures) {
-    if (duration < 120) {
-      sigCounts.set(sig, (sigCounts.get(sig) || 0) + 1)
-    }
-  }
-  for (const [gid, { sig, duration }] of groupSignatures) {
-    if (duration < 120 && (sigCounts.get(sig) || 0) > 1) {
-      adGroups.add(gid)
     }
   }
 
   if (adGroups.size === 0) return segments
 
-  // Safeguard: abort if removing > 35% of total duration
+  // Safeguard: abort if removing > 8% (2/25) of total duration (ads are usually <= 1min in ~25min VODs)
   let removedDuration = 0
   for (const gid of adGroups) {
     removedDuration += groups
       .get(gid)!
       .reduce((sum, s) => sum + s.duration, 0)
   }
-  if (removedDuration / totalDuration > 0.35) return segments
+  if (removedDuration / totalDuration > 2 / 25) return segments
 
   const filtered = segments.filter((s) => !adGroups.has(s.discontinuityGroup))
   return filtered.length === 0 ? segments : filtered
