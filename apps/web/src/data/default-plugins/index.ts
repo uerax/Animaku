@@ -13,7 +13,7 @@ import libvio from './libvio.json'
  * - xifan: 稀饭 anime.xifanacg.com — suggest API search + HTML chapters + player_aaaa
  * - MXdm: MacCMS-style third party
  * - omofun: 211dm/omofuns — server search adapter (verify gate) + XPath chapters + player_aaaa
- * - LIBVIO: release-page 类型 (libviogroup.github.io) — API search + XPath chapters + player_aaaa (encrypt=3)
+ * - LIBVIO: release-page 类型 (libviogroup.github.io) — XPath search + XPath chapters + player_aaaa (encrypt=3)
  * - Anime1: progressive + cookie adapter (client disables when mediaFullProxy=0)
  * More sources: Settings, catalog / import (7sefun, AGE, gugu3 still folder-only).
  */

@@ -1,5 +1,18 @@
 # Animaku 项目状态
 
+## [2026-08-12] 修复 LIBVIO 旧客户端/浏览器缓存规则 403 无法自动更新
+- 状态：已完成
+- 优先级：P1
+- 描述：分析 LIBVIO 403 原因及 Safari/Chrome 表现差异。
+  - **根本原因**：LIBVIO 源站针对 `/index.php/ajax/suggest` 接口开启了 WAF 拦截（返回 403），8-05 虽然已将内置 `libvio.json` 改为静态 HTML 搜索（`searchMode: xpath`），但未递增 `PLUGIN_DEFAULTS_VERSION`，且 `plugins.ts` 的 `ensureDefaults()` 迁移逻辑仅更新 `adBlocker` 和 `proxy` 标志，未将新规则定义覆盖至已缓存的内置规则。导致之前在本地保存过旧规则的浏览器（如 Safari）持续发送 API 模式规则，报 403 错误。
+  - **解决方案**：
+    1. `apps/web/src/stores/plugins.ts`：递增 `PLUGIN_DEFAULTS_VERSION` 至 12。
+    2. 重构 `ensureDefaults()` 的内置规则同步逻辑：当 `defaultsVersion` 提升时，对 `source: 'builtin'` 的规则更新全量规则定义（如 `searchMode`、`searchURL` 等），同时保留用户自定义的 `enabled`/`adBlocker`/`proxy` 偏好设置。
+    3. 补充 `libvio` 至 `legacyBuiltinNames` 集合。
+    4. 更新 `apps/web/src/data/default-plugins/index.ts` 中的注释。
+- 涉及文件：apps/web/src/stores/plugins.ts, apps/web/src/data/default-plugins/index.ts
+- 备注：`pnpm typecheck` 全通过。用户在 Safari 下无需手动清除 localStorage 即可自动升级为最新 XPath 搜索规则。
+
 ## [2026-08-12] M3U8 去广告算法多维打分模型升级
 
 - 状态：已完成

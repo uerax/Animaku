@@ -15,7 +15,8 @@ migrateLocalStorageKey('animaku-plugins', [
 /** v9: add omofun (211dm/omofuns) built-in */
 /** v10: Anime1 last (needs MEDIA_FULL_PROXY); HLS sources first */
 /** v11: add pluginOrder for user-custom sorting */
-export const PLUGIN_DEFAULTS_VERSION = 11
+/** v12: update built-in plugin rules (e.g. LIBVIO suggest API 403 -> xpath static search) */
+export const PLUGIN_DEFAULTS_VERSION = 12
 
 interface PluginState {
   plugins: PluginMeta[]
@@ -259,6 +260,7 @@ export const usePluginStore = create<PluginState>()(
         // v9: add omofun (211dm / omofuns).
         // v10: Anime1 last (MEDIA_FULL_PROXY).
         // v11: pluginOrder for user sort.
+        // v12: update built-in plugin rules (e.g. LIBVIO searchMode api -> xpath).
         const legacyBuiltinNames = new Set(
           [
             '7sefun',
@@ -271,6 +273,7 @@ export const usePluginStore = create<PluginState>()(
             'otage',
             'xifan',
             'omofun',
+            'libvio',
           ].map((s) => s.toLowerCase()),
         )
         const onlyLegacyBuiltins = plugins.every(
@@ -287,8 +290,8 @@ export const usePluginStore = create<PluginState>()(
         }
         // Mixed store: add any new built-ins; drop retired default 7sefun
         // only when it was backend marked builtin (user re-import keeps source=import).
-        // Also align *builtin* adBlocker to current DEFAULT_PLUGIN_RULES
-        // without overwriting user/catalog rules.
+        // Also align *builtin* rule definitions and adBlocker/proxy flags to current
+        // DEFAULT_PLUGIN_RULES without overwriting user/catalog rules.
         const seedByName = new Map(
           seedFromDefaults().map((p) => [p.name.toLowerCase(), p]),
         )
@@ -308,9 +311,11 @@ export const usePluginStore = create<PluginState>()(
           const seed = seedByName.get(p.name.toLowerCase())
           if (!seed) return p
           return {
-            ...p,
-            adBlocker: Boolean(seed.adBlocker),
+            ...seed,
+            enabled: p.enabled ?? seed.enabled,
+            adBlocker: p.adBlocker ?? Boolean(seed.adBlocker),
             proxy: p.proxy ?? (seed.requiresFullMediaProxy === true ? true : undefined),
+            importedAt: p.importedAt ?? seed.importedAt,
           }
         })
         if (missing.length) next = [...next, ...missing]
