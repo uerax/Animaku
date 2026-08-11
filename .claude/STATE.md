@@ -1,5 +1,18 @@
 # Animaku 项目状态
 
+## [2026-08-11] M3U8 去广告算法重构（防误杀与多维度特征识别）
+
+- 状态：已完成
+- 优先级：P1
+- 描述：基于 MXdm (`cnvod.jimxtc.com`) 和 omofun (`bfikuncdn.com`) 真实 m3u8 数据分析，重构 `packages/shared/src/m3u8-ad-filter.ts` 中的 `filterAds` 去广告算法。
+  - **问题根源**：旧算法纯靠 Group 时长硬编码判定（`duration < maxDuration * 0.3`），在 MXdm 等转码切片源（61 个 discontinuity group，全部同一 host / 同一路径）上把 73.3% 的正片错当广告删除。
+  - **核心改进**：
+    1. **Origin + Directory 路径特征**：按 `(origin, directoryPath)` 维度计算全片主时长的 Content 路径。非主 Content 路径且时长短于 120s 的 group 才标记为广告。
+    2. **重复模板检测**：对不同 group 中片段 URI 序列完全相同的重复短 group（如首尾/中途插播的同款广告模板）进行自动标记剔除。
+    3. ** Safeguard 熔断**：尝试删除的总时长 > 35% 时触发保护，原样保留播放列表。
+  - **验证**：实测 omofun 精准删除 2 组广告（35.3s），保留全部正片；MXdm 61 组全同路径 0 误杀（100% 保留 23.9 min 正片）。`pnpm typecheck` 全项目通过。
+- 涉及文件：packages/shared/src/m3u8-ad-filter.ts
+
 ## [2026-08-05] 全仓代码审查（bug / 优化 / 设计）
 
 - 状态：审查完成，未改代码（待用户点名要修哪些）

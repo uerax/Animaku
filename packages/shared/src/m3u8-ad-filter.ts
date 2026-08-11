@@ -159,8 +159,27 @@ export function parseMediaPlaylist(
   return { segments, targetDuration, isVod, headerLines }
 }
 
+function parseOriginAndDir(uri: string): { origin: string; dir: string } {
+  try {
+    const m = uri.match(/^(https?:\/\/[^/?#]+)(\/[^?#]*\/)?/i)
+    if (!m) return { origin: '', dir: '' }
+    return { origin: m[1]!.toLowerCase(), dir: m[2] || '/' }
+  } catch {
+    return { origin: '', dir: '' }
+  }
+}
+
 /**
- * Filter ad segments. Same thresholds as M3u8AdFilter.
+ * Filter ad segments using location (origin + directory) and repetition signals.
+ *
+ * Real-world observations:
+ * - Type A (e.g. omofun): Ads reside on a different CDN host or directory path from content.
+ *   → Group(s) with origin/dir differing from the main content stream (< 120s) are dropped.
+ * - Type B (e.g. MXdm): Transcoding produces dozens of discontinuity groups, but ALL segments
+ *   share the exact same origin and directory path.
+ *   → Whole stream is preserved intact (0% false positives).
+ * - Repeated ads: Identical short segment sequences inserted across multiple groups (e.g. G1 & G3).
+ *   → Flagged and dropped.
  */
 export function filterAds(segments: M3u8Segment[]): M3u8Segment[] {
   if (segments.length === 0) return segments
@@ -174,37 +193,76 @@ export function filterAds(segments: M3u8Segment[]): M3u8Segment[] {
 
   if (groups.size <= 1) return segments
 
-  const groupDurations = new Map<number, number>()
-  let maxDuration = 0
-  for (const [id, segs] of groups) {
-    const d = segs.reduce((sum, s) => sum + s.duration, 0)
-    groupDurations.set(id, d)
-    if (d > maxDuration) maxDuration = d
+  // Calculate total duration per (origin + dir)
+  const locDuration = new Map<string, number>()
+  for (const seg of segments) {
+    const { origin, dir } = parseOriginAndDir(seg.uri)
+    const key = `${origin}${dir}`
+    locDuration.set(key, (locDuration.get(key) || 0) + seg.duration)
   }
 
-  const adGroups = new Set<number>()
-  const sortedKeys = [...groups.keys()].sort((a, b) => a - b)
-  const first = sortedKeys[0]
-  const last = sortedKeys[sortedKeys.length - 1]
-
-  for (const groupId of sortedKeys) {
-    const groupDuration = groupDurations.get(groupId) ?? 0
-    if (groupDuration === maxDuration) continue
-
-    let isAd = false
-    if (groupDuration < maxDuration * 0.3) isAd = true
-    if (
-      (groupId === first || groupId === last) &&
-      groupDuration < 30
-    ) {
-      isAd = true
+  // Determine main stream location (origin + dir with max duration)
+  let mainLoc = ''
+  let maxLocDur = 0
+  for (const [loc, dur] of locDuration) {
+    if (dur > maxLocDur) {
+      maxLocDur = dur
+      mainLoc = loc
     }
-    if (groupDuration < 10) isAd = true
-    if (isAd) adGroups.add(groupId)
+  }
+
+  const totalDuration = segments.reduce((s, seg) => s + seg.duration, 0)
+  const adGroups = new Set<number>()
+
+  // Track group signatures for repetition detection
+  const groupSignatures = new Map<number, { sig: string; duration: number }>()
+
+  for (const [groupId, segs] of groups) {
+    const groupDuration = segs.reduce((sum, s) => sum + s.duration, 0)
+    const sig = segs.map((s) => s.uri).sort().join('|')
+    groupSignatures.set(groupId, { sig, duration: groupDuration })
+
+    let hasMainLoc = false
+    for (const s of segs) {
+      const { origin, dir } = parseOriginAndDir(s.uri)
+      if (`${origin}${dir}` === mainLoc) {
+        hasMainLoc = true
+        break
+      }
+    }
+
+    // Rule 1: Group is outside main origin/dir and duration < 120s
+    if (!hasMainLoc && groupDuration < 120) {
+      adGroups.add(groupId)
+    }
+  }
+
+  // Rule 2: Repeated short groups (e.g. same pre-roll / mid-roll ad template)
+  const sigCounts = new Map<string, number>()
+  for (const [, { sig, duration }] of groupSignatures) {
+    if (duration < 120) {
+      sigCounts.set(sig, (sigCounts.get(sig) || 0) + 1)
+    }
+  }
+  for (const [gid, { sig, duration }] of groupSignatures) {
+    if (duration < 120 && (sigCounts.get(sig) || 0) > 1) {
+      adGroups.add(gid)
+    }
   }
 
   if (adGroups.size === 0) return segments
-  return segments.filter((s) => !adGroups.has(s.discontinuityGroup))
+
+  // Safeguard: abort if removing > 35% of total duration
+  let removedDuration = 0
+  for (const gid of adGroups) {
+    removedDuration += groups
+      .get(gid)!
+      .reduce((sum, s) => sum + s.duration, 0)
+  }
+  if (removedDuration / totalDuration > 0.35) return segments
+
+  const filtered = segments.filter((s) => !adGroups.has(s.discontinuityGroup))
+  return filtered.length === 0 ? segments : filtered
 }
 
 export function calculateTargetDuration(segments: M3u8Segment[]): number {
