@@ -45,6 +45,7 @@ import {
   bufferedAhead,
   formatTime,
   isM3u8,
+  isVideoFile,
   isXmlDanmakuFile,
 } from './media/format'
 import { usePointerMode } from './chrome/usePointerMode'
@@ -135,8 +136,40 @@ export function VideoPlayer({
   const loadFailedOnceRef = useRef(false)
   const initialTimeRef = useRef(initialTime)
   const authRetryRef = useRef(false)
+  const [localVideo, setLocalVideo] = useState<{ url: string; name: string } | null>(null)
+  const activeSrc = localVideo?.url || src
+
   const [offsetHint, setOffsetHint] = useState('')
   const offsetHintTimer = useRef(0)
+
+  // Revoke local video Blob URL on unmount
+  useEffect(() => {
+    return () => {
+      setLocalVideo((prev) => {
+        if (prev?.url) URL.revokeObjectURL(prev.url)
+        return null
+      })
+    }
+  }, [])
+
+  // Clear local video override when parent changes network src
+  const prevSrcRef = useRef(src)
+  useEffect(() => {
+    if (prevSrcRef.current !== src) {
+      prevSrcRef.current = src
+      setLocalVideo((prev) => {
+        if (prev?.url) URL.revokeObjectURL(prev.url)
+        return null
+      })
+    }
+  }, [src])
+
+  // Toast hint when a local video is loaded
+  useEffect(() => {
+    if (localVideo?.name) {
+      flashSrHint(`已加载本地视频：${localVideo.name}`, 3500)
+    }
+  }, [localVideo])
 
   // Auto-next countdown overlay
   const [countdown, setCountdown] = useState<number | null>(null)
@@ -362,7 +395,7 @@ export function VideoPlayer({
   // Load media
   useEffect(() => {
     const videoEl = videoRef.current
-    if (!videoEl || !src) return
+    if (!videoEl || !activeSrc) return
     // Local non-null alias — nested cleanups must not see `HTMLVideoElement | null`
     const video: HTMLVideoElement = videoEl
 
@@ -555,13 +588,13 @@ export function VideoPlayer({
 
     /** Progressive mp4 path (sync). HLS path is async after dynamic import. */
     const attachProgressive = () => {
-      video.src = src
+      video.src = activeSrc
       video.addEventListener('loadedmetadata', onReady, { once: true })
 
       const tryAuthRefresh = () => {
         if (!alive() || authRetryRef.current) return false
         // cookie-backed progressive sources (anime1 etc.)
-        if (!/[?&]cookie=/.test(src) || !onMediaAuthExpiredRef.current) {
+        if (!/[?&]cookie=/.test(activeSrc) || !onMediaAuthExpiredRef.current) {
           return false
         }
         authRetryRef.current = true
@@ -592,7 +625,7 @@ export function VideoPlayer({
             ? `video_error_${video.error.code}`
             : 'video_load_failed'
           // Direct CDN (CORS / hotlink) → parent may switch to proxy
-          if (!src.includes('/api/media/proxy')) {
+          if (!activeSrc.includes('/api/media/proxy')) {
             setMediaError('直链失败，尝试代理…')
             reportLoadFailed(reason)
             return
@@ -609,10 +642,10 @@ export function VideoPlayer({
       // Mid-play 403 often surfaces as stalled buffer; probe proxy once
       const onStalled = () => {
         if (!alive() || authRetryRef.current) return
-        if (!/[?&]cookie=/.test(src) || !onMediaAuthExpiredRef.current) return
+        if (!/[?&]cookie=/.test(activeSrc) || !onMediaAuthExpiredRef.current) return
         const pos = video.currentTime || 0
         // lightweight HEAD-ish GET with range to detect auth_expired JSON
-        void fetch(src, {
+        void fetch(activeSrc, {
           headers: { Range: 'bytes=0-1' },
           credentials: 'same-origin',
         }).then(async (r) => {
@@ -640,7 +673,7 @@ export function VideoPlayer({
         onStalled
     }
 
-    if (isM3u8(src)) {
+    if (isM3u8(activeSrc)) {
       // Prefer MSE hls.js; fall back to Safari native HLS
       void import('hls.js')
         .then((mod) => {
@@ -660,7 +693,7 @@ export function VideoPlayer({
               manifestLoadingTimeOut: 15_000,
             })
             hlsRef.current = hls
-            hls.loadSource(src)
+            hls.loadSource(activeSrc)
             hls.attachMedia(video)
             hls.on(HlsCtor.Events.MANIFEST_PARSED, () => {
               if (!alive()) return
@@ -675,7 +708,7 @@ export function VideoPlayer({
               }
               console.error('[player] hls fatal', data.type, data.details)
               // Direct CDN often fails CORS; let parent fall back to proxy
-              const direct = !src.includes('/api/media/proxy')
+              const direct = !activeSrc.includes('/api/media/proxy')
               if (direct && data.type === HlsCtor.ErrorTypes.NETWORK_ERROR) {
                 setLoading(false)
                 setBufferingUi(false)
@@ -700,7 +733,7 @@ export function VideoPlayer({
             return
           }
           if (video.canPlayType('application/vnd.apple.mpegurl')) {
-            video.src = src
+            video.src = activeSrc
             video.addEventListener('loadedmetadata', onReady, { once: true })
             video.addEventListener(
               'error',
@@ -1220,10 +1253,11 @@ export function VideoPlayer({
         hlsRef.current = null
       }
       window.clearTimeout(offsetHintTimer.current)
+      setOffsetHint('')
       clearHideTimer()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [src])
+  }, [activeSrc])
 
   useEffect(() => {
     applyDanmaku()
@@ -1467,7 +1501,7 @@ export function VideoPlayer({
     // (black frame while pipeline rebuilds). startAnime4K owns ResizeObserver to
     // retarget canvas buffer size without rebuilding the CNN pipelines.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- webGpuOk set inside after probe
-  }, [src, player.superResolution])
+  }, [activeSrc, player.superResolution])
 
   function togglePlay() {
     const v = videoRef.current
@@ -1663,10 +1697,28 @@ export function VideoPlayer({
     e.stopPropagation()
     setDropActive(false)
     const file = e.dataTransfer?.files?.[0]
-    if (!file || !isXmlDanmakuFile(file)) return
-    danmakuPanel?.onLoadXmlFile(file)
-    setPanelTab('import')
-    setPanelOpen(true)
+    if (!file) return
+
+    if (isXmlDanmakuFile(file)) {
+      danmakuPanel?.onLoadXmlFile(file)
+      setPanelTab('import')
+      setPanelOpen(true)
+      return
+    }
+
+    if (isVideoFile(file)) {
+      const blobUrl = URL.createObjectURL(file)
+      setLocalVideo((prev) => {
+        if (prev?.url) URL.revokeObjectURL(prev.url)
+        return { url: blobUrl, name: file.name }
+      })
+
+      const rawName = file.name.replace(/\.[^/.]+$/, '')
+      if (danmakuPanel?.onKeywordChange) {
+        danmakuPanel.onKeywordChange(rawName)
+      }
+      setPanelTab('search')
+    }
   }
 
   function addFilter() {
@@ -1813,22 +1865,14 @@ export function VideoPlayer({
       onMouseLeave={onShellMouseLeave}
       onClick={onShellClick}
       onDoubleClick={onShellDoubleClick}
-      onDrop={danmakuPanel ? handleDrop : undefined}
-      onDragOver={
-        danmakuPanel
-          ? (e) => {
-              e.preventDefault()
-              setDropActive(true)
-            }
-          : undefined
-      }
-      onDragLeave={
-        danmakuPanel
-          ? (e) => {
-              if (e.currentTarget === e.target) setDropActive(false)
-            }
-          : undefined
-      }
+      onDrop={handleDrop}
+      onDragOver={(e) => {
+        e.preventDefault()
+        setDropActive(true)
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget === e.target) setDropActive(false)
+      }}
     >
       {/* Full-size video — never reparented by a third-party UI library */}
       <video
@@ -1899,7 +1943,7 @@ export function VideoPlayer({
       )}
 
       {dropActive && (
-        <div className="kz-drop-overlay">松开以加载弹幕 XML</div>
+        <div className="kz-drop-overlay">松开以加载本地视频或弹幕 XML</div>
       )}
 
       {/* Center play when paused */}

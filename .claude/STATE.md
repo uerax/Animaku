@@ -1,5 +1,12 @@
 # Animaku 项目状态
 
+## [2026-08-13] 支持拖拽本地视频文件至播放器播放
+- 状态：已完成
+- 优先级：P2
+- 描述：在 VideoPlayer 中增加对本地视频文件（MP4/MKV/WebM/MOV/AVI/FLV 等）拖拽释放的侦听支持。创建 Blob URL 进行本地播放，自动提取无后缀文件名填充至弹幕搜索框方便弹幕配对，并在切换网络源或组件卸载时自动回收 Blob URL 内存。
+- 涉及文件：apps/web/src/player/media/format.ts, apps/web/src/player/VideoPlayer.tsx
+- 备注：`pnpm typecheck` 全通过。前端轻量响应，对原播放流程零侵入。
+
 ## [2026-08-13] 调整 GitHub 标识位置至页面右上角 Header
 - 状态：已完成
 - 优先级：P2

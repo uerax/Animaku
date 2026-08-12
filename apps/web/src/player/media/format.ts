@@ -18,6 +18,12 @@ export function isXmlDanmakuFile(file: File) {
   )
 }
 
+export function isVideoFile(file: File) {
+  if (file.type.startsWith('video/')) return true
+  const name = file.name.toLowerCase()
+  return /\.(mp4|mkv|webm|mov|avi|flv|m4v|3gp|ts)$/i.test(name)
+}
+
 export function formatTime(sec: number) {
   if (!Number.isFinite(sec) || sec < 0) return '0:00'
   const s = Math.floor(sec % 60)
