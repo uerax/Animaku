@@ -1156,13 +1156,12 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   object-fit: contain !important;
 }
 
-/* Icon+label fullscreen controls: label visible on wide bars */
+/* Icon-only fullscreen controls */
 .kz-ctrl-fs,
 .kz-ctrl-web-fs {
-  gap: 4px;
+  width: var(--kz-ctrl-h);
   min-width: var(--kz-ctrl-h);
-  padding: 0 8px;
-  width: auto;
+  padding: 0;
 }
 
 .kz-ctrl-fs .kz-ctrl-label,

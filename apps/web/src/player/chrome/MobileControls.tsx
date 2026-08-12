@@ -284,29 +284,23 @@ export function MobileControls(props: PlayerControlsProps) {
 
           <button
             type="button"
-            className="kz-ctrl kz-ctrl-icon kz-ctrl-fs"
-            data-active={playerFs}
-            onClick={onTogglePlayerFs}
-            title="全屏"
-            aria-label={playerFs ? '退出全屏' : '全屏'}
-          >
-            {playerFs ? <IconFullscreenExit /> : <IconFullscreen />}
-            <span className="kz-ctrl-label">
-              {playerFs ? '退出' : '全屏'}
-            </span>
-          </button>
-          <button
-            type="button"
             className="kz-ctrl kz-ctrl-icon kz-ctrl-web-fs"
             data-active={webFs}
             onClick={onToggleWebFs}
-            title="网页全屏"
+            title={webFs ? '退出网页全屏' : '网页全屏'}
             aria-label={webFs ? '退出网页全屏' : '网页全屏'}
           >
             {webFs ? <IconWebFsExit /> : <IconWebFs />}
-            <span className="kz-ctrl-label kz-ctrl-label-web-fs">
-              {webFs ? '退出网页' : '网页全屏'}
-            </span>
+          </button>
+          <button
+            type="button"
+            className="kz-ctrl kz-ctrl-icon kz-ctrl-fs"
+            data-active={playerFs}
+            onClick={onTogglePlayerFs}
+            title={playerFs ? '退出全屏' : '全屏'}
+            aria-label={playerFs ? '退出全屏' : '全屏'}
+          >
+            {playerFs ? <IconFullscreenExit /> : <IconFullscreen />}
           </button>
         </div>
       </div>

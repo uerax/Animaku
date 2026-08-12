@@ -5,7 +5,12 @@ import {
   useRef,
   useState,
 } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import {
+  useLocation,
+  useSearchParams,
+  type NavigateOptions,
+  type URLSearchParamsInit,
+} from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   buildSearchKeywords,
@@ -224,7 +229,30 @@ export type WatchSession = {
  * Plugin list is idle until user clicks a source — no auto fan-out.
  */
 export function useWatchSession(bangumiId: number): WatchSession {
+  const location = useLocation()
   const [params, setParams] = useSearchParams()
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  const isWatchPage = useCallback(() => {
+    if (!mountedRef.current) return false
+    const path = location.pathname
+    return path.startsWith('/subject/') || path.startsWith('/play/')
+  }, [location.pathname])
+
+  const safeSetParams = useCallback(
+    (nextInit: URLSearchParamsInit, navigateOptions?: NavigateOptions) => {
+      if (!isWatchPage()) return
+      setParams(nextInit, navigateOptions)
+    },
+    [isWatchPage, setParams],
+  )
+
   const qPlugin = params.get('plugin') || ''
   const qPageUrl = params.get('pageUrl') || ''
   const qEp = Number(params.get('ep') || '0')
@@ -477,6 +505,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
         const res = await pluginApi.chapters(plugin, searchItem.src, {
           signal: chaptersAc.signal,
         })
+        if (!isWatchPage()) return
         if (chaptersGen.current !== gen) return
         const roads = res.data.roads
         writeRoadsForSource(bangumiId, plugin.name, searchItem.src, roads)
@@ -501,8 +530,9 @@ export function useWatchSession(bangumiId: number): WatchSession {
         q.delete('pageUrl')
         q.delete('ep')
         q.delete('road')
-        setParams(q, { replace: true })
+        safeSetParams(q, { replace: true })
       } catch (e) {
+        if (!isWatchPage()) return
         if (chaptersGen.current !== gen) return
         if (chaptersAc.signal.aborted) return
         const msg = e instanceof Error ? e.message : '获取分集失败'
@@ -511,13 +541,13 @@ export function useWatchSession(bangumiId: number): WatchSession {
         setSelection(null)
         setPendingSource(null)
       } finally {
-        if (chaptersGen.current === gen) {
+        if (mountedRef.current && chaptersGen.current === gen) {
           roadLoadingRef.current = false
           setRoadLoading(false)
         }
       }
     },
-    [bangumiId, cover, dmResetPools, setParams, title],
+    [bangumiId, cover, dmResetPools, isWatchPage, safeSetParams, title],
   )
 
   const searchOnePlugin = useCallback(
@@ -834,6 +864,9 @@ export function useWatchSession(bangumiId: number): WatchSession {
         resumeOverrideRef.current = null
         setResumePosition(pos)
 
+        if (!isWatchPage()) return
+        if (cancelled) return
+
         setSelection({ plugin, source, roads })
         setVisibleRoad(roadIdx)
         setEpisode({
@@ -849,7 +882,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
         if (source.src) q.set('source', source.src)
         if (title) q.set('title', title)
         if (cover) q.set('cover', cover)
-        setParams(q, { replace: true })
+        safeSetParams(q, { replace: true })
         // Only lock after a successful attach
         if (!cancelled) resumeDoneFor.current = key
       } catch (e) {
@@ -944,7 +977,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     if (selection.source.src) q.set('source', selection.source.src)
     q.set('title', title)
     if (cover) q.set('cover', cover)
-    setParams(q, { replace: true })
+    safeSetParams(q, { replace: true })
   }
 
   function goAdjacentEpisode(delta: number) {

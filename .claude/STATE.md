@@ -1,5 +1,21 @@
 # Animaku 项目状态
 
+## [2026-08-13] 播放器全屏与网页全屏按钮调整
+- 状态：已完成
+- 优先级：P2
+- 描述：调整控制条按钮顺序与图标样式：将「网页全屏」调至「全屏」按钮之前；移除按钮内的固定文案 `<span>` 标签，改为纯图标按钮展现，并通过鼠标悬停/聚焦 `title` / `aria-label` 提供纯文案提示。
+- 涉及文件：apps/web/src/player/chrome/DesktopControls.tsx, apps/web/src/player/chrome/MobileControls.tsx, apps/web/src/player/plyr-overrides.css
+- 备注：`pnpm typecheck` 全通过。
+
+## [2026-08-13] 修复播放页加载中导航离开被拉回播放页的 Bug
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  - **根本原因**：用户在播放页加载分集或资源请求中点击导航栏离开，异步请求完成后无组件挂载及路由有效性校验，依然盲目执行 `setParams(q, { replace: true })` 将播放 Query 写入目标页面 URL，引发路由重定向或被拉回播放页。
+  - **解决方案**：在 `apps/web/src/lib/use-watch-session.ts` 引入 `mountedRef` 生命周期跟踪及 `isWatchPage` 校验，封装 `safeSetParams` 安全函数。在 `pickSource`、`pickEpisode` 及自动续播完成回调处增加离场判断，若组件已卸载或当前页面不再是播放页则截断后续状态更新与 URL 参数写入。
+- 涉及文件：apps/web/src/lib/use-watch-session.ts
+- 备注：`pnpm typecheck` 全通过。
+
 ## [2026-08-13] 全仓代码审查缺陷修复落地
 - 状态：已完成
 - 优先级：P1-P3

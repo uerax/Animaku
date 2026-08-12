@@ -238,29 +238,23 @@ export function DesktopControls(props: PlayerControlsProps) {
           </div>
           <button
             type="button"
-            className="kz-ctrl kz-ctrl-icon kz-ctrl-fs"
-            data-active={playerFs}
-            onClick={onTogglePlayerFs}
-            title="全屏（iPhone 为系统视频全屏；其它环境为播放器/网页全屏）"
-            aria-label={playerFs ? '退出全屏' : '全屏'}
-          >
-            {playerFs ? <IconFullscreenExit /> : <IconFullscreen />}
-            <span className="kz-ctrl-label">
-              {playerFs ? '退出' : '全屏'}
-            </span>
-          </button>
-          <button
-            type="button"
             className="kz-ctrl kz-ctrl-icon kz-ctrl-web-fs"
             data-active={webFs}
             onClick={onToggleWebFs}
-            title="网页全屏（铺满视口；iOS 上可作无 API 时的替代）"
+            title={webFs ? '退出网页全屏' : '网页全屏'}
             aria-label={webFs ? '退出网页全屏' : '网页全屏'}
           >
             {webFs ? <IconWebFsExit /> : <IconWebFs />}
-            <span className="kz-ctrl-label kz-ctrl-label-web-fs">
-              {webFs ? '退出网页' : '网页全屏'}
-            </span>
+          </button>
+          <button
+            type="button"
+            className="kz-ctrl kz-ctrl-icon kz-ctrl-fs"
+            data-active={playerFs}
+            onClick={onTogglePlayerFs}
+            title={playerFs ? '退出全屏' : '全屏'}
+            aria-label={playerFs ? '退出全屏' : '全屏'}
+          >
+            {playerFs ? <IconFullscreenExit /> : <IconFullscreen />}
           </button>
         </div>
       </div>

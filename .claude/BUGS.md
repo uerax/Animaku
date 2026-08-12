@@ -83,3 +83,10 @@
 - 优先级：P3
 - 描述：已删除死代码文件 async-pool.ts，清理了 VideoPlayerProps.onEnded 从未使用过的冗余接口与引用
 - 涉及文件：apps/web/src/lib/async-pool.ts, apps/web/src/player/types.ts, apps/web/src/player/VideoPlayer.tsx
+
+## [2026-08-13] 播放页加载中导航离开被拉回播放页的 Bug
+
+- 状态：已完成
+- 优先级：P1
+- 描述：在播放页加载分集或资源时点击顶部导航栏离开，异步请求成功后无组件挂载/路由守卫盲目执行 setParams，导致 URL 被污染或被拉回播放页；已引入 mountedRef 与 safeSetParams 防御
+- 涉及文件：apps/web/src/lib/use-watch-session.ts
