@@ -303,46 +303,56 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-10">
+    <div className="mx-auto max-w-3xl space-y-8">
       <PageHeader title="设置" description="Token、规则插件与弹幕偏好" />
 
-      <section className="space-y-3 rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-5">
-        <h2 className="text-lg font-bold tracking-tight text-[var(--kz-fg)]">服务状态</h2>
-        <div className="text-sm text-[var(--kz-fg-muted)]">
-          API：{health.data?.ok ? '正常' : health.isLoading ? '检测中…' : '不可用（请启动 server）'}
-          <br />
-          弹幕：
-          {health.data?.danmakuConfigured
-            ? (health.data as ServerHealth).danmakuUsingFallback
-              ? '可用（内置密钥，与 agefans-enhance 相同）'
-              : '已配置开放平台密钥'
-            : '不可用'}
-          <br />
-          媒体代理：
-          {health.isLoading
-            ? '检测中…'
-            : health.data?.ok
-              ? mediaFullProxy
-                ? '允许全量（m3u8 + 分片/整段，MEDIA_FULL_PROXY=1）'
-                : '仅 m3u8 列表（默认 MEDIA_FULL_PROXY=0；分片直连 CDN）'
-              : '未知'}
+      <section className="space-y-3 rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-6 shadow-sm transition-all duration-200 hover:border-[var(--kz-accent-ring)]">
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-[var(--kz-accent)]" />
+          <h2 className="text-lg font-bold tracking-tight text-[var(--kz-fg)]">服务状态</h2>
+        </div>
+        <div className="text-sm text-[var(--kz-fg-muted)] space-y-1">
+          <div>API：<span className="font-semibold text-[var(--kz-fg)]">{health.data?.ok ? '正常' : health.isLoading ? '检测中…' : '不可用（请启动 server）'}</span></div>
+          <div>
+            弹幕：
+            <span className="font-semibold text-[var(--kz-fg)]">
+              {health.data?.danmakuConfigured
+                ? (health.data as ServerHealth).danmakuUsingFallback
+                  ? '可用（内置密钥，与 agefans-enhance 相同）'
+                  : '已配置开放平台密钥'
+                : '不可用'}
+            </span>
+          </div>
+          <div>
+            媒体代理：
+            <span className="font-semibold text-[var(--kz-fg)]">
+              {health.isLoading
+                ? '检测中…'
+                : health.data?.ok
+                  ? mediaFullProxy
+                    ? '允许全量（m3u8 + 分片/整段，MEDIA_FULL_PROXY=1）'
+                    : '仅 m3u8 列表（默认 MEDIA_FULL_PROXY=0；分片直连 CDN）'
+                  : '未知'}
+            </span>
+          </div>
           {!health.isLoading && health.data?.ok && (
-            <>
-              <br />
+            <div>
               开放代理访问：
-              {(health.data as ServerHealth).publicProxy
-                ? '公网可调（PUBLIC_PROXY 默认开）'
-                : '仅本机/局域网（PUBLIC_PROXY=0）'}
-            </>
+              <span className="font-semibold text-[var(--kz-fg)]">
+                {(health.data as ServerHealth).publicProxy
+                  ? '公网可调（PUBLIC_PROXY 默认开）'
+                  : '仅本机/局域网（PUBLIC_PROXY=0）'}
+              </span>
+            </div>
           )}
         </div>
-        <p className="text-xs text-[var(--kz-fg-dim)]">
+        <p className="text-xs text-[var(--kz-fg-dim)] pt-1">
           以上两项由服务器 <code className="text-[var(--kz-fg-muted)]">.env</code>{' '}
           决定，设置页无法改写。公网部署建议保持仅 m3u8，避免被当作出站带宽跳板。
         </p>
       </section>
 
-      <section className="space-y-3 rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-5">
+      <section className="space-y-3 rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-6 shadow-sm transition-all duration-200 hover:border-[var(--kz-accent-ring)]">
         <h2 className="text-lg font-bold tracking-tight text-[var(--kz-fg)]">Bangumi Access Token</h2>
         <p className="text-sm text-[var(--kz-fg-muted)]">
           用于同步追番收藏。在{' '}

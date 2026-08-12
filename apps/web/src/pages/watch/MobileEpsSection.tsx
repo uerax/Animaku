@@ -167,14 +167,14 @@ export function MobileEpsSection({
         )}
         {roadError && <p className="kz-bili-error">{roadError}</p>}
         {!hasSelection && !roadLoading && (
-          <div className="kz-bili-hint">
-            <p>
-              <span className="kz-watch-step">1</span>
-              在「视频源」点规则搜索
+          <div className="kz-bili-hint my-2 rounded-xl bg-[var(--kz-bg-soft)]/50 p-4 border border-[var(--kz-border)]">
+            <p className="text-[var(--kz-fg)] font-medium">
+              <span className="kz-watch-step bg-[var(--kz-accent)] text-white shadow-sm">1</span>
+              在「视频源」选择播放源或点击搜索
             </p>
-            <p>
-              <span className="kz-watch-step">2</span>
-              再点搜出的番剧条目加载分集
+            <p className="text-[var(--kz-fg-muted)]">
+              <span className="kz-watch-step bg-[var(--kz-bg-hover)] text-[var(--kz-fg-dim)]">2</span>
+              选中关联资源条目即可加载全集播放
             </p>
           </div>
         )}

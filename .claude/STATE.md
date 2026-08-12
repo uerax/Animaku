@@ -1,5 +1,39 @@
 # Animaku 项目状态
 
+## [2026-08-13] 调整 GitHub 标识位置至页面右上角 Header
+- 状态：已完成
+- 优先级：P2
+- 描述：将原置于页脚右下角（SiteFooter）的 GitHub 仓库图标/链接迁移调整至页面顶部导航栏右上角（Header `<ThemeToggleButton />` 旁边），保证在观看页及常规页面中均可在右上角便捷访问。
+- 涉及文件：apps/web/src/components/Layout.tsx, apps/web/src/components/SiteFooter.tsx
+- 备注：`pnpm typecheck` 全通过。
+
+## [2026-08-13] 修复视频源选中卡片断裂左边框 Bug
+- 状态：已完成
+- 优先级：P2
+- 描述：移除了 `.kz-bili-source--active` 与 `.kz-bili-source--pick` 卡片上内嵌的 `inset 2px 0 0 0` 左侧暗边框内阴影（该边框在包含搜索命中项列表时被截断导致仅显示半条竖线，极其突兀），改为统一完整清爽的外围 Accent 边框与微弱柔和底色。
+- 涉及文件：apps/web/src/index.css
+- 备注：`pnpm typecheck` 全通过。
+
+## [2026-08-13] 还原 BangumiCard 简约纯粹悬浮体验
+- 状态：已完成
+- 优先级：P2
+- 描述：根据反馈，移除了 `BangumiCard` 悬浮时新增的繁复蓝色 Glow 外框/Ring 边框以及卡片外壳形变位移，还原为原版极简流畅的纯图片微缩放 (`scale(1.04)`) 悬浮体验，解决多卡片悬浮时的视觉繁复感与渲染卡顿。
+- 涉及文件：apps/web/src/index.css, apps/web/src/components/ui.tsx
+- 备注：`pnpm typecheck` 全通过。
+
+## [2026-08-13] 前端视觉 UI/UX 全面美化与极奢升维
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  - **CSS Token 与琉璃 Glassmorphism 优化**：优化深色/浅色配色与 CSS 变量（--kz-bg: #0b0e14, --kz-bg-elevated: #131822 等），新增 `.kz-glass-panel` 琉璃磨砂面板类与 `.kz-active-press` 点击弹簧反馈，升级 `.kz-skeleton` 骨架屏为 135deg 复合流光渐变。
+  - **通用 UI 组件升维**：重构 `BangumiCard` 封面 Hover 视差与 Glow 光晕、Score 璀璨金黄徽章（`backdrop-blur-md`）、Air Status 渐变胶囊；美化 `Layout` 顶部 Header 导航栏与 `PageHeader` 文字排版。
+  - **播放器 UI 交互增强**：播放器控制条遮罩升级为多阶渐变，Seekbar Thumb 增加亮蓝辉光；控制条倍速/超分/音量等 Popovers 面板引入 `kz-popover-in` 平滑缩入动效 (scale 0.93 -> 1.0)；倒计时 Overlay 重构为高质感磨砂玻璃层。
+  - **WatchPage 侧边栏与选集 UX 重构**：优化线路选择 Soft Pill 气泡、在播分集卡片 Equalizer 动态跳音浪与呼吸灯、视频源 Mini Cards 悬浮边框。
+  - **时间表与设置视图美化**：`TimelinePage` 周一至周日 Tabs 增加 Pill 高亮滑动感与“TODAY”今日闪耀 Dot；`SettingsPage` 重构为 macOS/iOS 风格分组 Container。
+- 涉及文件：apps/web/src/index.css, apps/web/src/player/plyr-overrides.css, apps/web/src/components/ui.tsx, apps/web/src/components/Layout.tsx, apps/web/src/pages/watch/MobileEpsSection.tsx, apps/web/src/pages/watch/WatchMeta.tsx, apps/web/src/pages/TimelinePage.tsx, apps/web/src/pages/SettingsPage.tsx
+- 备注：`pnpm typecheck` 验证 0 错误，工作区 `packages/shared`、`apps/server`、`apps/web` 均通过编译。
+
+
 ## [2026-08-13] 播放器控制条视觉与交互统一重构
 - 状态：已完成
 - 优先级：P1

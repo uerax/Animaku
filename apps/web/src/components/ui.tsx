@@ -76,7 +76,7 @@ export const BangumiCard = memo(function BangumiCard({
             className="h-full w-full object-cover"
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-sm text-[var(--kz-fg-dim)]">
+          <div className="flex h-full items-center justify-center text-sm font-medium text-[var(--kz-fg-dim)]">
             无封面
           </div>
         )}
@@ -99,7 +99,7 @@ export const BangumiCard = memo(function BangumiCard({
         )}
       </div>
       <div className="space-y-0.5 px-0.5 pb-1 pt-3">
-        <div className="line-clamp-2 text-[15px] font-medium leading-snug text-[var(--kz-fg)] group-hover:text-[var(--kz-accent)]">
+        <div className="line-clamp-2 text-[15px] font-medium leading-snug text-[var(--kz-fg)] transition-colors duration-200 group-hover:text-[var(--kz-accent)]">
           {title}
         </div>
         {item.nameCn && item.name && item.nameCn !== item.name && (

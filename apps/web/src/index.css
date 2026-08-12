@@ -11,99 +11,102 @@
 html[data-theme='dark'] {
   color-scheme: dark;
 
-  /* Canvas — lifted off pure black for softer depth */
-  --kz-bg: #0a0b0d;
-  --kz-bg-elevated: #14181f;
-  --kz-bg-card: #14181f;
-  --kz-bg-soft: #1a1f27;
-  --kz-bg-hover: #1c222b;
-  --kz-header-bg: rgba(10, 11, 13, 0.82);
+  /* Canvas — deep modern cyber slate */
+  --kz-bg: #0b0e14;
+  --kz-bg-elevated: #131822;
+  --kz-bg-card: #131822;
+  --kz-bg-soft: #1a202c;
+  --kz-bg-hover: #1f2634;
+  --kz-header-bg: rgba(11, 14, 20, 0.82);
 
-  /* Lines — slightly cooler than pure X hairline */
-  --kz-border: #2a3038;
-  --kz-border-subtle: #1c222b;
+  /* Lines — refined cool slate border */
+  --kz-border: #262d3a;
+  --kz-border-subtle: #1c222e;
 
   /* Type */
-  --kz-fg: #e8eaed;
-  --kz-fg-muted: #8b939e;
-  --kz-fg-dim: #5c6570;
+  --kz-fg: #f0f3f6;
+  --kz-fg-muted: #94a0b0;
+  --kz-fg-dim: #606d7d;
 
-  /* Accent — X blue */
+  /* Accent — X Vibrant Blue with ambient glow */
   --kz-accent: #1d9bf0;
-  --kz-accent-hover: #1a8cd8;
-  --kz-accent-soft: rgba(29, 155, 240, 0.12);
-  --kz-accent-ring: rgba(29, 155, 240, 0.4);
+  --kz-accent-hover: #38bdf8;
+  --kz-accent-soft: rgba(29, 155, 240, 0.14);
+  --kz-accent-ring: rgba(29, 155, 240, 0.45);
+  --kz-accent-glow: 0 0 16px rgba(29, 155, 240, 0.35);
   --kz-accent-fg: #ffffff;
 
-  /* Score chip (warm, readable on dark covers) */
-  --kz-score: #ffd400;
+  /* Score chip (vibrant amber-gold) */
+  --kz-score: #fbbf24;
 
-  /* Air-progress chip on covers — cool tones pair with warm score */
-  --kz-air-airing: #7dd3fc; /* sky-300 — 更新至 */
-  --kz-air-finished: #6ee7b7; /* emerald-300 — 已完结 */
-  --kz-air-upcoming: #a5b4fc; /* indigo-300 — 未开播 */
+  /* Air-progress chip on covers */
+  --kz-air-airing: #38bdf8; /* sky-400 */
+  --kz-air-finished: #34d399; /* emerald-400 */
+  --kz-air-upcoming: #818cf8; /* indigo-400 */
 
-  /* Semantic (X-adjacent) */
+  /* Semantic */
   --kz-like: #f91880;
-  --kz-success: #00ba7c;
-  --kz-danger: #f4212e;
+  --kz-success: #10b981;
+  --kz-danger: #f43f5e;
 
-  /* Elevation — soft float on dark */
-  --kz-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
-  --kz-shadow-md: 0 8px 28px rgba(0, 0, 0, 0.42);
+  /* Elevation & Shadows */
+  --kz-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --kz-shadow-md: 0 12px 32px rgba(0, 0, 0, 0.45);
+  --kz-shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.55);
   --kz-radius-surface: 1.15rem;
 
   /* Scrollbar thumb */
-  --kz-scroll-thumb: #3a424c;
-  --kz-scroll-thumb-hover: #53606e;
+  --kz-scroll-thumb: #333d4d;
+  --kz-scroll-thumb-hover: #4b586c;
 
-  /* Native select chevron stroke (encoded in SVG) */
-  --kz-chevron: %238b939e;
+  /* Native select chevron stroke */
+  --kz-chevron: %2394a0b0;
 }
 
-/* Light — warm paper, true elevated white */
+/* Light — warm clean slate paper */
 html[data-theme='light'] {
   color-scheme: light;
 
-  --kz-bg: #f5f6f8;
+  --kz-bg: #f4f6f9;
   --kz-bg-elevated: #ffffff;
   --kz-bg-card: #ffffff;
-  --kz-bg-soft: #eef0f3;
-  --kz-bg-hover: #eef1f4;
-  --kz-header-bg: rgba(245, 246, 248, 0.88);
+  --kz-bg-soft: #eaedf2;
+  --kz-bg-hover: #e2e7ee;
+  --kz-header-bg: rgba(244, 246, 249, 0.88);
 
-  --kz-border: #e1e4e8;
-  --kz-border-subtle: #eceef1;
+  --kz-border: #dce1e8;
+  --kz-border-subtle: #e9ecf1;
 
-  --kz-fg: #0f1419;
-  --kz-fg-muted: #536471;
-  --kz-fg-dim: #8b98a5;
+  --kz-fg: #0f172a;
+  --kz-fg-muted: #475569;
+  --kz-fg-dim: #78899a;
 
-  --kz-accent: #1d9bf0;
-  --kz-accent-hover: #1a8cd8;
-  --kz-accent-soft: rgba(29, 155, 240, 0.1);
-  --kz-accent-ring: rgba(29, 155, 240, 0.35);
+  --kz-accent: #0284c7;
+  --kz-accent-hover: #0369a1;
+  --kz-accent-soft: rgba(2, 132, 199, 0.1);
+  --kz-accent-ring: rgba(2, 132, 199, 0.35);
+  --kz-accent-glow: 0 0 16px rgba(2, 132, 199, 0.25);
   --kz-accent-fg: #ffffff;
 
-  --kz-score: #b8860b;
+  --kz-score: #d97706;
 
-  /* Same chip hues on light theme (still sit on dark cover gradient) */
-  --kz-air-airing: #7dd3fc;
-  --kz-air-finished: #6ee7b7;
-  --kz-air-upcoming: #a5b4fc;
+  --kz-air-airing: #0284c7;
+  --kz-air-finished: #059669;
+  --kz-air-upcoming: #4f46e5;
 
-  --kz-like: #f91880;
-  --kz-success: #00ba7c;
-  --kz-danger: #f4212e;
+  --kz-like: #e11d48;
+  --kz-success: #10b981;
+  --kz-danger: #f43f5e;
 
-  --kz-shadow-sm: 0 1px 2px rgba(15, 20, 25, 0.04);
-  --kz-shadow-md: 0 10px 30px rgba(15, 20, 25, 0.08);
+  --kz-shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.05);
+  --kz-shadow-md: 0 12px 32px rgba(15, 23, 42, 0.09);
+  --kz-shadow-lg: 0 20px 48px rgba(15, 23, 42, 0.14);
   --kz-radius-surface: 1.15rem;
 
-  --kz-scroll-thumb: #cfd9de;
-  --kz-scroll-thumb-hover: #8b98a5;
+  --kz-scroll-thumb: #cbd5e1;
+  --kz-scroll-thumb-hover: #94a3b8;
 
-  --kz-chevron: %23536471;
+  --kz-chevron: %23475569;
 }
 
 html {
@@ -251,12 +254,10 @@ textarea:focus-visible {
 
 /*
  * Cover card hover — scale image only, not shell.
- * Do NOT use content-visibility on cards/imgs: Chrome skips paint for
- * off-screen nodes and re-paints on scroll-back, which reads as covers
- * vanishing then reloading (home grid jank). 24–50 cards is cheap enough.
+ * Keep smooth and minimalist: no card shell transform, no border outline, no jank.
  */
 .bangumi-card .bangumi-card-cover img {
-  transition: transform 0.35s ease;
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .bangumi-card:hover .bangumi-card-cover img {
@@ -273,18 +274,25 @@ textarea:focus-visible {
   border-radius: 9999px;
   padding: 0 0.95rem;
   font-size: 0.875rem;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1;
   text-align: center;
   transition:
-    background 0.15s,
-    color 0.15s,
-    border-color 0.15s;
+    background 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.kz-pill:active {
+  transform: scale(0.96);
 }
 
 .kz-pill-active {
   background: var(--kz-accent);
   color: var(--kz-accent-fg);
+  box-shadow: 0 2px 10px rgba(29, 155, 240, 0.35);
 }
 
 .kz-pill-idle {
@@ -297,37 +305,43 @@ textarea:focus-visible {
   background: var(--kz-bg-hover);
 }
 
-/* Primary CTA — X Post button style */
+/* Primary CTA — Glossy Pill Button */
 .kz-btn-primary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.35rem;
+  gap: 0.4rem;
   border-radius: 9999px;
   background: var(--kz-accent);
   color: var(--kz-accent-fg);
   font-weight: 700;
   font-size: 0.875rem;
-  padding: 0.5rem 1.15rem;
+  padding: 0.55rem 1.25rem;
   border: none;
   cursor: pointer;
+  box-shadow: 0 2px 12px rgba(29, 155, 240, 0.3);
   transition:
-    background 0.15s,
-    transform 0.1s;
+    background 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .kz-btn-primary:hover {
   background: var(--kz-accent-hover);
+  box-shadow: 0 4px 18px rgba(29, 155, 240, 0.45);
+  transform: translateY(-1px);
 }
 
 .kz-btn-primary:active {
-  transform: scale(0.98);
+  transform: scale(0.97);
+  box-shadow: 0 1px 6px rgba(29, 155, 240, 0.25);
 }
 
 .kz-btn-primary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;
+  box-shadow: none;
 }
 
 /* Elevated panel — soft float (P0 surface hierarchy) */
@@ -338,13 +352,29 @@ textarea:focus-visible {
   box-shadow: var(--kz-shadow-sm);
 }
 
-/* Clickable surface: lift shadow on hover instead of only flat bg swap */
+/* Clickable surface: lift shadow & subtle glow on hover */
 .kz-surface-interactive {
   transition:
-    background 0.18s ease,
-    border-color 0.18s ease,
-    box-shadow 0.18s ease,
-    transform 0.18s ease;
+    background 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.kz-surface-interactive:hover {
+  background: var(--kz-bg-hover);
+  border-color: color-mix(in srgb, var(--kz-border) 60%, var(--kz-accent));
+  box-shadow: var(--kz-shadow-md), 0 0 0 1px color-mix(in srgb, var(--kz-accent) 25%, transparent);
+  transform: translateY(-2px);
+}
+
+.kz-glass-panel {
+  background: color-mix(in srgb, var(--kz-bg-elevated) 78%, transparent);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid color-mix(in srgb, var(--kz-border) 80%, transparent);
+  border-radius: var(--kz-radius-surface);
+  box-shadow: var(--kz-shadow-md);
 }
 
 .kz-surface-interactive:hover {
@@ -642,19 +672,15 @@ textarea:focus-visible {
 }
 
 .kz-bili-source--active {
-  border-color: color-mix(in srgb, var(--kz-accent) 28%, var(--kz-border));
-  background: color-mix(in srgb, var(--kz-accent) 5%, var(--kz-bg-elevated));
-  box-shadow:
-    inset 2px 0 0 0 var(--kz-accent),
-    0 1px 3px color-mix(in srgb, var(--kz-accent) 10%, transparent);
+  border-color: var(--kz-accent);
+  background: color-mix(in srgb, var(--kz-accent) 6%, var(--kz-bg-elevated));
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--kz-accent) 15%, transparent);
 }
 
 .kz-bili-source--pick {
-  border-color: color-mix(in srgb, var(--kz-accent) 36%, var(--kz-border));
-  background: color-mix(in srgb, var(--kz-accent) 6%, var(--kz-bg-elevated));
-  box-shadow:
-    inset 2px 0 0 0 var(--kz-accent),
-    0 1px 3px color-mix(in srgb, var(--kz-accent) 12%, transparent);
+  border-color: var(--kz-accent);
+  background: color-mix(in srgb, var(--kz-accent) 8%, var(--kz-bg-elevated));
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--kz-accent) 18%, transparent);
 }
 
 .kz-bili-source-row {

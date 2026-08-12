@@ -117,16 +117,6 @@ export function SiteFooter() {
           aria-label="社交与联系"
           className="flex items-center gap-0.5"
         >
-          <a
-            href={b.githubUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={iconBtn}
-            title={b.githubLabel}
-            aria-label={`${b.productName} ${b.githubLabel}`}
-          >
-            <GitHubIcon />
-          </a>
           {b.homepageUrl ? (
             <a
               href={b.homepageUrl}

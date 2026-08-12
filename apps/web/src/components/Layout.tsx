@@ -8,6 +8,7 @@ import {
 } from 'react-router-dom'
 import clsx from 'clsx'
 import { useSettingsStore } from '../stores/settings'
+import { getSiteBranding } from '../lib/site-branding'
 import { DocumentSeo } from './DocumentSeo'
 import { SiteFooter } from './SiteFooter'
 
@@ -25,6 +26,28 @@ const moreLinks = [
   { to: '/settings', label: '设置' },
 ]
 
+function GitHubIconButton() {
+  const b = getSiteBranding()
+  return (
+    <a
+      href={b.githubUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] text-[var(--kz-fg)] transition-all duration-200 hover:bg-[var(--kz-bg-hover)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] active:scale-95 shadow-sm"
+      title={b.githubLabel}
+      aria-label={`${b.productName} ${b.githubLabel}`}
+    >
+      <svg
+        className="h-[18px] w-[18px] fill-current"
+        viewBox="0 0 24 24"
+        aria-hidden
+      >
+        <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.017C22 6.484 17.522 2 12 2z" />
+      </svg>
+    </a>
+  )
+}
+
 function ThemeToggleButton() {
   const theme = useSettingsStore((s) => s.theme)
   const toggleTheme = useSettingsStore((s) => s.toggleTheme)
@@ -34,7 +57,7 @@ function ThemeToggleButton() {
     <button
       type="button"
       onClick={toggleTheme}
-      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] text-[var(--kz-fg)] transition-colors hover:bg-[var(--kz-bg-hover)] hover:border-[var(--kz-fg-dim)]"
+      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] text-[var(--kz-fg)] transition-all duration-200 hover:bg-[var(--kz-bg-hover)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] active:scale-95 shadow-sm"
       title={isLight ? '切换到深色主题' : '切换到浅色主题'}
       aria-label={isLight ? '切换到深色主题' : '切换到浅色主题'}
     >
@@ -90,7 +113,7 @@ function NavItem({
       onClick={onNavigate}
       className={({ isActive }) =>
         clsx(
-          'relative whitespace-nowrap px-3 py-2.5 text-[15px] font-bold tracking-wide transition-colors sm:px-3.5 sm:text-[16px]',
+          'relative whitespace-nowrap rounded-lg px-3 py-2 text-[15px] font-bold tracking-wide transition-all duration-200 sm:px-3.5 sm:text-[15px]',
           isActive
             ? 'text-[var(--kz-fg)]'
             : 'text-[var(--kz-fg-muted)] hover:bg-[var(--kz-bg-hover)] hover:text-[var(--kz-fg)]',
@@ -102,7 +125,7 @@ function NavItem({
           {label}
           {isActive && (
             <span
-              className="absolute inset-x-3 bottom-0 h-1 rounded-full bg-[var(--kz-accent)]"
+              className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-[var(--kz-accent)] shadow-[0_0_8px_var(--kz-accent)]"
               aria-hidden
             />
           )}
@@ -338,7 +361,7 @@ export function Layout() {
           >
             <div className="relative">
               <span
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--kz-fg-muted)]"
+                className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-[var(--kz-fg-muted)]"
                 aria-hidden
               >
                 ⌕
@@ -348,7 +371,7 @@ export function Layout() {
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="搜索番剧…"
                 aria-label="搜索番剧"
-                className="w-48 rounded-full border border-transparent bg-[var(--kz-bg-elevated)] py-2 pl-9 pr-3 text-[14px] text-[var(--kz-fg)] outline-none placeholder:text-[var(--kz-fg-muted)] focus:border-[var(--kz-accent)] focus:bg-[var(--kz-bg)] lg:w-64"
+                className="w-48 rounded-full border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] py-2 pl-9 pr-3.5 text-[14px] text-[var(--kz-fg)] outline-none transition-all duration-200 placeholder:text-[var(--kz-fg-muted)] focus:w-64 focus:border-[var(--kz-accent)] focus:bg-[var(--kz-bg)] focus:shadow-[0_0_12px_rgba(29,155,240,0.25)] lg:w-64 lg:focus:w-72"
               />
             </div>
             <button type="submit" className="kz-btn-primary !px-4 !py-2">
@@ -376,6 +399,7 @@ export function Layout() {
           </button>
 
           <ThemeToggleButton />
+          <GitHubIconButton />
 
           {/*
             Mobile search overlay — covers logo/nav so the field never

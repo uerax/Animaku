@@ -40,25 +40,39 @@ export function TimelinePage() {
         title="放送时间表"
         description={`本季每日放送（Bangumi）${items.length ? ` · 当日 ${items.length} 部` : ''}`}
       />
-      <div className="mb-5 flex flex-wrap gap-2">
-        {WEEKDAYS.map((label, i) => (
-          <button
-            key={label}
-            type="button"
-            onClick={() => onSelectDay(i)}
-            className={
-              day === i
-                ? 'kz-pill kz-pill-active'
-                : 'kz-pill kz-pill-idle border border-[var(--kz-border)]'
-            }
-          >
-            {label}
-            {i === defaultDay ? ' · 今' : ''}
-            {days?.[i]?.length ? (
-              <span className="ml-1 opacity-70">({days[i].length})</span>
-            ) : null}
-          </button>
-        ))}
+      <div className="mb-6 flex flex-wrap gap-2.5">
+        {WEEKDAYS.map((label, i) => {
+          const isToday = i === defaultDay
+          const active = day === i
+          return (
+            <button
+              key={label}
+              type="button"
+              onClick={() => onSelectDay(i)}
+              className={
+                active
+                  ? 'kz-pill kz-pill-active relative shadow-[0_4px_16px_rgba(29,155,240,0.35)]'
+                  : 'kz-pill kz-pill-idle border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] hover:border-[var(--kz-accent-ring)]'
+              }
+            >
+              {isToday && (
+                <span
+                  className={`mr-1.5 inline-block h-2 w-2 rounded-full ${
+                    active ? 'bg-white shadow-[0_0_8px_#fff]' : 'bg-[var(--kz-accent)] animate-pulse'
+                  }`}
+                  aria-hidden
+                />
+              )}
+              {label}
+              {isToday ? <span className="ml-1 text-xs opacity-90 font-bold">今日</span> : null}
+              {days?.[i]?.length ? (
+                <span className={`ml-1.5 text-xs font-normal ${active ? 'opacity-85' : 'text-[var(--kz-fg-muted)]'}`}>
+                  ({days[i].length})
+                </span>
+              ) : null}
+            </button>
+          )
+        })}
       </div>
       {q.isLoading && <BangumiGridSkeleton count={12} />}
       {q.isError && (
