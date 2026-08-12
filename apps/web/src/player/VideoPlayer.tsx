@@ -73,7 +73,6 @@ export function VideoPlayer({
   onProgress,
   onToggleDanmaku,
   onDanmakuChange,
-  onEnded,
   onPrev,
   onNext,
   embedded = false,
@@ -127,7 +126,6 @@ export function VideoPlayer({
   const webFsRef = useRef(false)
   const onNextRef = useRef(onNext)
   const onPrevRef = useRef(onPrev)
-  const onEndedRef = useRef(onEnded)
   const onProgressRef = useRef(onProgress)
   const onPlayerChangeRef = useRef(onPlayerChange)
   const onToggleDanmakuRef = useRef(onToggleDanmaku)
@@ -199,7 +197,6 @@ export function VideoPlayer({
   commentsRef.current = comments
   onNextRef.current = onNext
   onPrevRef.current = onPrev
-  onEndedRef.current = onEnded
   onProgressRef.current = onProgress
   onPlayerChangeRef.current = onPlayerChange
   onToggleDanmakuRef.current = onToggleDanmaku
@@ -843,8 +840,6 @@ export function VideoPlayer({
             return prev - 1
           })
         }, 1000)
-      } else {
-        onEndedRef.current?.()
       }
     }
     const onVol = () => {
@@ -1171,6 +1166,7 @@ export function VideoPlayer({
     return () => {
       // Invalidate generation so softPlay / HLS / auth async paths no-op
       genRef.current++
+      cancelCountdown()
       window.removeEventListener('keydown', onKey)
       ro.disconnect()
       try {

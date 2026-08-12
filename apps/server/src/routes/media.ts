@@ -87,7 +87,7 @@ function connectTimeoutSignal(ms: number): {
 /** Drop unused upstream body so sockets can reuse (error / retry paths). */
 function cancelBody(res: Response | null | undefined) {
   try {
-    void res?.body?.cancel()
+    void res?.body?.cancel().catch(() => {})
   } catch {
     /* ignore */
   }

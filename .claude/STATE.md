@@ -1,5 +1,19 @@
 # Animaku 项目状态
 
+## [2026-08-13] 全仓代码审查缺陷修复落地
+- 状态：已完成
+- 优先级：P1-P3
+- 描述：分析并修复了 2026-08-05 全仓审查中记录的真实代码缺陷与泄漏：
+  1. `apps/web/src/player/VideoPlayer.tsx`：在 cleanup 增加 `cancelCountdown()` 调用，修复自动下一集倒计时 `setInterval` 组件卸载后残留泄漏的问题；并删除了从未使用的 `onEnded` 属性与其关联 ref。
+  2. `apps/web/src/player/EmbedPlayer.tsx`：修复“新窗口打开”按钮 `className` 缺失空格导致 Tailwind 样式失效的问题，补齐 `px-2.5 py-1 text-white` 等正常样式。
+  3. `apps/server/src/lib/release.ts`：改造 `CacheEntry` 直接存储 `fetchHour` 字段，解决 `cacheKey` 使用 `:` 但 `cacheGet` 用 `split('|')` 导致 `fetchHour` 无法解析固定回退 2 小时的 Bug。
+  4. `apps/server/src/routes/plugin.ts`：将 `/chapters` 路由中传递给 `chaptersWithRule` 的参数统一修正为去除尾斜杠后的 `source` 变量，与 Cache Key 保持一致。
+  5. `apps/server/src/routes/media.ts`：在 `cancelBody` 中为 `res?.body?.cancel()` 添加 `.catch(() => {})`，防止上游连接断开时产生 unhandledRejection。
+  6. `apps/web/src/lib/use-watch-session.ts`：用 `useMemo` 稳定 `resolvedPlayerSettings` 引用；用 `useCallback` 稳定 `onProgress` 闭包；并用 `roadLoadingRef` 替代组件 state 锁解决 `pickSource` 快速连击防重入绕过的问题。
+  7. 清理死代码：移除了全仓无任何调用的 `apps/web/src/lib/async-pool.ts` 死代码文件。
+- 涉及文件：apps/web/src/player/VideoPlayer.tsx, apps/web/src/player/EmbedPlayer.tsx, apps/server/src/lib/release.ts, apps/server/src/routes/plugin.ts, apps/server/src/routes/media.ts, apps/web/src/lib/use-watch-session.ts, apps/web/src/player/types.ts
+- 备注：`pnpm typecheck` 全通过。所有修改已同步更新至 `.claude/BUGS.md` 与 `.claude/STATE.md`。
+
 ## [2026-08-12] 修复 LIBVIO 旧客户端/浏览器缓存规则 403 无法自动更新
 - 状态：已完成
 - 优先级：P1

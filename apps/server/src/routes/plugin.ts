@@ -106,7 +106,7 @@ pluginRoutes.post('/chapters', requireLocalOrToken, async (c) => {
     const { value, hit } = await cacheGetOrSet(
       key,
       PLUGIN_CACHE_TTL.chapters,
-      () => chaptersWithRule(rule, body.source.trim()),
+      () => chaptersWithRule(rule, source),
       { bypass, maxEntries: PLUGIN_MAX_ENTRIES },
     )
     return c.json({ data: value }, 200, cacheHeaders(hit))

@@ -315,6 +315,8 @@ export function useWatchSession(bangumiId: number): WatchSession {
   selectionRef.current = selection
   const paramsRef = useRef(params)
   paramsRef.current = params
+  const roadLoadingRef = useRef(roadLoading)
+  roadLoadingRef.current = roadLoading
 
   const titleRefs = useMemo(() => {
     if (!item) return [qTitle].filter(Boolean) as string[]
@@ -444,7 +446,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
   const pickSource = useCallback(
     async (plugin: PluginMeta, searchItem: SearchItem) => {
       if (
-        !roadLoading &&
+        !roadLoadingRef.current &&
         selectionRef.current?.plugin.name === plugin.name &&
         selectionRef.current?.source.src === searchItem.src
       ) {
@@ -460,6 +462,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
       }
       const chaptersAc = new AbortController()
       chaptersAbort.current = chaptersAc
+      roadLoadingRef.current = true
       setRoadLoading(true)
       setRoadError('')
       setEpisode(null)
@@ -508,10 +511,13 @@ export function useWatchSession(bangumiId: number): WatchSession {
         setSelection(null)
         setPendingSource(null)
       } finally {
-        if (chaptersGen.current === gen) setRoadLoading(false)
+        if (chaptersGen.current === gen) {
+          roadLoadingRef.current = false
+          setRoadLoading(false)
+        }
       }
     },
-    [bangumiId, cover, dmResetPools, roadLoading, setParams, title],
+    [bangumiId, cover, dmResetPools, setParams, title],
   )
 
   const searchOnePlugin = useCallback(
@@ -951,22 +957,33 @@ export function useWatchSession(bangumiId: number): WatchSession {
     pickEpisode(nextIdx, roadIndex)
   }
 
-  function onProgress(position: number, duration: number) {
-    if (!selection || !episode) return
-    upsertHistory({
+  const onProgress = useCallback(
+    (position: number, duration: number) => {
+      if (!selection || !episode) return
+      upsertHistory({
+        bangumiId,
+        title,
+        cover,
+        episode: episode.episode,
+        road: episode.road,
+        pluginName: selection.plugin.name,
+        pageUrl: episode.pageUrl,
+        sourceUrl: selection.source.src || undefined,
+        playUrl: resolve.data?.data.playUrl,
+        position,
+        duration,
+      })
+    },
+    [
+      selection,
+      episode,
+      upsertHistory,
       bangumiId,
       title,
       cover,
-      episode: episode.episode,
-      road: episode.road,
-      pluginName: selection.plugin.name,
-      pageUrl: episode.pageUrl,
-      sourceUrl: selection.source.src || undefined,
-      playUrl: resolve.data?.data.playUrl,
-      position,
-      duration,
-    })
-  }
+      resolve.data?.data.playUrl,
+    ],
+  )
 
   async function reResolveFresh() {
     resolveRefreshOnce.current = true
@@ -1056,16 +1073,20 @@ export function useWatchSession(bangumiId: number): WatchSession {
     if (!episodeDurationMap || currentEp <= 0) return undefined
     return episodeDurationMap.get(currentEp)
   }, [episodeDurationMap, currentEp])
-  const resolvedPlayerSettings = {
-    ...playerSettings,
-    ...useResolvedOpedSkip(
-      preferBangumiOped ? bgmOpedQuery.data : null,
-      currentEp,
-      playerSettings.skipOp,
-      playerSettings.skipEd,
-      episodeDurationSeconds,
-    ),
-  }
+  const opedSkip = useResolvedOpedSkip(
+    preferBangumiOped ? bgmOpedQuery.data : null,
+    currentEp,
+    playerSettings.skipOp,
+    playerSettings.skipEd,
+    episodeDurationSeconds,
+  )
+  const resolvedPlayerSettings = useMemo(
+    () => ({
+      ...playerSettings,
+      ...opedSkip,
+    }),
+    [playerSettings, opedSkip],
+  )
 
   return {
     bangumiId,

@@ -46,7 +46,6 @@ export interface VideoPlayerProps {
   onProgress?: (position: number, duration: number) => void
   onToggleDanmaku?: () => void
   onDanmakuChange?: (partial: Partial<DanmakuSettings>) => void
-  onEnded?: () => void
   onPrev?: () => void
   onNext?: () => void
   embedded?: boolean

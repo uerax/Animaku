@@ -22,6 +22,7 @@ import { assertPublicHttpUrl, fetchPublic } from './private-host'
 interface CacheEntry {
   url: string
   fetchedAt: number
+  fetchHour: number
 }
 
 const cache = new Map<string, CacheEntry>()
@@ -31,20 +32,19 @@ function cacheGet(key: string): string | null {
   const entry = cache.get(key)
   if (!entry) return null
   const ageHrs = (Date.now() - entry.fetchedAt) / 3_600_000
-  const fetchHour = parseInt(key.split('|')[1], 10) || 2
-  if (ageHrs > fetchHour) {
+  if (ageHrs > entry.fetchHour) {
     cache.delete(key)
     return null
   }
   return entry.url
 }
 
-function cacheSet(key: string, url: string) {
+function cacheSet(key: string, url: string, fetchHour: number) {
   if (cache.size >= MAX_CACHE_SIZE) {
     const first = cache.keys().next().value
     if (first) cache.delete(first)
   }
-  cache.set(key, { url, fetchedAt: Date.now() })
+  cache.set(key, { url, fetchedAt: Date.now(), fetchHour })
 }
 
 // --------------- XOR decode ---------------
@@ -158,7 +158,7 @@ export async function resolveReleaseBaseUrl(rule: PluginRule, forceRefresh = fal
   try {
     const candidate = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`
     const baseURL = assertPublicHttpUrl(candidate, 'release domain').toString()
-    cacheSet(cacheKey, baseURL)
+    cacheSet(cacheKey, baseURL, config.fetchHour || 2)
     return baseURL
   } catch {
     return null

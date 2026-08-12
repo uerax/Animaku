@@ -50,7 +50,7 @@ export function EmbedPlayer({
             href={pageUrl}
             target="_blank"
             rel="noreferrer"
-            className="rounded-md bg-[var(--kz-accent)]hover:bg-[var(--kz-accent-hover)]"
+            className="rounded-md bg-[var(--kz-accent)] px-2.5 py-1 text-white hover:bg-[var(--kz-accent-hover)]"
           >
             新窗口打开
           </a>
