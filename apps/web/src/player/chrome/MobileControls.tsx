@@ -207,6 +207,7 @@ export function MobileControls(props: PlayerControlsProps) {
             data-active={danmakuEnabled}
             onClick={() => onToggleDanmaku?.()}
             title="弹幕开关"
+            aria-label="弹幕开关"
           >
             {danmakuEnabled ? '弹' : '关'}
           </button>

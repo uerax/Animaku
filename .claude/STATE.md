@@ -1,5 +1,17 @@
 # Animaku 项目状态
 
+## [2026-08-13] 播放器控制条视觉与交互统一重构
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  - 重构 SVG 矢量图标：网页全屏图标 IconWebFs 和 IconWebFsExit 替换为现代网页窗口标准的矢图标，并清理内联 width/height。
+  - 统一 CSS 视觉 Token：底栏遮罩升级为多阶黑色渐变，按钮 Hover/Active 引入现代亮蓝 (#38bdf8) 胶囊渐变。
+  - 动态 Seeking 进度条：平时 4px，Hover/拖拽时平滑延伸至 6px，Thumb 增加亮蓝辉光 feedback。
+  - 统一面板系统：桌面与移动端倍速、超分、音量弹窗 100% 统一下沉为暗色磨砂玻璃系统 (backdrop-filter: blur(16px))。
+  - 微调桌面/移动端按钮 tooltip 与快捷键提示。
+- 涉及文件：apps/web/src/player/chrome/icons.tsx, apps/web/src/player/chrome/DesktopControls.tsx, apps/web/src/player/chrome/MobileControls.tsx, apps/web/src/player/plyr-overrides.css
+- 备注：pnpm typecheck 验证 0 错误，工作区 packages/shared、apps/server、apps/web 均编译通过。
+
 ## [2026-08-13] 播放器全屏与网页全屏按钮调整
 - 状态：已完成
 - 优先级：P2

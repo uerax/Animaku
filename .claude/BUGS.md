@@ -90,3 +90,11 @@
 - 优先级：P1
 - 描述：在播放页加载分集或资源时点击顶部导航栏离开，异步请求成功后无组件挂载/路由守卫盲目执行 setParams，导致 URL 被污染或被拉回播放页；已引入 mountedRef 与 safeSetParams 防御
 - 涉及文件：apps/web/src/lib/use-watch-session.ts
+
+## [2026-08-13] 播放器控制条设计与视觉统一重构
+
+- 状态：已完成
+- 优先级：P1
+- 描述：重构 SVG 矢量图标（网页全屏图标 IconWebFs/IconWebFsExit），统一底栏遮罩多阶渐变、按钮 Hover/Active 胶囊 Token、Seeking 动态进度条及全量统一磨砂玻璃弹窗系统
+- 涉及文件：apps/web/src/player/chrome/icons.tsx, apps/web/src/player/chrome/DesktopControls.tsx, apps/web/src/player/chrome/MobileControls.tsx, apps/web/src/player/plyr-overrides.css
+

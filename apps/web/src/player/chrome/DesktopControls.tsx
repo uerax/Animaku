@@ -241,7 +241,7 @@ export function DesktopControls(props: PlayerControlsProps) {
             className="kz-ctrl kz-ctrl-icon kz-ctrl-web-fs"
             data-active={webFs}
             onClick={onToggleWebFs}
-            title={webFs ? '退出网页全屏' : '网页全屏'}
+            title={webFs ? '退出网页全屏 (Shift+W)' : '网页全屏 (Shift+W)'}
             aria-label={webFs ? '退出网页全屏' : '网页全屏'}
           >
             {webFs ? <IconWebFsExit /> : <IconWebFs />}
@@ -251,7 +251,7 @@ export function DesktopControls(props: PlayerControlsProps) {
             className="kz-ctrl kz-ctrl-icon kz-ctrl-fs"
             data-active={playerFs}
             onClick={onTogglePlayerFs}
-            title={playerFs ? '退出全屏' : '全屏'}
+            title={playerFs ? '退出全屏 (F)' : '全屏 (F)'}
             aria-label={playerFs ? '退出全屏' : '全屏'}
           >
             {playerFs ? <IconFullscreenExit /> : <IconFullscreen />}
