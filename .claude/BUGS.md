@@ -51,6 +51,32 @@
 - 描述：在播放页加载分集或资源时点击顶部导航栏离开，异步请求成功后无组件挂载/路由守卫盲目执行 setParams，导致 URL 被污染或被拉回播放页；已引入 mountedRef 与 safeSetParams 防御
 - 涉及文件：apps/web/src/lib/use-watch-session.ts
 
+## [2026-08-14] 修复全屏弹幕 Portal 遮盖与画面比例闭环
+
+### 1. 移动端 DOM 全屏模式下弹幕面板被遮盖不可见 Bug
+- 状态：已完成
+- 优先级：P0
+- 描述：DanmakuPanel 的 MobileSheet 使用 createPortal 挂载在 document.body 上，在触发原生 DOM Fullscreen 时处于全屏元素外层，被浏览器 Top Layer 遮盖；现已改造为动态挂载至 document.fullscreenElement || document.body。
+- 涉及文件：apps/web/src/player/DanmakuPanel.tsx
+
+### 2. 画面比例（Aspect Ratio）功能闭环
+- 状态：已完成
+- 优先级：P1
+- 描述：画面比例 toggleAspectRatio 已绑定键盘 W 快捷键切换，并在「播放」设置 Tab 增加下拉切换项；完善了 4:3 比例的几何居中约束，并为 Anime4K 超分 Canvas 同步了 objectFit 与比例样式。
+- 涉及文件：apps/web/src/player/DanmakuPanel.tsx, apps/web/src/player/VideoPlayer.tsx
+
+### 3. CustomSelect 体验与死代码清理
+- 状态：已完成
+- 优先级：P2
+- 描述：限制 CustomSelect 展开最大高度为 max-h-36，支持 pointerdown 灵敏收起；清理了未被调用的死代码 formatOptionTitle。
+- 涉及文件：apps/web/src/player/DanmakuPanel.tsx
+
+### 4. MobileControls 遮罩层触摸穿透防御
+- 状态：已完成
+- 优先级：P1
+- 描述：在 .kz-player-backdrop 补充 onPointerDown / onTouchStart 阻断冒泡，避免轻触遮罩关闭菜单时事件透传到底层视频手势层。
+- 涉及文件：apps/web/src/player/chrome/MobileControls.tsx
+
 ## [2026-08-14] 重构移动端播放器 Backdrop 透明遮罩与手势解耦
 
 - 状态：已完成

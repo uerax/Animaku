@@ -1,5 +1,19 @@
 # Animaku 项目状态
 
+## [2026-08-14] 修复全屏弹幕 Portal 遮盖、闭环画面比例与交互优化
+- 状态：已完成
+- 优先级：P0-P1
+- 描述：
+  1. **移动端 DOM 全屏弹幕面板 Portal 目标修复**：`DanmakuPanel` 的 `MobileSheet` 改造为动态挂载到 `document.fullscreenElement || webkitFullscreenElement || document.body`，彻底解决处于原生 DOM 全屏时挂在 `document.body` 被全屏元素遮蔽不可见的 Bug。
+  2. **画面比例（Aspect Ratio）功能闭环**：
+     - 支持按键 `W` 全局快捷键切换画面比例（`contain` / `cover` / `fill` / `4:3`）并触发屏幕中央 Toast 提示；
+     - 在「播放」Tab（`OtherSettingsTab`）中新增「画面比例」自定义下拉选择项；
+     - 完善 `4:3` 比例下的几何居中与宽高约束，并同步更新 Anime4K 超分 Canvas 的比例与样式。
+  3. **CustomSelect 交互与高度优化**：设置下拉菜单最大高度为 `max-h-36`，并扩展 `onDocDismiss` 同时支持 `click` 与 `pointerdown` 灵敏关闭；清理残留死代码 `formatOptionTitle`。
+  4. **MobileControls 遮罩层手势隔离防御**：在 `.kz-player-backdrop` 上补充 `onPointerDown` 与 `onTouchStart` 阻断冒泡，防止移动端触摸穿透到底层手势系统。
+- 涉及文件：apps/web/src/player/DanmakuPanel.tsx, apps/web/src/player/VideoPlayer.tsx, apps/web/src/player/chrome/MobileControls.tsx
+- 备注：`pnpm typecheck` 全仓 4 个 Workspace Projects 验证 0 错误编译通过。
+
 ## [2026-08-14] 修复白天（Light）模式下弹幕面板字体/下拉选框白底白字看不清与遮挡 Bug
 - 状态：已完成
 - 优先级：P0

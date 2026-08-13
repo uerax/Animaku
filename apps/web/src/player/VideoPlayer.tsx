@@ -186,13 +186,19 @@ export function VideoPlayer({
 
   const [aspectRatio, setAspectRatio] = useState<AspectRatioMode>('contain')
 
+  const setAspectRatioMode = (next: AspectRatioMode) => {
+    setAspectRatio(next)
+    flashSkipHint(`画面比例：${ASPECT_RATIO_LABELS[next]}`, 1800)
+  }
+
   const toggleAspectRatio = () => {
     const modes: AspectRatioMode[] = ['contain', 'cover', 'fill', '4:3']
     const idx = modes.indexOf(aspectRatio)
     const next = modes[(idx + 1) % modes.length]
-    setAspectRatio(next)
-    flashSkipHint(`画面比例：${ASPECT_RATIO_LABELS[next]}`, 1800)
+    setAspectRatioMode(next)
   }
+  const toggleAspectRatioRef = useRef(toggleAspectRatio)
+  toggleAspectRatioRef.current = toggleAspectRatio
 
   const [panelOpen, setPanelOpen] = useState(false)
   const [panelTab, setPanelTab] = useState<DanmakuPanelTab>('search')
@@ -1160,6 +1166,9 @@ export function VideoPlayer({
       } else if (k === 'f') {
         e.preventDefault()
         toggleFsRef.current()
+      } else if (k === 'w') {
+        e.preventDefault()
+        toggleAspectRatioRef.current?.()
       } else if (k === 'p') onPrevRef.current?.()
       else if (k === 'n') onNextRef.current?.()
       else if (k === 'd') {
@@ -1925,14 +1934,17 @@ export function VideoPlayer({
         // Ensure decoder paints (some GPUs need this after MSE attach)
         style={{
           position: 'absolute',
-          left: 0,
           top: 0,
-          width: '100%',
+          left: aspectRatio === '4:3' ? '50%' : 0,
+          transform: aspectRatio === '4:3' ? 'translateX(-50%)' : undefined,
+          width: aspectRatio === '4:3' ? 'auto' : '100%',
           height: '100%',
+          maxWidth: '100%',
+          aspectRatio: aspectRatio === '4:3' ? '4 / 3' : undefined,
           objectFit:
             aspectRatio === 'cover'
               ? 'cover'
-              : aspectRatio === 'fill'
+              : aspectRatio === 'fill' || aspectRatio === '4:3'
                 ? 'fill'
                 : 'contain',
           background: '#000',
@@ -1950,8 +1962,23 @@ export function VideoPlayer({
         className="kz-sr-canvas"
         aria-hidden={srMode === 'off' || !srActive}
         style={{
+          position: 'absolute',
+          top: 0,
+          left: aspectRatio === '4:3' ? '50%' : 0,
+          transform: aspectRatio === '4:3' ? 'translateX(-50%)' : undefined,
+          width: aspectRatio === '4:3' ? 'auto' : '100%',
+          height: '100%',
+          maxWidth: '100%',
+          aspectRatio: aspectRatio === '4:3' ? '4 / 3' : undefined,
+          objectFit:
+            aspectRatio === 'cover'
+              ? 'cover'
+              : aspectRatio === 'fill' || aspectRatio === '4:3'
+                ? 'fill'
+                : 'contain',
           display: srMode === 'off' ? 'none' : 'block',
           opacity: srActive ? 1 : 0,
+          zIndex: 1,
         }}
       />
 
@@ -2091,6 +2118,8 @@ export function VideoPlayer({
             onToggleAutoNext={() =>
               onPlayerChange?.({ autoNext: !player.autoNext })
             }
+            aspectRatio={aspectRatio}
+            onAspectRatioChange={setAspectRatioMode}
             /* Desktop: clear the control bar. Mobile uses bottom-sheet layout. */
             bottomOffset={56}
             layout={pointerMode}

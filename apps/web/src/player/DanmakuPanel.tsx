@@ -10,6 +10,7 @@ import type { DanmakuPoolId } from '../lib/danmaku-pools'
 import type { PointerMode } from './chrome/usePointerMode'
 
 export type DanmakuPanelTab = 'search' | 'settings' | 'import' | 'other'
+export type AspectRatioMode = 'contain' | 'cover' | 'fill' | '4:3'
 
 interface Props {
   open: boolean
@@ -62,6 +63,10 @@ interface Props {
   autoNext?: boolean
   /** Toggle autoNext on/off from the panel */
   onToggleAutoNext?: () => void
+  /** Aspect ratio mode: contain | cover | fill | 4:3 */
+  aspectRatio?: AspectRatioMode
+  /** Callback to change aspect ratio */
+  onAspectRatioChange?: (mode: AspectRatioMode) => void
 }
 
 const TABS = [
@@ -77,7 +82,11 @@ export function DanmakuPanel(props: Props) {
   const layout = props.layout ?? 'desktop'
   if (layout === 'mobile') {
     if (typeof document !== 'undefined') {
-      return createPortal(<MobileSheet {...props} />, document.body)
+      const portalTarget =
+        document.fullscreenElement ||
+        (document as unknown as { webkitFullscreenElement?: Element }).webkitFullscreenElement ||
+        document.body
+      return createPortal(<MobileSheet {...props} />, portalTarget)
     }
     return <MobileSheet {...props} />
   }
@@ -167,6 +176,8 @@ function DesktopCard(props: Props) {
               onToggleOped={props.onToggleOpedSkip}
               autoNext={props.autoNext}
               onToggleAutoNext={props.onToggleAutoNext}
+              aspectRatio={props.aspectRatio}
+              onAspectRatioChange={props.onAspectRatioChange}
               compact={false}
             />
           )}
@@ -249,6 +260,8 @@ function MobileSheet(props: Props) {
               onToggleOped={props.onToggleOpedSkip}
               autoNext={props.autoNext}
               onToggleAutoNext={props.onToggleAutoNext}
+              aspectRatio={props.aspectRatio}
+              onAspectRatioChange={props.onAspectRatioChange}
               compact
             />
           )}
@@ -332,13 +345,17 @@ function CustomSelect<T extends number | string>({
 
   useEffect(() => {
     if (!open) return
-    const onDocClick = (e: MouseEvent) => {
+    const onDocDismiss = (e: Event) => {
       if (!wrapRef.current?.contains(e.target as Node)) {
         setOpen(false)
       }
     }
-    window.addEventListener('click', onDocClick, true)
-    return () => window.removeEventListener('click', onDocClick, true)
+    window.addEventListener('click', onDocDismiss, true)
+    window.addEventListener('pointerdown', onDocDismiss, true)
+    return () => {
+      window.removeEventListener('click', onDocDismiss, true)
+      window.removeEventListener('pointerdown', onDocDismiss, true)
+    }
   }, [open])
 
   const selectedOpt = options.find((o) => o.value === value)
@@ -369,7 +386,7 @@ function CustomSelect<T extends number | string>({
       </button>
 
       {open && (
-        <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-[100000] max-h-44 overflow-y-auto overscroll-contain py-1 rounded-xl bg-[var(--kz-bg-elevated)] border border-[var(--kz-border)] shadow-2xl backdrop-blur-xl animate-in fade-in-50 duration-100">
+        <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-[100000] max-h-36 overflow-y-auto overscroll-contain py-1 rounded-xl bg-[var(--kz-bg-elevated)] border border-[var(--kz-border)] shadow-2xl backdrop-blur-xl animate-in fade-in-50 duration-100">
           <button
             type="button"
             onClick={() => {
@@ -409,13 +426,6 @@ function CustomSelect<T extends number | string>({
 }
 
 /* ─── Tab bodies ─── */
-
-function formatOptionTitle(title: string, maxLen = 18): string {
-  if (!title) return ''
-  const trimmed = title.trim()
-  if (trimmed.length <= maxLen) return trimmed
-  return trimmed.slice(0, maxLen) + '…'
-}
 
 function SearchTab({ compact, ...props }: Props & { compact: boolean }) {
   if (compact) {
@@ -923,17 +933,28 @@ function ImportTab({ compact, ...props }: Props & { compact: boolean }) {
 
 /* ─── Playback settings tab ─── */
 
+const ASPECT_OPTIONS: Array<{ value: AspectRatioMode; label: string }> = [
+  { value: 'contain', label: '默认比例 (16:9)' },
+  { value: 'cover', label: '画面铺满 (Cover)' },
+  { value: 'fill', label: '100% 拉伸 (Fill)' },
+  { value: '4:3', label: '画幅 4:3' },
+]
+
 function OtherSettingsTab({
   preferBangumiOped,
   onToggleOped,
   autoNext,
   onToggleAutoNext,
+  aspectRatio = 'contain',
+  onAspectRatioChange,
   compact,
 }: {
   preferBangumiOped?: boolean
   onToggleOped?: () => void
   autoNext?: boolean
   onToggleAutoNext?: () => void
+  aspectRatio?: AspectRatioMode
+  onAspectRatioChange?: (mode: AspectRatioMode) => void
   compact: boolean
 }) {
   if (compact) {
@@ -967,6 +988,18 @@ function OtherSettingsTab({
             aria-hidden
           />
         </button>
+
+        {onAspectRatioChange && (
+          <div className="kz-dm-field">
+            <span className="kz-dm-label">画面比例</span>
+            <CustomSelect
+              value={aspectRatio}
+              placeholder="选择画面比例…"
+              options={ASPECT_OPTIONS}
+              onChange={(val) => onAspectRatioChange(val as AspectRatioMode)}
+            />
+          </div>
+        )}
       </div>
     )
   }
@@ -989,6 +1022,18 @@ function OtherSettingsTab({
           onChange={onToggleAutoNext}
         />
       </label>
+
+      {onAspectRatioChange && (
+        <div className="space-y-1.5 pt-1 border-t border-[var(--kz-border)]">
+          <span className="text-xs text-[var(--kz-fg-muted)]">画面比例 (快捷键 W)</span>
+          <CustomSelect
+            value={aspectRatio}
+            placeholder="选择画面比例…"
+            options={ASPECT_OPTIONS}
+            onChange={(val) => onAspectRatioChange(val as AspectRatioMode)}
+          />
+        </div>
+      )}
     </div>
   )
 }

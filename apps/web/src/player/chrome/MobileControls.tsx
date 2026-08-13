@@ -185,6 +185,8 @@ export function MobileControls(props: PlayerControlsProps) {
         <div
           className="kz-player-backdrop"
           onClick={dismissMenus}
+          onPointerDown={stop}
+          onTouchStart={stop}
         />
       )}
       {isFs && (
