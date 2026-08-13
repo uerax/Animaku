@@ -50,11 +50,11 @@ function barPopupStyle(pos: PopupPos): CSSProperties {
   return {
     position: 'absolute',
     left: pos.left,
-    // Sit just above the control row / seek area
+    // Sit snugly above the control row / seek area
     bottom: '100%',
     top: 'auto',
     right: 'auto',
-    marginBottom: 8,
+    marginBottom: 4,
     transform: 'translateX(-50%)',
   }
 }

@@ -984,7 +984,9 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
 .kz-mobile-bar-menu {
   z-index: 80;
   min-width: 5.5rem;
-  max-height: min(40dvh, 14rem);
+  max-height: min(35dvh, 10.5rem);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   pointer-events: auto;
   /* Override .kz-speed-menu absolute right / bottom calc */
   right: auto !important;
@@ -996,7 +998,7 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   justify-content: space-between;
   width: 100%;
   text-align: left;
-  padding: 0.35rem 0.65rem;
+  padding: 0.28rem 0.6rem;
   border: 0;
   background: transparent;
   color: #e4e4e7;

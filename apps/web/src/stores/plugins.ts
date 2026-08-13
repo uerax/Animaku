@@ -78,6 +78,16 @@ export function seedFromDefaults(): PluginMeta[] {
   return preferAnime1Last(list)
 }
 
+const BUILTIN_NAMES = new Set(
+  DEFAULT_PLUGIN_RULES.map((r) => (r.name || '').toLowerCase()),
+)
+
+export function isBuiltinPlugin(plugin: PluginMeta): boolean {
+  if (plugin.source === 'builtin') return true
+  if (plugin.name && BUILTIN_NAMES.has(plugin.name.toLowerCase())) return true
+  return false
+}
+
 /**
  * Default plugin order: alphabetical by name, Anime1 always at the end.
  * Used as fallback when user has no custom `pluginOrder`.
@@ -183,6 +193,7 @@ export const usePluginStore = create<PluginState>()(
       removePlugin: (id) =>
         set((s) => {
           const plugin = normalizePlugins(s.plugins).find((p) => p.id === id)
+          if (plugin && isBuiltinPlugin(plugin)) return s
           return {
             plugins: normalizePlugins(s.plugins).filter((p) => p.id !== id),
             pluginOrder: plugin

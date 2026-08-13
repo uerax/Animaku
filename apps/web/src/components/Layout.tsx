@@ -33,7 +33,7 @@ function GitHubIconButton() {
       href={b.githubUrl}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] text-[var(--kz-fg)] transition-all duration-200 hover:bg-[var(--kz-bg-hover)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] active:scale-95 shadow-sm"
+      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] text-[var(--kz-fg)] transition-all duration-200 hover:bg-[var(--kz-bg-hover)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] active:scale-95 shadow-sm sm:h-9 sm:w-9"
       title={b.githubLabel}
       aria-label={`${b.productName} ${b.githubLabel}`}
     >
@@ -57,7 +57,7 @@ function ThemeToggleButton() {
     <button
       type="button"
       onClick={toggleTheme}
-      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] text-[var(--kz-fg)] transition-all duration-200 hover:bg-[var(--kz-bg-hover)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] active:scale-95 shadow-sm"
+      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] text-[var(--kz-fg)] transition-all duration-200 hover:bg-[var(--kz-bg-hover)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] active:scale-95 shadow-sm sm:h-9 sm:w-9"
       title={isLight ? '切换到深色主题' : '切换到浅色主题'}
       aria-label={isLight ? '切换到深色主题' : '切换到浅色主题'}
     >
@@ -113,7 +113,7 @@ function NavItem({
       onClick={onNavigate}
       className={({ isActive }) =>
         clsx(
-          'relative whitespace-nowrap rounded-lg px-3 py-2 text-[15px] font-bold tracking-wide transition-all duration-200 sm:px-3.5 sm:text-[15px]',
+          'relative whitespace-nowrap rounded-lg px-2 py-1 text-sm font-bold tracking-wide transition-all duration-200 sm:px-3.5 sm:py-2 sm:text-[15px]',
           isActive
             ? 'text-[var(--kz-fg)]'
             : 'text-[var(--kz-fg-muted)] hover:bg-[var(--kz-bg-hover)] hover:text-[var(--kz-fg)]',
@@ -261,10 +261,10 @@ export function Layout() {
     <div className="flex min-h-screen flex-col bg-[var(--kz-bg)] text-[var(--kz-fg)]">
       <DocumentSeo />
       <header className="sticky top-0 z-40 border-b border-[var(--kz-border)] bg-[var(--kz-header-bg)] backdrop-blur-xl">
-        <div className="relative mx-auto flex max-w-[1760px] items-center gap-2 px-3 py-2 sm:gap-3 sm:px-5 lg:px-6">
+        <div className="relative mx-auto flex max-w-[1760px] items-center gap-1.5 px-2.5 py-1.5 sm:gap-3 sm:px-5 lg:px-6 sm:py-2">
           <NavLink
             to="/"
-            className="flex shrink-0 items-center gap-2.5 font-semibold tracking-tight"
+            className="flex shrink-0 items-center gap-2 font-semibold tracking-tight"
             onClick={() => setMenuOpen(false)}
           >
             <img
@@ -272,7 +272,7 @@ export function Layout() {
               alt=""
               width={32}
               height={32}
-              className="h-8 w-8 rounded-full ring-1 ring-[var(--kz-border)]"
+              className="h-7 w-7 rounded-full ring-1 ring-[var(--kz-border)] sm:h-8 sm:w-8"
               decoding="async"
             />
             <span className="hidden flex-col leading-tight sm:flex">

@@ -1,5 +1,89 @@
 # Animaku 项目状态
 
+## [2026-08-13] 优化移动端下拉弹出位置与高度限制
+- 状态：已完成
+- 优先级：P1
+- 描述：在保持原始最稳健下拉列表的前提下，精细优化弹出体验：
+  1. **贴近按钮**：将 `MobileControls.tsx` 中 `barPopupStyle` 的底部间隔 `marginBottom` 从 `8px` 缩紧至 `4px`，使弹出下拉列表紧贴于控制按钮正上方。
+  2. **防止高出播放器**：在 `plyr-overrides.css` 中将 `.kz-mobile-bar-menu` 的最高限高由 `14rem` 紧凑约束为 `min(35dvh, 10.5rem)` (~168px)，并微调按键 padding 为 `0.28rem 0.6rem`，使 6 个倍速按键展开时的自然高度仅约 `148px`，顶部保留足量空隙，100% 限制在播放器高度内部展示。
+- 涉及文件：apps/web/src/player/chrome/MobileControls.tsx, apps/web/src/player/plyr-overrides.css
+- 备注：`pnpm typecheck` 验证全通过。
+
+## [2026-08-13] 恢复最原始移动端倍速与音量下拉列表
+- 状态：已完成
+- 优先级：P1
+- 描述：根据反馈，已将移动端倍速播放、超分及音量面板全量恢复为原本最稳健的原始下拉列表形态 (`MobileControls.tsx` 原代码与 `plyr-overrides.css` 原始 CSS 彻底还原)，消除浮窗压缩及黑框 Bug。
+- 涉及文件：apps/web/src/player/chrome/MobileControls.tsx, apps/web/src/player/plyr-overrides.css
+- 备注：`pnpm typecheck` 验证全通过。
+
+## [2026-08-13] 还原移动端倍速单列精简列表与微缩移动端 Header 导航栏
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  - **移动端弹幕面板高度 100% 对齐播放器**：将 `.kz-danmaku-panel--mobile` 的定位改回 `position: absolute; inset: 0; width: 100%; height: 100%;`，使弹幕面板在移动端弹出时的高度 100% 精确等于播放器自身的高度，全量覆盖于播放器区域内，彻底杜绝冲顶遮挡页面 Header 导航栏问题。
+  - **倍速播放 PopOver 极简缩紧**：倍速 Popover 面板高度限定在 `calc(100% - 44px)` 播放器可用高度内，单行高度 24px/字号 12px，全套选项自然高度仅 ~125px，小巧简约，完美分布于播放器内部高度。
+- 涉及文件：apps/web/src/player/plyr-overrides.css
+- 备注：`pnpm typecheck` 验证全通过。
+
+## [2026-08-13] 还原移动端倍速单列精简列表与微缩移动端 Header 导航栏
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  - **倍速单列精简列表**：将倍速面板由网格改回原本的单列纵向排列，单行高度压缩至 32px，去除多余投影并补充 `0.6rem` 底部 padding，彻底消除 `1x ✓` 卡片切边及溢出 Bug。
+  - **微缩移动端 Header 导航栏**：移动端 Header 上下 padding 从 8px 缩减至 6px，Logo 尺寸在移动端缩至 28px，导航标签与图标尺寸精简，为移动端播放区释放更多垂直空间。桌面端（`sm:` 断点以上）完全保持原样，零影响。
+- 涉及文件：apps/web/src/components/Layout.tsx, apps/web/src/player/chrome/MobileControls.tsx, apps/web/src/player/plyr-overrides.css
+- 备注：`pnpm typecheck` 验证全通过。
+
+## [2026-08-13] 参考主流移动端播放器思路完成呼出面板精细重构
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  - **倍速呼出面板极致优化**：重构为 1 行 3 列 (共 2 行) 的大颗粒 Pill 触控网格，倍速面板总高度缩减至 ~130px，从底部升级浮现，上方留有半个屏幕的巨大空白，绝不可能触顶遮挡 Header。
+  - **全面板 Header 安全避让边界**：为 `.kz-mobile-sheet` 和 `.kz-danmaku-panel--mobile` 添加了双重防护（`top: max(4.5rem, calc(env(safe-area-inset-top) + 3.8rem))` 及 `max-height`），保证最顶端的 Handle、标题与关闭按钮 `✕` 100% 完整裸露在 Header 导航栏下方。
+- 涉及文件：apps/web/src/player/chrome/MobileControls.tsx, apps/web/src/player/plyr-overrides.css
+- 备注：`pnpm typecheck` 验证全通过。
+
+## [2026-08-13] 修复移动端弹幕面板被顶部 Header 导航栏遮挡问题
+- 状态：已完成
+- 优先级：P1
+- 描述：针对移动端网页在竖屏弹出弹幕面板时顶部 Handle、Tab 选项卡 (“搜索/弹幕/导入/播放”) 与关闭按钮被固顶 Header 导航栏遮挡的问题，在 `.kz-danmaku-panel--mobile` 中添加了明确的顶部安全避让计算（`top: max(4.5rem, calc(env(safe-area-inset-top) + 3.8rem))` 及 `max-height` 适配），并提升层级至 `z-index: 99999`，确保面板最顶端 100% 完整裸露在 Header 下方。
+- 涉及文件：apps/web/src/player/plyr-overrides.css
+- 备注：`pnpm typecheck` 验证全通过。
+
+## [2026-08-13] 全面重构移动端播放器呼出面板系统 (Mobile Action Sheet System)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  - **彻底摒弃桌面端悬浮 Popover 模式**：移动端完全不再使用桌面端的定位 Popover 小窗口，重构为专为移动触控定制的现代底部抽屉面板 (Mobile Bottom Action Sheet)。
+  - **移动端倍速抽屉 (MobileSpeedSheet)**：点击倍速时自底部升起高质感面板，双列展示大字号、高识别度的倍速 Pill 气泡卡片 (`2.0x`, `1.5x`, `1.25x`, `1.0x`, `0.75x`, `0.5x`)，点击大颗粒气泡即可切倍速并平滑收起，100% 解决挤小胶囊及遮挡裁切问题。
+  - **移动端超分 & 音量抽屉 (MobileSrSheet / MobileVolumeSheet)**：同样重构为专有移动端底部抽屉，包含高能 Mode 卡片与数字高感音量拉条。
+  - **移动端弹幕抽屉 (MobileDanmakuSheet)**：将定位升级为页面/全屏级固定 Bottom Sheet，包含大气舒展的控件高度、高辨识度标签与流畅下滑手势体验。
+- 涉及文件：apps/web/src/player/chrome/MobileControls.tsx, apps/web/src/player/plyr-overrides.css
+- 备注：`pnpm typecheck` 验证全通过。
+
+## [2026-08-13] 优化移动端倍速菜单与弹幕面板展示尺寸
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  - **倍速菜单遮挡修复**：限制 `.kz-mobile-bar-menu` 容器最大高度为 `min(50%, 10.5rem)`，压缩项间距与 Padding，确保在移动端竖屏/小尺寸播放器内弹出倍速菜单时顶部 `2x` 选项完整展示，绝不突破播放器边缘被 `overflow: hidden` 切除或遮挡。
+  - **弹幕面板尺寸与体验升级**：将移动端 `.kz-danmaku-panel--mobile` 底板最大高度上限从 `72%` 提升至 `90%`（短屏 94%）；全面放大 Tab 选项卡（28px → 32px）、输入框/下拉框 (34px → 38px/14px字号)、标签文字 (11px → 12px) 及辅助说明，显著改善移动端触控与可读体验。
+- 涉及文件：apps/web/src/player/plyr-overrides.css
+- 备注：`pnpm typecheck` 验证全通过。
+
+## [2026-08-13] 系统默认安装规则限制不可删除
+- 状态：已完成
+- 优先级：P2
+- 描述：在 `apps/web/src/stores/plugins.ts` 中新增 `isBuiltinPlugin` 工具函数并在 `removePlugin` 中增加二次保护防截断；在 `SettingsPage` 界面上对系统内置/默认规则源（`source === 'builtin'` 或默认规则集规则）隐去「删除」按钮。
+- 涉及文件：apps/web/src/stores/plugins.ts, apps/web/src/pages/SettingsPage.tsx
+- 备注：`pnpm typecheck` 验证全通过。
+
+## [2026-08-13] 移除设置页面已安装规则的测试功能
+- 状态：已完成
+- 优先级：P2
+- 描述：根据用户要求，从设置页面（SettingsPage）移除已安装规则卡片中的「测试」按钮、运行状态提醒、测试结果面板及说明文案，并清理了已无调用的死代码文件 `apps/web/src/lib/plugin-smoke.ts`。
+- 涉及文件：apps/web/src/pages/SettingsPage.tsx, apps/web/src/lib/plugin-smoke.ts
+- 备注：`pnpm typecheck` 验证全通过。
+
 ## [2026-08-13] 更新 bangumi-oped 接入 CDN URL 为 @data
 - 状态：已完成
 - 优先级：P2

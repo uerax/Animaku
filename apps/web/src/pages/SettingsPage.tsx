@@ -4,10 +4,6 @@ import type { PluginCatalogItem, PluginMeta } from '@animaku/shared'
 import { catalogItemStatus, PLAYER_SPEEDS } from '@animaku/shared'
 import { bangumiApi } from '../lib/bangumi'
 import { pluginApi } from '../lib/plugin-api'
-import {
-  runPluginSmoke,
-  type SmokeReport,
-} from '../lib/plugin-smoke'
 import { validatePluginLocal } from '../lib/plugin-validate'
 import { pluginNeedsFullMediaProxy } from '../lib/plugin-capabilities'
 import {
@@ -20,7 +16,7 @@ import {
   DEFAULT_BANGUMI_IMAGE_HOST,
 } from '../lib/bangumi-image-host'
 import { useSettingsStore } from '../stores/settings'
-import { usePluginStore } from '../stores/plugins'
+import { isBuiltinPlugin, usePluginStore } from '../stores/plugins'
 import { PageHeader } from '../components/ui'
 import { EMPTY_ARRAY, FALLBACK_DANMAKU, FALLBACK_PLAYER } from '../lib/stable'
 
@@ -86,11 +82,6 @@ export function SettingsPage() {
   const [tokenInput, setTokenInput] = useState(bangumiToken)
   const [tokenMsg, setTokenMsg] = useState('')
   const [pluginMsg, setPluginMsg] = useState('')
-  /** Per-plugin automatic smoke (search→chapters→resolve); no user keyword */
-  const [smokeById, setSmokeById] = useState<
-    Record<string, SmokeReport | { running: true }>
-  >({})
-  const smokeAbortRef = useRef<AbortController | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const [useMirror, setUseMirror] = useState(false)
@@ -265,31 +256,6 @@ export function SettingsPage() {
       )
     } finally {
       setBatchBusy(false)
-    }
-  }
-
-  async function testPlugin(plugin: PluginMeta) {
-    smokeAbortRef.current?.abort()
-    const ac = new AbortController()
-    smokeAbortRef.current = ac
-    setSmokeById((prev) => ({ ...prev, [plugin.id]: { running: true } }))
-    try {
-      const report = await runPluginSmoke(plugin, { signal: ac.signal })
-      if (ac.signal.aborted) return
-      setSmokeById((prev) => ({ ...prev, [plugin.id]: report }))
-    } catch (e) {
-      if (ac.signal.aborted) return
-      setSmokeById((prev) => ({
-        ...prev,
-        [plugin.id]: {
-          pluginName: plugin.name,
-          ok: false,
-          steps: [],
-          summary: '测试失败',
-          detail: e instanceof Error ? e.message : String(e),
-          finishedAt: Date.now(),
-        },
-      }))
     }
   }
 
@@ -473,9 +439,6 @@ export function SettingsPage() {
             恢复默认
           </button>
         </div>
-        <p className="text-xs text-[var(--kz-fg-muted)]">
-          「测试」使用内置关键词自动跑 搜索 → 分集 → 解析，无需填写。
-        </p>
         {pluginMsg && <div className="text-sm text-emerald-400">{pluginMsg}</div>}
         {!plugins.length && (
           <div className="text-sm text-[var(--kz-fg-muted)]">暂无插件，可恢复默认或从仓库安装</div>
@@ -487,10 +450,6 @@ export function SettingsPage() {
         )}
         <ul className="space-y-2">
           {sortedPlugins.map((p, idx) => {
-            const smoke = smokeById[p.id]
-            const running = smoke && 'running' in smoke && smoke.running
-            const report =
-              smoke && !('running' in smoke) ? (smoke as SmokeReport) : null
             const needsFull = pluginNeedsFullMediaProxy(p)
             const blockedByServer = needsFull && !canUseFullProxySource
             const effectivelyOn = p.enabled !== false && !blockedByServer
@@ -624,46 +583,16 @@ export function SettingsPage() {
                     />
                     代理
                   </label>
-                  <button
-                    type="button"
-                    disabled={Boolean(running) || blockedByServer}
-                    onClick={() => void testPlugin(p)}
-                    className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2 py-1 text-xs text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] disabled:opacity-50"
-                    title={
-                      blockedByServer
-                        ? '需 MEDIA_FULL_PROXY=1'
-                        : '自动搜索→分集→解析（内置关键词）'
-                    }
-                  >
-                    {running ? '测试中…' : '测试'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => removePlugin(p.id)}
-                    className="rounded-lg px-2 py-1 text-xs text-red-400 hover:bg-[var(--kz-bg-soft)]"
-                  >
-                    删除
-                  </button>
+                  {!isBuiltinPlugin(p) && (
+                    <button
+                      type="button"
+                      onClick={() => removePlugin(p.id)}
+                      className="rounded-lg px-2 py-1 text-xs text-red-400 hover:bg-[var(--kz-bg-soft)]"
+                    >
+                      删除
+                    </button>
+                  )}
                 </div>
-                {running && (
-                  <div className="w-full text-xs text-[var(--kz-fg-muted)]">
-                    后台自动测试中（搜索 → 分集 → 解析）…
-                  </div>
-                )}
-                {report && (
-                  <div
-                    className={`w-full rounded-lg px-2.5 py-2 text-xs ${
-                      report.ok
-                        ? 'bg-emerald-950/40 text-emerald-300/90'
-                        : 'bg-amber-950/30 text-amber-200/90'
-                    }`}
-                  >
-                    <div className="font-medium">{report.summary}</div>
-                    <pre className="mt-1 overflow-x-auto whitespace-pre-wrap font-sans text-[11px] leading-relaxed opacity-90">
-                      {report.detail}
-                    </pre>
-                  </div>
-                )}
               </li>
             )
           })}
