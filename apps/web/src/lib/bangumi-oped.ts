@@ -33,7 +33,7 @@ export interface BgmOpedSkip {
 
 /** jsDelivr CDN proxy for GitHub raw files — accessible from mainland China */
 const BANGUMI_OPED_BASE =
-  'https://cdn.jsdelivr.net/gh/uerax/bangumi-oped@master'
+  'https://cdn.jsdelivr.net/gh/uerax/bangumi-oped@data'
 
 const BANGUMI_OPED_STALE_MS = 30 * 60_000 // 30 min — data rarely changes
 

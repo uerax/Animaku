@@ -1,5 +1,12 @@
 # Animaku 项目状态
 
+## [2026-08-13] 更新 bangumi-oped 接入 CDN URL 为 @data
+- 状态：已完成
+- 优先级：P2
+- 描述：根据最新 bangumi-oped 数据仓库接入规范，将 jsDelivr CDN 获取 OP/ED 时间戳数据的 URL 基准路径从 `@master` 分支更新为 `@data`（即 `https://cdn.jsdelivr.net/gh/uerax/bangumi-oped@data/<Subject_ID>/<Subject_ID>.txt`）。
+- 涉及文件：apps/web/src/lib/bangumi-oped.ts
+- 备注：`pnpm typecheck` 验证通过。
+
 ## [2026-08-13] 支持拖拽本地视频文件至播放器播放
 - 状态：已完成
 - 优先级：P2
