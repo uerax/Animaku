@@ -975,21 +975,38 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   }
 }
 
+@keyframes kz-mobile-popover-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.93) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) scale(1) translateY(0);
+  }
+}
+
 /*
  * Mobile bar menus: absolute on .kz-bar (sibling of .kz-bar-row).
  * Not position:fixed — .kz-bar uses transform for show/hide, which would
  * retarget fixed children to the bar box and break placement.
- * Inline style sets left + bottom:100% + translateX(-50%).
+ * Inline style sets left + translateX(-50%).
+ * Bottom is anchored right above the control row button (height + bar padding).
  */
 .kz-mobile-bar-menu {
   z-index: 80;
-  min-width: 5.5rem;
+  min-width: 5rem;
   max-height: min(35dvh, 10.5rem);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   pointer-events: auto;
-  /* Override .kz-speed-menu absolute right / bottom calc */
+  padding: 0.25rem;
+  bottom: calc(var(--kz-ctrl-h, 32px) + 0.35rem + 2px) !important;
+  top: auto !important;
   right: auto !important;
+  margin-bottom: 0 !important;
+  animation: kz-mobile-popover-in 0.15s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  transform-origin: bottom center !important;
 }
 
 .kz-speed-menu button {
@@ -998,16 +1015,16 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   justify-content: space-between;
   width: 100%;
   text-align: left;
-  padding: 0.28rem 0.6rem;
+  padding: 0.2rem 0.55rem;
   border: 0;
   background: transparent;
   color: #e4e4e7;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   border-radius: 6px;
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
-  margin-block: 1px;
+  margin-block: 0px;
 }
 
 .kz-speed-menu button:hover {
@@ -1441,39 +1458,28 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
 
 .kz-danmaku-panel--mobile {
   position: absolute;
-  left: 0.4rem;
-  right: 0.4rem;
-  bottom: 0.4rem;
-  top: auto;
+  inset: 0;
   z-index: 2;
   display: flex;
   flex-direction: column;
-  /* Content-sized — no fixed tall box that leaves blank middle */
-  width: auto;
+  width: 100%;
+  height: 100%;
   max-width: none;
-  height: auto;
-  min-height: 0;
-  max-height: min(72%, calc(100% - 0.8rem));
+  max-height: 100%;
   margin: 0;
   padding: 0;
-  border: 1px solid var(--kz-border);
-  border-radius: 0.9rem;
+  border: 0;
+  border-radius: 0;
   background: color-mix(in srgb, var(--kz-bg-elevated) 96%, #000 4%);
   box-shadow: 0 10px 32px rgba(0, 0, 0, 0.42);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   overflow: hidden;
   pointer-events: auto;
-  padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
 .kz-danmaku-sheet-handle {
-  flex: 0 0 auto;
-  width: 2rem;
-  height: 0.22rem;
-  margin: 0.35rem auto 0.05rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--kz-fg-muted) 50%, transparent);
+  display: none;
 }
 
 .kz-danmaku-sheet-head {
@@ -1481,7 +1487,7 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   align-items: center;
   gap: 0.3rem;
   flex: 0 0 auto;
-  padding: 0.1rem 0.4rem 0.35rem 0.5rem;
+  padding: 0.4rem 0.5rem 0.35rem;
 }
 
 .kz-danmaku-sheet-tabs {
@@ -1540,14 +1546,14 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
  * flex: 0 1 auto keeps short tabs (search) snug — no empty flex grow.
  */
 .kz-danmaku-sheet-scroll {
-  flex: 0 1 auto;
+  flex: 1 1 0;
   min-height: 0;
   max-height: 100%;
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  padding: 0.15rem 0.65rem 0.7rem;
+  padding: 0.4rem 0.65rem 0.7rem;
   font-size: 13px;
 }
 

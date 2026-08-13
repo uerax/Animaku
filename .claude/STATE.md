@@ -1,5 +1,22 @@
 # Animaku 项目状态
 
+## [2026-08-13] 精简倍速菜单字号与间距避免出现滚动条
+- 状态：已完成
+- 优先级：P1
+- 描述：将倍速面板按键字号由 `12px` 微调缩减为 `11px`，内边距 `padding` 紧凑调整为 `0.2rem 0.55rem`，内边距框间距归零，使 6 个倍速选项自然高度压缩至 ~116px 完美展开，彻底杜绝需要出现滚轮的情况。
+- 涉及文件：apps/web/src/player/plyr-overrides.css
+- 备注：`pnpm typecheck` 验证全通过。
+
+## [2026-08-13] 修复移动端倍速弹出偏右、悬空间隔及弹幕面板等高
+- 状态：已完成
+- 优先级：P0
+- 描述：针对反馈的 3 个问题进行了精确修复：
+  1. **消除点击瞬间偏右**：新增 `@keyframes kz-mobile-popover-in` keyframe 动画，在 `from` 和 `to` 关键帧中均显式包含 `transform: translateX(-50%)`，彻底解决动画播放期间 CSS 覆盖内联 `translateX(-50%)` 导致的点击瞬间在右边、动画结束后才弹回正上方的问题。
+  2. **消除控制按钮上方悬空**：将 `.kz-mobile-bar-menu` 的底部定位修改为 `bottom: calc(var(--kz-ctrl-h, 32px) + 0.35rem + 2px)`，避开控制栏内进度条和 padding 造成的断层，使倍速、超分及音量面板精准贴合在控制按钮行的正上方 2px 处。
+  3. **弹幕面板 100% 播放器高度**：将移动端弹幕面板 `.kz-danmaku-panel--mobile` 的定位与尺寸调整为 `position: absolute; inset: 0; width: 100%; height: 100%;`，使其展开时高度 100% 精确与播放器同高。
+- 涉及文件：apps/web/src/player/chrome/MobileControls.tsx, apps/web/src/player/plyr-overrides.css
+- 备注：`pnpm typecheck` 验证全通过。
+
 ## [2026-08-13] 优化移动端下拉弹出位置与高度限制
 - 状态：已完成
 - 优先级：P1
