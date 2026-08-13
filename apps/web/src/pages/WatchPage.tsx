@@ -581,10 +581,6 @@ export function WatchPage() {
                               onClick={() => {
                                 w.setKeywordTargetPlugin(r.plugin)
                                 void w.pickSource(r.plugin, it)
-                                focusAfterSelection(
-                                  `${r.plugin.name}::${it.src}`,
-                                  { forceScroll: true },
-                                )
                               }}
                               className={clsx(
                                 'kz-bili-hit',
