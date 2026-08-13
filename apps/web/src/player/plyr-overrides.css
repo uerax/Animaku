@@ -1548,7 +1548,7 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
 .kz-dm-label {
   font-size: 11px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--kz-fg-muted);
 }
 
 .kz-dm-input,
@@ -1558,10 +1558,10 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   min-width: 0;
   height: 2.15rem;
   padding: 0 0.65rem;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid var(--kz-border);
   border-radius: 0.55rem;
-  background: rgba(255, 255, 255, 0.08);
-  color: #ffffff;
+  background: var(--kz-bg-soft);
+  color: var(--kz-fg);
   font-size: 13px;
   font-weight: 500;
   outline: none;
@@ -1571,12 +1571,12 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
 }
 
 .kz-dm-select option {
-  background: #121620;
-  color: #ffffff;
+  background: var(--kz-bg-elevated);
+  color: var(--kz-fg);
 }
 
 .kz-dm-input::placeholder {
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--kz-fg-muted);
 }
 
 .kz-dm-select {
@@ -1633,7 +1633,7 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   margin: 0;
   font-size: 11px;
   line-height: 1.35;
-  color: rgba(255, 255, 255, 0.65);
+  color: var(--kz-fg-muted);
 }
 
 .kz-dm-toggle-row {
@@ -1646,7 +1646,7 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   padding: 0.15rem 0;
   border: 0;
   background: transparent;
-  color: #ffffff;
+  color: var(--kz-fg);
   font-size: 13px;
   font-weight: 600;
   text-align: left;
@@ -1698,12 +1698,12 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   align-items: baseline;
   justify-content: space-between;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--kz-fg-muted);
 }
 
 .kz-dm-range-val {
   font-variant-numeric: tabular-nums;
-  color: #38bdf8;
+  color: var(--kz-accent);
   font-weight: 700;
 }
 
@@ -1759,7 +1759,7 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   gap: 0.5rem;
   min-height: 2.15rem;
   font-size: 13px;
-  color: #ffffff;
+  color: var(--kz-fg);
 }
 
 .kz-dm-inline-num--grow {
@@ -1772,10 +1772,10 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   width: 4.25rem;
   height: 2.15rem;
   padding: 0 0.45rem;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid var(--kz-border);
   border-radius: 0.55rem;
-  background: rgba(255, 255, 255, 0.08);
-  color: #ffffff;
+  background: var(--kz-bg-soft);
+  color: var(--kz-fg);
   font-size: 13px;
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -1790,10 +1790,10 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
 
 .kz-dm-type-chip {
   height: 1.95rem;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--kz-border);
   border-radius: 0.55rem;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.7);
+  background: var(--kz-bg-soft);
+  color: var(--kz-fg-muted);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -1802,11 +1802,11 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
 }
 
 .kz-dm-type-chip[data-on='true'] {
-  background: #38bdf8;
+  background: var(--kz-accent);
   color: #ffffff;
   font-weight: 700;
-  border-color: #38bdf8;
-  box-shadow: 0 2px 8px rgba(56, 189, 248, 0.4);
+  border-color: var(--kz-accent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--kz-accent) 35%, transparent);
 }
 
 .kz-dm-file-btn {
@@ -1819,7 +1819,7 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   padding: 0.55rem 0.7rem;
   border: 1px dashed var(--kz-border);
   border-radius: 0.55rem;
-  background: var(--kz-bg);
+  background: var(--kz-bg-soft);
   color: var(--kz-fg);
   font-size: 12px;
   font-weight: 600;
@@ -1852,7 +1852,7 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   min-height: 1.7rem;
   padding: 0.2rem 0.45rem;
   border-radius: 0.4rem;
-  background: var(--kz-bg);
+  background: var(--kz-bg-soft);
 }
 
 .kz-dm-filter-rule {

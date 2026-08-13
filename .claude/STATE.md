@@ -1,5 +1,17 @@
 # Animaku 项目状态
 
+## [2026-08-14] 修复白天（Light）模式下弹幕面板字体/下拉选框白底白字看不清与遮挡 Bug
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  - **根本原因**：`DanmakuPanel.tsx` 中的自定义下拉选择框 `CustomSelect` 以及 `plyr-overrides.css` 中的 `.kz-dm-*` 表单控件、标签、按钮等样式硬编码了暗色模式下的 `text-white`、`bg-white/8`、`rgba(255, 255, 255, ...)` 等颜色。当页面处于白天（Light）模式时，弹幕面板底色为纯白（`#ffffff`），导致文字与选框呈现白底白字或无对比度，看起来如同“被空白遮挡/无法看清”。
+  - **解决方案**：
+    1. **`CustomSelect` 组件全量主题 CSS 变量化**：将按钮背景、边框、文字、下拉菜单背景、选项 Hover/Active 等全量改造为适应主题切换的 CSS Token（`var(--kz-bg-soft)`、`var(--kz-border)`、`var(--kz-fg)`、`var(--kz-fg-muted)`、`var(--kz-bg-elevated)`、`var(--kz-accent)`），实测在白天模式下展现为浅灰底黑字高对比度选框，黑夜模式下自动适配暗色。
+    2. **弹幕面板 DOM 容器及子组件 Token 覆盖**：为 `DesktopCard` 和 `MobileSheet` 根节点补充 `text-[var(--kz-fg)]`，并将搜索/设置/导入等 Tab 页面中的 input 输入框、placeholder、标签及按键等样式全量改为主题变量。
+    3. **`plyr-overrides.css` 全量重构 `.kz-dm-*`**：全面将 `.kz-dm-input`、`.kz-dm-select`、`.kz-dm-label`、`.kz-dm-toggle-row`、`.kz-dm-filter-rule` 等选择器中的暗色硬编码替换为标准 CSS 变量。
+- 涉及文件：apps/web/src/player/DanmakuPanel.tsx, apps/web/src/player/plyr-overrides.css
+- 备注：`pnpm typecheck` 全仓 4 个 Workspace Projects 验证 0 错误编译通过。
+
 ## [2026-08-14] 修复部分大屏手机/浏览器渲染 WebKit 原生 range 步进箭角的 Bug
 - 状态：已完成
 - 优先级：P0

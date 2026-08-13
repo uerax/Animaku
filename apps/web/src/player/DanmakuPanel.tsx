@@ -106,7 +106,7 @@ function DesktopCard(props: Props) {
 
   return (
     <div
-      className="kz-danmaku-panel kz-danmaku-panel--desktop absolute z-[60] flex w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] shadow-2xl backdrop-blur-md"
+      className="kz-danmaku-panel kz-danmaku-panel--desktop absolute z-[60] flex w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] text-[var(--kz-fg)] shadow-2xl backdrop-blur-md"
       style={{
         maxHeight: `min(26rem, calc(100% - ${Math.max(bottomOffset, 8)}px - 0.5rem))`,
       }}
@@ -145,7 +145,7 @@ function DesktopCard(props: Props) {
         <div className="shrink-0 border-b border-[var(--kz-border)] px-3 py-2 text-xs leading-snug text-[var(--kz-fg-muted)]">
           {status || '—'}
           {commentsCount > 0 ? (
-            <span className="ml-2 text-[var(--kz-accent)]">
+            <span className="ml-2 text-[var(--kz-accent)] font-medium">
               · 共 {commentsCount} 条
               {shown !== commentsCount ? ` · 显示 ${shown}` : ''}
             </span>
@@ -196,7 +196,7 @@ function MobileSheet(props: Props) {
       />
       {/* Centered Modal Card: 88% width, 65dvh height, centered with margin auto */}
       <div
-        className="fixed inset-0 z-[99999] m-auto flex flex-col w-[88%] max-w-[22rem] h-[65dvh] max-h-[26rem] bg-[#121620]/96 backdrop-blur-2xl border border-white/15 rounded-2xl shadow-2xl overflow-hidden pointer-events-auto animate-in zoom-in-95 duration-150"
+        className="fixed inset-0 z-[99999] m-auto flex flex-col w-[88%] max-w-[22rem] h-[65dvh] max-h-[26rem] bg-[var(--kz-bg-elevated)] text-[var(--kz-fg)] backdrop-blur-2xl border border-[var(--kz-border)] rounded-2xl shadow-2xl overflow-hidden pointer-events-auto animate-in zoom-in-95 duration-150"
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
@@ -204,8 +204,8 @@ function MobileSheet(props: Props) {
         aria-label="弹幕面板"
         data-player-chrome
       >
-        <div className="flex items-center gap-2 px-3.5 py-2.5 shrink-0 border-b border-white/10 bg-white/5">
-          <div className="flex-1 flex gap-1 p-1 rounded-xl bg-black/20 border border-white/10 min-w-0" role="tablist">
+        <div className="flex items-center gap-2 px-3.5 py-2.5 shrink-0 border-b border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/60">
+          <div className="flex-1 flex gap-1 p-1 rounded-xl bg-[var(--kz-bg)] border border-[var(--kz-border)] min-w-0" role="tablist">
             {TABS.map(([id, label]) => (
               <button
                 key={id}
@@ -215,8 +215,8 @@ function MobileSheet(props: Props) {
                 onClick={() => onTabChange(id)}
                 className={
                   tab === id
-                    ? 'flex-1 h-7 rounded-lg text-xs font-semibold bg-[#38bdf8] text-white shadow-md transition-all border-0 cursor-pointer'
-                    : 'flex-1 h-7 rounded-lg text-xs font-semibold text-white/65 hover:text-white transition-all border-0 bg-transparent cursor-pointer'
+                    ? 'flex-1 h-7 rounded-lg text-xs font-semibold bg-[var(--kz-accent)] text-white shadow-md transition-all border-0 cursor-pointer'
+                    : 'flex-1 h-7 rounded-lg text-xs font-semibold text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] transition-all border-0 bg-transparent cursor-pointer'
                 }
               >
                 {label}
@@ -226,14 +226,14 @@ function MobileSheet(props: Props) {
           <button
             type="button"
             onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center text-white/60 hover:text-white rounded-lg hover:bg-white/10 transition-colors text-sm border-0 bg-transparent cursor-pointer"
+            className="w-7 h-7 flex items-center justify-center text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] rounded-lg hover:bg-[var(--kz-bg-soft)] transition-colors text-sm border-0 bg-transparent cursor-pointer"
             aria-label="关闭"
           >
             ✕
           </button>
         </div>
 
-        <div className="flex-1 min-h-0 h-full overflow-y-auto overscroll-contain p-3.5 space-y-3 text-sm text-white">
+        <div className="flex-1 min-h-0 h-full overflow-y-auto overscroll-contain p-3.5 space-y-3 text-sm text-[var(--kz-fg)]">
           {tab === 'search' && <SearchTab {...props} compact />}
           {tab === 'settings' && (
             <SettingsTab
@@ -273,20 +273,20 @@ function SourcesFooter({
     <div
       className={
         compact
-          ? 'kz-danmaku-panel-sources kz-danmaku-sheet-sources'
+          ? 'kz-danmaku-panel-sources shrink-0 border-t border-[var(--kz-border)] px-3 py-2.5'
           : 'kz-danmaku-panel-sources shrink-0 border-t border-[var(--kz-border)] px-3 py-2'
       }
     >
       <div
         className={
           compact
-            ? 'kz-danmaku-sheet-sources-label'
+            ? 'mb-1 text-[11px] font-medium text-[var(--kz-fg-muted)]'
             : 'mb-1.5 text-[11px] text-[var(--kz-fg-muted)]'
         }
       >
         弹幕源
       </div>
-      <div className={compact ? 'kz-danmaku-sheet-chips' : 'flex flex-wrap gap-1.5'}>
+      <div className="flex flex-wrap gap-1.5">
         {loaded.map((s) => (
           <button
             key={s.id}
@@ -299,16 +299,12 @@ function SourcesFooter({
             }
             className={
               s.enabled
-                ? compact
-                  ? 'kz-danmaku-sheet-chip kz-danmaku-sheet-chip--on'
-                  : 'rounded-full bg-[var(--kz-accent)] px-2.5 py-1 text-[11px] font-medium text-white hover:bg-[var(--kz-accent-hover)]'
-                : compact
-                  ? 'kz-danmaku-sheet-chip'
-                  : 'rounded-full bg-[var(--kz-bg-soft)] px-2.5 py-1 text-[11px] font-medium text-[var(--kz-fg-muted)] ring-1 ring-[var(--kz-border)] hover:text-[var(--kz-fg)]'
+                ? 'rounded-full bg-[var(--kz-accent)] px-2.5 py-1 text-[11px] font-medium text-white hover:bg-[var(--kz-accent-hover)]'
+                : 'rounded-full bg-[var(--kz-bg-soft)] px-2.5 py-1 text-[11px] font-medium text-[var(--kz-fg-muted)] ring-1 ring-[var(--kz-border)] hover:text-[var(--kz-fg)]'
             }
           >
             {s.label}
-            <span className={compact ? 'kz-danmaku-sheet-chip-n' : 'ml-1 opacity-80'}>
+            <span className="ml-1 opacity-80">
               {s.count}
             </span>
           </button>
@@ -352,13 +348,13 @@ function CustomSelect<T extends number | string>({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center justify-between w-full h-8.5 px-3 rounded-lg bg-white/8 border border-white/16 text-white text-xs font-medium outline-none hover:border-white/30 active:scale-[0.99] transition-all cursor-pointer text-left"
+        className="flex items-center justify-between w-full h-8.5 px-3 rounded-lg bg-[var(--kz-bg-soft)] border border-[var(--kz-border)] text-[var(--kz-fg)] text-xs font-medium outline-none hover:border-[var(--kz-accent)] active:scale-[0.99] transition-all cursor-pointer text-left"
       >
         <span className="truncate min-w-0 flex-1">
           {selectedOpt ? selectedOpt.label : placeholder}
         </span>
         <svg
-          className={`w-3.5 h-3.5 ml-1.5 text-white/60 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
+          className={`w-3.5 h-3.5 ml-1.5 text-[var(--kz-fg-muted)] shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
           viewBox="0 0 16 16"
           fill="none"
         >
@@ -373,14 +369,14 @@ function CustomSelect<T extends number | string>({
       </button>
 
       {open && (
-        <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-[100000] max-h-44 overflow-y-auto overscroll-contain py-1 rounded-xl bg-[#161b26] border border-white/20 shadow-2xl backdrop-blur-xl animate-in fade-in-50 duration-100">
+        <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-[100000] max-h-44 overflow-y-auto overscroll-contain py-1 rounded-xl bg-[var(--kz-bg-elevated)] border border-[var(--kz-border)] shadow-2xl backdrop-blur-xl animate-in fade-in-50 duration-100">
           <button
             type="button"
             onClick={() => {
               onChange('' as T)
               setOpen(false)
             }}
-            className="w-full px-3 py-1.5 text-left text-xs text-white/50 hover:bg-white/10 transition-colors border-0 bg-transparent cursor-pointer"
+            className="w-full px-3 py-1.5 text-left text-xs text-[var(--kz-fg-muted)] hover:bg-[var(--kz-bg-soft)] transition-colors border-0 bg-transparent cursor-pointer"
           >
             {placeholder}
           </button>
@@ -397,12 +393,12 @@ function CustomSelect<T extends number | string>({
                 }}
                 className={`flex items-center justify-between w-full px-3 py-2 text-left text-xs transition-colors border-0 cursor-pointer ${
                   active
-                    ? 'bg-[#38bdf8]/20 text-[#38bdf8] font-bold'
-                    : 'text-white/85 hover:bg-white/10 hover:text-white'
+                    ? 'bg-[var(--kz-accent-soft)] text-[var(--kz-accent)] font-bold'
+                    : 'text-[var(--kz-fg)] hover:bg-[var(--kz-bg-soft)] hover:text-[var(--kz-fg)]'
                 }`}
               >
                 <span className="truncate min-w-0 flex-1">{opt.label}</span>
-                {active && <span className="ml-2 text-xs text-[#38bdf8]">✓</span>}
+                {active && <span className="ml-2 text-xs text-[var(--kz-accent)]">✓</span>}
               </button>
             )
           })}
@@ -485,7 +481,7 @@ function SearchTab({ compact, ...props }: Props & { compact: boolean }) {
         <span className="text-xs text-[var(--kz-fg-muted)]">弹弹play 番名</span>
         <div className="flex gap-2">
           <input
-            className="w-full rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1.5 text-sm outline-none focus:border-[var(--kz-accent)]"
+            className="w-full rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1.5 text-sm text-[var(--kz-fg)] placeholder:text-[var(--kz-fg-muted)] outline-none focus:border-[var(--kz-accent)]"
             value={props.keyword}
             onChange={(e) => props.onKeywordChange(e.target.value)}
             onKeyDown={(e) => {
@@ -703,7 +699,7 @@ function SettingsTab({
           onChange={(e) =>
             onDanmakuChange({ timeOffset: Number(e.target.value) || 0 })
           }
-          className="w-20 rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2 py-1 text-right text-sm"
+          className="w-20 rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2 py-1 text-right text-sm text-[var(--kz-fg)] outline-none focus:border-[var(--kz-accent)]"
         />
       </label>
 
@@ -735,7 +731,7 @@ function ImportTab({ compact, ...props }: Props & { compact: boolean }) {
     return (
       <div className="kz-dm-form">
         <div className="kz-dm-section">
-          <div className="kz-dm-label">B 站 BV / 链接</div>
+          <div className="kz-dm-label">B 站 BV 号 / 链接</div>
           <input
             className="kz-dm-input"
             value={props.bvInput}
@@ -747,7 +743,7 @@ function ImportTab({ compact, ...props }: Props & { compact: boolean }) {
           />
           <div className="flex items-center justify-between gap-2 mt-1">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-300">分P</span>
+              <span className="text-xs font-semibold text-[var(--kz-fg-muted)]">分P</span>
               <input
                 type="number"
                 min={1}
@@ -756,14 +752,14 @@ function ImportTab({ compact, ...props }: Props & { compact: boolean }) {
                 onChange={(e) =>
                   props.onBvPageChange(Math.max(1, Number(e.target.value) || 1))
                 }
-                className="w-16 h-8 px-2 rounded-lg bg-white/10 border border-white/15 text-white text-center text-xs font-bold outline-none focus:border-[#38bdf8]"
+                className="w-16 h-8 px-2 rounded-lg bg-[var(--kz-bg-soft)] border border-[var(--kz-border)] text-[var(--kz-fg)] text-center text-xs font-bold outline-none focus:border-[var(--kz-accent)]"
               />
             </div>
             <button
               type="button"
               disabled={props.bilibiliBusy}
               onClick={props.onLoadBilibili}
-              className="h-8 px-3.5 rounded-lg bg-[#38bdf8] text-white text-xs font-semibold hover:bg-sky-400 active:scale-95 transition-all cursor-pointer border-0 shadow-sm"
+              className="h-8 px-3.5 rounded-lg bg-[var(--kz-accent)] text-white text-xs font-semibold hover:bg-[var(--kz-accent-hover)] active:scale-95 transition-all cursor-pointer border-0 shadow-sm disabled:opacity-50"
             >
               {props.bilibiliBusy ? '拉取中…' : '追加 B 站'}
             </button>
@@ -773,13 +769,13 @@ function ImportTab({ compact, ...props }: Props & { compact: boolean }) {
         <button
           type="button"
           onClick={props.onPickXmlFile}
-          className="flex items-center justify-between gap-2 w-full p-2.5 rounded-xl bg-white/5 border border-dashed border-white/20 text-white hover:bg-white/10 hover:border-[#38bdf8] hover:text-[#38bdf8] transition-all cursor-pointer text-left"
+          className="flex items-center justify-between gap-2 w-full p-2.5 rounded-xl bg-[var(--kz-bg-soft)] border border-dashed border-[var(--kz-border)] text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] transition-all cursor-pointer text-left"
         >
           <div className="flex items-center gap-2">
             <span className="text-base">📁</span>
             <span className="text-xs font-semibold">选择本地 XML 弹幕文件</span>
           </div>
-          <span className="text-[11px] text-slate-400">B 站 / pakku</span>
+          <span className="text-[11px] text-[var(--kz-fg-muted)]">B 站 / pakku</span>
         </button>
 
         <div className="kz-dm-section kz-dm-section--border">
@@ -788,7 +784,7 @@ function ImportTab({ compact, ...props }: Props & { compact: boolean }) {
           </div>
           <div className="flex items-center gap-2">
             <input
-              className="flex-1 min-w-0 h-8 px-2.5 rounded-lg bg-white/10 border border-white/15 text-white text-xs outline-none focus:border-[#38bdf8] placeholder:text-slate-500"
+              className="flex-1 min-w-0 h-8 px-2.5 rounded-lg bg-[var(--kz-bg-soft)] border border-[var(--kz-border)] text-[var(--kz-fg)] text-xs outline-none focus:border-[var(--kz-accent)] placeholder:text-[var(--kz-fg-muted)]"
               value={props.filterDraft}
               onChange={(e) => props.onFilterDraftChange(e.target.value)}
               placeholder="关键词 或 /regex/"
@@ -799,7 +795,7 @@ function ImportTab({ compact, ...props }: Props & { compact: boolean }) {
             <button
               type="button"
               onClick={props.onAddFilter}
-              className="h-8 px-3 rounded-lg bg-[#38bdf8] text-white text-xs font-semibold hover:bg-sky-400 active:scale-95 transition-all cursor-pointer border-0 shrink-0"
+              className="h-8 px-3 rounded-lg bg-[var(--kz-accent)] text-white text-xs font-semibold hover:bg-[var(--kz-accent-hover)] active:scale-95 transition-all cursor-pointer border-0 shrink-0"
             >
               添加
             </button>
@@ -830,7 +826,7 @@ function ImportTab({ compact, ...props }: Props & { compact: boolean }) {
       <div className="space-y-1.5">
         <div className="text-xs text-[var(--kz-fg-muted)]">Bilibili BV 号 / 链接</div>
         <input
-          className="w-full rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1.5 text-sm outline-none focus:border-[var(--kz-accent)]"
+          className="w-full rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1.5 text-sm text-[var(--kz-fg)] placeholder:text-[var(--kz-fg-muted)] outline-none focus:border-[var(--kz-accent)]"
           value={props.bvInput}
           onChange={(e) => props.onBvInputChange(e.target.value)}
           placeholder="BV1… 或完整视频链接"
@@ -848,7 +844,7 @@ function ImportTab({ compact, ...props }: Props & { compact: boolean }) {
               onChange={(e) =>
                 props.onBvPageChange(Math.max(1, Number(e.target.value) || 1))
               }
-              className="w-14 rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2 py-1 text-sm"
+              className="w-14 rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2 py-1 text-sm text-[var(--kz-fg)]"
             />
           </label>
           <button
@@ -870,7 +866,7 @@ function ImportTab({ compact, ...props }: Props & { compact: boolean }) {
         <button
           type="button"
           onClick={props.onPickXmlFile}
-          className="w-full rounded-lg border border-dashed border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] px-3 py-3 text-xs text-[var(--kz-fg)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)]"
+          className="w-full rounded-lg border border-dashed border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-3 py-3 text-xs text-[var(--kz-fg)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)]"
         >
           选择 XML（B 站 / pakku 导出）
           <div className="mt-1 text-[11px] text-[var(--kz-fg-muted)]">
@@ -885,7 +881,7 @@ function ImportTab({ compact, ...props }: Props & { compact: boolean }) {
         </div>
         <div className="flex gap-2">
           <input
-            className="w-full rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1.5 text-sm outline-none focus:border-[var(--kz-accent)]"
+            className="w-full rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1.5 text-sm text-[var(--kz-fg)] placeholder:text-[var(--kz-fg-muted)] outline-none focus:border-[var(--kz-accent)]"
             value={props.filterDraft}
             onChange={(e) => props.onFilterDraftChange(e.target.value)}
             placeholder="关键词 或 /regex/"
@@ -896,7 +892,7 @@ function ImportTab({ compact, ...props }: Props & { compact: boolean }) {
           <button
             type="button"
             onClick={props.onAddFilter}
-            className="shrink-0 rounded-lg bg-[var(--kz-bg-soft)] px-3 py-1.5 text-xs hover:bg-[var(--kz-bg-soft)]"
+            className="shrink-0 rounded-lg bg-[var(--kz-accent)] px-3 py-1.5 text-xs text-white hover:bg-[var(--kz-accent-hover)]"
           >
             添加
           </button>
@@ -906,7 +902,7 @@ function ImportTab({ compact, ...props }: Props & { compact: boolean }) {
             {props.danmaku.filters.map((rule) => (
               <li
                 key={rule}
-                className="flex items-center justify-between gap-2 rounded-md bg-[var(--kz-bg-elevated)] px-2 py-1 text-xs"
+                className="flex items-center justify-between gap-2 rounded-md bg-[var(--kz-bg-soft)] px-2 py-1 text-xs"
               >
                 <span className="truncate font-mono text-[var(--kz-fg)]">{rule}</span>
                 <button
