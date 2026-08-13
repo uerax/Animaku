@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type {
   DanmakuAnime,
   DanmakuEpisode,
@@ -74,6 +76,9 @@ export function DanmakuPanel(props: Props) {
 
   const layout = props.layout ?? 'desktop'
   if (layout === 'mobile') {
+    if (typeof document !== 'undefined') {
+      return createPortal(<MobileSheet {...props} />, document.body)
+    }
     return <MobileSheet {...props} />
   }
   return <DesktopCard {...props} />
@@ -180,17 +185,18 @@ function MobileSheet(props: Props) {
 
   return (
     <>
-      {/* Dimmed backdrop — tap closes */}
+      {/* Fullscreen dimmed backdrop — tap closes */}
       <button
         type="button"
-        className="kz-danmaku-sheet-scrim"
+        className="fixed inset-0 z-[99998] bg-black/65 backdrop-blur-sm cursor-pointer border-0 p-0 m-0"
         aria-label="关闭弹幕面板"
         onClick={onClose}
         onMouseDown={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
       />
+      {/* Centered Modal Card: 88% width, 65dvh height, centered with margin auto */}
       <div
-        className="kz-danmaku-panel kz-danmaku-panel--mobile"
+        className="fixed inset-0 z-[99999] m-auto flex flex-col w-[88%] max-w-[22rem] h-[65dvh] max-h-[26rem] bg-[#121620]/96 backdrop-blur-2xl border border-white/15 rounded-2xl shadow-2xl overflow-hidden pointer-events-auto animate-in zoom-in-95 duration-150"
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
@@ -198,18 +204,20 @@ function MobileSheet(props: Props) {
         aria-label="弹幕面板"
         data-player-chrome
       >
-        <div className="kz-danmaku-sheet-handle" aria-hidden />
-        <div className="kz-danmaku-sheet-head">
-          <div className="kz-danmaku-sheet-tabs" role="tablist">
+        <div className="flex items-center gap-2 px-3.5 py-2.5 shrink-0 border-b border-white/10 bg-white/5">
+          <div className="flex-1 flex gap-1 p-1 rounded-xl bg-black/20 border border-white/10 min-w-0" role="tablist">
             {TABS.map(([id, label]) => (
               <button
                 key={id}
                 type="button"
                 role="tab"
                 aria-selected={tab === id}
-                data-active={tab === id}
-                className="kz-danmaku-sheet-tab"
                 onClick={() => onTabChange(id)}
+                className={
+                  tab === id
+                    ? 'flex-1 h-7 rounded-lg text-xs font-semibold bg-[#38bdf8] text-white shadow-md transition-all border-0 cursor-pointer'
+                    : 'flex-1 h-7 rounded-lg text-xs font-semibold text-white/65 hover:text-white transition-all border-0 bg-transparent cursor-pointer'
+                }
               >
                 {label}
               </button>
@@ -218,19 +226,14 @@ function MobileSheet(props: Props) {
           <button
             type="button"
             onClick={onClose}
-            className="kz-danmaku-sheet-close"
+            className="w-7 h-7 flex items-center justify-center text-white/60 hover:text-white rounded-lg hover:bg-white/10 transition-colors text-sm border-0 bg-transparent cursor-pointer"
             aria-label="关闭"
           >
             ✕
           </button>
         </div>
 
-        {/*
-          Mobile only: no status line / sources footer here —
-          WatchPage already shows them under the player. Keep the sheet
-          content-sized so short tabs (search) don't leave a blank gap.
-        */}
-        <div className="kz-danmaku-sheet-scroll">
+        <div className="flex-1 min-h-0 h-full overflow-y-auto overscroll-contain p-3.5 space-y-3 text-sm text-white">
           {tab === 'search' && <SearchTab {...props} compact />}
           {tab === 'settings' && (
             <SettingsTab
@@ -315,7 +318,108 @@ function SourcesFooter({
   )
 }
 
+/* ─── Custom Select component (Lock 100% width, no OS popup overflow) ─── */
+
+function CustomSelect<T extends number | string>({
+  value,
+  options,
+  placeholder,
+  onChange,
+}: {
+  value: T | ''
+  options: Array<{ value: T; label: string }>
+  placeholder: string
+  onChange: (val: T) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDocClick = (e: MouseEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    window.addEventListener('click', onDocClick, true)
+    return () => window.removeEventListener('click', onDocClick, true)
+  }, [open])
+
+  const selectedOpt = options.find((o) => o.value === value)
+
+  return (
+    <div ref={wrapRef} className="relative w-full">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center justify-between w-full h-8.5 px-3 rounded-lg bg-white/8 border border-white/16 text-white text-xs font-medium outline-none hover:border-white/30 active:scale-[0.99] transition-all cursor-pointer text-left"
+      >
+        <span className="truncate min-w-0 flex-1">
+          {selectedOpt ? selectedOpt.label : placeholder}
+        </span>
+        <svg
+          className={`w-3.5 h-3.5 ml-1.5 text-white/60 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
+          viewBox="0 0 16 16"
+          fill="none"
+        >
+          <path
+            d="M4 6.2L8 10.2L12 6.2"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-[100000] max-h-44 overflow-y-auto overscroll-contain py-1 rounded-xl bg-[#161b26] border border-white/20 shadow-2xl backdrop-blur-xl animate-in fade-in-50 duration-100">
+          <button
+            type="button"
+            onClick={() => {
+              onChange('' as T)
+              setOpen(false)
+            }}
+            className="w-full px-3 py-1.5 text-left text-xs text-white/50 hover:bg-white/10 transition-colors border-0 bg-transparent cursor-pointer"
+          >
+            {placeholder}
+          </button>
+          {options.map((opt) => {
+            const active = opt.value === value
+            return (
+              <button
+                key={String(opt.value)}
+                type="button"
+                title={opt.label}
+                onClick={() => {
+                  onChange(opt.value)
+                  setOpen(false)
+                }}
+                className={`flex items-center justify-between w-full px-3 py-2 text-left text-xs transition-colors border-0 cursor-pointer ${
+                  active
+                    ? 'bg-[#38bdf8]/20 text-[#38bdf8] font-bold'
+                    : 'text-white/85 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                <span className="truncate min-w-0 flex-1">{opt.label}</span>
+                {active && <span className="ml-2 text-xs text-[#38bdf8]">✓</span>}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ─── Tab bodies ─── */
+
+function formatOptionTitle(title: string, maxLen = 18): string {
+  if (!title) return ''
+  const trimmed = title.trim()
+  if (trimmed.length <= maxLen) return trimmed
+  return trimmed.slice(0, maxLen) + '…'
+}
 
 function SearchTab({ compact, ...props }: Props & { compact: boolean }) {
   if (compact) {
@@ -344,41 +448,28 @@ function SearchTab({ compact, ...props }: Props & { compact: boolean }) {
 
         <label className="kz-dm-field">
           <span className="kz-dm-label">番剧</span>
-          <select
-            className="kz-dm-select"
-            value={props.animeId === '' ? '' : String(props.animeId)}
-            onChange={(e) => {
-              const v = e.target.value
-              if (v) props.onAnimeChange(Number(v))
-            }}
-          >
-            <option value="">选择番剧…</option>
-            {props.animes.map((a) => (
-              <option key={a.animeId} value={a.animeId}>
-                {a.animeTitle}
-                {a.typeDescription ? ` (${a.typeDescription})` : ''}
-              </option>
-            ))}
-          </select>
+          <CustomSelect
+            value={props.animeId}
+            placeholder="选择番剧…"
+            options={props.animes.map((a) => ({
+              value: a.animeId,
+              label: `${a.animeTitle}${a.typeDescription ? ` (${a.typeDescription})` : ''}`,
+            }))}
+            onChange={(val) => props.onAnimeChange(val as number)}
+          />
         </label>
 
         <label className="kz-dm-field">
           <span className="kz-dm-label">章节</span>
-          <select
-            className="kz-dm-select"
-            value={props.episodeId === '' ? '' : String(props.episodeId)}
-            onChange={(e) => {
-              const v = e.target.value
-              if (v) props.onEpisodeChange(Number(v))
-            }}
-          >
-            <option value="">选择章节…</option>
-            {props.episodes.map((ep) => (
-              <option key={ep.episodeId} value={ep.episodeId}>
-                {ep.episodeTitle}
-              </option>
-            ))}
-          </select>
+          <CustomSelect
+            value={props.episodeId}
+            placeholder="选择章节…"
+            options={props.episodes.map((ep) => ({
+              value: ep.episodeId,
+              label: ep.episodeTitle,
+            }))}
+            onChange={(val) => props.onEpisodeChange(val as number)}
+          />
         </label>
 
         <p className="kz-dm-hint">
@@ -415,41 +506,28 @@ function SearchTab({ compact, ...props }: Props & { compact: boolean }) {
 
       <label className="block space-y-1">
         <span className="text-xs text-[var(--kz-fg-muted)]">番剧</span>
-        <select
-          className="w-full rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1.5 text-sm outline-none focus:border-[var(--kz-accent)]"
-          value={props.animeId === '' ? '' : String(props.animeId)}
-          onChange={(e) => {
-            const v = e.target.value
-            if (v) props.onAnimeChange(Number(v))
-          }}
-        >
-          <option value="">选择番剧…</option>
-          {props.animes.map((a) => (
-            <option key={a.animeId} value={a.animeId}>
-              {a.animeTitle}
-              {a.typeDescription ? ` (${a.typeDescription})` : ''}
-            </option>
-          ))}
-        </select>
+        <CustomSelect
+          value={props.animeId}
+          placeholder="选择番剧…"
+          options={props.animes.map((a) => ({
+            value: a.animeId,
+            label: `${a.animeTitle}${a.typeDescription ? ` (${a.typeDescription})` : ''}`,
+          }))}
+          onChange={(val) => props.onAnimeChange(val as number)}
+        />
       </label>
 
       <label className="block space-y-1">
         <span className="text-xs text-[var(--kz-fg-muted)]">章节</span>
-        <select
-          className="w-full rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1.5 text-sm outline-none focus:border-[var(--kz-accent)]"
-          value={props.episodeId === '' ? '' : String(props.episodeId)}
-          onChange={(e) => {
-            const v = e.target.value
-            if (v) props.onEpisodeChange(Number(v))
-          }}
-        >
-          <option value="">选择章节…</option>
-          {props.episodes.map((ep) => (
-            <option key={ep.episodeId} value={ep.episodeId}>
-              {ep.episodeTitle}
-            </option>
-          ))}
-        </select>
+        <CustomSelect
+          value={props.episodeId}
+          placeholder="选择章节…"
+          options={props.episodes.map((ep) => ({
+            value: ep.episodeId,
+            label: ep.episodeTitle,
+          }))}
+          onChange={(val) => props.onEpisodeChange(val as number)}
+        />
       </label>
 
       <p className="text-[11px] leading-relaxed text-[var(--kz-fg-muted)]">
@@ -667,9 +745,9 @@ function ImportTab({ compact, ...props }: Props & { compact: boolean }) {
               if (e.key === 'Enter') props.onLoadBilibili()
             }}
           />
-          <div className="kz-dm-row">
-            <label className="kz-dm-inline-num kz-dm-inline-num--grow">
-              <span>分P</span>
+          <div className="flex items-center justify-between gap-2 mt-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-300">分P</span>
               <input
                 type="number"
                 min={1}
@@ -678,32 +756,39 @@ function ImportTab({ compact, ...props }: Props & { compact: boolean }) {
                 onChange={(e) =>
                   props.onBvPageChange(Math.max(1, Number(e.target.value) || 1))
                 }
-                className="kz-dm-num"
+                className="w-16 h-8 px-2 rounded-lg bg-white/10 border border-white/15 text-white text-center text-xs font-bold outline-none focus:border-[#38bdf8]"
               />
-            </label>
+            </div>
             <button
               type="button"
               disabled={props.bilibiliBusy}
               onClick={props.onLoadBilibili}
-              className="kz-dm-btn-primary"
+              className="h-8 px-3.5 rounded-lg bg-[#38bdf8] text-white text-xs font-semibold hover:bg-sky-400 active:scale-95 transition-all cursor-pointer border-0 shadow-sm"
             >
               {props.bilibiliBusy ? '拉取中…' : '追加 B 站'}
             </button>
           </div>
         </div>
 
-        <button type="button" onClick={props.onPickXmlFile} className="kz-dm-file-btn">
-          选择 XML 弹幕文件
-          <span className="kz-dm-hint">B 站 / pakku · 默认追加</span>
+        <button
+          type="button"
+          onClick={props.onPickXmlFile}
+          className="flex items-center justify-between gap-2 w-full p-2.5 rounded-xl bg-white/5 border border-dashed border-white/20 text-white hover:bg-white/10 hover:border-[#38bdf8] hover:text-[#38bdf8] transition-all cursor-pointer text-left"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-base">📁</span>
+            <span className="text-xs font-semibold">选择本地 XML 弹幕文件</span>
+          </div>
+          <span className="text-[11px] text-slate-400">B 站 / pakku</span>
         </button>
 
         <div className="kz-dm-section kz-dm-section--border">
           <div className="kz-dm-label">
             屏蔽词 · {props.danmaku.filters.length} 条
           </div>
-          <div className="kz-dm-row">
+          <div className="flex items-center gap-2">
             <input
-              className="kz-dm-input"
+              className="flex-1 min-w-0 h-8 px-2.5 rounded-lg bg-white/10 border border-white/15 text-white text-xs outline-none focus:border-[#38bdf8] placeholder:text-slate-500"
               value={props.filterDraft}
               onChange={(e) => props.onFilterDraftChange(e.target.value)}
               placeholder="关键词 或 /regex/"
@@ -711,7 +796,11 @@ function ImportTab({ compact, ...props }: Props & { compact: boolean }) {
                 if (e.key === 'Enter') props.onAddFilter()
               }}
             />
-            <button type="button" onClick={props.onAddFilter} className="kz-dm-btn-ghost">
+            <button
+              type="button"
+              onClick={props.onAddFilter}
+              className="h-8 px-3 rounded-lg bg-[#38bdf8] text-white text-xs font-semibold hover:bg-sky-400 active:scale-95 transition-all cursor-pointer border-0 shrink-0"
+            >
               添加
             </button>
           </div>

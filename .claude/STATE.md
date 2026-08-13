@@ -1,5 +1,25 @@
 # Animaku 项目状态
 
+## [2026-08-14] 实现自定义 CustomSelect 彻底解决原生下拉框宽度溢出错位 Bug
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  - **CustomSelect 零溢出下拉**：分析出原生 `<select>` 下拉 Popup 由操作系统绘制且宽由最长项决定，CSS 无法修饰 max-width。实现极奢 `CustomSelect` 替换原生 `<select>`，下拉面板 100% 锁定与触发按钮同宽，选项带 `truncate` 省略号、亮蓝 `#38bdf8` 选中高亮与 `✓` 勾，彻底消除任何设备上的宽度溢出错位 Bug。
+- 涉及文件：apps/web/src/player/DanmakuPanel.tsx
+- 备注：`pnpm typecheck` 全仓 4 个 Workspace Projects 验证 0 错误编译通过。
+
+## [2026-08-14] 全面升级播放器与播放页移动端交互体验（对齐 Bilibili/DPlayer 标准）
+- 状态：已完成
+- 优先级：P0-P1
+- 描述：
+  - **移动端双击与长按**：撤回左右分域快进/快退逻辑（恢复为移动端全域双击统一播放/暂停，防止误触）；长按触发 `2.0X ⚡ 快速倍速中` 提示，并在松开手掌后精准恢复至长按前的自定义倍速（如原本 1.25x/1.5x）。
+  - **Seek 时间差实时 Toast**：滑动/拖拽 Seek 时屏幕中央 Toast 实时显示时间变幅与目标时间（如 `+00:15 (08:30)`）。
+  - **画面比例/填充模式**：增加 `contain (16:9)` / `cover (铺满)` / `fill (拉伸)` / `4:3` 画面比例模式支持。
+  - **移动端竖屏播放器吸顶**：WatchPage 移动端竖屏向下滑动页面时播放器 `sticky top-0 z-40` 固顶展示。
+  - **UI 纯粹精简**：去除了移动端全屏右上角多余的发弹幕胶囊与选集正倒序冗余按钮，还原极简沉浸的移动端播放器体验。
+- 涉及文件：apps/web/src/player/chrome/useShellPointerHandlers.ts, apps/web/src/player/VideoPlayer.tsx, apps/web/src/player/chrome/MobileControls.tsx, apps/web/src/pages/WatchPage.tsx, apps/web/src/pages/watch/MobileEpsSection.tsx
+- 备注：`pnpm typecheck` 全仓 4 个 Workspace 项目验证 0 错误编译通过。
+
 ## [2026-08-14] 重构移动端播放器 Backdrop 透明遮罩与手势解耦
 - 状态：已完成
 - 优先级：P0

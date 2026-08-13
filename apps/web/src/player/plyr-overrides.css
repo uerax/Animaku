@@ -595,7 +595,7 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 10;
+  z-index: 80;
   padding: 0.35rem 0.6rem max(0.5rem, calc(env(safe-area-inset-bottom, 0px) + 0.35rem));
   background: linear-gradient(
     to top,
@@ -1264,7 +1264,7 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
 .kz-danmaku-panel-root {
   position: absolute;
   inset: 0;
-  z-index: 15;
+  z-index: 120;
   pointer-events: none;
 }
 
@@ -1499,127 +1499,8 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
 }
 
 /*
- * Mobile danmaku bottom sheet — driven by .kz-danmaku-panel--mobile
- * (pointerMode mobile), not by viewport alone, so desktop layout is untouched.
+ * Mobile danmaku bottom sheet (React Portal) — 100% clean Tailwind inline
  */
-.kz-danmaku-panel-root:has(.kz-danmaku-panel--mobile) {
-  z-index: 50;
-  pointer-events: none;
-}
-
-.kz-danmaku-sheet-scrim {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: rgba(0, 0, 0, 0.42);
-  pointer-events: auto;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.kz-danmaku-panel--mobile {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  height: 100%;
-  max-width: none;
-  max-height: 100%;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: color-mix(in srgb, var(--kz-bg-elevated) 96%, #000 4%);
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.42);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  overflow: hidden;
-  pointer-events: auto;
-}
-
-.kz-danmaku-sheet-handle {
-  display: none;
-}
-
-.kz-danmaku-sheet-head {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  flex: 0 0 auto;
-  padding: 0.4rem 0.5rem 0.35rem;
-}
-
-.kz-danmaku-sheet-tabs {
-  display: flex;
-  flex: 1 1 auto;
-  min-width: 0;
-  gap: 0.15rem;
-  padding: 0.12rem;
-  border-radius: 0.55rem;
-  background: var(--kz-bg-soft);
-}
-
-.kz-danmaku-sheet-tab {
-  flex: 1 1 0;
-  min-width: 0;
-  height: 1.75rem;
-  border: 0;
-  border-radius: 0.4rem;
-  padding: 0 0.3rem;
-  background: transparent;
-  color: var(--kz-fg-muted);
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.kz-danmaku-sheet-tab[data-active='true'] {
-  background: var(--kz-bg-elevated);
-  color: var(--kz-fg);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
-}
-
-.kz-danmaku-sheet-close {
-  flex: 0 0 auto;
-  width: 1.75rem;
-  height: 1.75rem;
-  border: 0;
-  border-radius: 0.4rem;
-  background: transparent;
-  color: var(--kz-fg-muted);
-  font-size: 13px;
-  line-height: 1;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.kz-danmaku-sheet-close:active {
-  background: var(--kz-bg-soft);
-  color: var(--kz-fg);
-}
-
-/*
- * Scroll only when content exceeds max-height.
- * flex: 0 1 auto keeps short tabs (search) snug — no empty flex grow.
- */
-.kz-danmaku-sheet-scroll {
-  flex: 1 1 0;
-  min-height: 0;
-  max-height: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  padding: 0.4rem 0.65rem 0.7rem;
-  font-size: 13px;
-}
 
 /* Dense form controls — mobile sheet only */
 .kz-dm-form {
@@ -1655,23 +1536,35 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
 .kz-dm-label {
   font-size: 11px;
   font-weight: 600;
-  color: var(--kz-fg-muted);
+  color: rgba(255, 255, 255, 0.75);
 }
 
 .kz-dm-input,
-.kz-dm-select {
+.kz-dm-select,
+.kz-dm-num {
   width: 100%;
   min-width: 0;
   height: 2.15rem;
   padding: 0 0.65rem;
-  border: 1px solid var(--kz-border);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 0.55rem;
-  background: var(--kz-bg);
-  color: var(--kz-fg);
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
   font-size: 13px;
+  font-weight: 500;
   outline: none;
   -webkit-appearance: none;
   appearance: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.kz-dm-select option {
+  background: #121620;
+  color: #ffffff;
+}
+
+.kz-dm-input::placeholder {
+  color: rgba(255, 255, 255, 0.45);
 }
 
 .kz-dm-select {
@@ -1728,7 +1621,7 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   margin: 0;
   font-size: 11px;
   line-height: 1.35;
-  color: var(--kz-fg-muted);
+  color: rgba(255, 255, 255, 0.65);
 }
 
 .kz-dm-toggle-row {
@@ -1741,7 +1634,7 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   padding: 0.15rem 0;
   border: 0;
   background: transparent;
-  color: var(--kz-fg);
+  color: #ffffff;
   font-size: 13px;
   font-weight: 600;
   text-align: left;
@@ -1792,14 +1685,14 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  font-size: 11px;
-  color: var(--kz-fg-muted);
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.75);
 }
 
 .kz-dm-range-val {
   font-variant-numeric: tabular-nums;
-  color: var(--kz-fg);
-  font-weight: 600;
+  color: #38bdf8;
+  font-weight: 700;
 }
 
 .kz-dm-range-input {
@@ -1854,7 +1747,7 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   gap: 0.5rem;
   min-height: 2.15rem;
   font-size: 13px;
-  color: var(--kz-fg);
+  color: #ffffff;
 }
 
 .kz-dm-inline-num--grow {
@@ -1867,10 +1760,10 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   width: 4.25rem;
   height: 2.15rem;
   padding: 0 0.45rem;
-  border: 1px solid var(--kz-border);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 0.55rem;
-  background: var(--kz-bg);
-  color: var(--kz-fg);
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
   font-size: 13px;
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -1884,22 +1777,24 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
 }
 
 .kz-dm-type-chip {
-  height: 1.85rem;
-  border: 0;
-  border-radius: 0.45rem;
-  background: var(--kz-bg-soft);
-  color: var(--kz-fg-muted);
-  box-shadow: inset 0 0 0 1px var(--kz-border);
-  font-size: 11px;
+  height: 1.95rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.55rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+  transition: all 0.15s ease;
   -webkit-tap-highlight-color: transparent;
 }
 
 .kz-dm-type-chip[data-on='true'] {
-  background: color-mix(in srgb, var(--kz-accent) 22%, var(--kz-bg-soft));
-  color: var(--kz-fg);
-  box-shadow: inset 0 0 0 1px var(--kz-accent);
+  background: #38bdf8;
+  color: #ffffff;
+  font-weight: 700;
+  border-color: #38bdf8;
+  box-shadow: 0 2px 8px rgba(56, 189, 248, 0.4);
 }
 
 .kz-dm-file-btn {

@@ -56,6 +56,14 @@ import { MobileControls } from './chrome/MobileControls'
 import type { PlayerControlsProps } from './chrome/types'
 
 export type { DanmakuPanelState, VideoPlayerProps } from './types'
+export type AspectRatioMode = 'contain' | 'cover' | 'fill' | '4:3'
+
+const ASPECT_RATIO_LABELS: Record<AspectRatioMode, string> = {
+  contain: '默认比例 (16:9)',
+  cover: '画面铺满 (Cover)',
+  fill: '100% 拉伸 (Fill)',
+  '4:3': '画幅 4:3',
+}
 
 /** Min buffer before first play — reduces weak-net audio-before-picture. */
 const MIN_START_BUFFER_SEC = 2.2
@@ -175,6 +183,16 @@ export function VideoPlayer({
   // Auto-next countdown overlay
   const [countdown, setCountdown] = useState<number | null>(null)
   const countdownIntervalRef = useRef(0)
+
+  const [aspectRatio, setAspectRatio] = useState<AspectRatioMode>('contain')
+
+  const toggleAspectRatio = () => {
+    const modes: AspectRatioMode[] = ['contain', 'cover', 'fill', '4:3']
+    const idx = modes.indexOf(aspectRatio)
+    const next = modes[(idx + 1) % modes.length]
+    setAspectRatio(next)
+    flashSkipHint(`画面比例：${ASPECT_RATIO_LABELS[next]}`, 1800)
+  }
 
   const [panelOpen, setPanelOpen] = useState(false)
   const [panelTab, setPanelTab] = useState<DanmakuPanelTab>('search')
@@ -1684,6 +1702,15 @@ export function VideoPlayer({
     const v = videoRef.current
     if (!v || !Number.isFinite(v.duration) || v.duration <= 0) return
     const target = Math.max(0, Math.min(v.duration, ratio * v.duration))
+    const cur = v.currentTime || 0
+    const delta = Math.round(target - cur)
+    if (Math.abs(delta) >= 1) {
+      const sign = delta >= 0 ? '+' : '-'
+      const formattedTarget = formatTime(target)
+      const formattedDelta = `${sign}${formatTime(Math.abs(delta))}`
+      flashSkipHint(`${formattedDelta} (${formattedTarget})`, 1000)
+    }
+
     // Spinner only when target is outside buffered ranges (nothing to paint).
     // In-buffer scrub stays silent.
     let covered = false
@@ -1902,7 +1929,12 @@ export function VideoPlayer({
           top: 0,
           width: '100%',
           height: '100%',
-          objectFit: 'contain',
+          objectFit:
+            aspectRatio === 'cover'
+              ? 'cover'
+              : aspectRatio === 'fill'
+                ? 'fill'
+                : 'contain',
           background: '#000',
           zIndex: 0,
         }}

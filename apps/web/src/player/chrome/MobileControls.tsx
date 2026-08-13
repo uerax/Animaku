@@ -151,11 +151,32 @@ export function MobileControls(props: PlayerControlsProps) {
 
   const anyMenuOpen = speedMenuOpen || srMenuOpen || volumeMenuOpen
 
+  const lastDismissAtRef = useRef(0)
+
   const dismissMenus = (e: SyntheticEvent) => {
     e.stopPropagation()
+    lastDismissAtRef.current = Date.now()
     if (speedMenuOpen) onToggleSpeedMenu()
     if (srMenuOpen) onToggleSrMenu()
     if (volumeMenuOpen) onToggleVolumeMenu()
+  }
+
+  const safeToggleSpeed = (e: SyntheticEvent) => {
+    e.stopPropagation()
+    if (Date.now() - lastDismissAtRef.current < 300) return
+    onToggleSpeedMenu()
+  }
+
+  const safeToggleSr = (e: SyntheticEvent) => {
+    e.stopPropagation()
+    if (Date.now() - lastDismissAtRef.current < 300) return
+    onToggleSrMenu()
+  }
+
+  const safeToggleVolume = (e: SyntheticEvent) => {
+    e.stopPropagation()
+    if (Date.now() - lastDismissAtRef.current < 300) return
+    onToggleVolumeMenu()
   }
 
   return (
@@ -164,7 +185,6 @@ export function MobileControls(props: PlayerControlsProps) {
         <div
           className="kz-player-backdrop"
           onClick={dismissMenus}
-          onTouchStart={dismissMenus}
         />
       )}
       {isFs && (
@@ -287,10 +307,7 @@ export function MobileControls(props: PlayerControlsProps) {
               type="button"
               className="kz-ctrl"
               data-active={speedMenuOpen}
-              onClick={(e) => {
-                e.stopPropagation()
-                onToggleSpeedMenu()
-              }}
+              onClick={safeToggleSpeed}
               aria-expanded={speedMenuOpen}
             >
               {player.speed || 1}x
@@ -303,10 +320,7 @@ export function MobileControls(props: PlayerControlsProps) {
               type="button"
               className="kz-ctrl"
               data-active={srMode !== 'off' || srMenuOpen}
-              onClick={(e) => {
-                e.stopPropagation()
-                onToggleSrMenu()
-              }}
+              onClick={safeToggleSr}
               title={
                 webGpuOk === false
                   ? '当前浏览器不支持 WebGPU 超分'
@@ -328,10 +342,7 @@ export function MobileControls(props: PlayerControlsProps) {
               type="button"
               className="kz-ctrl kz-ctrl-icon"
               data-active={volumeMenuOpen || volPct === 0}
-              onClick={(e) => {
-                e.stopPropagation()
-                onToggleVolumeMenu()
-              }}
+              onClick={safeToggleVolume}
               title="音量"
               aria-label="音量"
               aria-expanded={volumeMenuOpen}

@@ -183,7 +183,7 @@ export function WatchPage() {
   const item = w.bangumiItem
 
   const playerBlock = (
-    <div className="space-y-2">
+    <div className="space-y-2 lg:static sticky top-0 z-40 bg-[var(--kz-bg)] shadow-md lg:shadow-none">
       {w.resolveLoading && !w.mediaSrc && (
         <div className="kz-player-placeholder text-sm text-[var(--kz-fg-muted)]">
           <div className="flex flex-col items-center gap-2">
