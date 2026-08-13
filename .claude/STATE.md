@@ -1,5 +1,44 @@
 # Animaku 项目状态
 
+## [2026-08-14] 重构移动端播放器 Backdrop 透明遮罩与手势解耦
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  - **对齐 Bilibili/DPlayer/YouTube 业界标准**：在移动端倍速菜单、超分菜单或音量面板展开时，引入覆盖播放器全域的 `.kz-player-backdrop` 透明遮罩层（`z-index: 75`）。
+  - **0 毫秒极速响应与手势解耦**：点击或触碰遮罩层时 **0 毫秒瞬间收起面板**，并通过 `e.stopPropagation()` 阻断事件向底层视频舞台透传；彻底解耦了 `useShellPointerHandlers.ts` 的手势逻辑，解决了此前将关闭面板混在舞台 `onShellClick` 导致的“延时关闭”与“双击判定失效”互斥冲突。
+- 涉及文件：apps/web/src/player/chrome/MobileControls.tsx, apps/web/src/player/chrome/useShellPointerHandlers.ts, apps/web/src/player/plyr-overrides.css
+- 备注：`pnpm typecheck` 验证全通过。
+
+## [2026-08-14] 简化移动端音量面板展示层级（撤回多余事件与极简修复）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  - **撤回多余拦截逻辑**：根据要求撤回了此前增加的动态 `pointer-events: none` 隔离与冗余 touch 阻止冒泡逻辑，解决了点击外部关菜单延迟滞后的问题。
+  - **极简展示层级提升**：仅在 CSS 中保留最干净纯粹的展示层级修复，将移动端音量面板 Popover (`.kz-vol-popup`) 与移动端下拉菜单的 `z-index` 设置为 `100 !important`，确保其在 DOM 视觉展示上置于进度条 (`.kz-seek`) 上方。
+- 涉及文件：apps/web/src/player/chrome/MobileControls.tsx, apps/web/src/player/plyr-overrides.css
+- 备注：`pnpm typecheck` 验证全通过。
+
+## [2026-08-14] 修复弹幕面板展示截断与桌面端三大面板中轴精确对齐
+- 状态：已完成
+- 优先级：P0-P1
+- 描述：
+  - **恢复弹幕面板根级渲染防截断**：将 `DanmakuPanel` 恢复在播放器 `.kz-player-shell` 根容器（`.kz-danmaku-panel-root`）层级中渲染，彻底解决了若放入 `DesktopControls` 子 DOM 被控制栏 `.kz-bar-row` 的 `overflow-y: hidden` 强制剪切导致“弹幕面板无法展示”的致命 Bug。
+  - **桌面端面板中轴精确定位**：
+    1. **倍速与超分面板**：`.kz-speed-menu` 采用 `left: 50%; transform: translateX(-50%)`，使其基于「倍速」和「超分」按钮 X 轴中心正上方精确居中展开，并配合独立的 `kz-menu-popover-in` 放大动效。
+    2. **弹幕设置面板**：桌面端 `.kz-danmaku-panel--desktop` 采用基于控制栏高度的右偏移中轴定位，使 352px 宽的面板底部中心线正对着控制栏上的「弹幕设置」图标按钮，实现三面板统一的精密视觉中轴对齐。
+- 涉及文件：apps/web/src/player/VideoPlayer.tsx, apps/web/src/player/chrome/DesktopControls.tsx, apps/web/src/player/chrome/types.ts, apps/web/src/player/plyr-overrides.css
+- 备注：`pnpm typecheck` 验证全通过。
+
+## [2026-08-13] 修复移动端全屏点击无效与窗口全屏无法退出问题
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **移动端全屏 Top Bar 导航栏**：为移动端在窗口全屏 (webFs) 及 DOM 全屏模式下打造了置顶 Header (`.kz-mobile-top-bar`)，包含醒目的左上角 `←` 退出全屏图标按钮与标题显示，使用户在任何移动设备窗口全屏下呼出控制栏均可 100% 一键退出全屏。
+  2. **全屏响应与 Screen Orientation 屏幕旋转**：重构全屏降级与退出机制，全屏时联动 `Screen Orientation API` (`landscape` 锁定与解锁)，修复移动端多端全屏点击由于缺失 API 或限制引发无响应的问题；重构统一退出逻辑，保证在 DOM 全屏、iOS video 全屏和 CSS 网页全屏模式下均可稳定恢复。
+  3. **底部控制条 Safe Area 避让**：在 `.kz-bar` 中引入 `max(0.5rem, calc(env(safe-area-inset-bottom, 0px) + 0.35rem))` 底部安全区避让，解决 iOS/Android 全屏下底部手势导航条遮挡控制条按钮导致的点击无效问题。
+- 涉及文件：apps/web/src/player/VideoPlayer.tsx, apps/web/src/player/chrome/MobileControls.tsx, apps/web/src/player/chrome/types.ts, apps/web/src/player/chrome/icons.tsx, apps/web/src/player/types.ts, apps/web/src/player/plyr-overrides.css, apps/web/src/pages/WatchPage.tsx
+- 备注：`pnpm typecheck` 验证全通过。
+
 ## [2026-08-13] 修复视频源点击抢跑折叠与选集不同步 Bug
 - 状态：已完成
 - 优先级：P0

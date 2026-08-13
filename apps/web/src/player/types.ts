@@ -37,6 +37,7 @@ export interface DanmakuPanelState {
 }
 
 export interface VideoPlayerProps {
+  title?: string
   src: string
   initialTime?: number
   comments: DanmakuComment[]

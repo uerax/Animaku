@@ -196,6 +196,11 @@ export function WatchPage() {
       {w.mediaSrc && (
         <VideoPlayerSuspense
           key={w.playerKey}
+          title={
+            w.title
+              ? `${w.title}${w.episode ? ` 第 ${w.episode.episode} 集` : ''}`
+              : undefined
+          }
           src={w.mediaSrc}
           initialTime={w.resumeTime}
           comments={w.dm.visibleComments}

@@ -119,11 +119,7 @@ export function useShellPointerHandlers(
         if (Date.now() - lastTapAtRef.current >= MOBILE_SINGLE_TAP_DELAY_MS - 20) {
           lastTapAtRef.current = 0
         }
-        if (a.closeMenus()) {
-          a.bumpBar()
-          return
-        }
-        if (a.closePanel()) {
+        if (a.closeMenus() || a.closePanel()) {
           a.bumpBar()
           return
         }

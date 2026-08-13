@@ -9,6 +9,7 @@ import {
 import type { SuperResolutionMode } from '@animaku/shared'
 import type { PlayerControlsProps } from './types'
 import {
+  IconBack,
   IconFullscreen,
   IconFullscreenExit,
   IconNext,
@@ -60,6 +61,7 @@ function barPopupStyle(pos: PopupPos): CSSProperties {
  */
 export function MobileControls(props: PlayerControlsProps) {
   const {
+    title,
     showBar,
     paused,
     panelOpen,
@@ -95,6 +97,9 @@ export function MobileControls(props: PlayerControlsProps) {
     speedOptions,
     srLabels,
   } = props
+
+  const isFs = webFs || playerFs
+  const exitFs = webFs ? onToggleWebFs : onTogglePlayerFs
 
   const pinBar =
     showBar ||
@@ -144,24 +149,81 @@ export function MobileControls(props: PlayerControlsProps) {
 
   const stop = (e: SyntheticEvent) => e.stopPropagation()
 
+  const anyMenuOpen = speedMenuOpen || srMenuOpen || volumeMenuOpen
+
+  const dismissMenus = (e: SyntheticEvent) => {
+    e.stopPropagation()
+    if (speedMenuOpen) onToggleSpeedMenu()
+    if (srMenuOpen) onToggleSrMenu()
+    if (volumeMenuOpen) onToggleVolumeMenu()
+  }
+
   return (
-    <div
-      ref={barRef}
-      className={`kz-bar ${pinBar ? 'kz-bar--show' : ''}`}
-      onMouseDown={stop}
-      data-player-chrome
-    >
-      <input
-        type="range"
-        className="kz-seek"
-        min={0}
-        max={1000}
-        value={Math.round(progress * 10)}
-        onChange={(e) => onSeekRatio(Number(e.target.value) / 1000)}
-        onPointerUp={releaseSliderFocus}
-        style={{ ['--kz-progress' as string]: `${progress}%` }}
-        aria-label="进度"
-      />
+    <>
+      {anyMenuOpen && (
+        <div
+          className="kz-player-backdrop"
+          onClick={dismissMenus}
+          onTouchStart={dismissMenus}
+        />
+      )}
+      {isFs && (
+        <div
+          className={`kz-mobile-top-bar ${pinBar ? 'kz-mobile-top-bar--show' : ''}`}
+          onMouseDown={stop}
+          onClick={stop}
+          data-player-chrome
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              type="button"
+              className="kz-ctrl kz-ctrl-icon text-white/90 hover:text-white"
+              onClick={(e) => {
+                e.stopPropagation()
+                exitFs()
+              }}
+              title="退出全屏"
+              aria-label="退出全屏"
+            >
+              <IconBack />
+            </button>
+            {title && (
+              <span className="kz-mobile-top-title truncate text-xs font-medium text-white/90">
+                {title}
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            className="kz-ctrl kz-ctrl-icon text-white/70 hover:text-white"
+            onClick={(e) => {
+              e.stopPropagation()
+              exitFs()
+            }}
+            title="退出全屏"
+            aria-label="退出全屏"
+          >
+            <IconFullscreenExit />
+          </button>
+        </div>
+      )}
+      <div
+        ref={barRef}
+        className={`kz-bar ${pinBar ? 'kz-bar--show' : ''}`}
+        onMouseDown={stop}
+        data-player-chrome
+      >
+        <input
+          type="range"
+          className="kz-seek"
+          min={0}
+          max={1000}
+          value={Math.round(progress * 10)}
+          onChange={(e) => onSeekRatio(Number(e.target.value) / 1000)}
+          onPointerUp={releaseSliderFocus}
+          style={{ ['--kz-progress' as string]: `${progress}%` }}
+          aria-label="进度"
+        />
       <div className="kz-bar-row">
         <div className="kz-bar-left">
           <button
@@ -395,5 +457,6 @@ export function MobileControls(props: PlayerControlsProps) {
         </div>
       )}
     </div>
+    </>
   )
 }

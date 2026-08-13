@@ -559,13 +559,44 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   color: #fff;
 }
 
+/* Mobile top overlay header for fullscreen exit & title */
+.kz-mobile-top-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: max(0.45rem, calc(env(safe-area-inset-top, 0px) + 0.35rem)) 0.75rem 0.6rem;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.85) 0%,
+    rgba(0, 0, 0, 0.4) 60%,
+    transparent 100%
+  );
+  opacity: 0;
+  transform: translateY(-6px);
+  transition:
+    opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+
+.kz-mobile-top-bar--show {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
 .kz-bar {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
   z-index: 10;
-  padding: 0.35rem 0.6rem 0.5rem;
+  padding: 0.35rem 0.6rem max(0.5rem, calc(env(safe-area-inset-bottom, 0px) + 0.35rem));
   background: linear-gradient(
     to top,
     rgba(0, 0, 0, 0.88) 0%,
@@ -945,7 +976,8 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
 .kz-speed-menu {
   position: absolute;
   bottom: calc(100% + 8px);
-  right: 0;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 80;
   min-width: 5.5rem;
   max-height: 14rem;
@@ -960,8 +992,19 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
     0 16px 36px rgba(0, 0, 0, 0.6),
     0 0 0 1px rgba(29, 155, 240, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  animation: kz-popover-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  transform-origin: bottom right;
+  animation: kz-menu-popover-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: bottom center;
+}
+
+@keyframes kz-menu-popover-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.93) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) scale(1) translateY(0);
+  }
 }
 
 @keyframes kz-popover-in {
@@ -993,8 +1036,18 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
  * Inline style sets left + translateX(-50%).
  * Bottom is anchored right above the control row button (height + bar padding).
  */
+/* Transparent backdrop mask for mobile popups — 0ms instant dismiss & gesture isolation */
+.kz-player-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 75;
+  background: transparent;
+  pointer-events: auto;
+  touch-action: none;
+}
+
 .kz-mobile-bar-menu {
-  z-index: 80;
+  z-index: 100 !important;
   min-width: 5rem;
   max-height: min(35dvh, 10.5rem);
   overflow-y: auto;
@@ -1062,7 +1115,7 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   --kz-vol-rail: 2px;
   --kz-vol-accent: #38bdf8;
 
-  z-index: 80;
+  z-index: 100 !important;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1213,6 +1266,17 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   inset: 0;
   z-index: 15;
   pointer-events: none;
+}
+
+/* Desktop danmaku panel: centered on Setting button axis */
+.kz-danmaku-panel--desktop {
+  position: absolute;
+  bottom: calc(var(--kz-ctrl-h, 36px) + 1.25rem) !important;
+  right: min(calc(100% - 1rem), max(0.75rem, calc(16.5rem - 11rem))) !important;
+  left: auto !important;
+  transform: none !important;
+  transform-origin: bottom right;
+  animation: kz-popover-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .kz-danmaku-panel-root > * {

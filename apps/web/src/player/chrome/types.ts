@@ -5,6 +5,7 @@ import type { PlayerSettings, SuperResolutionMode } from '@animaku/shared'
  * No media engine refs (video/hls/danmaku core).
  */
 export interface PlayerControlsProps {
+  title?: string
   showBar: boolean
   paused: boolean
   panelOpen: boolean

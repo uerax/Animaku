@@ -65,6 +65,7 @@ const MIN_RESUME_BUFFER_SEC = 2.8
 const MAX_START_WAIT_MS = 14_000
 
 export function VideoPlayer({
+  title,
   src,
   initialTime = 0,
   comments,
@@ -1531,19 +1532,49 @@ export function VideoPlayer({
   }
   togglePlayRef.current = togglePlay
 
+  /** Try locking or unlocking orientation for landscape mobile fullscreen */
+  function tryLockOrientation(lock: boolean) {
+    if (typeof screen === 'undefined' || !screen.orientation) return
+    const ori = screen.orientation as unknown as {
+      lock?: (orientation: string) => Promise<void>
+      unlock?: () => void
+    }
+    try {
+      if (lock) {
+        void ori.lock?.('landscape').catch(() => {
+          /* ignore orientation lock refusal */
+        })
+      } else {
+        ori.unlock?.()
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
   useEffect(() => {
     const onFs = () => {
-      setPlayerFs(isShellFullscreen(shellRef.current))
+      const isFs = isShellFullscreen(shellRef.current)
+      setPlayerFs(isFs)
+      if (!isFs && !webFsRef.current) {
+        tryLockOrientation(false)
+      }
     }
     // Standard + legacy webkit (older Safari / iPadOS)
     document.addEventListener('fullscreenchange', onFs)
     document.addEventListener('webkitfullscreenchange', onFs as EventListener)
     // iOS native video fullscreen (video.webkitEnterFullscreen)
     const video = videoRef.current
-    const onVideoFsBegin = () => setPlayerFs(true)
+    const onVideoFsBegin = () => {
+      setPlayerFs(true)
+      tryLockOrientation(true)
+    }
     const onVideoFsEnd = () => {
-      // If CSS web-fs still on, keep "expanded" feel via that path
-      setPlayerFs(isShellFullscreen(shellRef.current))
+      const isFs = isShellFullscreen(shellRef.current)
+      setPlayerFs(isFs)
+      if (!isFs && !webFsRef.current) {
+        tryLockOrientation(false)
+      }
     }
     video?.addEventListener('webkitbeginfullscreen', onVideoFsBegin)
     video?.addEventListener('webkitendfullscreen', onVideoFsEnd)
@@ -1558,6 +1589,18 @@ export function VideoPlayer({
     }
   }, [src])
 
+  async function exitAnyFs() {
+    setWebFs(false)
+    setPlayerFs(false)
+    tryLockOrientation(false)
+    exitIosVideoFullscreen(videoRef.current)
+    try {
+      await exitDomFullscreen()
+    } catch {
+      /* ignore */
+    }
+  }
+
   /**
    * Player fullscreen:
    * 1) Standard / webkit Fullscreen API on shell (desktop / iPadOS 15+ often)
@@ -1569,21 +1612,9 @@ export function VideoPlayer({
     const video = videoRef.current
     if (!shell) return
 
-    // Already in CSS webpage FS → exit that first if user hits 「全屏」
-    if (webFs && !isShellFullscreen(shell) && !isIosVideoFullscreen(video)) {
-      setWebFs(false)
-      // continue into enter path below
-    }
-
-    // Exit if already in any "true" fullscreen
-    if (isShellFullscreen(shell) || isIosVideoFullscreen(video)) {
-      try {
-        await exitDomFullscreen()
-      } catch {
-        /* ignore */
-      }
-      exitIosVideoFullscreen(video)
-      setPlayerFs(false)
+    // Already in any fullscreen -> exit directly
+    if (webFs || isShellFullscreen(shell) || isIosVideoFullscreen(video)) {
+      await exitAnyFs()
       return
     }
 
@@ -1595,6 +1626,7 @@ export function VideoPlayer({
         await exitDomFullscreen()
         await requestDomFullscreen(shell)
         setPlayerFs(true)
+        tryLockOrientation(true)
         return
       } catch (e) {
         console.warn('[player] shell fullscreen failed, trying fallbacks', e)
@@ -1605,30 +1637,23 @@ export function VideoPlayer({
     if (canIosVideoFullscreen(video)) {
       try {
         enterIosVideoFullscreen(video!)
-        // webkitbeginfullscreen will set playerFs; set optimistically
         setPlayerFs(true)
+        tryLockOrientation(true)
         return
       } catch (e) {
         console.warn('[player] iOS video fullscreen failed', e)
       }
     }
 
-    // Last resort: CSS fill viewport (works without Fullscreen API)
+    // Fallback for mobile / restricted browsers: CSS webpage fullscreen
     setWebFs(true)
+    tryLockOrientation(true)
   }
 
   /** Expand player to viewport via CSS (no Fullscreen API) */
   async function toggleWebFs() {
-    // From true fullscreen → switch to CSS webpage fullscreen (dual with 「全屏」)
-    if (isShellFullscreen(shellRef.current) || isIosVideoFullscreen(videoRef.current)) {
-      try {
-        await exitDomFullscreen()
-      } catch {
-        /* ignore */
-      }
-      exitIosVideoFullscreen(videoRef.current)
-      setPlayerFs(false)
-      setWebFs(true)
+    if (webFs || isShellFullscreen(shellRef.current) || isIosVideoFullscreen(videoRef.current)) {
+      await exitAnyFs()
       return
     }
     try {
@@ -1637,18 +1662,8 @@ export function VideoPlayer({
       /* ignore */
     }
     exitIosVideoFullscreen(videoRef.current)
-    setWebFs((v) => !v)
-  }
-
-  async function exitAnyFs() {
-    setWebFs(false)
-    setPlayerFs(false)
-    exitIosVideoFullscreen(videoRef.current)
-    try {
-      await exitDomFullscreen()
-    } catch {
-      /* ignore */
-    }
+    setWebFs(true)
+    tryLockOrientation(true)
   }
 
   /** F key / double-click: toggle fullscreen (with iOS / CSS fallbacks) */
@@ -1749,6 +1764,7 @@ export function VideoPlayer({
     .join(' ')
 
   const controlsProps: PlayerControlsProps = {
+    title,
     showBar,
     paused,
     panelOpen,
