@@ -1132,6 +1132,7 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(16px) saturate(180%);
   -webkit-backdrop-filter: blur(16px) saturate(180%);
+  overflow: hidden;
   pointer-events: auto;
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
@@ -1212,6 +1213,17 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
 
 .kz-vol-popup-range:focus-visible {
   outline: none;
+}
+
+.kz-vol-popup-range::-webkit-outer-spin-button,
+.kz-vol-popup-range::-webkit-inner-spin-button,
+.kz-vol-popup-range::-webkit-media-controls-container,
+.kz-vol-popup-range::-webkit-media-controls,
+.kz-vol-popup-range::-webkit-slider-thumb-button {
+  -webkit-appearance: none !important;
+  display: none !important;
+  margin: 0 !important;
+  opacity: 0 !important;
 }
 
 .kz-vol-popup-range::-webkit-slider-runnable-track {

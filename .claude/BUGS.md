@@ -58,12 +58,14 @@
 - 描述：参考 Bilibili Web/YouTube Web/DPlayer 移动端标准实践，引入 kz-player-backdrop 透明遮罩机制。当音量条/倍速/超分菜单开启时，点击遮罩 0 毫秒瞬间收起面板并隔离手势，解决关闭延迟与双击判定的冲突。
 - 涉及文件：apps/web/src/player/chrome/MobileControls.tsx, apps/web/src/player/chrome/useShellPointerHandlers.ts, apps/web/src/player/plyr-overrides.css
 
-## [2026-08-14] 实现自定义 CustomSelect 彻底解决原生下拉框宽度溢出错位 Bug
+## [2026-08-14] 修复部分大屏手机/浏览器渲染 WebKit 原生 range 步进箭角的 Bug
 
 - 状态：已完成
 - 优先级：P0
 - 描述：
-  - **根本原因**：原生 `<select>` 下拉 Popup 由操作系统 UI 线程绘制，其宽度依据最长的 `<option>` 字符数与原生滚动条 width auto 计算渲染，脱离 Web CSS 盒模型，无法用 CSS 限制 `max-width`，导致个别长章节标题撑破面板宽度横截在右侧。
-  - **解决方案**：实现高质感 React 自定义下拉组件 `CustomSelect`。下拉列表框设为 `absolute left-0 right-0 top-[calc(100%+4px)]` 100% 同宽锁定，完全消除超宽错位；选项支持文本单行省略 `truncate`、当前项 `#38bdf8` 亮蓝高亮 + `✓` 勾、旋转箭头 `⌵` 与点击外部收起防漏。
-- 涉及文件：apps/web/src/player/DanmakuPanel.tsx
+  - **根本原因**：在 Android / Chromium 大屏或某些设备触控模式下，浏览器为 `<input type="range">` 自动渲染了原生的步进/控件微调 UI（带白底和 `◀ ▶` 箭角的 Stepper Controls）。因为音量滑块被 CSS `transform: rotate(-90deg)` 旋转了 90 度，这个原生的 Stepper 被顺带旋转到了音量面板底部露在外面。
+  - **解决方案**：
+    1. 给音量胶囊面板 `.kz-vol-popup` 强制加上 `overflow: hidden;`，绝对裁剪任何溢出渲染。
+    2. 在 CSS 中为 `.kz-vol-popup-range` 添加 `::-webkit-outer-spin-button`, `::-webkit-inner-spin-button`, `::-webkit-media-controls-container` 等原生控制伪类的 `display: none !important; -webkit-appearance: none !important;` 彻底强制禁用与隐藏。
+- 涉及文件：apps/web/src/player/plyr-overrides.css
 

@@ -1,11 +1,12 @@
 # Animaku 项目状态
 
-## [2026-08-14] 实现自定义 CustomSelect 彻底解决原生下拉框宽度溢出错位 Bug
+## [2026-08-14] 修复部分大屏手机/浏览器渲染 WebKit 原生 range 步进箭角的 Bug
 - 状态：已完成
 - 优先级：P0
 - 描述：
-  - **CustomSelect 零溢出下拉**：分析出原生 `<select>` 下拉 Popup 由操作系统绘制且宽由最长项决定，CSS 无法修饰 max-width。实现极奢 `CustomSelect` 替换原生 `<select>`，下拉面板 100% 锁定与触发按钮同宽，选项带 `truncate` 省略号、亮蓝 `#38bdf8` 选中高亮与 `✓` 勾，彻底消除任何设备上的宽度溢出错位 Bug。
-- 涉及文件：apps/web/src/player/DanmakuPanel.tsx
+  - **根本原因**：分析出大屏手机/Chromium 触控模式下浏览器会自动为 `<input type="range">` 渲染原生的 Stepper 步进调节图标（带白底和 `◀ ▶` 箭角）。因滑块被旋转了 -90deg，该原生 Stepper 控件被旋转露到了音量胶囊底部。
+  - **解决方案**：为音量胶囊 `.kz-vol-popup` 强制加上 `overflow: hidden;`，并在 CSS 中为 `.kz-vol-popup-range` 补充全套 WebKit media controls 伪类 `display: none !important; -webkit-appearance: none !important;` 彻底清除了原生箭角。
+- 涉及文件：apps/web/src/player/plyr-overrides.css
 - 备注：`pnpm typecheck` 全仓 4 个 Workspace Projects 验证 0 错误编译通过。
 
 ## [2026-08-14] 全面升级播放器与播放页移动端交互体验（对齐 Bilibili/DPlayer 标准）
