@@ -1,18 +1,48 @@
 # Animaku 项目状态
 
-## [2026-08-15] 接入 B 站级弹幕层级渲染管线（滚动 < 底部字幕 < 顶部科普固定弹幕）
+## [2026-08-15] 修复切换倍速与拖动进度条（Seek）时弹幕瞬间抽搐与回弹 Bug
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **排查切倍速瞬间回弹根本原因**：
+     - 此前在 `ratechange` 触发时，`anchorPerfTime` 仍是旧时间戳，直接在已变更的 `playbackRate` 下调用 `mediaTime()`，导致根据 `elapsed * newRate` 计算出的预测时间产生了向前的虚假跳跃（Phantom Forward Leap）；
+     - 紧接着由于视频实际播放时间滞后（浏览器 `<video>` 低频 15Hz 更新），触发了 `checkClockDrift` / `mediaTime` 内部的漂移重置阈值（`drift < -0.15s`），使时间轴被强制回拨 150~250ms，视觉上呈现为“切倍速瞬间弹幕猛然回弹一下并抽搐”。
+  2. **排查拖动进度条（Seek）抽搐根本原因**：
+     - 在 `onSeeking` 触发期间未调用 `this.seek()`，导致在视频解码缓冲的 100~300ms 空档期内，后台 RAF `tick()` 依然在运行，拿新的 target seek 时间去处理旧的 comment 队列，造成大量陈旧弹幕在 1 帧内被强制快进清理或错误生成，直到 `onSeeked` 触发才重新重置。
+  3. **系统性修复与高精时钟解耦**：
+     - **纯插值解耦**：将 `mediaTime()` 改为纯数学单调插值函数，移除其内部对 `anchorMediaTime` 的副作用修改；将漂移校准完全收敛至 `timeupdate` 的阻尼平滑修正（Damped Smooth Adjustment）；
+     - **切倍速瞬时无损重锚（Zero-Discontinuity Re-anchoring）**：在 `handlePlaybackRateChange` 中，使用 `oldRate` 精确计算出切倍速瞬间的真实微秒媒体时间戳作为新起点，再无缝切换至 `newRate`，消除所有虚假跳跃；
+     - **`onSeeking` 瞬时同步快照**：在 `onSeeking` 触发时立即执行 `seek()` 重构当前目标时间点的静态弹幕快照，拖动进度条时弹幕随光标实时平滑更新，松手起播 100% 丝滑无抖动。
+- 涉及文件：apps/web/src/player/media/canvas-danmaku.ts
+- 备注：`pnpm typecheck` 全仓 4 个 Workspace Projects 验证 0 错误通过，`pnpm build` 全量打包验证通过。
+
+## [2026-08-15] 调整桌面端弹幕基准字号至 0.8 倍水平（20px）
 - 状态：已完成
 - 优先级：P1
 - 描述：
-  - **对标 B 站工业标准**：将弹幕引擎 Canvas 渲染管线升级为分层渲染（Layered Rendering Pipeline）：
-    - **Layer 0（最底层）**：普通滚动弹幕（`'rtl'`）；
-    - **Layer 1（中间层）**：底部固定字幕弹幕（`'bottom'`）；
-    - **Layer 2（最顶层）**：顶部固定科普/高能预警弹幕（`'top'`）。
-  - **Zero-GC 分层遍历**：在单帧 `paint()` 中，按 Layer 0 → Layer 1 → Layer 2 的顺序原子化执行每条弹幕的 `strokeText` + `fillText`，彻底保证顶部科普与底部字幕永远清晰浮在滚动弹幕浪潮之上，不被日常吐槽刷屏遮盖，且零临时对象分配。
-- 涉及文件：apps/web/src/player/media/canvas-danmaku.ts
-- 备注：`pnpm typecheck` 全仓 4 个 Workspace Projects 验证 0 错误通过。
+  - **按需缩小桌面基准字号**：将桌面端弹幕基准像素 `BILI_BASE_PX` 及 `DANMAKU_BASE_PX` 从 `25px` 调整为 `20px`（即精准对应原 `0.8x` 字号水平）。
+  - **默认 1.0x 视觉精致小巧**：使得默认 `1.0x` 字号呈现精致优雅的排版效果，不再出现大字遮挡画面的情况；用户面板中的字号调节滑块（0.5x ~ 2.0x）依然线性可用。
+  - **移动端隔离保护**：移动端字号根据屏幕高度百分比（`targetPx`）独立计算，不受桌面端基准字号调整影响，维持最佳移动触控与可读性。
+- 涉及文件：apps/web/src/player/media/danmaku-utils.ts, apps/web/src/player/media/canvas-danmaku.ts
+- 备注：`pnpm typecheck` 全仓 4 个 Workspace Projects 验证 0 错误通过，`pnpm build` 全量打包验证通过。
 
-## [2026-08-15] 修复弹幕重叠时上层弹幕描边被下层弹幕文字遮挡（改为单条弹幕原子化描边+填充）
+## [2026-08-15] 弹幕速度模型对齐 B 站标准（恒定屏幕驻留时长）与倍速播放自适应补偿
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **基准速度模型升级为「基于屏幕驻留时长」标准（Duration-Based Standard）**：
+     - 对标 B 站工业级弹幕规范，将原有的固定像素速度（130px/s）重构为恒定屏幕穿越时长模型：
+       - **普通滚动弹幕（`'rtl'`）**：基准全屏飞行时长固定为 **7.5 秒**（移动端全屏 6.5s，窗口 7.0s），更符合中文阅读舒适度。无论屏幕是 720px 窗口还是 1920px/4K 全屏，弹幕均在稳定 7.5s 内完成屏幕穿越，彻底解决此前 1080p 全屏下需要 16.3 秒极慢爬行导致大量旧弹幕堆积在屏幕上的严重问题。
+       - **固定顶部/底部弹幕（`'top'` / `'bottom'`）**：基准停留时间统一为 **4.0 秒**，确保字幕和高能预警具备稳定可读时间窗口。
+       - **用户速度倍率响应**：用户设置的弹幕速度倍率等比调节驻留时长（`7.5s / userSpeed`）。
+  2. **倍速播放（`playbackRate`）时间轴自适应补偿与动态连续相位重定**：
+     - **哲学对齐**：“发射跟随视频时间轴，飞行与停留跟随现实物理时间”。
+     - **媒体持续时间缩放**：单条弹幕在视频时间轴上的持续时间动态缩放为 `duration = realDuration * playbackRate`，使真实世界中的视觉飞行时间始终保持舒适恒定的 7.5s，彻底解决开启 1.5x/2.0x 倍速或长按倍速时弹幕闪电般掠过无法看清的问题。
+     - **无感动态切换（Phase Preserving Re-anchoring）**：在 `ratechange`（切倍速或移动端长按快速播放/松手恢复）触发时，对屏幕上已激活的每条弹幕及轨道防追尾碰撞状态进行连续相位重定，保持当前进度 `progress` 绝对连续，实现 0 毫秒平滑过渡且零视觉跳动/位移突变。
+- 涉及文件：apps/web/src/player/media/danmaku-utils.ts, apps/web/src/player/media/canvas-danmaku.ts
+- 备注：`pnpm typecheck` 全仓 4 个 Workspace Projects 验证 0 错误通过，`pnpm build` 全量打包构建通过。
+
+## [2026-08-15] 接入 B 站级弹幕层级渲染管线（滚动 < 底部字幕 < 顶部科普固定弹幕）
 - 状态：已完成
 - 优先级：P1
 - 描述：

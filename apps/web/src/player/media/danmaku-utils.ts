@@ -1,22 +1,27 @@
-import type { DanmakuComment, DanmakuSettings } from '@animaku/shared'
+import type { DanmakuComment, DanmakuMode, DanmakuSettings } from '@animaku/shared'
 
 /**
- * Pixel speed helpers for canvas (and legacy) danmaku.
- * Canvas engine uses duration = (stageW + textW) / speed → constant visual px/s.
+ * Bilibili standard on-screen transit durations (seconds in real-world physical time):
+ * - Desktop scroll: 7.5s (calm & readable for Chinese text, Bilibili default web pace)
+ * - Mobile fullscreen scroll: 6.5s (slightly tighter for small visual angle)
+ * - Static hold (top / bottom): 4.0s
  */
+export const BILI_SCROLL_BASE_DURATION = 7.5
+export const BILI_SCROLL_MOBILE_FS_DURATION = 6.5
+export const BILI_STATIC_BASE_DURATION = 4.0
 export const BASE_DANMAKU_SPEED = 130
 
 /**
- * Base size ~B 站默认 25px at a mid-size player; user fontSize is a multiplier.
+ * Base size ~20px at a mid-size player (calibrated to 0.8x of legacy 25px); user fontSize is a multiplier.
  * Desktop scales with container width. Mobile is height-based with hard caps so
  * phone fullscreen (wide CSS width, short physical stage) does not blow up to
  * ~27px and blanket the frame.
  */
 const DANMAKU_REF_WIDTH = 720
-const DANMAKU_MIN_SCALE = 0.48 // ~12px @ default multiplier (desktop)
+const DANMAKU_MIN_SCALE = 0.5 // ~10px @ default multiplier (desktop)
 const DANMAKU_MAX_SCALE = 1.1
 /** Matches canvas BILI_BASE_PX — scale is targetPx / this. */
-const DANMAKU_BASE_PX = 25
+const DANMAKU_BASE_PX = 20
 
 export type DanmakuPointerMode = 'desktop' | 'mobile'
 
@@ -126,21 +131,38 @@ export function danmakuFontScaleBucket(
   )
 }
 
-/** Pixel speed for scroll comments; slower on narrow stages, × user multiplier. */
+/**
+ * Bilibili standard on-screen transit duration (seconds in real-world physical time):
+ * - Desktop scroll: 7.5s / userSpeed
+ * - Mobile fullscreen scroll: 6.5s / userSpeed (smaller visual angle)
+ * - Top / Bottom static: 4.0s
+ */
+export function danmakuRealDuration(
+  mode: DanmakuMode,
+  userSpeed = 1,
+  hints?: DanmakuLayoutHints,
+): number {
+  const mult = userSpeed > 0 ? userSpeed : 1
+  if (mode === 'top' || mode === 'bottom') {
+    return BILI_STATIC_BASE_DURATION
+  }
+  const base =
+    hints?.mode === 'mobile' && hints.fullscreen
+      ? BILI_SCROLL_MOBILE_FS_DURATION
+      : hints?.mode === 'mobile'
+        ? 7.0
+        : BILI_SCROLL_BASE_DURATION
+  return Math.max(0.5, base / mult)
+}
+
+/** Pixel speed for scroll comments; based on stage width and transit duration. */
 export function danmakuPixelSpeed(
   containerWidth: number,
   userSpeed: number,
   hints?: DanmakuLayoutHints,
 ): number {
-  const mult = userSpeed > 0 ? userSpeed : 1
   const w = containerWidth > 0 ? containerWidth : DANMAKU_REF_WIDTH
-  // Cap at 1: never faster than desktop base for the same user multiplier
-  let scale = Math.min(1, Math.max(0.45, w / DANMAKU_REF_WIDTH))
-  // Mobile fullscreen: slightly slower so dense text is readable at smaller size
-  if (hints?.mode === 'mobile' && hints.fullscreen) {
-    scale *= 0.88
-  } else if (hints?.mode === 'mobile') {
-    scale *= 0.94
-  }
-  return Math.max(40, BASE_DANMAKU_SPEED * scale * mult)
+  const dur = danmakuRealDuration('rtl', userSpeed, hints)
+  // Assume standard text width ~160px for px/s calculation
+  return Math.max(40, (w + 160) / dur)
 }

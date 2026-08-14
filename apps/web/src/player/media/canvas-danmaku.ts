@@ -19,11 +19,12 @@ import type { DanmakuComment, DanmakuMode, DanmakuSettings } from '@animaku/shar
 import {
   danmakuFontScale,
   danmakuPixelSpeed,
+  danmakuRealDuration,
   filterComments,
   type DanmakuLayoutHints,
 } from './danmaku-utils'
 
-const BILI_BASE_PX = 25
+const BILI_BASE_PX = 20
 const REF_WIDTH = 720
 const BILI_FONT_STACK =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "WenQuanYi Micro Hei", "Noto Sans SC", SimHei, sans-serif'
@@ -34,9 +35,6 @@ const MAX_RUNNING = 96
 const MAX_RUNNING_DESKTOP = 72
 /** Mobile fullscreen: fewer concurrent lines so small screens stay readable */
 const MAX_RUNNING_MOBILE_FS = 48
-/** Top/bottom static hold (seconds), clamped */
-const STATIC_MIN_S = 4
-const STATIC_MAX_S = 6
 /** Gap between successive scroll comments on same lane (px) */
 const LANE_GAP_PX = 28
 
@@ -110,8 +108,8 @@ export class CanvasDanmaku {
   private dpr = 1
   private cssW = 0
   private cssH = 0
-  private fontPx = 25
-  private font = `bold 25px ${BILI_FONT_STACK}`
+  private fontPx = 20
+  private font = `bold 20px ${BILI_FONT_STACK}`
   private speedPx = 130
   private _opacity = 0.85
   private area = 0.75
@@ -122,6 +120,7 @@ export class CanvasDanmaku {
   private anchorMediaTime = 0
   private anchorPerfTime = 0
   private isBuffering = false
+  private lastPlaybackRate = 1
 
   /** Lane states for collision and chase detection */
   private scrollLanes: ScrollLaneState[] = []
@@ -181,6 +180,7 @@ export class CanvasDanmaku {
     measureEl.height = 1
     this.measureCtx = measureEl.getContext('2d')
 
+    this.lastPlaybackRate = this.effectivePlaybackRate()
     this.syncClock(this.media.currentTime)
 
     this.onPlay = () => {
@@ -206,6 +206,7 @@ export class CanvasDanmaku {
     this.onSeeking = () => {
       this.isBuffering = true
       this.syncClock(this.media.currentTime)
+      this.seek()
     }
     this.onSeeked = () => {
       this.isBuffering = false
@@ -213,7 +214,7 @@ export class CanvasDanmaku {
       this.seek()
     }
     this.onRate = () => {
-      this.syncClock(this.media.currentTime)
+      this.handlePlaybackRateChange()
     }
     this.onTimeUpdate = () => {
       this.checkClockDrift(this.media.currentTime)
@@ -484,9 +485,10 @@ export class CanvasDanmaku {
     const t = mediaT !== undefined ? mediaT : (this.media?.currentTime || 0)
     this.anchorMediaTime = Number.isFinite(t) ? t : 0
     this.anchorPerfTime = performance.now()
+    this.lastPlaybackRate = this.effectivePlaybackRate()
   }
 
-  /** Monitor video clock drift and softly adjust anchor */
+  /** Monitor video clock drift and softly adjust anchor without visible snapping */
   private checkClockDrift(rawVideoTime: number): void {
     if (this.media.paused || this.isBuffering) {
       this.anchorMediaTime = rawVideoTime
@@ -494,41 +496,31 @@ export class CanvasDanmaku {
       return
     }
     const now = performance.now()
-    const rate = Math.max(0.1, this.media.playbackRate || 1)
+    const rate = this.effectivePlaybackRate()
     const elapsed = (now - this.anchorPerfTime) * 0.001 * rate
     const predicted = this.anchorMediaTime + elapsed
     const drift = rawVideoTime - predicted
 
-    if (Math.abs(drift) > 0.25 || drift < -0.15) {
+    // If drift is large (> 0.6s, e.g. unnotified seek or decoder stall), re-anchor
+    if (Math.abs(drift) > 0.6) {
       this.anchorMediaTime = rawVideoTime
       this.anchorPerfTime = now
-    } else if (Math.abs(drift) > 0.025) {
-      this.anchorMediaTime += drift * 0.08
+    } else if (Math.abs(drift) > 0.03) {
+      // Damped smooth correction: gently pull anchor towards video clock without visible stutter
+      this.anchorMediaTime += drift * 0.05
     }
   }
 
-  /** High-precision smooth media time */
+  /** High-precision smooth continuous media time (pure interpolation during active playback) */
   private mediaTime(): number {
     if (!this.media) return 0
-    const raw = this.media.currentTime || 0
     if (this.media.paused || this.isBuffering) {
-      return raw
+      return this.media.currentTime || 0
     }
     const now = performance.now()
-    const rate = Math.max(0.1, this.media.playbackRate || 1)
+    const rate = this.effectivePlaybackRate()
     const elapsed = (now - this.anchorPerfTime) * 0.001 * rate
-    const predicted = this.anchorMediaTime + elapsed
-    const drift = raw - predicted
-
-    if (Math.abs(drift) > 0.25 || drift < -0.15) {
-      this.anchorMediaTime = raw
-      this.anchorPerfTime = now
-      return raw
-    }
-    if (Math.abs(drift) > 0.025) {
-      this.anchorMediaTime += drift * 0.05
-    }
-    return Math.max(0, predicted)
+    return Math.max(0, this.anchorMediaTime + elapsed)
   }
 
   private ensureMeasured(p: Prepared): void {
@@ -541,26 +533,114 @@ export class CanvasDanmaku {
     p.duration = this.durationFor(p)
   }
 
-  private durationFor(p: Prepared): number {
-    if (p.mode === 'top' || p.mode === 'bottom') {
-      return Math.min(
-        STATIC_MAX_S,
-        Math.max(STATIC_MIN_S, (this.cssW || REF_WIDTH) / this.speedPx),
-      )
+  /** Base real-world duration (seconds in physical time, independent of playback rate) */
+  private realDurationFor(mode: DanmakuMode): number {
+    return danmakuRealDuration(
+      mode,
+      this.settings?.speed || 1,
+      this.layoutHints(),
+    )
+  }
+
+  /** Effective playback rate of video */
+  private effectivePlaybackRate(): number {
+    return Math.max(0.1, this.media?.playbackRate || 1)
+  }
+
+  /** Duration in media timeline seconds (scaled by playbackRate) */
+  private durationFor(p: Prepared | Running, rateOverride?: number): number {
+    const rate =
+      rateOverride !== undefined ? rateOverride : this.effectivePlaybackRate()
+    const realSec = this.realDurationFor(p.mode)
+    return Math.max(0.1, realSec * rate)
+  }
+
+  /** Smoothly adjust running danmaku and lanes when playback rate changes */
+  private handlePlaybackRateChange(): void {
+    if (this.destroyed) return
+    const now = performance.now()
+    const newRate = this.effectivePlaybackRate()
+    const oldRate = this.lastPlaybackRate || 1
+
+    if (Math.abs(newRate - oldRate) < 0.001) {
+      return
     }
-    const tw = p.measured && p.width > 0 ? p.width : Math.max(40, p.text.length * this.fontPx * 0.6)
-    const path = (this.cssW || REF_WIDTH) + tw
-    return Math.max(0.5, path / Math.max(40, this.speedPx))
+
+    // 1. Calculate the exact continuous media timestamp up to this instant using oldRate
+    const elapsedSec = (now - this.anchorPerfTime) * 0.001
+    const t = this.anchorMediaTime + elapsedSec * oldRate
+
+    // 2. Set new anchor seamlessly at this exact microsecond with newRate
+    this.anchorMediaTime = t
+    this.anchorPerfTime = now
+    this.lastPlaybackRate = newRate
+
+    // 3. Re-anchor running comments so current progress and position don't jump
+    for (const r of this.running) {
+      const oldDuration = r.duration > 0 ? r.duration : 1
+      const currentProgress = Math.max(
+        0,
+        Math.min(1, (t - r.time) / oldDuration),
+      )
+      const newDuration = this.durationFor(r, newRate)
+      r.duration = newDuration
+      r.time = t - currentProgress * newDuration
+    }
+
+    // 4. Re-anchor scroll lanes for continuous collision detection
+    for (const lane of this.scrollLanes) {
+      if (lane.lastTime > -1e8 && lane.lastDuration > 0) {
+        const progress = Math.max(
+          0,
+          Math.min(1, (t - lane.lastTime) / lane.lastDuration),
+        )
+        const newDuration = Math.max(
+          0.1,
+          (lane.lastDuration / oldRate) * newRate,
+        )
+        lane.lastDuration = newDuration
+        lane.lastTime = t - progress * newDuration
+      }
+    }
+
+    // 5. Re-anchor top and bottom static lanes
+    for (let i = 0; i < this.topLanes.length; i++) {
+      if (this.topLanes[i] > -1e8) {
+        const remaining = this.topLanes[i] - t
+        if (remaining > 0) {
+          this.topLanes[i] = t + (remaining / oldRate) * newRate
+        }
+      }
+    }
+    for (let i = 0; i < this.bottomLanes.length; i++) {
+      if (this.bottomLanes[i] > -1e8) {
+        const remaining = this.bottomLanes[i] - t
+        if (remaining > 0) {
+          this.bottomLanes[i] = t + (remaining / oldRate) * newRate
+        }
+      }
+    }
+
+    // 6. Update prepared comments durations
+    for (const p of this.prepared) {
+      if (p.measured) {
+        p.duration = this.durationFor(p, newRate)
+      }
+    }
+
+    this.paint()
   }
 
   private recomputeDurations(): void {
+    const rate = this.effectivePlaybackRate()
+    this.lastPlaybackRate = rate
     for (const p of this.prepared) {
-      if (p.measured) p.duration = this.durationFor(p)
+      if (p.measured) p.duration = this.durationFor(p, rate)
       else p.duration = 0
     }
     for (const r of this.running) {
       this.ensureMeasured(r)
-      r.duration = this.durationFor(r)
+      r.duration = this.durationFor(r, rate)
     }
   }
 
@@ -582,6 +662,8 @@ export class CanvasDanmaku {
     this.running.length = 0
     this.initLanes()
     const t = this.mediaTime()
+    const rate = this.effectivePlaybackRate()
+    this.lastPlaybackRate = rate
     let lo = 0
     let hi = this.prepared.length
     while (lo < hi) {
