@@ -181,12 +181,29 @@ export function useBangumiOpedData(
 export function useResolvedOpedSkip(
   data: Map<number, BgmOpedEntry> | null | undefined,
   episode: number,
-  manualSkipOp: SkipSegment,
-  manualSkipEd: SkipSegment,
+  _manualSkipOp: SkipSegment,
+  _manualSkipEd: SkipSegment,
   episodeDurationSeconds?: number,
+  preferBangumiOped = true,
 ): { skipOp: SkipSegment; skipEd: SkipSegment } {
   return useMemo(() => {
-    if (!data) return { skipOp: manualSkipOp, skipEd: manualSkipEd }
+    // If bangumi-oped option is turned off by user, completely disable OP/ED skip
+    if (!preferBangumiOped) {
+      return {
+        skipOp: { enabled: false, start: 0, duration: 0 },
+        skipEd: { enabled: false, start: 0, duration: 0 },
+      }
+    }
+
+    // When bangumi-oped is ON:
+    // Only enable if valid OP/ED data for this episode is fetched from bangumi-oped repo
+    if (!data) {
+      return {
+        skipOp: { enabled: false, start: 0, duration: 0 },
+        skipEd: { enabled: false, start: 0, duration: 0 },
+      }
+    }
+
     const resolved = getSkipForEpisode(data, episode)
     const validDuration =
       Number.isFinite(episodeDurationSeconds) &&
@@ -196,20 +213,30 @@ export function useResolvedOpedSkip(
 
     // OP: reject if timestamp ends too far past the episode boundary
     let skipOp: SkipSegment | null = resolved.skipOp
-    if (skipOp && validDuration && skipOp.start + skipOp.duration - validDuration > DURATION_MISMATCH_THRESHOLD_S) {
+    if (
+      skipOp &&
+      validDuration &&
+      skipOp.start + skipOp.duration - validDuration >
+        DURATION_MISMATCH_THRESHOLD_S
+    ) {
       skipOp = null
     }
     // ED: same check
     let skipEd: SkipSegment | null = resolved.skipEd
-    if (skipEd && validDuration && skipEd.start + skipEd.duration - validDuration > DURATION_MISMATCH_THRESHOLD_S) {
+    if (
+      skipEd &&
+      validDuration &&
+      skipEd.start + skipEd.duration - validDuration >
+        DURATION_MISMATCH_THRESHOLD_S
+    ) {
       skipEd = null
     }
 
     return {
-      skipOp: skipOp ?? manualSkipOp,
-      skipEd: skipEd ?? manualSkipEd,
+      skipOp: skipOp ?? { enabled: false, start: 0, duration: 0 },
+      skipEd: skipEd ?? { enabled: false, start: 0, duration: 0 },
     }
-  }, [data, episode, manualSkipOp, manualSkipEd, episodeDurationSeconds])
+  }, [data, episode, episodeDurationSeconds, preferBangumiOped])
 }
 
 /**

@@ -1,5 +1,84 @@
 # Animaku 项目状态
 
+## [2026-08-14] 全面统一播放器所有弹出面板与弹窗视觉设计语言 (Dark Glassmorphism)
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **排查根本原因**：此前弹幕面板（`DanmakuPanel.tsx` 包含桌面端卡片与移动端居中弹窗）直接引用了站点全局主题 CSS 变量（`var(--kz-bg-elevated)`、`var(--kz-bg-soft)`、`var(--kz-fg)`），导致在**白天模式（Light Mode）**下弹幕面板呈现刺眼的纯白底色（`#ffffff`），与播放器内的设置面板、音量面板、倍速菜单、倒计时卡片等暗场深色磨砂玻璃（Dark Glassmorphism）产生强烈的视觉撕裂。
+  2. **全面统一为深色暗场磨砂玻璃设计系统**：
+     - **弹幕面板容器（桌面卡片 & 移动端弹窗）**：统一为 `bg-[#0f141e]/95` 深黑背景 + `border-white/15` 微光边框 + `backdrop-blur-2xl` 磨砂琉璃质感 + `shadow-black/80` 深度外发光阴影；
+     - **Tab 栏与状态栏**：统一为 `bg-black/25 border-b border-white/10`，激活 Tab 统一为高质感天青色 `bg-[#0284c7]`，文字统一为 `text-slate-100` / `text-slate-400`；
+     - **表单控件与 CustomSelect**：搜索输入框、分 P 输入框、下拉组件 `CustomSelect` 触发器及弹出菜单、本地 XML 选择框均统一为 `bg-white/10 border-white/15 text-slate-100`，悬浮高亮与激活状态统一为 `border-sky-400` / `text-sky-400`；
+     - **CSS 样式统一**：重构 `plyr-overrides.css` 中的 `.kz-dm-*` 系列表单类，使其与 `.kz-settings-popover`、`.kz-vol-popup`、`.kz-speed-menu`、`.kz-countdown-overlay` 风格完全对齐。
+- 涉及文件：apps/web/src/player/DanmakuPanel.tsx, apps/web/src/player/plyr-overrides.css
+- 备注：`pnpm typecheck` 全仓 4 个 Workspace Projects 验证 0 错误编译通过。
+
+## [2026-08-14] 移动端控制栏移除冗余倍速按钮并恢复网页全屏 (Web FS)
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **移动端控制栏移除独立倍速按钮与弹窗**：倍速功能已完全收纳进统一设置齿轮面板（`⚙️`），从 `MobileControls.tsx` 控制栏中移除独立的倍速触发按钮与 `kz-speed-menu` 弹窗逻辑，精简控制栏元素。
+  2. **全面恢复移动端网页全屏（浏览器全屏）**：移除 `plyr-overrides.css` 中在窄屏/小屏（`<400px`）下将 `.kz-ctrl-web-fs` 强行设为 `display: none` 的样式规则。在倍速按钮腾出空间后，移动端同时保留「网页全屏（浏览器全屏）」与「系统全屏」两大经典控制能力。
+- 涉及文件：apps/web/src/player/chrome/MobileControls.tsx, apps/web/src/player/plyr-overrides.css
+- 备注：`pnpm typecheck` 全仓 4 个 Workspace Projects 验证 0 错误编译通过。
+
+## [2026-08-14] 移动端设置面板超窄宽度与紧凑间距深度优化
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **面板超窄宽度重构**：将移动端 `.kz-settings-popover--mobile` 宽度进一步从 9.75rem（156px）缩减至 **`7.5rem`**（120px），内边距微调为 `0.15rem`，彻底消除标题与右侧选中值/箭头之间过大的空白间距。
+  2. **高密精致微型排版**：
+     - 菜单项与子菜单头部字号微调为 `9.5px`，内边距压缩为 `0.18rem 0.3rem`；
+     - 选中状态属性值字号调整为 `9px`，指示箭头及 Check 标识缩小为 `8.5px~9px`；
+     - Switch 开关微缩至 `20px × 11px`（滑块 `7px × 7px`，行程 `9px`）；
+     - 子选项文案适配极简（如 `Mode A (轻)`、`Mode B (高)`、`默认 (16:9)`），在 120px 宽度下左右排版紧凑适度，视觉手感更加轻盈精美。
+- 涉及文件：apps/web/src/player/chrome/MobileControls.tsx, apps/web/src/player/plyr-overrides.css
+- 备注：`pnpm typecheck` 全仓 4 个 Workspace Projects 验证 0 错误编译通过。
+
+## [2026-08-14] 补齐移动端设置面板与横屏层级隔离（防止遮盖 Header）
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **移动端与横屏控制栏全面补齐设置面板**：在 `MobileControls.tsx` 控制栏右侧及全屏 Top Bar 中补齐 `⚙️` 播放器设置图标与触控 Popover（包含倍速、超分、画面比例、跳过 OP/ED、自动连播等全套子菜单），彻底解决移动端横屏/竖屏无法呼出播放器设置菜单的问题。
+  2. **播放器层级堆叠隔离（防止横屏滚动溢出遮挡顶部导航栏）**：
+     - 为 `.kz-player-stack` 增加显式的 `position: relative; z-index: 30;` 局部层叠上下文，将播放器内部子元素（控制栏 z-80、进度条提示 z-90、音量弹出层 z-100 等）在非全屏状态下严格限制在 `z-index: 30` 容器内；
+     - 彻底解决移动端横屏或常规页面滚动时，播放器内部控制条覆盖在顶部 Header（`z-40`）之上的严重层级穿透 Bug。
+- 涉及文件：apps/web/src/player/chrome/MobileControls.tsx, apps/web/src/player/plyr-overrides.css
+- 备注：`pnpm typecheck` 全仓 4 个 Workspace Projects 验证 0 错误编译通过。
+
+## [2026-08-14] 修复 OP/ED 标记假数据判定、清理弹幕面板播放Tab与设置菜单中轴对齐
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **OP/ED 进度条标记严格受 bangumi-oped 选项与真实数据控制**：
+     - 在 `bangumi-oped.ts` 的 `useResolvedOpedSkip` 以及 `DesktopControls` / `MobileControls` 的 `opMarker` / `edMarker` 均显式增加 `player.preferBangumiOped !== false` 强卡控；
+     - 未开启 bangumi-oped 或仓库中无本集真实有效数据（数据未加载/404/无匹配）时，严格返回 `null` / `enabled: false`，彻底消除假 0~90s 紫色占位标记条。
+  2. **弹幕面板职责纯粹化（移除冗余播放设置 Tab）**：从 `DanmakuPanel.tsx` 中彻底移除 `'other'`（播放设置）Tab 及其对应视图组件与属性传参，使弹幕面板纯粹聚焦于「搜索/弹幕/导入」三大弹幕核心功能。
+  3. **设置面板中轴精准对齐**：为 `.kz-settings-popover` 补充 `left: 50%; transform: translateX(-50%); transform-origin: bottom center;`，使展开的设置面板 X 轴中心线正对着控制栏上的 `⚙️` 设置按钮，彻底消除右偏不对齐问题。
+- 涉及文件：apps/web/src/lib/bangumi-oped.ts, apps/web/src/lib/use-watch-session.ts, apps/web/src/player/DanmakuPanel.tsx, apps/web/src/player/VideoPlayer.tsx, apps/web/src/player/chrome/DesktopControls.tsx, apps/web/src/player/chrome/MobileControls.tsx, apps/web/src/player/plyr-overrides.css
+- 备注：`pnpm typecheck` 全仓 4 个 Workspace Projects 验证 0 错误编译通过。
+
+## [2026-08-14] 播放器 UI/UX 现代主流化升维（P0 阶段落地）
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **中心水滴涟漪微动效与增强 HUD (Center Spring Ripple & HUD Indicator)**：
+     - 在播放器中心引入基于物理弹簧（Spring Motion）的半透明磨砂涟漪动效卡片（`▶` / `❚❚`），在播放/暂停切换时瞬间缩放淡出（500ms），给予极佳的手势与键盘反馈。
+     - 升级音量调节（`🔊 音量 85%` / `🔇 静音`）、快进快退（`⏩ +5s (12:34)`）、弹幕开关、倍速等操作为统一的现代圆角磨砂 HUD 药丸指示器。
+  2. **统一层级化设置齿轮菜单 (Unified Settings Gear Menu)**：
+     - 在桌面端控制栏新增 `⚙️` 播放器设置图标，展开高质感磨砂玻璃 Popover（`.kz-settings-popover`），内置双层平滑子菜单架构：
+       - 主层级：`⚡ 播放倍速`、`✨ 超分增强 (Anime4K)`、`📐 画面比例`、`⏭️ 跳过片头片尾 (Switch)`、`🔁 自动连播下一话 (Switch)`、`⌨️ 快捷键指南`；
+       - 子层级：点击平滑钻取并提供 `‹ 返回` 与当前激活项 `✓` 勾选反馈；
+       - 彻底将弹幕设置（`Alt+M`）与播放器综合设置分层解耦，赋予弹幕设置专属的 `IconDanmaku` 标识。
+  3. **高能进度条弹幕热力图与 OP/ED 章节标记 (Seekbar Danmaku Heatmap & Chapter Markers)**：
+     - 结合已加载的弹幕数据，按时间轴分桶平滑计算弹幕密度，在进度条上方动态绘制平滑蓝光渐变高能热力曲线（Heatmap Wave），直观呈现高能名场面；
+     - 结合 `bangumi-oped` 智能标注片头曲 (OP) 与片尾曲 (ED) 发光标记段；
+     - 桌面端 Seekbar 悬停时实时展示带时间码与 OP/ED 标识的悬浮气泡指示卡片（`.kz-seek-tooltip`）。
+  4. **沉浸式连播倒计时悬浮卡片 (Floating Next Episode Toast)**：
+     - 将原本全屏生硬的暗色遮罩重构为右下角精致的玻璃拟态悬浮卡片，包含环形 SVG 倒计时进度环、话数提示与「立即播放」「取消」按键。
+- 涉及文件：apps/web/src/player/VideoPlayer.tsx, apps/web/src/player/chrome/DesktopControls.tsx, apps/web/src/player/chrome/MobileControls.tsx, apps/web/src/player/chrome/icons.tsx, apps/web/src/player/chrome/types.ts, apps/web/src/player/chrome/useShellPointerHandlers.ts, apps/web/src/player/plyr-overrides.css
+- 备注：`pnpm typecheck` 全仓 4 个 Workspace Projects 验证 0 错误编译通过。
+
 ## [2026-08-14] 修复全屏弹幕 Portal 遮盖、闭环画面比例与交互优化
 - 状态：已完成
 - 优先级：P0-P1

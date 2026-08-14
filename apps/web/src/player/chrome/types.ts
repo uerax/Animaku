@@ -1,4 +1,10 @@
-import type { PlayerSettings, SuperResolutionMode } from '@animaku/shared'
+import type {
+  DanmakuComment,
+  PlayerSettings,
+  SuperResolutionMode,
+} from '@animaku/shared'
+
+export type AspectRatioMode = 'contain' | 'cover' | 'fill' | '4:3'
 
 /**
  * Control-bar props bag — display state + callbacks only.
@@ -11,11 +17,13 @@ export interface PlayerControlsProps {
   panelOpen: boolean
   speedMenuOpen: boolean
   srMenuOpen: boolean
+  settingsMenuOpen?: boolean
   /** Mobile vertical volume popup */
   volumeMenuOpen: boolean
   current: number
   duration: number
   progress: number
+  comments?: DanmakuComment[]
   danmakuEnabled: boolean
   hasDanmakuPanel: boolean
   player: PlayerSettings
@@ -24,6 +32,7 @@ export interface PlayerControlsProps {
   webGpuOk: boolean | null
   playerFs: boolean
   webFs: boolean
+  aspectRatio?: AspectRatioMode
   onTogglePlay: () => void
   onPrev?: () => void
   onNext?: () => void
@@ -32,9 +41,13 @@ export interface PlayerControlsProps {
   onTogglePanel: () => void
   onToggleSpeedMenu: () => void
   onToggleSrMenu: () => void
+  onToggleSettingsMenu?: () => void
   onToggleVolumeMenu: () => void
   onPickSpeed: (speed: number) => void
   onPickSr: (mode: SuperResolutionMode) => void
+  onAspectRatioChange?: (mode: AspectRatioMode) => void
+  onToggleAutoNext?: () => void
+  onToggleOpedSkip?: () => void
   onVolume: (vol: number) => void
   /** Desktop speaker icon: mute ↔ restore last audible volume */
   onToggleMute: () => void

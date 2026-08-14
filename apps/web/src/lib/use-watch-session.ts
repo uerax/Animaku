@@ -1112,6 +1112,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     playerSettings.skipOp,
     playerSettings.skipEd,
     episodeDurationSeconds,
+    preferBangumiOped,
   )
   const resolvedPlayerSettings = useMemo(
     () => ({

@@ -1,7 +1,11 @@
-import type { PointerEvent } from 'react'
-import type { SuperResolutionMode } from '@animaku/shared'
-import type { PlayerControlsProps } from './types'
+import { useEffect, useMemo, useState, type PointerEvent } from 'react'
+import type { DanmakuComment, SuperResolutionMode } from '@animaku/shared'
+import type { AspectRatioMode, PlayerControlsProps } from './types'
 import {
+  IconCheck,
+  IconChevronLeft,
+  IconChevronRight,
+  IconDanmaku,
   IconFullscreen,
   IconFullscreenExit,
   IconNext,
@@ -15,9 +19,68 @@ import {
   IconWebFsExit,
 } from './icons'
 
+const ASPECT_RATIO_OPTIONS: { value: AspectRatioMode; label: string }[] = [
+  { value: 'contain', label: '默认比例 (16:9)' },
+  { value: 'cover', label: '画面铺满 (Cover)' },
+  { value: 'fill', label: '100% 拉伸 (Fill)' },
+  { value: '4:3', label: '画幅 4:3' },
+]
+
+function srTitle(
+  webGpuOk: boolean | null,
+  srMode: SuperResolutionMode,
+  srActive: boolean,
+  labels: Record<SuperResolutionMode, string>,
+): string {
+  if (webGpuOk === false) return '超分（当前环境无 WebGPU）'
+  if (srMode === 'off') return '超分（关闭）'
+  return `超分（${labels[srMode]}${srActive ? ' · 运行中' : ' · 等待画面'}）`
+}
+
 /**
- * Desktop control bar — full volume rail + FS labels.
- * Interaction (hover/click) lives in useShellPointerHandlers; this is markup only.
+ * Compute SVG danmaku density curve path across seekbar.
+ */
+function computeDanmakuHeatmap(
+  comments: DanmakuComment[] | undefined,
+  duration: number,
+  numBuckets = 60,
+): string | null {
+  if (!comments || comments.length < 5 || duration <= 0) return null
+  const buckets = new Array(numBuckets).fill(0)
+  for (const c of comments) {
+    if (c.time >= 0 && c.time <= duration) {
+      const idx = Math.min(
+        numBuckets - 1,
+        Math.floor((c.time / duration) * numBuckets),
+      )
+      buckets[idx]++
+    }
+  }
+  const max = Math.max(...buckets)
+  if (max <= 1) return null
+
+  // 3-point moving average smoothing
+  const smoothed = buckets.map((val, i) => {
+    const prev = buckets[i - 1] ?? val
+    const next = buckets[i + 1] ?? val
+    return (prev + val * 2 + next) / 4
+  })
+  const smoothedMax = Math.max(...smoothed) || 1
+
+  const height = 24
+  let path = `M 0 ${height}`
+  for (let i = 0; i < numBuckets; i++) {
+    const x = (i / (numBuckets - 1)) * 100
+    const normalized = smoothed[i] / smoothedMax
+    const y = height - Math.pow(normalized, 0.75) * (height - 3)
+    path += ` L ${x.toFixed(1)} ${y.toFixed(1)}`
+  }
+  path += ` L 100 ${height} Z`
+  return path
+}
+
+/**
+ * Desktop control bar — full volume rail + FS labels + Unified Settings Menu + Heatmap & Markers.
  */
 export function DesktopControls(props: PlayerControlsProps) {
   const {
@@ -26,9 +89,11 @@ export function DesktopControls(props: PlayerControlsProps) {
     panelOpen,
     speedMenuOpen,
     srMenuOpen,
+    settingsMenuOpen,
     current,
     duration,
     progress,
+    comments,
     danmakuEnabled,
     hasDanmakuPanel,
     player,
@@ -37,6 +102,7 @@ export function DesktopControls(props: PlayerControlsProps) {
     webGpuOk,
     playerFs,
     webFs,
+    aspectRatio = 'contain',
     onTogglePlay,
     onPrev,
     onNext,
@@ -45,8 +111,12 @@ export function DesktopControls(props: PlayerControlsProps) {
     onTogglePanel,
     onToggleSpeedMenu,
     onToggleSrMenu,
+    onToggleSettingsMenu,
     onPickSpeed,
     onPickSr,
+    onAspectRatioChange,
+    onToggleAutoNext,
+    onToggleOpedSkip,
     onVolume,
     onToggleMute,
     onTogglePlayerFs,
@@ -55,21 +125,95 @@ export function DesktopControls(props: PlayerControlsProps) {
     speedOptions,
     srLabels,
   } = props
-  // volumeMenuOpen / onToggleVolumeMenu are mobile-only (icon + vertical popup)
 
-  const pinBar = showBar || paused || panelOpen || srMenuOpen || speedMenuOpen
+  const [settingsSubmenu, setSettingsSubmenu] = useState<
+    'root' | 'speed' | 'sr' | 'aspectRatio' | 'shortcuts'
+  >('root')
+
+  const [hoverRatio, setHoverRatio] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (!settingsMenuOpen) {
+      setSettingsSubmenu('root')
+    }
+  }, [settingsMenuOpen])
+
+  // Heatmap path calculation
+  const heatmapPath = useMemo(
+    () => computeDanmakuHeatmap(comments, duration),
+    [comments, duration],
+  )
+
+  // OP / ED chapter markers — only active when bangumi-oped is enabled and valid timestamps exist
+  const opMarker = useMemo(() => {
+    if (
+      player.preferBangumiOped === false ||
+      !player.skipOp?.enabled ||
+      !(player.skipOp.duration > 0) ||
+      duration <= 0
+    ) {
+      return null
+    }
+    const start = player.skipOp.start || 0
+    const left = (start / duration) * 100
+    const width = (player.skipOp.duration / duration) * 100
+    return { left, width }
+  }, [player.preferBangumiOped, player.skipOp, duration])
+
+  const edMarker = useMemo(() => {
+    if (
+      player.preferBangumiOped === false ||
+      !player.skipEd?.enabled ||
+      !(player.skipEd.duration > 0) ||
+      duration <= 0
+    ) {
+      return null
+    }
+    const dur = player.skipEd.duration
+    const start =
+      player.skipEd.start > 0
+        ? player.skipEd.start
+        : Math.max(0, duration - dur)
+    const left = (start / duration) * 100
+    const width = (dur / duration) * 100
+    return { left, width }
+  }, [player.preferBangumiOped, player.skipEd, duration])
+
+  const isHoverInOp =
+    hoverRatio !== null &&
+    opMarker !== null &&
+    hoverRatio * 100 >= opMarker.left &&
+    hoverRatio * 100 <= opMarker.left + opMarker.width
+
+  const isHoverInEd =
+    hoverRatio !== null &&
+    edMarker !== null &&
+    hoverRatio * 100 >= edMarker.left &&
+    hoverRatio * 100 <= edMarker.left + edMarker.width
+
+  const pinBar =
+    showBar ||
+    paused ||
+    panelOpen ||
+    srMenuOpen ||
+    speedMenuOpen ||
+    settingsMenuOpen
   const vol = player.volume ?? 0.7
   const isMuted = vol <= 0.001
 
-  /**
-   * Range inputs keep keyboard focus after pointer drag; player key handling
-   * (onKey) ignores events targeted at INPUT. Release focus on pointer-up so
-   * Space/arrows/f/etc. resume working immediately. Do NOT hook onBlur here:
-   * blur fires when focus moved elsewhere (e.g. danmaku filter input), and
-   * blurring that target would steal focus from it.
-   */
   const releaseSliderFocus = (e: PointerEvent<HTMLInputElement>) => {
     e.currentTarget.blur()
+  }
+
+  const handleSeekPointerMove = (e: PointerEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    if (rect.width <= 0) return
+    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+    setHoverRatio(ratio)
+  }
+
+  const handleSeekPointerLeave = () => {
+    setHoverRatio(null)
   }
 
   return (
@@ -78,24 +222,89 @@ export function DesktopControls(props: PlayerControlsProps) {
       onMouseDown={(e) => e.stopPropagation()}
       data-player-chrome
     >
-      <input
-        type="range"
-        className="kz-seek"
-        min={0}
-        max={1000}
-        value={Math.round(progress * 10)}
-        onChange={(e) => onSeekRatio(Number(e.target.value) / 1000)}
-        onPointerUp={releaseSliderFocus}
-        style={{ ['--kz-progress' as string]: `${progress}%` }}
-        aria-label="进度"
-      />
+      <div
+        className="kz-seek-wrap"
+        onPointerMove={handleSeekPointerMove}
+        onPointerLeave={handleSeekPointerLeave}
+      >
+        {/* Danmaku Heatmap Wave */}
+        {heatmapPath && (
+          <svg
+            className="kz-seek-heatmap"
+            viewBox="0 0 100 24"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <defs>
+              <linearGradient id="kz-heatmap-grad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="rgba(56, 189, 248, 0.45)" />
+                <stop offset="100%" stopColor="rgba(56, 189, 248, 0.02)" />
+              </linearGradient>
+            </defs>
+            <path d={heatmapPath} fill="url(#kz-heatmap-grad)" />
+          </svg>
+        )}
+
+        {/* OP/ED Chapter Markers */}
+        {opMarker && (
+          <div
+            className="kz-seek-marker"
+            style={{
+              left: `${opMarker.left}%`,
+              width: `${opMarker.width}%`,
+            }}
+            title="片头曲 (OP)"
+          />
+        )}
+        {edMarker && (
+          <div
+            className="kz-seek-marker"
+            style={{
+              left: `${edMarker.left}%`,
+              width: `${edMarker.width}%`,
+            }}
+            title="片尾曲 (ED)"
+          />
+        )}
+
+        {/* Hover Tooltip Card */}
+        {hoverRatio !== null && duration > 0 && (
+          <div
+            className="kz-seek-tooltip"
+            style={{ left: `${hoverRatio * 100}%` }}
+          >
+            <span className="kz-seek-tooltip-time">
+              {formatTime(hoverRatio * duration)}
+            </span>
+            {isHoverInOp && (
+              <span className="kz-seek-tooltip-tag">片头曲 (OP)</span>
+            )}
+            {isHoverInEd && (
+              <span className="kz-seek-tooltip-tag">片尾曲 (ED)</span>
+            )}
+          </div>
+        )}
+
+        <input
+          type="range"
+          className="kz-seek"
+          min={0}
+          max={1000}
+          value={Math.round(progress * 10)}
+          onChange={(e) => onSeekRatio(Number(e.target.value) / 1000)}
+          onPointerUp={releaseSliderFocus}
+          style={{ ['--kz-progress' as string]: `${progress}%` }}
+          aria-label="进度"
+        />
+      </div>
+
       <div className="kz-bar-row">
         <div className="kz-bar-left">
           <button
             type="button"
             className="kz-ctrl kz-ctrl-icon"
             onClick={onTogglePlay}
-            title={paused ? '播放' : '暂停'}
+            title={paused ? '播放 (Space)' : '暂停 (Space)'}
             aria-label={paused ? '播放' : '暂停'}
           >
             {paused ? <IconPlay /> : <IconPause />}
@@ -123,6 +332,7 @@ export function DesktopControls(props: PlayerControlsProps) {
           </span>
         </div>
         <div className="kz-bar-right">
+          {/* Danmaku on/off toggle */}
           <button
             type="button"
             className="kz-ctrl"
@@ -132,20 +342,29 @@ export function DesktopControls(props: PlayerControlsProps) {
           >
             {danmakuEnabled ? '弹' : '关'}
           </button>
+
+          {/* Danmaku Settings Panel trigger */}
           {hasDanmakuPanel && (
             <button
               type="button"
               className="kz-ctrl kz-ctrl-icon"
               data-active={panelOpen}
               onClick={onTogglePanel}
-              title="弹幕设置 (Alt+M)"
-              aria-label="设置"
+              title="弹幕设置与搜索 (Alt+M)"
+              aria-label="弹幕设置"
             >
-              <IconSettings />
+              <IconDanmaku />
             </button>
           )}
+
+          {/* Quick Speed Menu */}
           <div className="kz-speed-wrap">
-            <button type="button" className="kz-ctrl" onClick={onToggleSpeedMenu}>
+            <button
+              type="button"
+              className="kz-ctrl"
+              onClick={onToggleSpeedMenu}
+              title="播放倍速"
+            >
               {player.speed || 1}x
             </button>
             {speedMenuOpen && (
@@ -163,6 +382,8 @@ export function DesktopControls(props: PlayerControlsProps) {
               </div>
             )}
           </div>
+
+          {/* Quick Super Resolution Menu */}
           <div className="kz-speed-wrap kz-sr-wrap">
             <button
               type="button"
@@ -203,6 +424,256 @@ export function DesktopControls(props: PlayerControlsProps) {
               </div>
             )}
           </div>
+
+          {/* Unified Player Settings Menu */}
+          <div className="kz-speed-wrap">
+            <button
+              type="button"
+              className="kz-ctrl kz-ctrl-icon"
+              data-active={settingsMenuOpen}
+              onClick={onToggleSettingsMenu}
+              title="播放器设置"
+              aria-label="播放器设置"
+            >
+              <IconSettings />
+            </button>
+            {settingsMenuOpen && (
+              <div className="kz-settings-popover">
+                {settingsSubmenu === 'root' && (
+                  <div>
+                    <button
+                      type="button"
+                      className="kz-settings-item"
+                      onClick={() => setSettingsSubmenu('speed')}
+                    >
+                      <span>⚡ 播放倍速</span>
+                      <span className="kz-settings-item-val">
+                        {player.speed || 1}x
+                        <IconChevronRight />
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="kz-settings-item"
+                      onClick={() => setSettingsSubmenu('sr')}
+                    >
+                      <span>✨ 超分增强 (Anime4K)</span>
+                      <span className="kz-settings-item-val">
+                        {srLabels[srMode]}
+                        <IconChevronRight />
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="kz-settings-item"
+                      onClick={() => setSettingsSubmenu('aspectRatio')}
+                    >
+                      <span>📐 画面比例 (W)</span>
+                      <span className="kz-settings-item-val">
+                        {ASPECT_RATIO_OPTIONS.find((o) => o.value === aspectRatio)
+                          ?.label.split(' ')[0] ?? '默认'}
+                        <IconChevronRight />
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="kz-settings-item"
+                      onClick={() => onToggleOpedSkip?.()}
+                    >
+                      <span>⏭️ 跳过片头片尾</span>
+                      <div
+                        className="kz-switch"
+                        data-checked={player.preferBangumiOped !== false}
+                      >
+                        <div className="kz-switch-thumb" />
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="kz-settings-item"
+                      onClick={() => onToggleAutoNext?.()}
+                    >
+                      <span>🔁 自动连播下一话</span>
+                      <div
+                        className="kz-switch"
+                        data-checked={player.autoNext !== false}
+                      >
+                        <div className="kz-switch-thumb" />
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="kz-settings-item"
+                      onClick={() => setSettingsSubmenu('shortcuts')}
+                    >
+                      <span>⌨️ 快捷键指南</span>
+                      <span className="kz-settings-item-val">
+                        <IconChevronRight />
+                      </span>
+                    </button>
+                  </div>
+                )}
+
+                {settingsSubmenu === 'speed' && (
+                  <div>
+                    <div className="kz-settings-header">
+                      <button
+                        type="button"
+                        className="kz-settings-back-btn"
+                        onClick={() => setSettingsSubmenu('root')}
+                      >
+                        <IconChevronLeft />
+                      </button>
+                      <span>播放倍速</span>
+                    </div>
+                    {[...speedOptions].reverse().map((s) => {
+                      const active =
+                        Math.abs((player.speed || 1) - s) < 0.01
+                      return (
+                        <button
+                          key={s}
+                          type="button"
+                          className="kz-settings-item"
+                          data-active={active}
+                          onClick={() => {
+                            onPickSpeed(s)
+                            setSettingsSubmenu('root')
+                          }}
+                        >
+                          <span>{s}x</span>
+                          {active && <IconCheck />}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {settingsSubmenu === 'sr' && (
+                  <div>
+                    <div className="kz-settings-header">
+                      <button
+                        type="button"
+                        className="kz-settings-back-btn"
+                        onClick={() => setSettingsSubmenu('root')}
+                      >
+                        <IconChevronLeft />
+                      </button>
+                      <span>超分增强 (Anime4K WebGPU)</span>
+                    </div>
+                    {(['off', 'efficiency', 'quality'] as SuperResolutionMode[]).map(
+                      (m) => {
+                        const active = srMode === m
+                        return (
+                          <button
+                            key={m}
+                            type="button"
+                            className="kz-settings-item"
+                            data-active={active}
+                            onClick={() => {
+                              onPickSr(m)
+                              setSettingsSubmenu('root')
+                            }}
+                          >
+                            <span>{srLabels[m]}</span>
+                            {active && <IconCheck />}
+                          </button>
+                        )
+                      },
+                    )}
+                  </div>
+                )}
+
+                {settingsSubmenu === 'aspectRatio' && (
+                  <div>
+                    <div className="kz-settings-header">
+                      <button
+                        type="button"
+                        className="kz-settings-back-btn"
+                        onClick={() => setSettingsSubmenu('root')}
+                      >
+                        <IconChevronLeft />
+                      </button>
+                      <span>画面比例</span>
+                    </div>
+                    {ASPECT_RATIO_OPTIONS.map((opt) => {
+                      const active = aspectRatio === opt.value
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          className="kz-settings-item"
+                          data-active={active}
+                          onClick={() => {
+                            onAspectRatioChange?.(opt.value)
+                            setSettingsSubmenu('root')
+                          }}
+                        >
+                          <span>{opt.label}</span>
+                          {active && <IconCheck />}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {settingsSubmenu === 'shortcuts' && (
+                  <div>
+                    <div className="kz-settings-header">
+                      <button
+                        type="button"
+                        className="kz-settings-back-btn"
+                        onClick={() => setSettingsSubmenu('root')}
+                      >
+                        <IconChevronLeft />
+                      </button>
+                      <span>快捷键指南</span>
+                    </div>
+                    <div className="space-y-1 py-1 max-h-56 overflow-y-auto">
+                      <div className="kz-settings-shortcut-row">
+                        <span>播放 / 暂停</span>
+                        <span className="kz-settings-shortcut-kbd">Space / K</span>
+                      </div>
+                      <div className="kz-settings-shortcut-row">
+                        <span>快退 5 秒 / 快进 5 秒</span>
+                        <span className="kz-settings-shortcut-kbd">← / →</span>
+                      </div>
+                      <div className="kz-settings-shortcut-row">
+                        <span>音量增加 / 减小</span>
+                        <span className="kz-settings-shortcut-kbd">↑ / ↓</span>
+                      </div>
+                      <div className="kz-settings-shortcut-row">
+                        <span>全屏 / 退出全屏</span>
+                        <span className="kz-settings-shortcut-kbd">F</span>
+                      </div>
+                      <div className="kz-settings-shortcut-row">
+                        <span>切换画面比例</span>
+                        <span className="kz-settings-shortcut-kbd">W</span>
+                      </div>
+                      <div className="kz-settings-shortcut-row">
+                        <span>弹幕开启 / 关闭</span>
+                        <span className="kz-settings-shortcut-kbd">D</span>
+                      </div>
+                      <div className="kz-settings-shortcut-row">
+                        <span>上一集 / 下一集</span>
+                        <span className="kz-settings-shortcut-kbd">P / N</span>
+                      </div>
+                      <div className="kz-settings-shortcut-row">
+                        <span>弹幕设置面板</span>
+                        <span className="kz-settings-shortcut-kbd">Alt + M</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Volume Control */}
           <div className="kz-vol-wrap">
             <button
               type="button"
@@ -236,6 +707,8 @@ export function DesktopControls(props: PlayerControlsProps) {
               />
             </div>
           </div>
+
+          {/* Web Fullscreen */}
           <button
             type="button"
             className="kz-ctrl kz-ctrl-icon kz-ctrl-web-fs"
@@ -246,6 +719,8 @@ export function DesktopControls(props: PlayerControlsProps) {
           >
             {webFs ? <IconWebFsExit /> : <IconWebFs />}
           </button>
+
+          {/* Player Fullscreen */}
           <button
             type="button"
             className="kz-ctrl kz-ctrl-icon kz-ctrl-fs"
@@ -260,20 +735,4 @@ export function DesktopControls(props: PlayerControlsProps) {
       </div>
     </div>
   )
-}
-
-function srTitle(
-  webGpuOk: boolean | null,
-  srMode: SuperResolutionMode,
-  srActive: boolean,
-  srLabels: Record<SuperResolutionMode, string>,
-): string {
-  if (webGpuOk === false) {
-    if (typeof window !== 'undefined' && !window.isSecureContext) {
-      return '超分需要安全上下文（HTTPS 或 localhost）。当前为 HTTP 远程访问，WebGPU 不可用'
-    }
-    return '当前浏览器不支持 WebGPU 超分'
-  }
-  if (srMode === 'off') return '超分（Anime4K，默认关；需 WebGPU）'
-  return `超分：${srLabels[srMode]}${srActive ? ' · 已生效' : ' · 启动中…'}`
 }

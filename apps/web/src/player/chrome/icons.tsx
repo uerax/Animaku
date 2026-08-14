@@ -40,6 +40,38 @@ export function IconNext() {
   )
 }
 
+export function IconDanmaku() {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z" />
+    </svg>
+  )
+}
+
+export function IconChevronRight() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="w-3.5 h-3.5">
+      <path d="M9 18l6-6-6-6" />
+    </svg>
+  )
+}
+
+export function IconChevronLeft() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="w-3.5 h-3.5">
+      <path d="M15 18l-6-6 6-6" />
+    </svg>
+  )
+}
+
+export function IconCheck() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="w-3.5 h-3.5">
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  )
+}
+
 export function IconSettings() {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">

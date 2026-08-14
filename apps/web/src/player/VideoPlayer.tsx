@@ -151,9 +151,23 @@ export function VideoPlayer({
   const [offsetHint, setOffsetHint] = useState('')
   const offsetHintTimer = useRef(0)
 
-  // Revoke local video Blob URL on unmount
+  // Central ripple animation for play/pause micro-interaction
+  const [ripple, setRipple] = useState<{ id: number; type: 'play' | 'pause' } | null>(null)
+  const rippleTimerRef = useRef(0)
+
+  const triggerRipple = (type: 'play' | 'pause') => {
+    window.clearTimeout(rippleTimerRef.current)
+    setRipple({ id: Date.now(), type })
+    rippleTimerRef.current = window.setTimeout(() => {
+      setRipple(null)
+    }, 500)
+  }
+
+  // Revoke local video Blob URL and clear pending timers on unmount
   useEffect(() => {
     return () => {
+      window.clearTimeout(rippleTimerRef.current)
+      window.clearTimeout(offsetHintTimer.current)
       setLocalVideo((prev) => {
         if (prev?.url) URL.revokeObjectURL(prev.url)
         return null
@@ -206,6 +220,7 @@ export function VideoPlayer({
   const [dropActive, setDropActive] = useState(false)
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false)
   const [srMenuOpen, setSrMenuOpen] = useState(false)
+  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
   /** Mobile vertical volume popup */
   const [volumeMenuOpen, setVolumeMenuOpen] = useState(false)
   const [mediaError, setMediaError] = useState('')
@@ -236,7 +251,7 @@ export function VideoPlayer({
 
   const pointerMode = usePointerMode()
   const menusOpen =
-    panelOpen || speedMenuOpen || srMenuOpen || volumeMenuOpen
+    panelOpen || speedMenuOpen || srMenuOpen || volumeMenuOpen || settingsMenuOpen
   const {
     showBar,
     showBarRef,
@@ -403,10 +418,11 @@ export function VideoPlayer({
     hideBar,
     showBarRef,
     closeMenus: () => {
-      if (!speedMenuOpen && !srMenuOpen && !volumeMenuOpen) return false
+      if (!speedMenuOpen && !srMenuOpen && !volumeMenuOpen && !settingsMenuOpen) return false
       setSpeedMenuOpen(false)
       setSrMenuOpen(false)
       setVolumeMenuOpen(false)
+      setSettingsMenuOpen(false)
       return true
     },
     closePanel: () => {
@@ -1144,6 +1160,7 @@ export function VideoPlayer({
         if (v.paused) {
           userPausedRef.current = false
           bufferGatePausedRef.current = false
+          triggerRipple('play')
           void v.play().catch(() => {
             userPausedRef.current = true
           })
@@ -1151,18 +1168,29 @@ export function VideoPlayer({
           userPausedRef.current = true
           bufferGatePausedRef.current = false
           setBufferingUi(false)
+          triggerRipple('pause')
           v.pause()
         }
       } else if (k === 'arrowleft') {
-        v.currentTime = Math.max(0, v.currentTime - 5)
+        e.preventDefault()
+        const nextTime = Math.max(0, v.currentTime - 5)
+        v.currentTime = nextTime
+        flashSkipHint(`⏪ -5s (${formatTime(nextTime)})`, 1000)
       } else if (k === 'arrowright') {
-        v.currentTime = Math.min(v.duration || 0, v.currentTime + 5)
+        e.preventDefault()
+        const nextTime = Math.min(v.duration || 0, v.currentTime + 5)
+        v.currentTime = nextTime
+        flashSkipHint(`⏩ +5s (${formatTime(nextTime)})`, 1000)
       } else if (k === 'arrowup') {
         e.preventDefault()
-        v.volume = Math.min(1, v.volume + 0.05)
+        const nextVol = Math.min(1, Math.round((v.volume + 0.05) * 100) / 100)
+        v.volume = nextVol
+        flashSkipHint(`🔊 音量 ${Math.round(nextVol * 100)}%`, 1000)
       } else if (k === 'arrowdown') {
         e.preventDefault()
-        v.volume = Math.max(0, v.volume - 0.05)
+        const nextVol = Math.max(0, Math.round((v.volume - 0.05) * 100) / 100)
+        v.volume = nextVol
+        flashSkipHint(nextVol === 0 ? '🔇 静音' : `🔉 音量 ${Math.round(nextVol * 100)}%`, 1000)
       } else if (k === 'f') {
         e.preventDefault()
         toggleFsRef.current()
@@ -1216,6 +1244,7 @@ export function VideoPlayer({
         setSpeedMenuOpen(false)
         setSrMenuOpen(false)
         setVolumeMenuOpen(false)
+        setSettingsMenuOpen(false)
         // Exit CSS web-fs + any DOM fullscreen (browser also exits DOM FS)
         setWebFs(false)
         setPlayerFs(false)
@@ -1537,6 +1566,7 @@ export function VideoPlayer({
     if (v.paused) {
       userPausedRef.current = false
       bufferGatePausedRef.current = false
+      triggerRipple('play')
       // Spinner only when nothing is paint-able yet
       if (
         bufferedAhead(v) < 0.2 ||
@@ -1553,6 +1583,7 @@ export function VideoPlayer({
       userPausedRef.current = true
       bufferGatePausedRef.current = false
       setBufferingUi(false)
+      triggerRipple('pause')
       v.pause()
       setShowBar(true)
     }
@@ -1810,6 +1841,7 @@ export function VideoPlayer({
     current,
     duration,
     progress,
+    comments,
     danmakuEnabled: danmaku.enabled !== false,
     hasDanmakuPanel: Boolean(danmakuPanel),
     player,
@@ -1818,6 +1850,26 @@ export function VideoPlayer({
     webGpuOk,
     playerFs,
     webFs,
+    aspectRatio,
+    onAspectRatioChange: setAspectRatioMode,
+    settingsMenuOpen,
+    onToggleSettingsMenu: () => {
+      setPanelOpen(false)
+      setSpeedMenuOpen(false)
+      setSrMenuOpen(false)
+      setVolumeMenuOpen(false)
+      setSettingsMenuOpen((v) => !v)
+    },
+    onToggleAutoNext: () => {
+      const next = player.autoNext === false ? true : false
+      onPlayerChange?.({ autoNext: next })
+      flashSkipHint(next ? '自动连播：已开启' : '自动连播：已关闭', 1500)
+    },
+    onToggleOpedSkip: () => {
+      const next = player.preferBangumiOped === false ? true : false
+      onPlayerChange?.({ preferBangumiOped: next })
+      flashSkipHint(next ? '跳过片头片尾：已开启' : '跳过片头片尾：已关闭', 1500)
+    },
     onTogglePlay: togglePlay,
     onPrev,
     onNext,
@@ -1827,24 +1879,28 @@ export function VideoPlayer({
       setSpeedMenuOpen(false)
       setSrMenuOpen(false)
       setVolumeMenuOpen(false)
+      setSettingsMenuOpen(false)
       setPanelOpen((v) => !v)
     },
     onToggleSpeedMenu: () => {
       setPanelOpen(false)
       setSrMenuOpen(false)
       setVolumeMenuOpen(false)
+      setSettingsMenuOpen(false)
       setSpeedMenuOpen((v) => !v)
     },
     onToggleSrMenu: () => {
       setPanelOpen(false)
       setSpeedMenuOpen(false)
       setVolumeMenuOpen(false)
+      setSettingsMenuOpen(false)
       setSrMenuOpen((v) => !v)
     },
     onToggleVolumeMenu: () => {
       setPanelOpen(false)
       setSpeedMenuOpen(false)
       setSrMenuOpen(false)
+      setSettingsMenuOpen(false)
       setVolumeMenuOpen((v) => !v)
     },
     onPickSpeed: (s) => {
@@ -2021,6 +2077,21 @@ export function VideoPlayer({
         <div className="kz-drop-overlay">松开以加载本地视频或弹幕 XML</div>
       )}
 
+      {/* Center Spring Ripple for Play/Pause micro-interaction */}
+      {ripple && (
+        <div key={ripple.id} className="kz-player-ripple" aria-hidden="true">
+          {ripple.type === 'play' ? (
+            <svg className="w-8 h-8 fill-current ml-0.5" viewBox="0 0 24 24">
+              <path d="M8 5v14l11-7z" />
+            </svg>
+          ) : (
+            <svg className="w-8 h-8 fill-current" viewBox="0 0 24 24">
+              <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+            </svg>
+          )}
+        </div>
+      )}
+
       {/* Center play when paused */}
       {paused && !loading && !seekingUi && !bufferingUi && !mediaError && (
         <button
@@ -2033,26 +2104,57 @@ export function VideoPlayer({
         </button>
       )}
 
-      {/* Auto-next countdown overlay — Bilibili-style */}
+      {/* Modern Next-Episode Floating Toast */}
       {countdown !== null && !mediaError && (
-        <div className="kz-countdown-layer">
+        <div className="kz-countdown-layer" onClick={(e) => e.stopPropagation()}>
           <div className="kz-countdown-overlay">
-            <div className="kz-countdown-info">
-              <span className="kz-countdown-label">下一集</span>
+            <div className="kz-countdown-ring-wrap">
+              <svg className="w-8 h-8 -rotate-90" viewBox="0 0 36 36">
+                <circle
+                  cx="18"
+                  cy="18"
+                  r="15"
+                  fill="none"
+                  stroke="rgba(255, 255, 255, 0.15)"
+                  strokeWidth="2.5"
+                />
+                <circle
+                  cx="18"
+                  cy="18"
+                  r="15"
+                  fill="none"
+                  stroke="#38bdf8"
+                  strokeWidth="2.5"
+                  strokeDasharray="94.2"
+                  strokeDashoffset={94.2 * (1 - countdown / 4)}
+                  strokeLinecap="round"
+                  className="transition-all duration-1000 ease-linear"
+                />
+              </svg>
               <span className="kz-countdown-number">{countdown}</span>
+            </div>
+            <div className="kz-countdown-info">
+              <span className="kz-countdown-label">即将播放下一话</span>
+              <span className="kz-countdown-sub">已开启自动连播</span>
             </div>
             <div className="kz-countdown-actions">
               <button
                 type="button"
                 className="kz-countdown-btn kz-countdown-btn--primary"
-                onClick={(e) => { e.stopPropagation(); doNext() }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  doNext()
+                }}
               >
                 立即播放
               </button>
               <button
                 type="button"
                 className="kz-countdown-btn kz-countdown-btn--secondary"
-                onClick={(e) => { e.stopPropagation(); cancelCountdown() }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  cancelCountdown()
+                }}
               >
                 取消
               </button>
@@ -2110,16 +2212,6 @@ export function VideoPlayer({
             }
             sources={danmakuPanel.sources}
             onToggleSource={danmakuPanel.onToggleSource}
-            preferBangumiOped={Boolean(player.preferBangumiOped)}
-            onToggleOpedSkip={() =>
-              onPlayerChange?.({ preferBangumiOped: !player.preferBangumiOped })
-            }
-            autoNext={Boolean(player.autoNext)}
-            onToggleAutoNext={() =>
-              onPlayerChange?.({ autoNext: !player.autoNext })
-            }
-            aspectRatio={aspectRatio}
-            onAspectRatioChange={setAspectRatioMode}
             /* Desktop: clear the control bar. Mobile uses bottom-sheet layout. */
             bottomOffset={56}
             layout={pointerMode}
