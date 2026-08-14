@@ -786,9 +786,17 @@ export class CanvasDanmaku {
   }
 
   /**
-   * Two-pass direct GPU-accelerated batch paint (Zero-GC):
-   * Pass 1: Outer high-contrast black stroke
-   * Pass 2: Inner text color fill
+   * Bilibili-grade layered rendering pipeline (Atomically Stroke-then-Fill with Mode Z-Index):
+   * Layer 0 (Bottom-most): Scrolling danmaku ('rtl')
+   * Layer 1 (Middle): Bottom fixed danmaku ('bottom' - Subtitles / Lyrics)
+   * Layer 2 (Top-most): Top fixed danmaku ('top' - Annotations / High-energy alerts)
+   *
+   * For each danmaku individually:
+   * 1. Draw outer high-contrast black stroke
+   * 2. Draw inner colored text fill
+   * Zero-GC multi-layer traversal guarantees:
+   * - Top/Bottom static functional danmaku is never covered by scrolling comments
+   * - Overlapping danmaku strokes are never clipped or occluded by lower text
    */
   private paint(): void {
     if (this.destroyed || !this.visible) return
@@ -804,6 +812,10 @@ export class CanvasDanmaku {
     const laneMid = (this.laneH - this.fontPx) * 0.5
 
     let visibleCount = 0
+    let hasScroll = false
+    let hasBottom = false
+    let hasTop = false
+
     for (let i = 0; i < n; i++) {
       const r = this.running[i]
       const age = t - r.time
@@ -818,12 +830,15 @@ export class CanvasDanmaku {
         const path = W + r.width
         x = W - (age / r.duration) * path
         y = r.y + laneMid
+        hasScroll = true
       } else if (r.mode === 'top') {
         x = (W - r.width) * 0.5
         y = r.y + laneMid
+        hasTop = true
       } else if (r.mode === 'bottom') {
         x = (W - r.width) * 0.5
         y = cssH - r.height - r.y + laneMid
+        hasBottom = true
       } else {
         r.renderVisible = false
         continue
@@ -844,24 +859,44 @@ export class CanvasDanmaku {
     ctx.lineJoin = 'round'
     ctx.miterLimit = 2
 
-    // Batch Pass 1: High contrast outer stroke (set strokeStyle once)
     const lineW = Math.max(2, Math.round(this.fontPx * 0.125))
     ctx.lineWidth = lineW
     ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)'
 
-    for (let i = 0; i < n; i++) {
-      const r = this.running[i]
-      if (r.renderVisible) {
-        ctx.strokeText(r.text, r.renderX, r.renderY)
+    // Bilibili Layer Hierarchy:
+    // Pass 1: Layer 0 - Scrolling danmaku (bottom-most)
+    if (hasScroll) {
+      for (let i = 0; i < n; i++) {
+        const r = this.running[i]
+        if (r.renderVisible && r.mode === 'rtl') {
+          ctx.strokeText(r.text, r.renderX, r.renderY)
+          ctx.fillStyle = r.color || '#ffffff'
+          ctx.fillText(r.text, r.renderX, r.renderY)
+        }
       }
     }
 
-    // Batch Pass 2: Crisp inner text fill
-    for (let i = 0; i < n; i++) {
-      const r = this.running[i]
-      if (r.renderVisible) {
-        ctx.fillStyle = r.color || '#ffffff'
-        ctx.fillText(r.text, r.renderX, r.renderY)
+    // Pass 2: Layer 1 - Bottom fixed danmaku (Subtitles / Lyrics)
+    if (hasBottom) {
+      for (let i = 0; i < n; i++) {
+        const r = this.running[i]
+        if (r.renderVisible && r.mode === 'bottom') {
+          ctx.strokeText(r.text, r.renderX, r.renderY)
+          ctx.fillStyle = r.color || '#ffffff'
+          ctx.fillText(r.text, r.renderX, r.renderY)
+        }
+      }
+    }
+
+    // Pass 3: Layer 2 - Top fixed danmaku (Annotations / Alerts, top-most)
+    if (hasTop) {
+      for (let i = 0; i < n; i++) {
+        const r = this.running[i]
+        if (r.renderVisible && r.mode === 'top') {
+          ctx.strokeText(r.text, r.renderX, r.renderY)
+          ctx.fillStyle = r.color || '#ffffff'
+          ctx.fillText(r.text, r.renderX, r.renderY)
+        }
       }
     }
 

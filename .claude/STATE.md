@@ -1,5 +1,26 @@
 # Animaku 项目状态
 
+## [2026-08-15] 接入 B 站级弹幕层级渲染管线（滚动 < 底部字幕 < 顶部科普固定弹幕）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  - **对标 B 站工业标准**：将弹幕引擎 Canvas 渲染管线升级为分层渲染（Layered Rendering Pipeline）：
+    - **Layer 0（最底层）**：普通滚动弹幕（`'rtl'`）；
+    - **Layer 1（中间层）**：底部固定字幕弹幕（`'bottom'`）；
+    - **Layer 2（最顶层）**：顶部固定科普/高能预警弹幕（`'top'`）。
+  - **Zero-GC 分层遍历**：在单帧 `paint()` 中，按 Layer 0 → Layer 1 → Layer 2 的顺序原子化执行每条弹幕的 `strokeText` + `fillText`，彻底保证顶部科普与底部字幕永远清晰浮在滚动弹幕浪潮之上，不被日常吐槽刷屏遮盖，且零临时对象分配。
+- 涉及文件：apps/web/src/player/media/canvas-danmaku.ts
+- 备注：`pnpm typecheck` 全仓 4 个 Workspace Projects 验证 0 错误通过。
+
+## [2026-08-15] 修复弹幕重叠时上层弹幕描边被下层弹幕文字遮挡（改为单条弹幕原子化描边+填充）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  - **根本原因**：此前为了所谓的两阶段批处理，将所有弹幕拆为：`Pass 1` 全局集中 `strokeText` 绘制所有弹幕的黑色描边，`Pass 2` 全局集中 `fillText` 绘制所有弹幕的文字。这导致当两条弹幕在同一画面空间部分交叠时，**后一条弹幕（视觉上层）的描边在 Pass 1 就已经画完了**，而**前一条弹幕（视觉下层）的文字在 Pass 2 才绘制**，导致下层弹幕的文字直接盖在了上层弹幕的描边之上，破坏了正确的 Z 轴图层顺序，视觉上呈现为“上层弹幕的描边被下层弹幕切断/遮挡”。
+  - **解决方案**：在 `apps/web/src/player/media/canvas-danmaku.ts` 中将绘制管线重构为**基于 Z-Index 顺序的单条弹幕原子化渲染（Atomically Stroke-then-Fill）**：遍历每条激活弹幕时，立即执行当前弹幕的 `strokeText` + `fillText`，确保每条弹幕作为一个完整的图层渲染，彻底消除层级穿透与描边被下层弹幕遮盖的视觉 Bug。
+- 涉及文件：apps/web/src/player/media/canvas-danmaku.ts
+- 备注：`pnpm typecheck` 全仓 4 个 Workspace Projects 验证 0 错误通过。
+
 ## [2026-08-15] 移动端 Core Web Vitals (INP) 系统性深度优化与交互响应提速
 - 状态：已完成
 - 优先级：P0
