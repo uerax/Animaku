@@ -1,5 +1,17 @@
 # Animaku 项目状态
 
+## [2026-08-14] 桌面端弹幕面板实现与其他控制面板一致的按钮水平中轴居中对齐
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **排查根本原因**：此前桌面端弹幕面板（`DanmakuPanel`）脱离了控制栏按钮容器，在播放器根节点通过固定 `right: min(...)` 绝对定位，未与控制栏上的「弹幕设置」按钮锚定，导致弹出位置固定在右侧，无法像设置齿轮（`⚙️`）、倍速（`1x`）、超分（`超分`）等面板一样精准对齐在触发按钮的水平中轴正上方。
+  2. **全面统一为锚点中轴对齐体系**：
+     - **DOM 结构统一**：在 `DesktopControls.tsx` 中将弹幕按钮包裹于 `<div className="kz-speed-wrap kz-danmaku-wrap">` 相对定位容器中，并通过 `danmakuPanelNode` 在按钮内联层级展开桌面弹幕面板；
+     - **定位与动效统一**：在 `plyr-overrides.css` 中将 `.kz-danmaku-panel--desktop` 统一配置为 `bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); transform-origin: bottom center;`，配合 `kz-settings-popover-in` 放大入场动效，实现 100% 居中于按钮 X 轴中心正上方平滑弹出；
+     - **自适应高宽与移动端隔离**：移除桌面卡片对父容器 100% 相对高度的硬编码，改为 `max-height: min(26rem, calc(100vh - 6rem))`，移动端则保持底部抽屉 Portal 不受任何影响。
+- 涉及文件：apps/web/src/player/chrome/types.ts, apps/web/src/player/chrome/DesktopControls.tsx, apps/web/src/player/VideoPlayer.tsx, apps/web/src/player/DanmakuPanel.tsx, apps/web/src/player/plyr-overrides.css
+- 备注：`pnpm typecheck` 全仓 4 个 Workspace Projects 验证 0 错误编译通过。
+
 ## [2026-08-14] 播放器所有弹窗与面板实现「白天模式/夜间模式」全量自适应双模态
 - 状态：已完成
 - 优先级：P0

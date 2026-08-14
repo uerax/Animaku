@@ -93,7 +93,6 @@ function DesktopCard(props: Props) {
     onDanmakuChange,
     sources,
     onToggleSource,
-    bottomOffset = 56,
   } = props
 
   const shown =
@@ -101,9 +100,9 @@ function DesktopCard(props: Props) {
 
   return (
     <div
-      className="kz-danmaku-panel kz-danmaku-panel--desktop absolute z-[60] flex w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)]/95 text-[var(--kz-fg)] shadow-2xl backdrop-blur-2xl"
+      className="kz-danmaku-panel kz-danmaku-panel--desktop absolute z-[85] flex w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)]/95 text-[var(--kz-fg)] shadow-2xl backdrop-blur-2xl"
       style={{
-        maxHeight: `min(26rem, calc(100% - ${Math.max(bottomOffset, 8)}px - 0.5rem))`,
+        maxHeight: 'min(26rem, calc(100dvh - 6rem))',
       }}
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}

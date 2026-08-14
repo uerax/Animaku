@@ -96,6 +96,7 @@ export function DesktopControls(props: PlayerControlsProps) {
     comments,
     danmakuEnabled,
     hasDanmakuPanel,
+    danmakuPanelNode,
     player,
     srMode,
     srActive,
@@ -345,16 +346,19 @@ export function DesktopControls(props: PlayerControlsProps) {
 
           {/* Danmaku Settings Panel trigger */}
           {hasDanmakuPanel && (
-            <button
-              type="button"
-              className="kz-ctrl kz-ctrl-icon"
-              data-active={panelOpen}
-              onClick={onTogglePanel}
-              title="弹幕设置与搜索 (Alt+M)"
-              aria-label="弹幕设置"
-            >
-              <IconDanmaku />
-            </button>
+            <div className="kz-speed-wrap kz-danmaku-wrap">
+              <button
+                type="button"
+                className="kz-ctrl kz-ctrl-icon"
+                data-active={panelOpen}
+                onClick={onTogglePanel}
+                title="弹幕设置与搜索 (Alt+M)"
+                aria-label="弹幕设置"
+              >
+                <IconDanmaku />
+              </button>
+              {panelOpen && danmakuPanelNode}
+            </div>
           )}
 
           {/* Quick Speed Menu */}

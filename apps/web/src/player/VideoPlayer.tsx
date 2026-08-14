@@ -1830,6 +1830,51 @@ export function VideoPlayer({
     .filter(Boolean)
     .join(' ')
 
+  const danmakuPanelElement =
+    danmakuPanel && panelOpen ? (
+      <DanmakuPanel
+        open
+        tab={panelTab}
+        onTabChange={setPanelTab}
+        onClose={() => setPanelOpen(false)}
+        status={danmakuPanel.status}
+        commentsCount={danmakuPanel.commentsCount}
+        visibleCount={danmakuPanel.visibleCount}
+        danmaku={danmaku}
+        onDanmakuChange={(p) => onDanmakuChange?.(p)}
+        keyword={danmakuPanel.keyword}
+        onKeywordChange={danmakuPanel.onKeywordChange}
+        onSearch={danmakuPanel.onSearch}
+        searchBusy={danmakuPanel.searchBusy}
+        animes={danmakuPanel.animes}
+        episodes={danmakuPanel.episodes}
+        animeId={danmakuPanel.animeId}
+        episodeId={danmakuPanel.episodeId}
+        onAnimeChange={danmakuPanel.onAnimeChange}
+        onEpisodeChange={danmakuPanel.onEpisodeChange}
+        bvInput={danmakuPanel.bvInput}
+        onBvInputChange={danmakuPanel.onBvInputChange}
+        bvPage={danmakuPanel.bvPage}
+        onBvPageChange={danmakuPanel.onBvPageChange}
+        onLoadBilibili={danmakuPanel.onLoadBilibili}
+        bilibiliBusy={danmakuPanel.bilibiliBusy}
+        onPickXmlFile={() => xmlInputRef.current?.click()}
+        filterDraft={filterDraft}
+        onFilterDraftChange={setFilterDraft}
+        onAddFilter={addFilter}
+        onRemoveFilter={(rule) =>
+          onDanmakuChange?.({
+            filters: danmaku.filters.filter((r) => r !== rule),
+          })
+        }
+        sources={danmakuPanel.sources}
+        onToggleSource={danmakuPanel.onToggleSource}
+        /* Desktop: clear the control bar. Mobile uses bottom-sheet layout. */
+        bottomOffset={56}
+        layout={pointerMode}
+      />
+    ) : null
+
   const controlsProps: PlayerControlsProps = {
     title,
     showBar,
@@ -1844,6 +1889,7 @@ export function VideoPlayer({
     comments,
     danmakuEnabled: danmaku.enabled !== false,
     hasDanmakuPanel: Boolean(danmakuPanel),
+    danmakuPanelNode: danmakuPanelElement,
     player,
     srMode,
     srActive,
@@ -2170,54 +2216,8 @@ export function VideoPlayer({
         <MobileControls key="mobile" {...controlsProps} />
       )}
 
-      {danmakuPanel && panelOpen && (
-        <div
-          className="kz-danmaku-panel-root"
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          <DanmakuPanel
-            open
-            tab={panelTab}
-            onTabChange={setPanelTab}
-            onClose={() => setPanelOpen(false)}
-            status={danmakuPanel.status}
-            commentsCount={danmakuPanel.commentsCount}
-            visibleCount={danmakuPanel.visibleCount}
-            danmaku={danmaku}
-            onDanmakuChange={(p) => onDanmakuChange?.(p)}
-            keyword={danmakuPanel.keyword}
-            onKeywordChange={danmakuPanel.onKeywordChange}
-            onSearch={danmakuPanel.onSearch}
-            searchBusy={danmakuPanel.searchBusy}
-            animes={danmakuPanel.animes}
-            episodes={danmakuPanel.episodes}
-            animeId={danmakuPanel.animeId}
-            episodeId={danmakuPanel.episodeId}
-            onAnimeChange={danmakuPanel.onAnimeChange}
-            onEpisodeChange={danmakuPanel.onEpisodeChange}
-            bvInput={danmakuPanel.bvInput}
-            onBvInputChange={danmakuPanel.onBvInputChange}
-            bvPage={danmakuPanel.bvPage}
-            onBvPageChange={danmakuPanel.onBvPageChange}
-            onLoadBilibili={danmakuPanel.onLoadBilibili}
-            bilibiliBusy={danmakuPanel.bilibiliBusy}
-            onPickXmlFile={() => xmlInputRef.current?.click()}
-            filterDraft={filterDraft}
-            onFilterDraftChange={setFilterDraft}
-            onAddFilter={addFilter}
-            onRemoveFilter={(rule) =>
-              onDanmakuChange?.({
-                filters: danmaku.filters.filter((r) => r !== rule),
-              })
-            }
-            sources={danmakuPanel.sources}
-            onToggleSource={danmakuPanel.onToggleSource}
-            /* Desktop: clear the control bar. Mobile uses bottom-sheet layout. */
-            bottomOffset={56}
-            layout={pointerMode}
-          />
-        </div>
-      )}
+      {/* Mobile danmaku sheet portal */}
+      {pointerMode === 'mobile' && danmakuPanelElement}
 
       {danmakuPanel && (
         <input

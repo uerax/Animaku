@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type {
   DanmakuComment,
   PlayerSettings,
@@ -26,6 +27,8 @@ export interface PlayerControlsProps {
   comments?: DanmakuComment[]
   danmakuEnabled: boolean
   hasDanmakuPanel: boolean
+  /** Rendered Danmaku panel element for desktop inline anchor alignment */
+  danmakuPanelNode?: ReactNode
   player: PlayerSettings
   srMode: SuperResolutionMode
   srActive: boolean

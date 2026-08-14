@@ -1703,15 +1703,17 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   pointer-events: none;
 }
 
-/* Desktop danmaku panel: centered on Setting button axis */
+/* Desktop danmaku panel: centered directly above Danmaku button horizontal axis */
 .kz-danmaku-panel--desktop {
   position: absolute;
-  bottom: calc(var(--kz-ctrl-h, 36px) + 1.25rem) !important;
-  right: min(calc(100% - 1rem), max(0.75rem, calc(16.5rem - 11rem))) !important;
-  left: auto !important;
-  transform: none !important;
-  transform-origin: bottom right;
-  animation: kz-popover-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  bottom: calc(100% + 8px) !important;
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%) !important;
+  transform-origin: bottom center;
+  z-index: 85;
+  max-height: min(26rem, calc(100vh - 6rem)) !important;
+  animation: kz-settings-popover-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .kz-danmaku-panel-root > * {
@@ -1798,8 +1800,7 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
     height: var(--kz-ctrl-h);
     min-height: var(--kz-ctrl-h);
     max-height: var(--kz-ctrl-h);
-    overflow-x: auto;
-    overflow-y: hidden;
+    overflow: visible;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     gap: 0;
@@ -1894,8 +1895,7 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
 
     .kz-bar-row {
       flex-wrap: nowrap;
-      overflow-x: auto;
-      overflow-y: hidden;
+      overflow: visible;
       -webkit-overflow-scrolling: touch;
       scrollbar-width: none;
     }
