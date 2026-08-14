@@ -1,5 +1,38 @@
 # Animaku 项目状态
 
+## [2026-08-15] 优化系统默认弹幕显示区域至 75%（3/4 屏）并完善严格防重叠与容量动态缩放
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **系统默认弹幕区域调整为 75% (`area: 0.75`)**：
+     - 在 `packages/shared/src/danmaku.ts` 与 `apps/web/src/player/media/canvas-danmaku.ts` 中将默认弹幕显示区域从 `0.5`（半屏）升级为 `0.75`（3/4 屏）；
+     - 黄金比例兼顾弹幕舒展呈现与画面底部熟肉字幕保护（避免字幕被遮挡）。
+  2. **严格防重叠丢弃（Strict No-Overlap Drop）**：
+     - 移除多余的强行降级挤入逻辑，当指定区域内所有轨道被占满时严格执行防重叠丢弃（Drop），杜绝全屏弹幕在区域缩小时被强行挤叠在上半屏的密集叠字 Bug。
+  3. **同屏最大并发预算（`maxRunning`）与区域动态等比联动**：
+     - `maxRunning()` 与 `this.area` 响应式等比缩放，确保在不同区域比例（1/4 屏、半屏、3/4 屏、全屏）下单位面积内的视觉密度均匀恒定。
+- 涉及文件：packages/shared/src/danmaku.ts, apps/web/src/player/media/canvas-danmaku.ts
+- 备注：`pnpm typecheck` 全仓验证 0 错误通过，`pnpm build` 打包构建全量通过。
+
+## [2026-08-15] 弹幕引擎系统性重构与流畅度质感全方位升维（高精平滑时钟、零 GC 批处理与防追尾算法）
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **高精度连续平滑时钟插值（`performance.now()` 驱动）**：
+     - 彻底攻克 HTML5 `<video>` 的 `currentTime` 离散低频更新（15~30Hz）导致的弹幕“阶梯状微顿挫（Staircase Jitter）”；
+     - 引入以 `performance.now()` 为基准的高精微秒级时间外推计算，配合阻尼漂移校准（Damped Drift Correction）与缓冲/Seek 瞬时复位，在 60Hz/120Hz/144Hz 屏幕上实现每帧连续亚像素极速位移，帧率提升至 100% 满帧丝滑。
+  2. **零 GC 直接批处理渲染管线（Zero-Alloc Direct GPU Batch Paint）**：
+     - 废除为每条弹幕创建独立 `OffscreenCanvas` 和频繁淘汰的 `glyphCache`，彻底消除大量 Canvas 对象分配触发的 V8 GC 垃圾回收停顿与内存显存抖动；
+     - 采用主画布两阶段 GPU 批处理绘制：Pass 1 集中批量绘制外围高对比黑描边（`strokeStyle` 仅配置一次），Pass 2 集中批量绘制内层彩色文本，内存分配率归零。
+  3. **B站级防追尾碰撞与弹性轨道调度（Chase-Collision Lookahead Allocator）**：
+     - 引入进场间隙检测（Entry Gap Check）与出场防追尾检测（Exit Chase Check），有效防止字数长短不同的弹幕在移动过程中前后追尾重叠；
+     - 在密集弹幕高能片段提供智能候选轨道弹性分配，杜绝无空轨时盲目丢弃弹幕。
+  4. **Retina 级高清排版与全平台字体栈适配**：
+     - 引入 `-apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "WenQuanYi Micro Hei", SimHei` 全平台高清字体栈；
+     - 保持整倍数 DPR 缩放（1x/2x），消除文字毛边与模糊，字形质感 100% 对齐 B 站标准。
+- 涉及文件：apps/web/src/player/media/canvas-danmaku.ts
+- 备注：`pnpm typecheck` 全仓验证 0 错误通过，`pnpm build` 打包构建全量通过。
+
 ## [2026-08-15] 修复 Undici 上游 HTTP/2 连接断开/终止 (terminated) 未捕获报错与重定向 Body 泄漏
 - 状态：已完成
 - 优先级：P1

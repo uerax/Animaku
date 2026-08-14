@@ -41,7 +41,7 @@ export const defaultDanmakuSettings: DanmakuSettings = {
   opacity: 0.85,
   fontSize: 1,
   speed: 1,
-  area: 0.5,
+  area: 0.75,
   showTop: true,
   showBottom: false,
   showScroll: true,
