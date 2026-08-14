@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FormEvent, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import clsx from 'clsx'
@@ -212,8 +212,8 @@ export function WatchPage() {
             w.setDanmaku({ enabled: !w.danmakuSettings.enabled })
           }
           onDanmakuChange={w.setDanmaku}
-          onPrev={() => w.goAdjacentEpisode(-1)}
-          onNext={() => w.goAdjacentEpisode(1)}
+          onPrev={() => startTransition(() => w.goAdjacentEpisode(-1))}
+          onNext={() => startTransition(() => w.goAdjacentEpisode(1))}
           onMediaAuthExpired={w.onMediaAuthExpired}
           onMediaLoadFailed={w.onMediaLoadFailed}
           danmakuPanel={w.dm.panel}
@@ -295,7 +295,7 @@ export function WatchPage() {
           : null
       }
       summaryOpen={summaryOpen}
-      onToggleSummary={() => setSummaryOpen((v) => !v)}
+      onToggleSummary={() => startTransition(() => setSummaryOpen((v) => !v))}
       token={token}
       collectType={collectType}
       collectOptions={collectOptions}
@@ -304,7 +304,9 @@ export function WatchPage() {
       compact={layoutMode === 'mobile'}
       metaOpen={layoutMode === 'mobile' ? metaOpen : true}
       onToggleMeta={
-        layoutMode === 'mobile' ? () => setMetaOpen((v) => !v) : undefined
+        layoutMode === 'mobile'
+          ? () => startTransition(() => setMetaOpen((v) => !v))
+          : undefined
       }
     />
   )
@@ -330,7 +332,7 @@ export function WatchPage() {
       {/* bilibili 侧栏头：标题 + 摘要 + chevron */}
       <button
         type="button"
-        onClick={() => setSourcesOpen((v) => !v)}
+        onClick={() => startTransition(() => setSourcesOpen((v) => !v))}
         className="kz-bili-sec-head kz-bili-sec-head--btn"
         aria-expanded={sourcesOpen}
       >
@@ -504,8 +506,10 @@ export function WatchPage() {
                     onClick={() => {
                       w.setKeywordTargetPlugin(r.plugin)
                       if (!r.pending) {
-                        void w.openPluginSearch(r.plugin, undefined, {
-                          autoPickFirst: true,
+                        startTransition(() => {
+                          void w.openPluginSearch(r.plugin, undefined, {
+                            autoPickFirst: true,
+                          })
                         })
                       }
                     }}
@@ -585,7 +589,9 @@ export function WatchPage() {
                               type="button"
                               onClick={() => {
                                 w.setKeywordTargetPlugin(r.plugin)
-                                void w.pickSource(r.plugin, it)
+                                startTransition(() => {
+                                  void w.pickSource(r.plugin, it)
+                                })
                               }}
                               className={clsx(
                                 'kz-bili-hit',
@@ -641,9 +647,9 @@ export function WatchPage() {
       roadError={w.roadError || null}
       pendingPluginName={w.pendingSource?.pluginName}
       hasSelection={Boolean(w.selection)}
-      onToggleList={() => setEpsListExpanded((v) => !v)}
-      onSelectRoad={w.setVisibleRoad}
-      onPickEpisode={w.pickEpisode}
+      onToggleList={() => startTransition(() => setEpsListExpanded((v) => !v))}
+      onSelectRoad={(ri) => startTransition(() => w.setVisibleRoad(ri))}
+      onPickEpisode={(ep, rd) => startTransition(() => w.pickEpisode(ep, rd))}
     />
   )
 

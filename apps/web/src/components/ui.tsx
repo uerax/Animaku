@@ -53,6 +53,7 @@ export const BangumiCard = memo(function BangumiCard({
       // Warm player chunk on intent — import only, no Hls/danmaku init
       onMouseEnter={preloadVideoPlayer}
       onFocus={preloadVideoPlayer}
+      onTouchStart={preloadVideoPlayer}
       className="bangumi-card group flex flex-col overflow-hidden rounded-2xl bg-transparent transition-transform duration-200 hover:-translate-y-1"
     >
       <div className="bangumi-card-cover relative aspect-[3/4] overflow-hidden rounded-2xl bg-[var(--kz-bg-soft)] shadow-[0_10px_28px_rgba(0,0,0,0.18)] ring-1 ring-[var(--kz-border)]">

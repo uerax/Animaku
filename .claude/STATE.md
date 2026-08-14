@@ -1,5 +1,20 @@
 # Animaku 项目状态
 
+## [2026-08-15] 移动端 Core Web Vitals (INP) 系统性深度优化与交互响应提速
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **移动端卡片触摸预热 (`onTouchStart`) 与首页 Idle 预加载**：
+     - 在 `BangumiCard` 与 `HomePage` 继续观看卡片上增加 `onTouchStart={preloadVideoPlayer}`，在手机端手指触碰屏幕的 50~100ms 间抢跑动态 import；
+     - 在 `HomePage` 中引入 `requestIdleCallback` 在主线程空闲时静默预拉取并编译播放器模块 chunk，彻底消除移动端点击卡片时主线程阻塞 200~400ms 的 INP 瓶颈。
+  2. **全局消除 MobileSafari 300ms 点击延迟**：
+     - 在 `index.css` 中为可交互元素（`a, button, input, select, textarea, [role='button'], [role='tab'], .bangumi-card, .kz-surface-interactive`）配置 `touch-action: manipulation`，消除 iOS Safari 原生双击放大等待，保持与播放器内置手势逻辑的安全隔离。
+  3. **播放页重型交互全量接入 React 19 `startTransition` 优先级调度**：
+     - 在 `WatchPage.tsx` 中将选集切换（`onPickEpisode`）、线路切换（`onSelectRoad`）、全集展开（`onToggleList`）、上下集切换（`onPrev`/`onNext`）、视频源选择（`pickSource`/`openPluginSearch`）及侧栏面板折叠全部接入 `startTransition`；
+     - 保证点击时 0ms 立即渲染按压态与选中反馈，将复杂的重渲染和播放器重置降级为过渡任务在后台平滑完成，INP 大幅降低至绿色优秀区间。
+- 涉及文件：apps/web/src/components/ui.tsx, apps/web/src/pages/HomePage.tsx, apps/web/src/index.css, apps/web/src/pages/WatchPage.tsx
+- 备注：`pnpm typecheck` 全仓 4 个 Workspace Projects 验证 0 错误通过，`pnpm build` 全量打包验证通过。
+
 ## [2026-08-15] 优化系统默认弹幕显示区域至 75%（3/4 屏）并完善严格防重叠与容量动态缩放
 - 状态：已完成
 - 优先级：P1

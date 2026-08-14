@@ -9,8 +9,9 @@ import {
 } from '../components/ui'
 import { useHistoryStore } from '../stores/history'
 import { Link } from 'react-router-dom'
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { EMPTY_ARRAY } from '../lib/stable'
+import { preloadVideoPlayer } from '../player/lazy'
 
 export function HomePage() {
   const trending = useQuery({
@@ -24,6 +25,25 @@ export function HomePage() {
     Array.isArray(s.items) ? s.items : EMPTY_ARRAY,
   )
   const recent = useMemo(() => items.slice(0, 6), [items])
+
+  // Idle preload: warm player bundle during browser idle time so mobile taps never stall
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const schedule =
+      'requestIdleCallback' in window
+        ? (window.requestIdleCallback as (cb: () => void, opts?: { timeout: number }) => number)
+        : (cb: () => void) => window.setTimeout(cb, 1500)
+    const cancel =
+      'cancelIdleCallback' in window
+        ? (window.cancelIdleCallback as (id: number) => void)
+        : (id: number) => window.clearTimeout(id)
+
+    const handle = schedule(() => {
+      preloadVideoPlayer()
+    }, { timeout: 3000 })
+
+    return () => cancel(handle)
+  }, [])
 
   return (
     <div className="space-y-10">
@@ -53,6 +73,9 @@ export function HomePage() {
               <Link
                 key={h.id}
                 to={`/play/${h.bangumiId}?plugin=${encodeURIComponent(h.pluginName)}&pageUrl=${encodeURIComponent(h.pageUrl)}&ep=${h.episode}&road=${h.road}&title=${encodeURIComponent(h.title)}${h.cover ? `&cover=${encodeURIComponent(h.cover)}` : ''}${h.sourceUrl ? `&source=${encodeURIComponent(h.sourceUrl)}` : ''}`}
+                onMouseEnter={preloadVideoPlayer}
+                onFocus={preloadVideoPlayer}
+                onTouchStart={preloadVideoPlayer}
                 className="kz-surface kz-surface-interactive flex min-w-0 max-w-full items-center gap-3 overflow-hidden p-3"
               >
                 {h.cover ? (
