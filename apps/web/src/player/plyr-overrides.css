@@ -1735,10 +1735,29 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
 }
 
 /* Webpage fullscreen (CSS fill viewport, no Fullscreen API) */
+html.kz-has-web-fs,
+body.kz-has-web-fs {
+  overflow: hidden !important;
+}
+
+html.kz-has-web-fs header,
+body.kz-has-web-fs header {
+  display: none !important;
+}
+
+/* Elevate player stack stacking context so web-fs shell escapes z-index: 30 / 40 boundaries */
+.kz-player-stack:has(.kz-web-fs),
+.kz-watch-cinema--mobile .kz-player-stack--sticky:has(.kz-web-fs),
+.kz-has-web-fs .kz-player-stack,
+.kz-has-web-fs .kz-player-stack--sticky {
+  position: static !important;
+  z-index: 99999 !important;
+}
+
 .kz-player-shell.kz-web-fs {
   position: fixed !important;
   inset: 0 !important;
-  z-index: 9999 !important;
+  z-index: 99999 !important;
   width: 100% !important;
   width: 100dvw !important;
   height: 100% !important;

@@ -169,6 +169,15 @@ export async function fetchPublic(
       if (isPrivateHost(next.hostname)) {
         throw new Error('禁止重定向到内网地址')
       }
+      // Drain/cancel unconsumed body on redirect to prevent HTTP/2 socket/stream leaks in undici
+      if (res.body) {
+        try {
+          void res.body.cancel().catch(() => {})
+        } catch {
+          /* ignore */
+        }
+      }
+
       // 303 → GET; 301/302 historically change POST to GET for browsers
       if (
         res.status === 303 ||

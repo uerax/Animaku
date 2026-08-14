@@ -3,16 +3,28 @@ import { Routes, Route } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { LoadingState } from './components/ui'
 
-// Light routes: static import — avoid per-nav RTT for ~1–30KB pages.
+// Keep HomePage in the initial chunk for instantaneous first-paint
 import { HomePage } from './pages/HomePage'
-import { TimelinePage } from './pages/TimelinePage'
-import { AnimePage } from './pages/AnimePage'
-import { SearchPage } from './pages/SearchPage'
-import { CollectPage } from './pages/CollectPage'
-import { HistoryPage } from './pages/HistoryPage'
-import { SettingsPage } from './pages/SettingsPage'
 
-// Heavy watch stack only — player / hls / anime4k stay behind these chunks.
+// Route-level code splitting: lazy-load non-index pages on demand
+const TimelinePage = lazy(() =>
+  import('./pages/TimelinePage').then((m) => ({ default: m.TimelinePage })),
+)
+const AnimePage = lazy(() =>
+  import('./pages/AnimePage').then((m) => ({ default: m.AnimePage })),
+)
+const SearchPage = lazy(() =>
+  import('./pages/SearchPage').then((m) => ({ default: m.SearchPage })),
+)
+const CollectPage = lazy(() =>
+  import('./pages/CollectPage').then((m) => ({ default: m.CollectPage })),
+)
+const HistoryPage = lazy(() =>
+  import('./pages/HistoryPage').then((m) => ({ default: m.HistoryPage })),
+)
+const SettingsPage = lazy(() =>
+  import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })),
+)
 const SubjectPage = lazy(() =>
   import('./pages/SubjectPage').then((m) => ({ default: m.SubjectPage })),
 )
@@ -33,13 +45,54 @@ export default function App() {
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<HomePage />} />
-        <Route path="timeline" element={<TimelinePage />} />
-        <Route path="anime" element={<AnimePage />} />
-        <Route path="search" element={<SearchPage />} />
-        <Route path="collect" element={<CollectPage />} />
-        <Route path="history" element={<HistoryPage />} />
-        <Route path="settings" element={<SettingsPage />} />
-        {/* Suspense only around lazy watch routes — light pages never wait on chunk */}
+        <Route
+          path="timeline"
+          element={
+            <Suspense fallback={<PageFallback />}>
+              <TimelinePage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="anime"
+          element={
+            <Suspense fallback={<PageFallback />}>
+              <AnimePage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="search"
+          element={
+            <Suspense fallback={<PageFallback />}>
+              <SearchPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="collect"
+          element={
+            <Suspense fallback={<PageFallback />}>
+              <CollectPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="history"
+          element={
+            <Suspense fallback={<PageFallback />}>
+              <HistoryPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="settings"
+          element={
+            <Suspense fallback={<PageFallback />}>
+              <SettingsPage />
+            </Suspense>
+          }
+        />
         <Route
           path="subject/:id"
           element={

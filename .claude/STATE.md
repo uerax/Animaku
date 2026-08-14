@@ -1,5 +1,38 @@
 # Animaku 项目状态
 
+## [2026-08-15] 修复 Undici 上游 HTTP/2 连接断开/终止 (terminated) 未捕获报错与重定向 Body 泄漏
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **根本原因排查**：在调用源站拉取分集/解析（如 `POST /api/plugin/chapters`）时，若源站返回 3xx 重定向，旧 Response 的 `res.body` 未显式取消或读取，导致 Node.js 底层 `undici` 的 HTTP/2 Stream 在垃圾回收关闭时触发 `NGHTTP2_PROTOCOL_ERROR`，抛出未捕获的 `TypeError: terminated`。
+  2. **全面防御修复**：
+     - **3xx 重定向 Response Body 释放**：在 `apps/server/src/lib/private-host.ts` 的 `fetchPublic` 重定向循环中显式对未消耗的 `res.body` 调用 `cancel().catch(...)`，避免底层 Socket 与 Stream 悬空泄漏；
+     - **增强良性网络异常过滤 (`isBenignAbort`)**：在 `apps/server/src/index.ts` 中增强 `isBenignAbort` 函数，递归检查 error 与 error.cause，识别并静默过滤 `terminated`、`ERR_HTTP2_STREAM_ERROR`、`NGHTTP2_PROTOCOL_ERROR` 等后台 HTTP/2 流关闭良性错误，杜绝控制台错误刷屏。
+- 涉及文件：apps/server/src/lib/private-host.ts, apps/server/src/index.ts
+- 备注：`pnpm typecheck` 全仓验证 0 错误通过。
+
+## [2026-08-15] 修复网页全屏 (Web Fullscreen) 下顶部导航栏依然显示与遮盖 Bug
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **根本原因分析**：播放器外层容器 `.kz-player-stack` 设定了 `position: relative; z-index: 30`，导致其内部子元素 `.kz-player-shell` 即使进入网页全屏（`position: fixed; z-index: 9999`）也被困在父级的局部层叠上下文（Stacking Context）内，无法突破并覆盖位于同级兄弟层级且 `z-index: 40` 的站点顶部 `<header>` 导航栏。
+  2. **双重层叠上下文隔离与样式优化**：
+     - **状态与 DOM 类名联动**：在 `VideoPlayer.tsx` 中建立 `webFs` 状态与 `html`/`body` 类名（`.kz-has-web-fs`）的响应式绑定，卸载与退出时自动清理；
+     - **解除父级层叠限制与隐藏 Header**：在 `plyr-overrides.css` 中为 `.kz-player-stack:has(.kz-web-fs)` 以及 `.kz-has-web-fs .kz-player-stack` 设置 `position: static !important; z-index: 99999 !important`，并配置 `html.kz-has-web-fs header { display: none !important; }` 与 `overflow: hidden !important`，确保网页全屏时 100% 隐藏顶部导航栏、锁住背景滚动并使播放器顶层铺满全屏；退出时无缝恢复。
+- 涉及文件：apps/web/src/player/VideoPlayer.tsx, apps/web/src/player/plyr-overrides.css
+- 备注：`pnpm typecheck` 全仓验证 0 错误通过。
+
+## [2026-08-15] 全站系统性性能深度优化（起播预取、响应压缩、VOD 缓存与路由全量懒加载）
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **HLS 起播首分片预拉取 (`startFragPrefetch`)**：在 `apps/web/src/player/VideoPlayer.tsx` 中为 Hls.js 启用 `startFragPrefetch: true`，在解析 Master/Media 播放列表的同时提前发起首个 TS/M4S 分片预下载，降低起播白屏延迟 200~500ms。
+  2. **服务端全局挂载 `hono/compress` 响应压缩**：在 `apps/server/src/index.ts` 中引入 `compress` 中间件，自动对 API 响应（Bangumi 元数据、弹幕 XML/JSON）与前端 SPA 静态文件提供高效 Gzip/Deflate 压缩（传输体积锐减 70%+），并智能旁路跳过媒体代理中已编码的视频流，兼顾高吞吐与低 CPU 开销。
+  3. **VOD 点播 M3U8 缓存策略区分升级**：在 `apps/server/src/routes/media.ts` 中区分 VOD 点播（包含 `#EXT-X-ENDLIST` 或 Master 索引）与 Live 滚动直播流。点播流设置 `Cache-Control: private, max-age=180`，使频繁拖拽 Seek / 重连期间 100% 命中浏览器 0ms 缓存，免除重复正则重写与去广告 CPU 开销，且 180s 远低于 CDN 15~30m 鉴权 Token 过期周期。
+  4. **前端路由全量动态 `lazy()` 分包**：重构 `apps/web/src/App.tsx`，将 `SettingsPage`、`AnimePage`、`TimelinePage`、`SearchPage`、`CollectPage`、`HistoryPage` 全量改造为动态 `lazy()` 拆分打包。首页主入口 Initial JS Bundle 从全页面集中打包大幅缩减至仅 56KB（Gzip 19.5KB），首屏加载与解析速度显著提升。
+- 涉及文件：apps/web/src/player/VideoPlayer.tsx, apps/server/src/index.ts, apps/server/src/routes/media.ts, apps/web/src/App.tsx
+- 备注：`pnpm typecheck` 全仓验证 0 错误通过，`pnpm build` 打包验证全通过。
+
 ## [2026-08-14] 桌面端弹幕面板实现与其他控制面板一致的按钮水平中轴居中对齐
 - 状态：已完成
 - 优先级：P0

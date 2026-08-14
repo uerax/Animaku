@@ -265,6 +265,21 @@ export function VideoPlayer({
     isPaused: () => Boolean(videoRef.current?.paused),
   })
 
+  // Sync webFs state to document root to isolate stacking context and hide site header
+  useEffect(() => {
+    if (webFs) {
+      document.documentElement.classList.add('kz-has-web-fs')
+      document.body.classList.add('kz-has-web-fs')
+    } else {
+      document.documentElement.classList.remove('kz-has-web-fs')
+      document.body.classList.remove('kz-has-web-fs')
+    }
+    return () => {
+      document.documentElement.classList.remove('kz-has-web-fs')
+      document.body.classList.remove('kz-has-web-fs')
+    }
+  }, [webFs])
+
   playerRef.current = player
   danmakuRef.current = danmaku
   commentsRef.current = comments
@@ -723,6 +738,8 @@ export function VideoPlayer({
           if (HlsCtor.isSupported()) {
             const hls = new HlsCtor({
               enableWorker: true,
+              // Prefetch first media fragment immediately upon parsing playlist
+              startFragPrefetch: true,
               // Leaner defaults: less RAM / pre-fetch via proxy; still enough for weak links
               maxBufferLength: 30,
               maxMaxBufferLength: 60,

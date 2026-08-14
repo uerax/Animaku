@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import { compress } from 'hono/compress'
 import { logger } from 'hono/logger'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
@@ -71,6 +72,15 @@ app.use('*', async (c, next) => {
     return
   }
   return accessLog(c, next)
+})
+
+// Compress API payloads (Danmaku XML/JSON, Bangumi metadata) and SPA static assets.
+// Skip binary video streams in media proxy to save CPU.
+app.use('*', async (c, next) => {
+  if (c.req.path.startsWith('/api/media/proxy')) {
+    return next()
+  }
+  return compress()(c, next)
 })
 app.use(
   '*',
@@ -203,19 +213,39 @@ if (server && typeof (server as { on?: unknown }).on === 'function') {
 }
 
 // Stream aborts after Response is already handed off may surface as unhandled
-// rejections (client seek/cancel, upstream drop). Log softly; don't crash.
+// rejections (client seek/cancel, upstream drop, HTTP/2 stream close). Log softly; don't crash.
 function isBenignAbort(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false
-  const e = err as { name?: string; message?: string; code?: string }
+  const e = err as {
+    name?: string
+    message?: string
+    code?: string
+    cause?: unknown
+  }
   const name = e.name || ''
   const msg = e.message || String(err)
+  const code = e.code || ''
+
+  const causeCode =
+    e.cause && typeof e.cause === 'object'
+      ? (e.cause as { code?: string; message?: string }).code || ''
+      : ''
+  const causeMsg =
+    e.cause && typeof e.cause === 'object'
+      ? (e.cause as { code?: string; message?: string }).message || ''
+      : ''
+
+  const pattern =
+    /aborted due to timeout|The operation was aborted|ECONNRESET|EPIPE|terminated|NGHTTP2_|UND_ERR_|ERR_HTTP2_/i
+
   return (
     name === 'TimeoutError' ||
     name === 'AbortError' ||
-    e.code === 'ABORT_ERR' ||
-    /aborted due to timeout|The operation was aborted|ECONNRESET|EPIPE/i.test(
-      msg,
-    )
+    code === 'ABORT_ERR' ||
+    code === 'ERR_HTTP2_STREAM_ERROR' ||
+    causeCode === 'ERR_HTTP2_STREAM_ERROR' ||
+    pattern.test(msg) ||
+    pattern.test(causeMsg)
   )
 }
 

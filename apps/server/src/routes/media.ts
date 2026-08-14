@@ -457,10 +457,21 @@ mediaRoutes.get('/proxy', async (c) => {
       })
       .join('\n')
 
+    // VOD playlists (static with ENDLIST or master playlist) can safely cache
+    // for 180s (3min) to eliminate redundant regex rewriting & RTT during seeking,
+    // while remaining far below typical upstream token expiration (15~30m).
+    // Live rolling playlists stay short-lived (3s).
+    const isVodOrMaster =
+      text.includes('#EXT-X-ENDLIST') ||
+      text.includes('#EXT-X-STREAM-INF') ||
+      text.includes('#EXT-X-PLAYLIST-TYPE:VOD')
+    const cacheControl = isVodOrMaster
+      ? 'private, max-age=180'
+      : 'private, max-age=3'
+
     return c.body(rewritten, 200, {
       'Content-Type': 'application/vnd.apple.mpegurl',
-      // Short client cache cuts playlist re-fetch storms; URLs stay short-lived
-      'Cache-Control': 'private, max-age=5',
+      'Cache-Control': cacheControl,
       'X-Media-Full-Proxy': config.mediaFullProxy ? '1' : '0',
     })
   }
