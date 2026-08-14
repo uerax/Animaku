@@ -11,16 +11,16 @@
     <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
     <img src="https://img.shields.io/badge/Vite-6-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite" />
     <img src="https://img.shields.io/badge/Hono-API-E36002?style=for-the-badge&logo=hono&logoColor=white" alt="Hono" />
+    <img src="https://img.shields.io/badge/WebGPU-Anime4K-9cf?style=for-the-badge&logo=webgpu&logoColor=white" alt="WebGPU" />
+    <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
   </p>
 
   <p>
-    An anime streaming app for the browser: pick your source and play based on
-    custom rules, backed by
-    <a href="https://bangumi.tv/">Bangumi</a> metadata and
-    <a href="https://www.dandanplay.com/">DanDanPlay</a> danmaku.<br />
-    Compatible with <a href="https://github.com/Predidit/KazumiRules">KazumiRules</a> —
-    import rules or install them from the rule store.
-    Local watch history / follow lists, Anime4K upscaling. Actively in development (～￣▽￣)～
+    A modern anime streaming web client: pick your source and play based on custom rules,
+    powered by <a href="https://bangumi.tv/">Bangumi</a> calendar & metadata,
+    <b>Bilibili-standard high-precision danmaku</b>, <b>WebGPU Anime4K real-time upscaling</b>, and <b>smart OP/ED skip</b>.<br />
+    Compatible with <a href="https://github.com/Predidit/KazumiRules">KazumiRules</a>, supporting multi-source search and rule store.
+    Local history / follow list, dark glassmorphic aesthetics. Actively in development (～￣▽￣)～
   </p>
 
   <p>
@@ -35,47 +35,53 @@
 
 ## What is this
 
-**Animaku** is a self-hosted web client built as a **React SPA + local Hono API**.
+**Animaku** is a modern self-hosted anime client built as a **React 19 SPA + lightweight local Hono API**.
 
 | Capability | Description |
 |------|------|
-| Metadata | Bangumi search / calendar / detail / episodes; optional Token to sync your follow list |
-| Source-based playback | Compatible with Kazumi rules (XPath / API); multi-source episode picker |
-| Danmaku | DanDanPlay matching; Bilibili BV; drag & drop bilibili / pakku XML |
-| Local data | History, settings and rule JSON all live in the browser; the server persists no user content |
-
-There is no embedded WebView media interception. Playback URLs are primarily resolved server-side for static m3u8/mp4; when extraction fails, playback falls back to embedding the source page in an iframe (cross-origin, danmaku and resume features are then limited).
+| **Metadata & Calendar** | Bangumi weekly schedule / global search / details / staff & episodes; optional Token sync |
+| **Multi-Source Playback** | Compatible with Kazumi rules (XPath / API); multi-source concurrent search and fast road switching |
+| **High-Precision Danmaku** | DanDanPlay + Bilibili dual-library aggregation; local XML import; microsecond clock interpolation, anti-chase collision allocator & heatmap |
+| **Upscaling & Smart Play** | WebGPU real-time Anime4K upscaling (720p/1080p→4K), `bangumi-oped` smart OP/ED skip, M3U8 ad filter |
+| **Zero-Server Data Storage** | History, settings, follow list and rules all reside in the browser locally; server persists zero user data |
 
 ## Supported environments
 
-- **Browsers**: modern Chromium / Firefox / Safari (playback, HLS, optional WebGPU upscaling)
-- **Deployment (recommended)**: Docker / Compose single container — **Docker only, no Node / pnpm needed**
+- **Browsers**: modern Chromium / Firefox / Safari (playback, HLS streaming, WebGPU hardware-accelerated upscaling)
+- **Deployment (recommended)**: Docker / Compose single container — **Docker only, no Node / pnpm required**
 - **Local production / development**: Node.js ≥ 20 (LTS recommended) + pnpm **9.15.0**
 
-## Features
+## ✨ Core Features
 
-- [x] Anime home / catalog / search
-- [x] Broadcast schedule
-- [x] Anime details and episodes
-- [x] Multiple video sources / multi-source episode picker
-- [x] Custom rule import and rule store
-- [x] Rule smoke testing (search → chapters → resolve)
-- [x] Native `<video>` + hls.js player
-- [x] DanDanPlay danmaku with panel / offset / hotkeys
-- [x] Bilibili BV danmaku and local XML import
-- [x] Follow list (Bangumi favorites, requires Token)
-- [x] Watch history and resume playback
-- [x] Playback speed / auto-next episode / skip OP·ED
-- [x] Light & dark theme
-- [x] HLS ad segment filtering
-- [x] Anime4K real-time upscaling (WebGPU, efficiency / quality presets)
-- [x] Media proxy with direct-connect fallback; iframe degradation
-- [x] One-click Docker deployment
-- [ ] And more to come (/・ω・＼)
+- 🎬 **Flagship Playback & Video Enhancement**
+  - **Anime4K WebGPU Real-time Upscaling**: Leverages client-side GPU shaders for instant 2× texture reconstruction and line antialiasing up to 4K.
+  - **Smart OP/ED Skip**: Integrates the `bangumi-oped` community database, marking glowing OP/ED segments on the timeline with seamless one-click skipping.
+  - **Flexible Aspect Ratio**: Press `W` to switch between 16:9 (default), 4:3 (retro), Cover (fullscreen zoom), and Fill (stretch).
+  - **All Formats & Drag-and-Drop**: Supports HLS (m3u8), MP4 online streams, and dragging local video files directly into the player.
+
+- 💬 **Bilibili-Grade Danmaku Ecosystem**
+  - **Dual-Platform Aggregation**: Matches DanDanPlay + Bilibili libraries, supports custom keywords, episode binding, and local XML import.
+  - **Microsecond Clock Interpolation**: Extrapolated via `performance.now()`, delivering 120Hz/144Hz full-frame subpixel smoothness without staircase jitter.
+  - **Anti-Chase & Layered Pipeline**: Lookahead collision detection allocator with atomic Z-index rendering (scroll < bottom subtitle < top pinned).
+  - **Speed Adaptive Timeline**: Standard 7.5s physical screen duration; danmaku maintains a comfortable reading speed even at 0.5x or 2.0x playback.
+  - **Danmaku Density Heatmap**: Dynamically draws a gradient heatmap wave on the seekbar for instant high-energy scene spotting.
+
+- 🔍 **Multi-Source Aggregation & Ad Filtering**
+  - **Custom Rule Engine**: Compatible with Kazumi rules (XPath/API), supports multi-source concurrent search and online rule store.
+  - **M3U8 Intelligent Ad Filtering**: Multi-dimensional weighted scoring model accurately detects and removes interstitial ads.
+  - **Direct Connect & Media Proxy**: Prefers direct browser CDN connection, with automatic fallback to transparent media proxy.
+
+- 📅 **Broadcast Calendar & Watch Management**
+  - **Daily Schedule**: Aggregates Bangumi weekly broadcast calendar with real-time airing times and episode status.
+  - **Anime Wiki & Collections**: Official ratings, character cast, episode list, and 4-tier tracking (Wish/Watching/Watched/On Hold).
+
+- 🎨 **Modern Design & Multi-Platform UX**
+  - **Dark Glassmorphism**: Deep frosted glass aesthetic, with all popovers and sheets fully adapting to light/dark themes.
+  - **Touch Gestures & Hotkeys**: Mobile double-tap play/pause, long-press 2.0x boost (smooth release recovery), seek HUD; full desktop hotkeys.
 
 ## Quick start
 
-For most users, **installing Docker is all you need**; the pnpm instructions below are only for local production or secondary development.
+For most users, **installing Docker is all you need**; the pnpm instructions below are only for local production or development.
 
 ### One-click deployment with Docker (recommended)
 
@@ -102,8 +108,8 @@ docker run --rm -p 8787:8787 --env-file .env -e PORT=8787 -e PUBLIC_PROXY=1 anim
 ```
 
 - Health check: `GET /api/health`
-- `WEB_DIST=public` inside the image; the process runs as non-root (`node`)
-- `PUBLIC_PROXY` is **enabled by default** (public internet can pick sources / use the proxy); set `0` to restrict to your local network
+- `WEB_DIST=public` inside the image; process runs as non-root (`node`)
+- `PUBLIC_PROXY` is **enabled by default** (public internet can pick sources / use proxy); set `0` to restrict to local network
 - `VITE_*` footer variables are build-time: changes require `docker compose up -d --build` to take effect
 
 ### Local Node production (no Docker)
@@ -119,14 +125,14 @@ pnpm start:prod
 ```
 
 Open **http://localhost:$PORT** in your browser (default `8787`).  
-`WEB_DIST` can point to a static directory (relative to the process cwd); locally it may be omitted — `public` / `apps/web/dist` etc. are auto-detected.
+`WEB_DIST` can point to a static directory (relative to process cwd); locally it may be omitted — `public` / `apps/web/dist` etc. are auto-detected.
 
 ### Local development (pnpm)
 
 | Tool | Version |
 |------|------|
 | Node.js | ≥ 20 (LTS recommended) |
-| pnpm | **9.15.0** (matches the `packageManager` field) |
+| pnpm | **9.15.0** (matches `packageManager` field) |
 
 ```bash
 # Install pnpm (pick one)
@@ -134,7 +140,7 @@ npm install -g pnpm@9.15.0
 # or: corepack enable && corepack prepare pnpm@9.15.0 --activate
 ```
 
-Use pnpm from the **repo root**; don't install dependencies directly with npm / yarn.
+Use pnpm from the **repo root**; do not install dependencies directly with npm / yarn.
 
 ```bash
 pnpm install
@@ -157,34 +163,38 @@ pnpm typecheck     # repo-wide tsc
 Running `pnpm dev` without `pnpm install` first will fail with `tsx` / `node_modules missing`.  
 For everyday development use `pnpm dev`, not the production `start` command.
 
-## Usage
+## Usage Guide
 
-1. Docker / local production: http://localhost:$PORT · development: http://localhost:$WEB_DEV_PORT
-2. **Settings → Bangumi Token** (optional, for the follow list)
-3. Rules: several are built in by default (`Anime1` / `otage` / `xifan` / `MXdm`); import JSON or install from the **rule store**
-4. Detail page → pick a source → select and play an episode (directly connects to the CDN when a direct link is available, automatically falls back to the media proxy on failure)
-5. Danmaku is matched automatically on the player page; open the panel via the「幕」button in the control bar
+1. **Access the app**: Docker / local production at `http://localhost:$PORT` · development at `http://localhost:$WEB_DEV_PORT`
+2. **Follow list**: Go to **Settings → Bangumi Token** (optional, for syncing Bangumi favorites)
+3. **Rules**: Mainstream rules are built-in; install from **Rule Store** or import custom JSON
+4. **Playback**: Click on a source in the anime detail page to search episodes (direct CDN with automatic media proxy fallback)
+5. **Danmaku & Settings**: Control bar provides dedicated Danmaku Settings (`[Dan+Gear]`) and Danmaku Switch (`[Dan/Slash]`) icons
 
-### Playback hotkeys
+### Playback Hotkeys
 
 | Key | Action |
 |----|------|
-| Space / K | Play / pause |
-| ← / → | ±5s |
-| ↑ / ↓ | Volume |
-| F | Player fullscreen |
-| D | Toggle danmaku |
-| `,` / `.` / `/` | Danmaku delay / advance / reset offset |
-| Alt+M | Danmaku panel |
-| P / N | Previous / next episode |
-| Drag & drop `.xml` | Import bilibili / pakku danmaku |
+| `Space` / `K` | Play / pause |
+| `←` / `→` | Rewind 5s / Fast forward 5s |
+| `↑` / `↓` | Volume ±5% |
+| `F` | Toggle player fullscreen |
+| `W` | Aspect ratio toggle (16:9 / 4:3 / Cover / Fill) |
+| `D` | Toggle danmaku on/off |
+| `Alt+M` | Open danmaku settings and search panel |
+| `,` / `.` / `/` | Danmaku delay 0.5s / advance 0.5s / reset offset |
+| `P` / `N` | Previous / next episode |
+| Drag & Drop | Drag local videos (MP4/MKV/WebM) to play; drag `.xml` to import bilibili danmaku |
 
-The control bar also has **page fullscreen** (CSS-fill, not the Fullscreen API).  
-Settings page: default speed, auto-next episode, resume, skip OP/ED, upscale preset, force ad filtering / media proxy, etc.
+### Mobile Touch Gestures
+
+* **Double Tap Anywhere**: Toggle Play / Pause
+* **Long Press Screen**: Triggers `2.0X ⚡ Fast Speed`, smoothly restores speed upon release
+* **Scrub Seekbar**: Displays real-time delta time HUD at the center of the screen (e.g. `+00:15 (08:30)`)
 
 ## Environment variables
 
-See [.env.example](.env.example) for the fully commented list. The server loads from the repo root and `apps/server`; Vite reads the same root `.env`.
+See [.env.example](.env.example) for the fully commented list. Server loads from repo root and `apps/server`; Vite reads the same root `.env`.
 
 ### Common
 
@@ -192,12 +202,10 @@ See [.env.example](.env.example) for the fully commented list. The server loads 
 |------|------|------|
 | `PORT` / `HOST` | `8787` / `0.0.0.0` | API / production single-process listening |
 | `WEB_DEV_PORT` / `WEB_HOST` | `5173` / code default `127.0.0.1` | **Local Vite only**; not used in Docker production |
-| `DANDAN_APP_ID` / `DANDAN_APP_SECRET` | empty | When empty, a built-in legacy client key is used, so danmaku works out of the box |
+| `DANDAN_APP_ID` / `DANDAN_APP_SECRET` | empty | When empty, built-in legacy client key is used |
 | `BANGUMI_USER_AGENT` / `PRODUCT_USER_AGENT` | `animaku/0.1` | Upstream user agent |
 
-### Footer / project promo (optional, Vite `VITE_*`)
-
-The bottom of non-watch pages shows GitHub and optional maintainer info; after changes you need to re-run `pnpm build` / restart `pnpm dev`.
+### Footer / promo (optional, Vite `VITE_*`)
 
 | Variable | Description |
 |------|------|
@@ -210,26 +218,18 @@ See [.env.example](.env.example) for the full list.
 
 ### SEO (optional)
 
-The SPA ships default `index.html` meta, client-side per-route title/description/OG updates, plus `/robots.txt` + `/sitemap.xml`.
-
 | Variable | Description |
 |------|------|
-| `SITE_URL` | Runtime public origin (no trailing slash), written into the sitemap / robots `Sitemap:` |
-| `VITE_SITE_URL` | Written into the client at build time, for canonical / `og:url` (requires rebuild in Docker) |
-
-When unset: the server uses the request `Host` (incl. `X-Forwarded-*`); the client uses `window.location.origin`.  
-Private pages (settings / history / follow / search / `/play/*`) are `noindex`; anime details are indexed at `/subject/:id`.
+| `SITE_URL` | Runtime public origin (no trailing slash), written into sitemap / robots `Sitemap:` |
+| `VITE_SITE_URL` | Written into client at build time for canonical / `og:url` |
 
 ### Public / proxy access (important)
 
 | Variable | Description |
 |------|------|
-| `PUBLIC_PROXY` | **Default `1`**: any client may use the media proxy and rule search/chapters/resolve. Set `0` to restrict to local / LAN only (or `PROXY_TOKEN`) |
-| `PROXY_TOKEN` | Optional; when `PUBLIC_PROXY=0`, allows access via the `X-Animaku-Proxy-Token` header or `?proxyToken=` |
+| `PUBLIC_PROXY` | **Default `1`**: any client may use media proxy and rules. Set `0` for local / LAN only |
+| `PROXY_TOKEN` | Optional; allows access via `X-Animaku-Proxy-Token` header or `?proxyToken=` |
 | `CORS_ORIGINS` | Additional allowed browser origins (comma-separated); localhost always works |
-
-**Defaults are already suited for public VPS deployment.** When enabled, others may borrow your server's egress to pull streams — be aware of the bandwidth cost (internal SSRF blocking is still in place).  
-If you only use it locally / on a LAN and don't want a publicly exposed port used as an egress relay, set `PUBLIC_PROXY=0`.
 
 ## Q&A
 
@@ -238,71 +238,44 @@ If you only use it locally / on a LAN and don't want a publicly exposed port use
 
 #### Q: Why do a few anime contain ads?
 
-A: This project does not insert ads. Ads on the source side may come from m3u8 segments; you can enable **ad filtering** in the rule or settings (based on an `#EXT-X-DISCONTINUITY` heuristic, not a general ad blocker). Filtering has no effect without DISCONTINUITY markers or when using the iframe fallback.
+A: This project does not insert ads. Source-side ads may come from m3u8 segments; enable **Ad Filtering** in settings (multi-dimensional weighted scoring model).
 
 #### Q: Why is playback choppy after enabling upscaling?
 
-A: Anime4K runs on the browser **WebGPU**, which is demanding on the GPU. Prefer the **efficiency** preset over the quality one, or use it on lower-resolution sources; turn it off if WebGPU is unsupported.
+A: Anime4K runs on browser **WebGPU**. If GPU load is high, select the **Efficiency** preset or use it on lower-resolution sources; disable if WebGPU is unsupported.
 
 #### Q: Why can some sources be found but not played?
 
-A: The web client has no WebView interception capability and can only statically extract links. A large number of `resolve` failures is usually a parsing limit — switch rules / sources, or accept the iframe fallback (danmaku and some playback enhancements are unavailable).
+A: Web client has no WebView interception and relies on static extraction. Source anti-scraping blocks can be worked around by switching rules / roads, or accepting iframe degradation.
 
-#### Q: The page opens publicly but I can't pick a source / play?
+#### Q: Public URL opens but cannot search / play?
 
-A: Check whether `.env` / environment variables set `PUBLIC_PROXY` to `0`. The default should be `1`; if you deliberately tightened it, switch back to `1` or configure `PROXY_TOKEN`.
-
-#### Q: Danmaku shows "not configured"?
-
-A: You can leave `DANDAN_*` empty locally to use the built-in key. If it still fails, check `/api/danmaku/status` and the server logs; for production, consider applying for a key on the [DanDanPlay open platform](https://www.dandanplay.com/).
-
-#### Q: I get sound but no picture?
-
-A: This is usually a layout / compositing issue (e.g. a parent `overflow` + border-radius overlapping hardware-decoded video). See [docs/CONTEXT.md](docs/CONTEXT.md).
-
-</details>
-
-<details>
-<summary>Rules & deployment Q&A</summary>
-
-#### Q: Docker homepage returns 404?
-
-A: Make sure the image build includes the frontend SPA; `WEB_DIST=public`, and confirm `GET /api/health` works.
-
-#### Q: `pnpm: command not found` / `node_modules missing`?
-
-A: pnpm is only needed for local Node / development. Install pnpm 9.15.0 and run `pnpm install` from the **repo root**. If you only want to deploy, use the Docker instructions above. Don't start only `dev:web` and expect `/api` to work.
-
-#### Q: A custom rule finds results but can't play?
-
-A: Some sites have anti-scraping / CAPTCHAs / hotlink protection that break static parsing. Switch sources, or rely on the iframe fallback for better compatibility (weaker than direct playback).
+A: Check if `PUBLIC_PROXY` in `.env` is set to `0`. Default should be `1`.
 
 </details>
 
 ## Disclaimer
 
-This software is provided "as is", without any express or implied warranty of suitability, reliability or accuracy on the part of the author or contributors. To the maximum extent permitted by law, the author is not liable for any direct or indirect damage arising from the use of this software.
-
-Use of this project must comply with the laws and regulations of your location and must not infringe third-party intellectual property rights. Data and caches generated through use should be cleaned up in a timely manner; obtaining authorization from rights holders is your responsibility for long-term caching or redistributing third-party content.
-
-Only a few sample rules are included by default; install more from [KazumiRules](https://github.com/Predidit/KazumiRules) or import your own. Some sites have anti-scraping / CAPTCHAs / hotlink protection, and the web client may fail to resolve them.
+This software is provided "as is", without warranty of any kind. Use of this project must comply with local laws and regulations.
 
 ## Privacy
 
-- No user telemetry is collected; no built-in analytics SDK.
-- Bangumi Token, rule JSON, history and settings are stored **only in the browser** (`localStorage`, etc.).
-- Server-side proxy requests access third-party sites and media CDNs per the rules; `PUBLIC_PROXY` is enabled by default — be aware of egress traffic and access control (set `0` to restrict to your LAN).
+- No user telemetry; no analytics SDKs.
+- Bangumi Token, rule JSON, history and settings are stored **only in browser local storage**.
+- Server proxies requests according to user rules; please manage egress access appropriately.
 
 ## Acknowledgements
 
-Special thanks to [Kazumi](https://github.com/Predidit/Kazumi) and [KazumiRules](https://github.com/Predidit/KazumiRules) — an important reference for the rule model, source picking and product form.
+Special thanks to [Kazumi](https://github.com/Predidit/Kazumi) and [KazumiRules](https://github.com/Predidit/KazumiRules).
 
-Special thanks to [agefans-enhance](https://github.com/IronKinoko/agefans-enhance) and [@ironkinoko/danmaku](https://github.com/IronKinoko/danmaku) — an important reference for danmaku interaction and the player panel.
+Special thanks to [agefans-enhance](https://github.com/IronKinoko/agefans-enhance) and [@ironkinoko/danmaku](https://github.com/IronKinoko/danmaku).
 
-Special thanks to the [DanDanPlay](https://www.dandanplay.com/) open platform for providing danmaku capability.
+Special thanks to [DanDanPlay](https://www.dandanplay.com/) open platform.
 
-Special thanks to the [Bangumi](https://bangumi.tv/) open API for providing anime metadata.
+Special thanks to [Bangumi](https://bangumi.tv/) open API.
 
-Special thanks to [Anime4K](https://github.com/bloc97/Anime4K) for providing the real-time upscaling algorithm and implementation reference.
+Special thanks to [Anime4K](https://github.com/bloc97/Anime4K).
 
-Thanks to [hls.js](https://github.com/video-dev/hls.js/), [Hono](https://hono.dev/), [Vite](https://vitejs.dev/) and the React ecosystem, as well as everyone who contributes to this project and the upstream ecosystem.
+Special thanks to [bangumi-oped](https://github.com/uerax/bangumi-oped).
+
+Thanks to [hls.js](https://github.com/video-dev/hls.js/), [Hono](https://hono.dev/), [Vite](https://vitejs.dev/), React ecosystem, and all contributors.

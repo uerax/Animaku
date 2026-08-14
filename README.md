@@ -11,14 +11,16 @@
     <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
     <img src="https://img.shields.io/badge/Vite-6-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite" />
     <img src="https://img.shields.io/badge/Hono-API-E36002?style=for-the-badge&logo=hono&logoColor=white" alt="Hono" />
+    <img src="https://img.shields.io/badge/WebGPU-Anime4K-9cf?style=for-the-badge&logo=webgpu&logoColor=white" alt="WebGPU" />
+    <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
   </p>
 
   <p>
-    浏览器里的番剧应用：基于自定义规则选源播放，搭配
-    <a href="https://bangumi.tv/">Bangumi</a> 元数据与
-    <a href="https://www.dandanplay.com/">弹弹play</a> 弹幕。<br />
-    兼容 <a href="https://github.com/Predidit/KazumiRules">KazumiRules</a>，支持导入与规则商店安装。
-    本地历史 / 追番，Anime4K 超分。绝赞开发中 (～￣▽￣)～
+    浏览器里的现代化番剧应用：基于自定义规则选源播放，集成
+    <a href="https://bangumi.tv/">Bangumi</a> 每日放送与元数据、
+    <b>B站级自研高精弹幕</b>、<b>WebGPU Anime4K 实时画质超分</b> 与 <b>智能跳过 OP/ED</b>。<br />
+    兼容 <a href="https://github.com/Predidit/KazumiRules">KazumiRules</a> 规则生态，支持多源搜索与规则商店。
+    本地历史 / 追番进度，暗场琉璃质感。绝赞开发中 (～￣▽￣)～
   </p>
 
   <p>
@@ -33,43 +35,49 @@
 
 ## 这是什么
 
-**Animaku** 是 **React SPA + 本地 Hono API** 的自托管 Web 客户端。
+**Animaku** 是 **React 19 SPA + 本地轻量 Hono API** 的现代化自托管二次元番剧客户端。
 
-| 能力 | 说明 |
+| 核心维度 | 能力说明 |
 |------|------|
-| 元数据 | Bangumi 搜索 / 时间表 / 详情 / 分集；可选 Token 同步追番 |
-| 选源播放 | 兼容 Kazumi 规则（XPath / API）；多线路选集 |
-| 弹幕 | 弹弹 play 匹配；B 站 BV；拖入 bilibili / pakku XML |
-| 本地数据 | 历史、设置、规则 JSON 均在浏览器；服务端不落库用户内容 |
-
-没有内嵌 WebView 媒体拦截，播放地址优先靠服务端静态解析 m3u8/mp4；抽不到时可 iframe 嵌源站页降级（跨域、弹幕与续播等能力受限）。
+| **每日放送与维基** | Bangumi 周更时间表 / 全局搜索 / 番剧详情 / 演职员与分集；支持 Token 同步追番进度 |
+| **多源聚合播放** | 兼容 Kazumi 规则（XPath / API）；多规则并发搜索与多线路快速切换 |
+| **B站级高精弹幕** | 弹弹play + B站双库聚合；本地 XML 导入；高精时钟微秒插值、防追尾与高能热力图 |
+| **画质与智能播放** | WebGPU 实时 Anime4K 超分（720p/1080p→4K）、`bangumi-oped` 智能片头片尾跳过、M3U8 智能去广告 |
+| **纯粹本地数据** | 历史、设置、收藏与规则 JSON 均存储于浏览器本地；服务端零落库，隐私纯净 |
 
 ## 支持环境
 
-- **浏览器**：现代 Chromium / Firefox / Safari（播放、HLS、可选 WebGPU 超分）
-- **部署（推荐）**：Docker / Compose 单容器 — **只需 Docker，不必装 Node / pnpm**
+- **浏览器**：现代 Chromium / Firefox / Safari（支持播放、HLS 流媒体、WebGPU 硬件加速超分）
+- **部署（推荐）**：Docker / Compose 单容器 — **只需 Docker，无需配置 Node / pnpm 环境**
 - **本机生产 / 开发**：Node.js ≥ 20（建议 LTS）+ pnpm **9.15.0**
 
-## 功能
+## ✨ 核心特性
 
-- [x] 番剧首页 / 目录 / 搜索
-- [x] 放送时间表
-- [x] 番剧详情与分集
-- [x] 多视频源 / 多线路选集
-- [x] 自定义规则导入与规则商店
-- [x] 规则冒烟测试（search → chapters → resolve）
-- [x] 原生 `<video>` + hls.js 播放器
-- [x] 弹弹弹幕 + 弹幕面板 / 偏移 / 快捷键
-- [x] B 站 BV 弹幕与本地 XML 导入
-- [x] 追番列表（Bangumi 收藏，需 Token）
-- [x] 观看历史与续播
-- [x] 倍速 / 自动下一集 / 跳 OP·ED
-- [x] 明暗主题
-- [x] HLS 广告段过滤
-- [x] Anime4K 实时超分（WebGPU，效率 / 质量档）
-- [x] 媒体代理与直连回退；iframe 降级
-- [x] Docker 一键部署
-- [ ] 还有更多 (/・ω・＼)
+- 🎬 **旗舰级播放与画质引擎**
+  - **Anime4K WebGPU 实时超分**：利用客户端 GPU 算力实现实时 2× 纹理重建与线条抗锯齿，低清老番秒变 4K 极清。
+  - **智能跳过片头片尾**：集成 `bangumi-oped` 社区时间戳库，在时间轴精准标注 OP/ED 发光标记并支持一键无感跳过。
+  - **多画幅比例自由裁切**：快捷键 `W` 一键切换 16:9（默认）、4:3（经典怀旧）、Cover（铺满画面）、Fill（拉伸）。
+  - **全格式与拖拽秒播**：支持 HLS (m3u8)、MP4 等在线流媒体，支持直接拖拽本地视频文件入播放器即开即播。
+
+- 💬 **B站级自研弹幕生态系统**
+  - **多平台弹幕聚合**：弹弹play + Bilibili 双库匹配，支持自定义关键词、分 P 关联与本地 XML 弹幕导入。
+  - **微秒级时钟插值**：基于 `performance.now()` 外推，120Hz/144Hz 满帧亚像素丝滑位移，彻底消除原生低频阶梯抖动。
+  - **防追尾与分层渲染**：内置进出场防追尾碰撞分配器，采用原子化分层渲染（滚动 < 底部字幕 < 顶部固定）。
+  - **倍速时间轴自适应**：弹幕驻留时长恒定 7.5s 物理标准，无论 0.5x 还是 2.0x 倍速播放，弹幕始终保持舒适阅读节奏。
+  - **高能波形热力图**：进度条上方动态渲染全集弹幕密度热力波形，高能名场面与剧情转折一目了然。
+
+- 🔍 **多源聚合与智能去广告**
+  - **自定义规则引擎**：兼容 Kazumi 规则（XPath/API），支持多源并发检索、一键换源换线与规则商店。
+  - **M3U8 智能去广告**：内置多维度切片加权打分模型，自动精准识别并切除跨域插播广告切片。
+  - **直连与代理双模**：优先浏览器直连 CDN 极速起播，失败自动智能回退透明媒体代理，兼顾高吞吐与播放稳定性。
+
+- 📅 **番剧情报与追番管理**
+  - **每日放送时间表**：实时聚合 Bangumi 周更放送日程，新番播出时间与更新状态一手掌握。
+  - **番剧维基与收藏**：官方评分、演职员角色阵容与分集剧情，支持「想看 / 在看 / 看过 / 搁置」四态追番管理。
+
+- 🎨 **极致现代设计与多端交互**
+  - **Dark Glassmorphism 琉璃美学**：深度磨砂玻璃质感设计语言，播放器所有面板与弹窗白天/夜间双模态自适应。
+  - **全端手势与快捷键**：移动端支持双击播放/暂停、长按 2.0x 极速快进（松手平滑恢复）、滑动 Seek 实时时间差 HUD；桌面端支持全套键盘快捷键。
 
 ## 快速开始
 
@@ -155,30 +163,34 @@ pnpm typecheck     # 全仓 tsc
 跳过 `pnpm install` 直接 `pnpm dev` 会报找不到 `tsx` / `node_modules missing`。  
 日常改代码请用 `pnpm dev`，不要用生产 `start`。
 
-## 使用流程
+## 使用指南
 
-1. Docker / 本机生产：http://localhost:$PORT · 开发：http://localhost:$WEB_DEV_PORT  
-2. **设置 → Bangumi Token**（可选，用于追番）  
-3. 规则：默认已内置（`Anime1` / `otage` / `xifan` / `MXdm`）；可导入 JSON 或从 **规则仓库** 安装  
-4. 详情页 → 选源 → 选集播放（能直链则浏览器直连 CDN，失败自动回退媒体代理）  
-5. 播放页自动匹配弹幕；控制栏「幕」打开面板  
+1. **访问站点**：Docker / 本机生产打开 `http://localhost:$PORT` · 本地开发打开 `http://localhost:$WEB_DEV_PORT`
+2. **追番配置**：进入 **设置 → Bangumi Token**（可选，用于同步 Bangumi 收藏与追番列表）
+3. **规则管理**：默认内置主流规则源；支持从 **规则仓库** 在线安装或导入自定义 JSON 规则
+4. **选源播放**：详情页点击规则源即可一键搜索分集（能直连则直连 CDN，遇跨域自动降级媒体代理）
+5. **弹幕与设置**：控制栏提供专属「弹幕设置与搜索」图标（`[弹+⚙️]`）与「弹幕开关」图标（`[弹/斜杠]`）
 
-### 播放快捷键
+### 播放控制快捷键
 
-| 键 | 作用 |
+| 快捷键 | 作用 |
 |----|------|
-| Space / K | 播放 / 暂停 |
-| ← / → | ±5s |
-| ↑ / ↓ | 音量 |
-| F | 播放器全屏 |
-| D | 弹幕开关 |
-| `,` / `.` / `/` | 弹幕滞后 / 超前 / 偏移复位 |
-| Alt+M | 弹幕面板 |
-| P / N | 上 / 下一集 |
-| 拖入 `.xml` | 导入 B 站 / pakku 弹幕 |
+| `Space` / `K` | 播放 / 暂停 |
+| `←` / `→` | 快退 5s / 快进 5s |
+| `↑` / `↓` | 音量调节 ±5% |
+| `F` | 播放器全屏 / 退出全屏 |
+| `W` | 画面比例切换（16:9 默认 / 4:3 怀旧 / 铺满 Cover / 拉伸 Fill） |
+| `D` | 弹幕开关切换 |
+| `Alt+M` | 呼出弹幕设置与搜索面板 |
+| `,` / `.` / `/` | 弹幕滞后 0.5s / 超前 0.5s / 偏移复位 |
+| `P` / `N` | 切换 上一集 / 下一集 |
+| 拖入本地文件 | 拖拽视频文件（MP4/MKV/WebM）直接播放；拖入 `.xml` 导入 B 站/pakku 弹幕 |
 
-控制栏另有 **网页全屏**（CSS 铺满，不走 Fullscreen API）。  
-设置页：默认倍速、自动下一集、续播、跳 OP/ED、超分档位、强制广告过滤 / 媒体代理等。
+### 移动端触控手势
+
+* **全域双击**：屏幕任意区域双击快速切换 播放 / 暂停
+* **长按加速**：长按屏幕触发 `2.0X ⚡ 快速倍速`，松开手指平滑恢复原本倍速
+* **滑动进度**：滑动进度条实时在屏幕中央显示时间差 HUD（如 `+00:15 (08:30)`）
 
 ## 环境变量
 
@@ -236,15 +248,15 @@ SPA 默认带 `index.html` meta、客户端按路由改 title/description/OG、�
 
 #### Q: 为什么少数番剧里有广告？
 
-A: 本项目不插入广告。片源侧广告可能来自 m3u8 分段；可在规则或设置里开启 **广告过滤**（基于 `#EXT-X-DISCONTINUITY` 启发，不是通用广告拦截）。无 DISCONTINUITY 或 iframe 降级时过滤无效。
+A: 本项目不插入广告。片源侧广告可能来自 m3u8 分段；可在规则或设置里开启 **广告过滤**（内置多维加权打分模型智能识别，不是通用广告拦截）。无广告特征或 iframe 降级时过滤无效。
 
 #### Q: 为什么启用超分辨率后播放卡顿？
 
-A: Anime4K 走浏览器 **WebGPU**，对 GPU 要求较高。尽量选 **效率档** 而非质量档，或对低分辨率源使用；不支持 WebGPU 时请关闭超分。
+A: Anime4K 走浏览器 **WebGPU**，对 GPU 算力有一定要求。如果显卡负载较高，建议选择 **效率档** 而非质量档，或对低分辨率源使用；不支持 WebGPU 时请关闭超分。
 
 #### Q: 为什么有的源能搜到却播不了？
 
-A: Web 端没 WebView 拦截能力，只能静态抽链。大量 `resolve` 失败多半是解析上限，可换规则 / 线路，或接受 iframe 降级（弹幕与部分播放增强不可用）。
+A: Web 端没 WebView 拦截能力，只能静态抽链。大量 `resolve` 失败多半是源站反爬限制，可切换其他规则 / 线路，或接受 iframe 降级（弹幕与部分播放增强不可用）。
 
 #### Q: 公网能开页面但不能选源 / 播放？
 
@@ -302,5 +314,7 @@ A: 部分站反爬 / 验证码 / 防盗链会导致静态解析失败。可换�
 特别感谢 [Bangumi](https://bangumi.tv/) 开放 API 提供番剧元数据。
 
 特别感谢 [Anime4K](https://github.com/bloc97/Anime4K) 提供实时超分算法思路与实现参考。
+
+特别感谢 [bangumi-oped](https://github.com/uerax/bangumi-oped) 提供番剧 OP/ED 时间戳数据。
 
 感谢 [hls.js](https://github.com/video-dev/hls.js/)、[Hono](https://hono.dev/)、[Vite](https://vitejs.dev/) 与 React 生态，以及所有为本项目与上游生态贡献的人。
