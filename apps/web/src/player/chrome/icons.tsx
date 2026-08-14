@@ -40,13 +40,81 @@ export function IconNext() {
   )
 }
 
-export function IconDanmaku() {
+export function IconDanmakuOn() {
   return (
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z" />
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+      <rect x="3" y="3" width="18" height="18" rx="4.5" strokeWidth="1.8" />
+      <text
+        x="12"
+        y="12.5"
+        textAnchor="middle"
+        dominantBaseline="central"
+        fontSize="11"
+        fontWeight="700"
+        fill="currentColor"
+        stroke="none"
+        fontFamily='system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif'
+      >
+        弹
+      </text>
     </svg>
   )
 }
+
+export function IconDanmakuOff() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+      <rect x="3" y="3" width="18" height="18" rx="4.5" strokeWidth="1.8" opacity="0.6" />
+      <text
+        x="12"
+        y="12.5"
+        textAnchor="middle"
+        dominantBaseline="central"
+        fontSize="11"
+        fontWeight="700"
+        fill="currentColor"
+        stroke="none"
+        opacity="0.6"
+        fontFamily='system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif'
+      >
+        弹
+      </text>
+      <line x1="3.5" y1="3.5" x2="20.5" y2="20.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+export function IconDanmakuSettings() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+      <path
+        d="M13 21H7.5A4.5 4.5 0 0 1 3 16.5v-9A4.5 4.5 0 0 1 7.5 3h9A4.5 4.5 0 0 1 21 7.5V13"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <text
+        x="11"
+        y="11.5"
+        textAnchor="middle"
+        dominantBaseline="central"
+        fontSize="10"
+        fontWeight="700"
+        fill="currentColor"
+        stroke="none"
+        fontFamily='system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif'
+      >
+        弹
+      </text>
+      <path
+        d="M19.8 17.1l.7-.4c.2-.1.3-.4.2-.6l-.6-1c-.1-.2-.4-.3-.6-.2l-.7.4c-.3-.2-.6-.4-1-.5l-.1-.8c0-.3-.2-.5-.5-.5h-1.2c-.3 0-.5.2-.5.5l-.1.8c-.4.1-.7.3-1 .5l-.7-.4c-.2-.1-.5 0-.6.2l-.6 1c-.1.2 0 .5.2.6l.7.4c0 .3 0 .7 0 1l-.7.4c-.2.1-.3.4-.2.6l.6 1c.1.2.4.3.6.2l.7-.4c.3.2.6.4 1 .5l.1.8c0 .3.2.5.5.5h1.2c.3 0 .5-.2.5-.5l.1-.8c.4-.1.7-.3 1-.5l.7.4c.2.1.5 0 .6-.2l.6-1c.1-.2 0-.5-.2-.6l-.7-.4c0-.3 0-.7 0-1zm-2.3 1.7c-.7 0-1.3-.6-1.3-1.3s.6-1.3 1.3-1.3 1.3.6 1.3 1.3-.6 1.3-1.3 1.3z"
+        fill="currentColor"
+        stroke="none"
+      />
+    </svg>
+  )
+}
+
+export const IconDanmaku = IconDanmakuSettings
 
 export function IconChevronRight() {
   return (

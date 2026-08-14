@@ -5,7 +5,9 @@ import {
   IconCheck,
   IconChevronLeft,
   IconChevronRight,
-  IconDanmaku,
+  IconDanmakuOff,
+  IconDanmakuOn,
+  IconDanmakuSettings,
   IconFullscreen,
   IconFullscreenExit,
   IconNext,
@@ -336,12 +338,13 @@ export function DesktopControls(props: PlayerControlsProps) {
           {/* Danmaku on/off toggle */}
           <button
             type="button"
-            className="kz-ctrl"
+            className="kz-ctrl kz-ctrl-icon"
             data-active={danmakuEnabled}
             onClick={() => onToggleDanmaku?.()}
-            title="弹幕开关 (D)"
+            title={danmakuEnabled ? '关闭弹幕 (D)' : '开启弹幕 (D)'}
+            aria-label={danmakuEnabled ? '关闭弹幕' : '开启弹幕'}
           >
-            {danmakuEnabled ? '弹' : '关'}
+            {danmakuEnabled ? <IconDanmakuOn /> : <IconDanmakuOff />}
           </button>
 
           {/* Danmaku Settings Panel trigger */}
@@ -355,7 +358,7 @@ export function DesktopControls(props: PlayerControlsProps) {
                 title="弹幕设置与搜索 (Alt+M)"
                 aria-label="弹幕设置"
               >
-                <IconDanmaku />
+                <IconDanmakuSettings />
               </button>
               {panelOpen && danmakuPanelNode}
             </div>

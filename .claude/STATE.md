@@ -1,5 +1,21 @@
 # Animaku 项目状态
 
+## [2026-08-15] 重构播放器弹幕开关与弹幕设置矢量图标体系（对齐 B 站标准）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **废弃纯文本 '弹'/'关'**：废除控制栏原本简陋的纯文本字符判断，全面接入专有 24×24 极清 SVG 矢量图标体系。
+  2. **弹幕开关（`IconDanmakuOn` / `IconDanmakuOff`）**：
+     - **开启状态**：采用圆角方框内嵌加粗“弹”字，激活时呈天青色高亮（`#38bdf8`），视觉饱满清晰；
+     - **关闭状态**：采用暗灰色方框与“弹”字，并贯穿一条高辨识度的 **45° 对角禁止斜杠（Slash Line）**，直观清晰地传达“弹幕已禁止/关闭”。
+  3. **弹幕设置与搜索面板（`IconDanmakuSettings`）**：
+     - 左上方为主体“弹”字框架，右下角内嵌微型设置齿轮（⚙️ Gear），实现播放器综合设置菜单（`⚙️`）与弹幕专属设置面板（`[弹+⚙️]`）的完美语义区隔。
+  4. **全平台 Retina 极清与主题自适应**：
+     - 桌面端（`DesktopControls.tsx`）与移动端（`MobileControls.tsx`）同步生效；
+     - 统一为标准 `kz-ctrl kz-ctrl-icon` 布局，消除字体跨平台基线抖动，100% 居中对齐。
+- 涉及文件：apps/web/src/player/chrome/icons.tsx, apps/web/src/player/chrome/DesktopControls.tsx, apps/web/src/player/chrome/MobileControls.tsx
+- 备注：`pnpm typecheck` 全仓 4 个 Workspace Projects 验证 0 错误通过，`pnpm build` 全量打包构建验证通过。
+
 ## [2026-08-15] 修复切换倍速与拖动进度条（Seek）时弹幕瞬间抽搐与回弹 Bug
 - 状态：已完成
 - 优先级：P0

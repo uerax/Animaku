@@ -14,7 +14,9 @@ import {
   IconCheck,
   IconChevronLeft,
   IconChevronRight,
-  IconDanmaku,
+  IconDanmakuOff,
+  IconDanmakuOn,
+  IconDanmakuSettings,
   IconFullscreen,
   IconFullscreenExit,
   IconNext,
@@ -433,13 +435,13 @@ export function MobileControls(props: PlayerControlsProps) {
           <div className="kz-bar-right">
             <button
               type="button"
-              className="kz-ctrl"
+              className="kz-ctrl kz-ctrl-icon"
               data-active={danmakuEnabled}
               onClick={() => onToggleDanmaku?.()}
-              title="弹幕开关"
-              aria-label="弹幕开关"
+              title={danmakuEnabled ? '关闭弹幕' : '开启弹幕'}
+              aria-label={danmakuEnabled ? '关闭弹幕' : '开启弹幕'}
             >
-              {danmakuEnabled ? '弹' : '关'}
+              {danmakuEnabled ? <IconDanmakuOn /> : <IconDanmakuOff />}
             </button>
             {hasDanmakuPanel && (
               <button
@@ -450,7 +452,7 @@ export function MobileControls(props: PlayerControlsProps) {
                 title="弹幕设置与搜索"
                 aria-label="弹幕设置"
               >
-                <IconDanmaku />
+                <IconDanmakuSettings />
               </button>
             )}
 
