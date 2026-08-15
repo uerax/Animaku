@@ -1,5 +1,34 @@
 # Animaku 项目状态
 
+## [2026-08-15] 放大移动端超分面板字体与间距（对齐设置面板字号）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **字号与内边距对齐设置面板**：
+     - 将移动端超分面板（`.kz-speed-menu button`）选项字体由 `11px` 放大至 **`12px`**（`font-weight: 500`，`line-height: 1.35`），与设置面板的字号规范完全对齐；
+     - 选项内边距由 `0.2rem 0.55rem` 调整为舒展的 `0.32rem 0.6rem`，容器 padding 设为 `0.3rem`，圆角设为 `10px`；
+     - WebGPU 提示信息字号同步微调至 `11.5px`。
+  2. **动态宽度与边界自适应**：
+     - 移动端超分菜单容器最小宽度调整为 `5.5rem`，最大高度限制 `min(40dvh, 12rem)`；
+     - 在 `MobileControls.tsx` 中配置超分面板边界宽度计算参数为 `108px`，横屏/竖屏展开时保持居中且绝不溢出播放器边缘。
+- 涉及文件：apps/web/src/player/chrome/MobileControls.tsx, apps/web/src/player/plyr-overrides.css
+- 备注：`pnpm typecheck` 全仓 4 个 Workspace Projects 验证 0 错误通过，`pnpm build:web` 打包验证通过。
+
+## [2026-08-15] 优化移动端设置面板字号与自适应宽度（防溢出播放器）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **面板宽度与字号适度放大**：
+     - 将移动端设置面板（`.kz-settings-popover--mobile`）宽度由 `7.5rem`（120px）适度扩大至 `10.75rem`（172px），精准对应控制栏约 5 个按钮的总宽度；
+     - 菜单项字号从微型 `9.5px` 提升至舒适清晰的 `12px`，标题提升至 `12px`（加粗），右侧数值 `11.5px`，返回与指示箭头图标提升至 `11~13px`；
+     - 开关控件（Switch）升级为 `26px × 15px`（滑块 `11px`），触控更加精准，左右留白与文字呼吸感充足。
+  2. **动态边界卡控（Dynamic Bar Boundary Clamping）**：
+     - 重构 `MobileControls.tsx` 中的 `placeInBar` 定位计算，引入面板宽度与播放器底栏左右边界卡控算法；
+     - 确保在极窄屏幕（<= 320px）或横竖屏切换时，浮窗面板自动限制在播放器边界内，绝不发生超出屏幕或被右侧边缘裁切的问题；
+     - 挂载 `window.resize` 动态监听，屏幕尺寸或方向变动时毫秒级同步重定位置。
+- 涉及文件：apps/web/src/player/chrome/MobileControls.tsx, apps/web/src/player/plyr-overrides.css
+- 备注：`pnpm typecheck` 全仓 4 个 Workspace Projects 验证 0 错误通过，`pnpm build:web` 打包验证通过。
+
 ## [2026-08-15] 实现 B 站标准「开 - 精简 - 关」三态循环弹幕按钮与超额抛弃防遮挡模式
 - 状态：已完成
 - 优先级：P1

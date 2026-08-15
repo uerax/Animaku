@@ -46,16 +46,24 @@ const ASPECT_RATIO_OPTIONS: {
 
 /**
  * Place popup relative to the control bar (position:absolute on .kz-bar).
+ * panelWidth is used to dynamically clamp the position within the player bar boundaries.
  */
 function placeInBar(
   bar: HTMLElement | null,
   btn: HTMLElement | null,
+  panelWidth = 172,
 ): PopupPos | null {
   if (!bar || !btn) return null
   const br = bar.getBoundingClientRect()
   const r = btn.getBoundingClientRect()
+  const btnCenter = r.left - br.left + r.width / 2
+  const padding = 6
+  const halfW = panelWidth / 2
+  const minLeft = halfW + padding
+  const maxLeft = Math.max(minLeft, br.width - halfW - padding)
+  const left = Math.max(minLeft, Math.min(btnCenter, maxLeft))
   return {
-    left: r.left - br.left + r.width / 2,
+    left,
   }
 }
 
@@ -231,22 +239,43 @@ export function MobileControls(props: PlayerControlsProps) {
   const [settingsPos, setSettingsPos] = useState<PopupPos | null>(null)
 
   useLayoutEffect(() => {
-    if (!srMenuOpen) setSrPos(null)
-    else setSrPos(placeInBar(barRef.current, srBtnRef.current))
+    if (!srMenuOpen) {
+      setSrPos(null)
+      return
+    }
+    const update = () => {
+      setSrPos(placeInBar(barRef.current, srBtnRef.current, 108))
+    }
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
   }, [srMenuOpen, showBar, pinBar])
 
   useLayoutEffect(() => {
-    if (!volumeMenuOpen) setVolPos(null)
-    else setVolPos(placeInBar(barRef.current, volBtnRef.current))
+    if (!volumeMenuOpen) {
+      setVolPos(null)
+      return
+    }
+    const update = () => {
+      setVolPos(placeInBar(barRef.current, volBtnRef.current, 36))
+    }
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
   }, [volumeMenuOpen, showBar, pinBar])
 
   useLayoutEffect(() => {
     if (!settingsMenuOpen) {
       setSettingsPos(null)
       setSettingsSubmenu('root')
-    } else {
-      setSettingsPos(placeInBar(barRef.current, settingsBtnRef.current))
+      return
     }
+    const update = () => {
+      setSettingsPos(placeInBar(barRef.current, settingsBtnRef.current, 172))
+    }
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
   }, [settingsMenuOpen, showBar, pinBar])
 
   const stop = (e: SyntheticEvent) => e.stopPropagation()
@@ -565,8 +594,8 @@ export function MobileControls(props: PlayerControlsProps) {
           >
             {webGpuOk === false && (
               <div
-                className="px-2 py-1.5 text-[11px] leading-snug text-amber-200/90"
-                style={{ maxWidth: '12rem' }}
+                className="px-2.5 py-1.5 text-[11.5px] leading-snug text-amber-200/90"
+                style={{ maxWidth: '13rem' }}
               >
                 {typeof window !== 'undefined' && !window.isSecureContext
                   ? 'WebGPU 需 HTTPS 或 localhost'
