@@ -32,6 +32,7 @@ export interface DanmakuSettings {
   showBottom: boolean
   showScroll: boolean
   showColor: boolean
+  simplify: boolean
   filters: string[]
   timeOffset: number
 }
@@ -46,6 +47,7 @@ export const defaultDanmakuSettings: DanmakuSettings = {
   showBottom: false,
   showScroll: true,
   showColor: true,
+  simplify: false,
   filters: [],
   timeOffset: 0,
 }

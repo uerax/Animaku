@@ -533,6 +533,24 @@ function SettingsTab({
           />
         </button>
 
+        <button
+          type="button"
+          className="kz-dm-toggle-row"
+          onClick={() => onDanmakuChange({ simplify: !danmaku.simplify })}
+          aria-pressed={Boolean(danmaku.simplify)}
+        >
+          <div className="flex flex-col text-left">
+            <span>弹幕精简</span>
+            <span className="text-[10px] text-[var(--kz-fg-muted)]">智能合并重复刷屏 (xN)</span>
+          </div>
+          <span
+            className={
+              danmaku.simplify ? 'kz-dm-switch kz-dm-switch--on' : 'kz-dm-switch'
+            }
+            aria-hidden
+          />
+        </button>
+
         <RangeRow
           label="透明度"
           value={danmaku.opacity}
@@ -614,12 +632,26 @@ function SettingsTab({
 
   return (
     <div className="space-y-3">
-      <label className="flex items-center justify-between gap-2 text-[var(--kz-fg)]">
+      <label className="flex items-center justify-between gap-2 text-[var(--kz-fg)] cursor-pointer">
         <span>显示弹幕 (D)</span>
         <input
           type="checkbox"
           checked={danmaku.enabled}
           onChange={(e) => onDanmakuChange({ enabled: e.target.checked })}
+        />
+      </label>
+
+      <label className="flex items-center justify-between gap-2 text-[var(--kz-fg)] cursor-pointer">
+        <div className="flex flex-col">
+          <span>弹幕精简 (合并刷屏)</span>
+          <span className="text-[11px] text-[var(--kz-fg-muted)]">
+            智能合并相邻重复弹幕并显示次数 (xN)
+          </span>
+        </div>
+        <input
+          type="checkbox"
+          checked={Boolean(danmaku.simplify)}
+          onChange={(e) => onDanmakuChange({ simplify: e.target.checked })}
         />
       </label>
 

@@ -16,6 +16,7 @@ import {
   IconChevronRight,
   IconDanmakuOff,
   IconDanmakuOn,
+  IconDanmakuSimplify,
   IconDanmakuSettings,
   IconFullscreen,
   IconFullscreenExit,
@@ -125,6 +126,7 @@ export function MobileControls(props: PlayerControlsProps) {
     progress,
     comments,
     danmakuEnabled,
+    danmakuSimplify,
     hasDanmakuPanel,
     player,
     srMode,
@@ -437,11 +439,30 @@ export function MobileControls(props: PlayerControlsProps) {
               type="button"
               className="kz-ctrl kz-ctrl-icon"
               data-active={danmakuEnabled}
+              data-state={!danmakuEnabled ? 'off' : danmakuSimplify ? 'simplify' : 'on'}
               onClick={() => onToggleDanmaku?.()}
-              title={danmakuEnabled ? '关闭弹幕' : '开启弹幕'}
-              aria-label={danmakuEnabled ? '关闭弹幕' : '开启弹幕'}
+              title={
+                !danmakuEnabled
+                  ? '开启弹幕'
+                  : danmakuSimplify
+                    ? '关闭弹幕 (当前精简)'
+                    : '切换精简 (当前开启)'
+              }
+              aria-label={
+                !danmakuEnabled
+                  ? '开启弹幕'
+                  : danmakuSimplify
+                    ? '关闭弹幕'
+                    : '精简弹幕'
+              }
             >
-              {danmakuEnabled ? <IconDanmakuOn /> : <IconDanmakuOff />}
+              {!danmakuEnabled ? (
+                <IconDanmakuOff />
+              ) : danmakuSimplify ? (
+                <IconDanmakuSimplify />
+              ) : (
+                <IconDanmakuOn />
+              )}
             </button>
             {hasDanmakuPanel && (
               <button

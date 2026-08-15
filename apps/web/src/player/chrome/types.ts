@@ -26,6 +26,7 @@ export interface PlayerControlsProps {
   progress: number
   comments?: DanmakuComment[]
   danmakuEnabled: boolean
+  danmakuSimplify?: boolean
   hasDanmakuPanel: boolean
   /** Rendered Danmaku panel element for desktop inline anchor alignment */
   danmakuPanelNode?: ReactNode

@@ -889,6 +889,11 @@ export function SettingsPage() {
           checked={danmaku.enabled}
           onChange={(enabled) => setDanmaku({ enabled })}
         />
+        <Toggle
+          label="弹幕精简模式（合并相邻重复刷屏与类似弹幕）"
+          checked={Boolean(danmaku.simplify)}
+          onChange={(simplify) => setDanmaku({ simplify })}
+        />
         <Slider
           label={`不透明度 ${danmaku.opacity.toFixed(2)}`}
           min={0.1}

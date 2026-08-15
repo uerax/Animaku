@@ -7,6 +7,7 @@ import {
   IconChevronRight,
   IconDanmakuOff,
   IconDanmakuOn,
+  IconDanmakuSimplify,
   IconDanmakuSettings,
   IconFullscreen,
   IconFullscreenExit,
@@ -97,6 +98,7 @@ export function DesktopControls(props: PlayerControlsProps) {
     progress,
     comments,
     danmakuEnabled,
+    danmakuSimplify,
     hasDanmakuPanel,
     danmakuPanelNode,
     player,
@@ -335,16 +337,35 @@ export function DesktopControls(props: PlayerControlsProps) {
           </span>
         </div>
         <div className="kz-bar-right">
-          {/* Danmaku on/off toggle */}
+          {/* Danmaku 3-state toggle (On -> Simplify -> Off -> On) */}
           <button
             type="button"
             className="kz-ctrl kz-ctrl-icon"
             data-active={danmakuEnabled}
+            data-state={!danmakuEnabled ? 'off' : danmakuSimplify ? 'simplify' : 'on'}
             onClick={() => onToggleDanmaku?.()}
-            title={danmakuEnabled ? '关闭弹幕 (D)' : '开启弹幕 (D)'}
-            aria-label={danmakuEnabled ? '关闭弹幕' : '开启弹幕'}
+            title={
+              !danmakuEnabled
+                ? '开启弹幕 (D)'
+                : danmakuSimplify
+                  ? '关闭弹幕 (当前精简) (D)'
+                  : '切换弹幕精简 (当前开启) (D)'
+            }
+            aria-label={
+              !danmakuEnabled
+                ? '开启弹幕'
+                : danmakuSimplify
+                  ? '关闭弹幕'
+                  : '精简弹幕'
+            }
           >
-            {danmakuEnabled ? <IconDanmakuOn /> : <IconDanmakuOff />}
+            {!danmakuEnabled ? (
+              <IconDanmakuOff />
+            ) : danmakuSimplify ? (
+              <IconDanmakuSimplify />
+            ) : (
+              <IconDanmakuOn />
+            )}
           </button>
 
           {/* Danmaku Settings Panel trigger */}

@@ -43,19 +43,40 @@ export function IconNext() {
 export function IconDanmakuOn() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-      <rect x="3" y="3" width="18" height="18" rx="4.5" strokeWidth="1.8" />
+      <rect x="2" y="2" width="20" height="20" rx="4.5" strokeWidth="1.8" />
       <text
         x="12"
         y="12.5"
         textAnchor="middle"
         dominantBaseline="central"
-        fontSize="11"
-        fontWeight="700"
+        fontSize="13"
+        fontWeight="800"
         fill="currentColor"
         stroke="none"
         fontFamily='system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif'
       >
         弹
+      </text>
+    </svg>
+  )
+}
+
+export function IconDanmakuSimplify() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+      <rect x="2" y="2" width="20" height="20" rx="4.5" strokeWidth="1.8" />
+      <text
+        x="12"
+        y="12.5"
+        textAnchor="middle"
+        dominantBaseline="central"
+        fontSize="13"
+        fontWeight="800"
+        fill="currentColor"
+        stroke="none"
+        fontFamily='system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif'
+      >
+        简
       </text>
     </svg>
   )
@@ -64,14 +85,14 @@ export function IconDanmakuOn() {
 export function IconDanmakuOff() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-      <rect x="3" y="3" width="18" height="18" rx="4.5" strokeWidth="1.8" opacity="0.6" />
+      <rect x="2" y="2" width="20" height="20" rx="4.5" strokeWidth="1.8" opacity="0.6" />
       <text
         x="12"
         y="12.5"
         textAnchor="middle"
         dominantBaseline="central"
-        fontSize="11"
-        fontWeight="700"
+        fontSize="13"
+        fontWeight="800"
         fill="currentColor"
         stroke="none"
         opacity="0.6"
@@ -79,7 +100,7 @@ export function IconDanmakuOff() {
       >
         弹
       </text>
-      <line x1="3.5" y1="3.5" x2="20.5" y2="20.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <line x1="2.5" y1="2.5" x2="21.5" y2="21.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
     </svg>
   )
 }
@@ -88,17 +109,17 @@ export function IconDanmakuSettings() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
       <path
-        d="M13 21H7.5A4.5 4.5 0 0 1 3 16.5v-9A4.5 4.5 0 0 1 7.5 3h9A4.5 4.5 0 0 1 21 7.5V13"
+        d="M13.5 22H6.5A4.5 4.5 0 0 1 2 17.5v-11A4.5 4.5 0 0 1 6.5 2h11A4.5 4.5 0 0 1 22 6.5V13.5"
         strokeWidth="1.8"
         strokeLinecap="round"
       />
       <text
-        x="11"
-        y="11.5"
+        x="11.5"
+        y="11.8"
         textAnchor="middle"
         dominantBaseline="central"
-        fontSize="10"
-        fontWeight="700"
+        fontSize="12.5"
+        fontWeight="800"
         fill="currentColor"
         stroke="none"
         fontFamily='system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif'
@@ -106,7 +127,7 @@ export function IconDanmakuSettings() {
         弹
       </text>
       <path
-        d="M19.8 17.1l.7-.4c.2-.1.3-.4.2-.6l-.6-1c-.1-.2-.4-.3-.6-.2l-.7.4c-.3-.2-.6-.4-1-.5l-.1-.8c0-.3-.2-.5-.5-.5h-1.2c-.3 0-.5.2-.5.5l-.1.8c-.4.1-.7.3-1 .5l-.7-.4c-.2-.1-.5 0-.6.2l-.6 1c-.1.2 0 .5.2.6l.7.4c0 .3 0 .7 0 1l-.7.4c-.2.1-.3.4-.2.6l.6 1c.1.2.4.3.6.2l.7-.4c.3.2.6.4 1 .5l.1.8c0 .3.2.5.5.5h1.2c.3 0 .5-.2.5-.5l.1-.8c.4-.1.7-.3 1-.5l.7.4c.2.1.5 0 .6-.2l.6-1c.1-.2 0-.5-.2-.6l-.7-.4c0-.3 0-.7 0-1zm-2.3 1.7c-.7 0-1.3-.6-1.3-1.3s.6-1.3 1.3-1.3 1.3.6 1.3 1.3-.6 1.3-1.3 1.3z"
+        d="M20.3 17.5l.6-.3c.2-.1.3-.4.2-.6l-.5-.9c-.1-.2-.4-.3-.6-.2l-.6.3c-.3-.2-.6-.3-.9-.4l-.1-.7c0-.3-.2-.5-.5-.5h-1c-.3 0-.5.2-.5.5l-.1.7c-.3.1-.6.2-.9.4l-.6-.3c-.2-.1-.5 0-.6.2l-.5.9c-.1.2 0 .5.2.6l.6.3c0 .3 0 .6 0 .9l-.6.3c-.2.1-.3.4-.2.6l.5.9c.1.2.4.3.6.2l.6-.3c.3.2.6.3.9.4l.1.7c0 .3.2.5.5.5h1c.3 0 .5-.2.5-.5l.1-.7c.3-.1.6-.2.9-.4l.6.3c.2.1.5 0 .6-.2l.5-.9c.1-.2 0-.5-.2-.6l-.6-.3c0-.3 0-.6 0-.9zm-2 1.5c-.6 0-1.1-.5-1.1-1.1s.5-1.1 1.1-1.1 1.1.5 1.1 1.1-.5 1.1-1.1 1.1z"
         fill="currentColor"
         stroke="none"
       />

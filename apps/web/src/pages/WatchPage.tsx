@@ -208,9 +208,18 @@ export function WatchPage() {
           player={w.playerSettings}
           onPlayerChange={w.setPlayer}
           onProgress={w.onProgress}
-          onToggleDanmaku={() =>
-            w.setDanmaku({ enabled: !w.danmakuSettings.enabled })
-          }
+          onToggleDanmaku={() => {
+            const cur = w.danmakuSettings
+            const isEnabled = cur.enabled !== false
+            const isSimplify = Boolean(cur.simplify)
+            if (isEnabled && !isSimplify) {
+              w.setDanmaku({ enabled: true, simplify: true })
+            } else if (isEnabled && isSimplify) {
+              w.setDanmaku({ enabled: false, simplify: false })
+            } else {
+              w.setDanmaku({ enabled: true, simplify: false })
+            }
+          }}
           onDanmakuChange={w.setDanmaku}
           onPrev={() => startTransition(() => w.goAdjacentEpisode(-1))}
           onNext={() => startTransition(() => w.goAdjacentEpisode(1))}

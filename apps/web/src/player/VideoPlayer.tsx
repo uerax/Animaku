@@ -371,6 +371,7 @@ export function VideoPlayer({
       dm.showTop ? 1 : 0,
       dm.showBottom ? 1 : 0,
       dm.showColor ? 1 : 0,
+      dm.simplify ? 1 : 0,
       (dm.filters || []).join('\0'),
       danmakuFontScaleBucket(w, layout),
     ].join('|')
@@ -1218,7 +1219,20 @@ export function VideoPlayer({
       else if (k === 'n') onNextRef.current?.()
       else if (k === 'd') {
         e.preventDefault()
-        onToggleDanmakuRef.current?.()
+        if (onToggleDanmakuRef.current) {
+          onToggleDanmakuRef.current()
+        } else {
+          const cur = danmakuRef.current
+          const isEnabled = cur.enabled !== false
+          const isSimplify = Boolean(cur.simplify)
+          if (isEnabled && !isSimplify) {
+            onDanmakuChangeRef.current?.({ enabled: true, simplify: true })
+          } else if (isEnabled && isSimplify) {
+            onDanmakuChangeRef.current?.({ enabled: false, simplify: false })
+          } else {
+            onDanmakuChangeRef.current?.({ enabled: true, simplify: false })
+          }
+        }
       } else if (k === ',' || e.key === '，') {
         // agefans: lag danmaku +0.5s
         e.preventDefault()
@@ -1396,6 +1410,34 @@ export function VideoPlayer({
     window.clearTimeout(offsetHintTimer.current)
     offsetHintTimer.current = window.setTimeout(() => setOffsetHint(''), ms)
   }
+
+  // Bilibili-style Danmaku Mode Switch Toast (开 -> 精简 -> 关)
+  const prevDanmakuStateRef = useRef({
+    enabled: danmaku.enabled,
+    simplify: danmaku.simplify,
+  })
+
+  useEffect(() => {
+    const prev = prevDanmakuStateRef.current
+    const curEnabled = danmaku.enabled !== false
+    const curSimplify = Boolean(danmaku.simplify)
+    const prevEnabled = prev.enabled !== false
+    const prevSimplify = Boolean(prev.simplify)
+
+    if (prevEnabled !== curEnabled || prevSimplify !== curSimplify) {
+      prevDanmakuStateRef.current = {
+        enabled: danmaku.enabled,
+        simplify: danmaku.simplify,
+      }
+      if (!curEnabled) {
+        flashSkipHint('弹幕关闭', 1200)
+      } else if (curSimplify) {
+        flashSkipHint('弹幕精简', 1200)
+      } else {
+        flashSkipHint('弹幕开启', 1200)
+      }
+    }
+  }, [danmaku.enabled, danmaku.simplify])
 
   /** Cancel any active auto-next countdown and hide the overlay */
   function cancelCountdown() {
@@ -1905,6 +1947,7 @@ export function VideoPlayer({
     progress,
     comments,
     danmakuEnabled: danmaku.enabled !== false,
+    danmakuSimplify: Boolean(danmaku.simplify),
     hasDanmakuPanel: Boolean(danmakuPanel),
     danmakuPanelNode: danmakuPanelElement,
     player,
@@ -1937,7 +1980,22 @@ export function VideoPlayer({
     onPrev,
     onNext,
     onSeekRatio: seekRatio,
-    onToggleDanmaku,
+    onToggleDanmaku: () => {
+      if (onToggleDanmaku) {
+        onToggleDanmaku()
+        return
+      }
+      const cur = danmakuRef.current
+      const isEnabled = cur.enabled !== false
+      const isSimplify = Boolean(cur.simplify)
+      if (isEnabled && !isSimplify) {
+        onDanmakuChange?.({ enabled: true, simplify: true })
+      } else if (isEnabled && isSimplify) {
+        onDanmakuChange?.({ enabled: false, simplify: false })
+      } else {
+        onDanmakuChange?.({ enabled: true, simplify: false })
+      }
+    },
     onTogglePanel: () => {
       setSpeedMenuOpen(false)
       setSrMenuOpen(false)

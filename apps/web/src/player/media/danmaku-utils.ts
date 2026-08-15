@@ -1,14 +1,15 @@
 import type { DanmakuComment, DanmakuMode, DanmakuSettings } from '@animaku/shared'
 
 /**
- * Bilibili standard on-screen transit durations (seconds in real-world physical time):
- * - Desktop scroll: 7.5s (calm & readable for Chinese text, Bilibili default web pace)
- * - Mobile fullscreen scroll: 6.5s (slightly tighter for small visual angle)
- * - Static hold (top / bottom): 4.0s
+ * Bilibili standard on-screen transit durations (calibrated with integer timing):
+ * - Desktop scroll: 11.0s constant physical transit duration across all playback rates
+ * - Mobile fullscreen scroll: 8.0s (1.20x speedup for mobile visual angle)
+ * - Mobile windowed scroll: 8.0s (1.20x speedup for mobile visual angle)
+ * - Static hold (top / bottom): 5.0s
  */
-export const BILI_SCROLL_BASE_DURATION = 7.5
-export const BILI_SCROLL_MOBILE_FS_DURATION = 6.5
-export const BILI_STATIC_BASE_DURATION = 4.0
+export const BILI_SCROLL_BASE_DURATION = 11.0
+export const BILI_SCROLL_MOBILE_FS_DURATION = 8.0
+export const BILI_STATIC_BASE_DURATION = 5.0
 export const BASE_DANMAKU_SPEED = 130
 
 /**
@@ -59,12 +60,155 @@ function compileFilters(filters: string[] | undefined): CompiledFilter[] {
   return out
 }
 
+/** Time window (seconds) within which identical/similar danmaku are merged */
+export const SIMPLIFY_MERGE_WINDOW_SEC = 4.0
+
+/** Max danmaku allowed per 1-second interval under simplify mode to avoid screen blanket */
+export const SIMPLIFY_MAX_PER_SEC = 8
+
+/** Normalize text for fuzzy equality match (e.g. 233333 -> 233, whitespace, fullwidth) */
+export function normalizeDanmakuText(raw: string): string {
+  let s = (raw || '').trim().toLowerCase()
+  if (!s) return ''
+  // Convert full-width ASCII chars to half-width
+  s = s.replace(/[！-～]/g, (ch) =>
+    String.fromCharCode(ch.charCodeAt(0) - 0xfee0),
+  )
+  // Collapse repeated characters (3 or more -> 2, e.g. 233333 -> 233, 哈哈哈哈 -> 哈哈, ???? -> ??)
+  s = s.replace(/(.)\1{2,}/g, '$1$1')
+  // Strip leading/trailing decorative punctuation for matching key
+  const stripped = s.replace(
+    /^[\s,.;:!?~—_=+~～！，。？：、]+|[\s,.;:!?~—_=+~～！，。？：、]+$/g,
+    '',
+  )
+  return stripped || s
+}
+
+/**
+ * Bilibili / Pakku standard Danmaku Simplification:
+ * 1. Sliding window (4.0s) deduplication & count badge `(xN)`
+ * 2. High-density smart rate-limiting (preserves high-entropy meaningful comments)
+ */
+export function simplifyDanmaku(comments: DanmakuComment[]): DanmakuComment[] {
+  if (comments.length <= 1) return comments
+
+  // Ensure chronological order
+  const sorted = comments.slice().sort((a, b) => a.time - b.time)
+  const merged: DanmakuComment[] = []
+
+  // Active merge buckets keyed by `${mode}|${normalizedText}`
+  type MergeBucket = {
+    lead: DanmakuComment
+    normKey: string
+    count: number
+    lastTime: number
+  }
+
+  const activeBuckets = new Map<string, MergeBucket>()
+
+  for (const c of sorted) {
+    const norm = normalizeDanmakuText(c.text)
+    const key = `${c.mode || 'rtl'}|${norm}`
+    const existing = activeBuckets.get(key)
+
+    if (existing && c.time - existing.lastTime <= SIMPLIFY_MERGE_WINDOW_SEC) {
+      // In-window duplicate: accumulate count and advance lastTime
+      existing.count += 1
+      existing.lastTime = c.time
+      // If the newcomer has a custom color and lead didn't, adopt it
+      if (c.style?.color && !existing.lead.style?.color) {
+        existing.lead.style = c.style
+      }
+    } else {
+      // If there was an expired bucket, flush it
+      if (existing) {
+        merged.push(formatMergedComment(existing))
+        activeBuckets.delete(key)
+      }
+      // Start new bucket
+      activeBuckets.set(key, {
+        lead: { ...c },
+        normKey: norm,
+        count: 1,
+        lastTime: c.time,
+      })
+    }
+  }
+
+  // Flush remaining active buckets
+  for (const bucket of activeBuckets.values()) {
+    merged.push(formatMergedComment(bucket))
+  }
+
+  // Re-sort after bucket collection
+  merged.sort((a, b) => a.time - b.time)
+
+  // Smart high-density throttling (limit per-second bucket, drop lowest-entropy spam if overcrowded)
+  return throttleHighDensity(merged)
+}
+
+function formatMergedComment(bucket: {
+  lead: DanmakuComment
+  normKey: string
+  count: number
+}): DanmakuComment {
+  if (bucket.count <= 1) return bucket.lead
+  const baseText = bucket.lead.text.trim()
+  return {
+    ...bucket.lead,
+    text: `${baseText} (x${bucket.count})`,
+  }
+}
+
+/** Rate limits extreme density spikes (e.g. >16/sec) by keeping higher-entropy comments */
+function throttleHighDensity(comments: DanmakuComment[]): DanmakuComment[] {
+  if (comments.length <= SIMPLIFY_MAX_PER_SEC) return comments
+
+  const out: DanmakuComment[] = []
+  let secBucket = -1
+  let secComments: DanmakuComment[] = []
+
+  const flushSec = () => {
+    if (!secComments.length) return
+    if (secComments.length <= SIMPLIFY_MAX_PER_SEC) {
+      out.push(...secComments)
+    } else {
+      // Score each comment by information entropy / length / count
+      const scored = secComments.map((c, idx) => {
+        const hasCount = /\(x\d+\)$/.test(c.text)
+        const isStatic = c.mode === 'top' || c.mode === 'bottom'
+        const len = c.text.length
+        const score = (hasCount ? 100 : 0) + (isStatic ? 50 : 0) + Math.min(30, len * 2)
+        return { c, score, idx }
+      })
+      // Keep highest scoring ones, preserving original arrival order
+      scored.sort((a, b) => b.score - a.score || a.idx - b.idx)
+      const kept = scored.slice(0, SIMPLIFY_MAX_PER_SEC)
+      kept.sort((a, b) => a.idx - b.idx)
+      for (const item of kept) out.push(item.c)
+    }
+    secComments = []
+  }
+
+  for (const c of comments) {
+    const sec = Math.floor(c.time)
+    if (sec !== secBucket) {
+      flushSec()
+      secBucket = sec
+    }
+    secComments.push(c)
+  }
+  flushSec()
+
+  return out
+}
+
 export function filterComments(
   comments: DanmakuComment[],
   settings: DanmakuSettings,
 ): DanmakuComment[] {
   const compiled = compileFilters(settings.filters)
-  return comments.filter((c) => {
+  const filtered = comments.filter((c) => {
     if (!settings.showScroll && c.mode === 'rtl') return false
     if (!settings.showTop && c.mode === 'top') return false
     if (!settings.showBottom && c.mode === 'bottom') return false
@@ -84,6 +228,11 @@ export function filterComments(
     }
     return true
   })
+
+  if (settings.simplify) {
+    return simplifyDanmaku(filtered)
+  }
+  return filtered
 }
 
 /**
@@ -147,11 +296,9 @@ export function danmakuRealDuration(
     return BILI_STATIC_BASE_DURATION
   }
   const base =
-    hints?.mode === 'mobile' && hints.fullscreen
-      ? BILI_SCROLL_MOBILE_FS_DURATION
-      : hints?.mode === 'mobile'
-        ? 7.0
-        : BILI_SCROLL_BASE_DURATION
+    hints?.mode === 'mobile'
+      ? (hints.fullscreen ? BILI_SCROLL_MOBILE_FS_DURATION : 8.0)
+      : BILI_SCROLL_BASE_DURATION
   return Math.max(0.5, base / mult)
 }
 

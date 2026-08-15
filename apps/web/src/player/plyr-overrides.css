@@ -998,11 +998,17 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
 
 .kz-ctrl-icon svg {
   display: block;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   margin: 0;
   flex: none;
   transition: transform 0.15s ease;
+}
+
+.kz-danmaku-wrap .kz-ctrl-icon svg,
+.kz-ctrl-icon[data-state] svg {
+  width: 21px;
+  height: 21px;
 }
 
 .kz-ctrl:hover {
@@ -1887,8 +1893,8 @@ body.kz-has-web-fs header {
   }
 
   .kz-ctrl-icon svg {
-    width: 16px;
-    height: 16px;
+    width: 18px;
+    height: 18px;
   }
 
   .kz-ctrl {
