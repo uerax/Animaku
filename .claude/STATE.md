@@ -1,5 +1,20 @@
 # Animaku 项目状态
 
+## [2026-08-17] 番剧简介图片支持点击跳转 Bangumi (bgm.tv) 条目页与桌面端大封面重构
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **简介封面点击直达 Bangumi (bgm.tv)**：
+     - 在 `apps/web/src/pages/watch/WatchMeta.tsx` 中封装统一 `MetaCover` 封面组件；
+     - 当 `item.id > 0` 时将封面包裹为 `<a>` 链接标签，点击在新标签页（`target="_blank" rel="noopener noreferrer"`）直接跳转至对应番剧的 `https://bgm.tv/subject/${item.id}` 条目主页；
+     - 悬浮时提供流畅的微放大动效（`group-hover:scale-105`）与天青色外边框高亮（`hover:ring-2 hover:ring-[var(--kz-accent)]`），带有原生 `title` 提示信息。
+  2. **桌面端大封面比例与排版对齐 (对标 B 站设计)**：
+     - 将桌面端封面尺寸由原偏小的 108×144px 放大升级为标准海报比例（`w-[10.5rem] h-[14rem]` / `lg:w-[11.25rem] lg:h-[15rem]`，即 168~180px × 224~240px）；
+     - 高度精准对齐右侧未展开状态下的简介整体高度（标题 + 放送状态/标签 + 3 行折叠摘要 + 追番按钮行），底部留有适度呼吸空隙，整体观感更加饱满大气；
+     - 桌面端封面选用 `size="large"`（800px 高清源），Retina / 4K 屏幕下保持极致锐利；移动端保持原有轻量尺寸完全不变。
+- 涉及文件：apps/web/src/pages/watch/WatchMeta.tsx
+- 备注：`pnpm typecheck` 全仓 0 错误通过，`pnpm build` 全量打包构建验证通过。
+
 ## [2026-08-17] 优化 xifan-next 视频解析性能与签名直链缓存策略
 - 状态：已完成
 - 优先级：P1

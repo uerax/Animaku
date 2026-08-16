@@ -32,6 +32,60 @@ function airChipClass(
   }
 }
 
+function MetaCover({
+  item,
+  className,
+  width,
+  height,
+  priority,
+  size = 'thumb',
+}: {
+  item: BangumiItem
+  className: string
+  width: number
+  height: number
+  priority?: boolean
+  size?: 'thumb' | 'large'
+}) {
+  const src = coverOf(item, size)
+  if (!src) return null
+
+  const img = (
+    <img
+      src={src}
+      alt=""
+      loading={priority ? 'eager' : 'lazy'}
+      decoding="async"
+      fetchPriority={priority ? 'low' : undefined}
+      width={width}
+      height={height}
+      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+    />
+  )
+
+  if (item.id > 0) {
+    return (
+      <a
+        href={`https://bgm.tv/subject/${item.id}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={`在 Bangumi 查看「${item.nameCn || item.name}」页面`}
+        className={`group relative block shrink-0 overflow-hidden bg-[var(--kz-bg-soft)] shadow-sm ring-1 ring-[var(--kz-border)] transition hover:ring-2 hover:ring-[var(--kz-accent)] ${className}`}
+      >
+        {img}
+      </a>
+    )
+  }
+
+  return (
+    <div
+      className={`shrink-0 overflow-hidden bg-[var(--kz-bg-soft)] shadow-sm ring-1 ring-[var(--kz-border)] ${className}`}
+    >
+      {img}
+    </div>
+  )
+}
+
 function MetaChips({ item }: { item: BangumiItem }) {
   const airLabel = airProgressLabel(item)
   const air = estimateAirProgress(item)
@@ -196,19 +250,14 @@ export function WatchMeta({
     return (
       <div className="kz-watch-meta kz-watch-panel space-y-2.5 px-3 py-2.5 text-[var(--kz-fg-muted)]">
         <div className="flex items-start gap-2.5">
-          {item && coverOf(item, 'thumb') ? (
-            <div className="h-16 w-12 shrink-0 overflow-hidden rounded-lg bg-[var(--kz-bg-soft)] shadow-sm ring-1 ring-[var(--kz-border)]">
-              <img
-                src={coverOf(item, 'thumb')}
-                alt=""
-                loading="lazy"
-                decoding="async"
-                width={48}
-                height={64}
-                className="h-full w-full object-cover"
-              />
-            </div>
-          ) : null}
+          {item && (
+            <MetaCover
+              item={item}
+              className="h-16 w-12 rounded-lg"
+              width={48}
+              height={64}
+            />
+          )}
           <div className="min-w-0 flex-1 space-y-1">
             <div className="flex items-start gap-2">
               <h1 className="min-w-0 flex-1 text-sm font-semibold leading-snug tracking-tight text-[var(--kz-fg)]">
@@ -277,22 +326,17 @@ export function WatchMeta({
 
   /* Desktop — elevated meta card */
   return (
-    <div className="kz-watch-meta kz-watch-panel flex gap-3.5 p-3.5 sm:gap-4 sm:p-4">
-      {item && coverOf(item, 'thumb') ? (
-        <div className="h-[7.75rem] w-[5.75rem] shrink-0 overflow-hidden rounded-xl bg-[var(--kz-bg-soft)] shadow-sm ring-1 ring-[var(--kz-border)] sm:h-36 sm:w-[6.75rem]">
-          {/* ~108px CSS wide — thumb/r400 is enough; large was a common LCP sink */}
-          <img
-            src={coverOf(item, 'thumb')}
-            alt=""
-            loading="eager"
-            decoding="async"
-            fetchPriority="low"
-            width={108}
-            height={144}
-            className="h-full w-full object-cover"
-          />
-        </div>
-      ) : null}
+    <div className="kz-watch-meta kz-watch-panel flex gap-4 p-4 sm:gap-5 sm:p-5">
+      {item && (
+        <MetaCover
+          item={item}
+          className="h-[13rem] w-[9.75rem] rounded-xl sm:h-[14rem] sm:w-[10.5rem] sm:rounded-2xl lg:h-[15rem] lg:w-[11.25rem]"
+          width={180}
+          height={240}
+          priority
+          size="large"
+        />
+      )}
       <div className="min-w-0 flex-1 space-y-2">
         <h1 className="text-lg font-semibold leading-snug tracking-tight text-[var(--kz-fg)] sm:text-xl">
           {title}
