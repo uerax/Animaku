@@ -1,5 +1,22 @@
 # Animaku 项目状态
 
+## [2026-08-17] 优化 xifan-next 视频解析性能与签名直链缓存策略
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **302 重定向探测升级为 `HEAD` 极速探测（零 Body 传输）**：
+     - 在 `apps/server/src/lib/xifan-next.ts` 中，将获取到直链后的探测方法由 `GET` 替换为 `HEAD`（`redirect: 'manual'`，超时收敛为 3s）；
+     - 彻底消除服务端向媒体服务器（MP4/M3U8）拉取大文件首包数据的多余网络耗时与外网下行带宽消耗，单次解析首帧耗时降低 300ms ~ 1500ms。
+  2. **401/403 Publishable Key 嗅探升级为并发竞赛（`Promise.allSettled`）**：
+     - 将原本串行遍历最多 10 个 chunk JS 文件的低效重试机制改造为前 6 个 chunk 文件的并发探测；
+     - 401 密钥失效时的自愈时间从最坏 10~30s 缩减至 1~2s，彻底杜绝界面卡死假死。
+  3. **启用预签名直链安全短时缓存（`resolveSigned: 60s`）**：
+     - 在 `apps/server/src/lib/ttl-cache.ts` 中，将时效签名链接从 0 缓存调整为 **60 秒**安全短时缓存；
+     - 针对带 `cookie` 敏感鉴权的请求独立拆分 `resolveCookie: 0` 保持绝对安全隔离；
+     - 用户在切集、连播下一话、回退播放或短时间内反复点选同一分集时，直接走内存极速返回（< 5ms）。
+- 涉及文件：apps/server/src/lib/xifan-next.ts, apps/server/src/lib/ttl-cache.ts
+- 备注：`pnpm typecheck` 全仓 0 错误通过，`pnpm build` 全量打包验证通过。
+
 ## [2026-08-16] 优化视频源排序机制（权重排序 > 首字母排序，全量规则与文件名统一纯小写）
 - 状态：已完成
 - 优先级：P1

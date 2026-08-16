@@ -34,8 +34,10 @@ export const PLUGIN_CACHE_TTL = {
   resolveStable: 30 * 60_000,
   /** Plain progressive mp4 without obvious signing. */
   resolveFragile: 2 * 60_000,
-  /** Signed / cookie-gated — do not cache (0). */
-  resolveSigned: 0,
+  /** Signed progressive streams — short safe cache (60s) to accelerate rapid switching & re-clicks without token expiration risk */
+  resolveSigned: 60_000,
+  /** Cookie-gated — do not cache (0). */
+  resolveCookie: 0,
 } as const
 
 const DEFAULT_MAX_ENTRIES = 200
@@ -210,7 +212,7 @@ export function resolveCacheTtlMs(result: {
 }): number {
   const play = result.playUrl || ''
   const proxy = result.proxyUrl || ''
-  if (/[?&]cookie=/.test(proxy)) return PLUGIN_CACHE_TTL.resolveSigned
+  if (/[?&]cookie=/.test(proxy)) return PLUGIN_CACHE_TTL.resolveCookie
   // Prefer HLS even with query strings (often longer-lived than signed mp4)
   if (/\.m3u8(\?|$)/i.test(play)) return PLUGIN_CACHE_TTL.resolveStable
   if (

@@ -64,7 +64,7 @@ async function refreshPublishableKey(): Promise<string> {
       {
         headers: { 'User-Agent': config.defaultUserAgent },
       },
-      { timeoutMs: 8_000 },
+      { timeoutMs: 5_000 },
     )
     if (!homeRes.ok) return cachedKey
     const html = await homeRes.text()
@@ -73,22 +73,26 @@ async function refreshPublishableKey(): Promise<string> {
       ...html.matchAll(/src=["'](\/_next\/static\/chunks\/[^"']+\.js)["']/g),
     ].map((m) => m[1])
 
-    for (const chunkPath of chunkPaths.slice(0, 10)) {
-      try {
+    // Concurrently probe up to 6 JS chunks to quickly extract publishable key
+    const targets = chunkPaths.slice(0, 6)
+    const results = await Promise.allSettled(
+      targets.map(async (chunkPath) => {
         const chunkRes = await fetchPublic(
           `https://next.xifanacg.com${chunkPath}`,
           { headers: { 'User-Agent': config.defaultUserAgent } },
-          { timeoutMs: 6_000 },
+          { timeoutMs: 4_000 },
         )
-        if (!chunkRes.ok) continue
+        if (!chunkRes.ok) return null
         const chunkText = await chunkRes.text()
         const match = chunkText.match(/sb_publishable_[A-Za-z0-9_-]+/)
-        if (match && match[0]) {
-          cachedKey = match[0]
-          return cachedKey
-        }
-      } catch {
-        /* ignore single chunk failure */
+        return match ? match[0] : null
+      }),
+    )
+
+    for (const r of results) {
+      if (r.status === 'fulfilled' && r.value) {
+        cachedKey = r.value
+        return cachedKey
       }
     }
   } catch {
@@ -545,18 +549,18 @@ export async function resolveXifanNext(
 
   let playUrl = res.url
 
-  // Probe and follow 302 redirects on server side to provide direct pre-signed stream URL
+  // Probe and follow 302 redirects on server side using HEAD (zero body transfer) to provide direct pre-signed stream URL
   try {
     const redirectProbe = await fetchPublic(
       playUrl,
       {
-        method: 'GET',
+        method: 'HEAD',
         redirect: 'manual',
         headers: {
           'User-Agent': config.defaultUserAgent,
         },
       },
-      { timeoutMs: 5_000 },
+      { timeoutMs: 3_000 },
     )
     const loc = redirectProbe.headers.get('location')
     if (loc && /^https?:\/\//i.test(loc)) {
