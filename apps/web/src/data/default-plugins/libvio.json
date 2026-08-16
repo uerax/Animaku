@@ -1,8 +1,9 @@
 {
   "api": "1",
   "type": "release",
-  "name": "LIBVIO",
+  "name": "libvio",
   "version": "1.0",
+  "weight": 60,
   "requiresFullMediaProxy": true,
   "muliSources": true,
   "useWebview": true,

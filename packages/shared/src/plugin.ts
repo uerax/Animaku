@@ -65,6 +65,8 @@ export interface PluginRule {
   type: string
   name: string
   version: string
+  /** Display sorting weight (higher weight = higher priority). Missing defaults to lowest weight. */
+  weight?: number
   muliSources?: boolean
   useWebview?: boolean
   useNativePlayer?: boolean
@@ -140,6 +142,33 @@ export function catalogItemStatus(
   if (!installed) return 'install'
   if (isRemoteNewer(installed.version, remote.version)) return 'update'
   return 'installed'
+}
+
+/**
+ * Compare two plugins for display ordering:
+ * 1. Higher weight first (built-in sources default to 50; third-party/imported sources default to 0).
+ * 2. Equal weights tie-break alphabetically by plugin name (case-insensitive, stable).
+ */
+export function comparePluginOrder(
+  a: { name?: string; weight?: number; source?: string },
+  b: { name?: string; weight?: number; source?: string },
+): number {
+  const getWeight = (p: { weight?: number; source?: string }) => {
+    if (typeof p.weight === 'number' && Number.isFinite(p.weight)) {
+      return p.weight
+    }
+    return p.source === 'builtin' ? 50 : 0
+  }
+  const wa = getWeight(a)
+  const wb = getWeight(b)
+  if (wa !== wb) {
+    return wb - wa
+  }
+  const na = (a.name || '').toLowerCase()
+  const nb = (b.name || '').toLowerCase()
+  const cmp = na.localeCompare(nb)
+  if (cmp !== 0) return cmp
+  return (a.name || '').localeCompare(b.name || '')
 }
 
 export interface SearchItem {
@@ -420,11 +449,17 @@ export function parsePluginRule(raw: unknown): PluginRule {
     chapterApiConfig = parseApiChapterConfig(j.chapterApiConfig)
   }
 
+  const weight =
+    typeof j.weight === 'number' && Number.isFinite(j.weight)
+      ? j.weight
+      : undefined
+
   return {
     api: String(j.api ?? '1'),
     type: String(j.type ?? 'anime'),
     name,
     version: String(j.version ?? ''),
+    weight,
     muliSources: Boolean(j.muliSources ?? true),
     useWebview: Boolean(j.useWebview ?? true),
     useNativePlayer: Boolean(j.useNativePlayer ?? true),

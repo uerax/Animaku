@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { PluginMeta, PluginRule } from '@animaku/shared'
-import { parsePluginRule } from '@animaku/shared'
+import { parsePluginRule, comparePluginOrder } from '@animaku/shared'
 import { DEFAULT_PLUGIN_RULES } from '../data/default-plugins'
 import { migrateLocalStorageKey } from '../lib/storage'
 
@@ -18,7 +18,11 @@ migrateLocalStorageKey('animaku-plugins', [
 /** v12: update built-in plugin rules (e.g. LIBVIO suggest API 403 -> xpath static search) */
 /** v13: add xifan-next (next.xifanacg.com) built-in */
 /** v14: fix xifan-next rule searchURL & searchMode definition */
-export const PLUGIN_DEFAULTS_VERSION = 14
+/** v15: add weight to built-in rules (weight sorting > alphabetical; external rules default to lowest weight) */
+/** v16: tune weights (xifan-next: 70, libvio/anime1: 60, mxdm: 55, default builtin: 50, external/third-party: 0) */
+/** v17: reset legacy pluginOrder on defaults upgrade to enforce weight-first ordering */
+/** v18: normalize all built-in plugin names and JSON files to lowercase */
+export const PLUGIN_DEFAULTS_VERSION = 18
 
 interface PluginState {
   plugins: PluginMeta[]
@@ -77,7 +81,7 @@ export function seedFromDefaults(): PluginMeta[] {
   if (!list.length) {
     console.warn('[plugins] DEFAULT_PLUGIN_RULES produced empty list')
   }
-  return preferAnime1Last(list)
+  return [...list].sort(comparePluginOrder)
 }
 
 const BUILTIN_NAMES = new Set(
@@ -91,22 +95,21 @@ export function isBuiltinPlugin(plugin: PluginMeta): boolean {
 }
 
 /**
- * Default plugin order: alphabetical by name, Anime1 always at the end.
+ * Default plugin order: weight descending > alphabetical by name.
  * Used as fallback when user has no custom `pluginOrder`.
  */
 export function defaultPluginOrder(plugins: PluginMeta[]): string[] {
-  const names = new Set(plugins.map((p) => p.name))
-  const sorted = [...names].sort((a, b) =>
-    a.toLowerCase().localeCompare(b.toLowerCase()),
-  )
-  // Anime1 always last (needs MEDIA_FULL_PROXY)
-  const idx = sorted.findIndex(
-    (n) => n.toLowerCase() === 'anime1',
-  )
-  if (idx >= 0) {
-    sorted.push(sorted.splice(idx, 1)[0])
+  const sorted = [...plugins].sort(comparePluginOrder)
+  const seen = new Set<string>()
+  const result: string[] = []
+  for (const p of sorted) {
+    const key = p.name.toLowerCase()
+    if (!seen.has(key)) {
+      seen.add(key)
+      result.push(p.name)
+    }
   }
-  return sorted
+  return result
 }
 
 function normalizePlugins(raw: unknown): PluginMeta[] {
@@ -117,27 +120,13 @@ function normalizePlugins(raw: unknown): PluginMeta[] {
   )
 }
 
-/** Anime1 last — cookie mp4 needs MEDIA_FULL_PROXY; prefer HLS sources first. */
-function preferAnime1Last(list: PluginMeta[]): PluginMeta[] {
-  const anime1: PluginMeta[] = []
-  const rest: PluginMeta[] = []
-  for (const p of list) {
-    if ((p.name || '').toLowerCase() === 'anime1') anime1.push(p)
-    else rest.push(p)
-  }
-  if (!anime1.length) return list
-  return [...rest, ...anime1]
-}
-
 /**
- * Sort plugins by stored order, falling back to alphabetical.
- * Plugins not in the order list appear at the end, sorted alphabetically.
+ * Sort plugins by stored order, falling back to weight > alphabetical.
+ * Plugins not in the order list appear at the end, sorted by weight > alphabetical.
  */
 function sortByOrder(plugins: PluginMeta[], order: string[]): PluginMeta[] {
   if (!order.length) {
-    return [...plugins].sort((a, b) =>
-      a.name.toLowerCase().localeCompare(b.name.toLowerCase()),
-    )
+    return [...plugins].sort(comparePluginOrder)
   }
   const rank = new Map<string, number>()
   for (let i = 0; i < order.length; i++) {
@@ -150,7 +139,7 @@ function sortByOrder(plugins: PluginMeta[], order: string[]): PluginMeta[] {
   }))
   withFallback.sort((a, b) => {
     if (a.rank !== b.rank) return a.rank - b.rank
-    return a.p.name.toLowerCase().localeCompare(b.p.name.toLowerCase())
+    return comparePluginOrder(a.p, b.p)
   })
   return withFallback.map((w) => w.p)
 }
@@ -179,10 +168,13 @@ export const usePluginStore = create<PluginState>()(
           const rest = prev.filter(
             (p) => p.name.toLowerCase() !== meta.name.toLowerCase(),
           )
-          // Add new plugin to front of sort order
+          // If user has a custom pluginOrder, preserve the new rule at the end of custom order (or let fallback rank it)
           const newOrder = s.pluginOrder.slice()
-          if (!newOrder.some((n) => n.toLowerCase() === meta.name.toLowerCase())) {
-            newOrder.unshift(meta.name)
+          if (
+            newOrder.length > 0 &&
+            !newOrder.some((n) => n.toLowerCase() === meta.name.toLowerCase())
+          ) {
+            newOrder.push(meta.name)
           }
           return {
             plugins: [meta, ...rest],
@@ -250,14 +242,29 @@ export const usePluginStore = create<PluginState>()(
           return
         }
         // Already on current defaults version: still merge any *new* built-ins
-        // without touching user/catalog rules; apply new ordering strategy.
+        // and sync weights without touching user/catalog rules; apply new ordering strategy.
         if (ver >= PLUGIN_DEFAULTS_VERSION) {
+          const seedByName = new Map(
+            seedFromDefaults().map((p) => [p.name.toLowerCase(), p]),
+          )
           const have = new Set(plugins.map((p) => p.name.toLowerCase()))
           const missing = seedFromDefaults().filter(
             (p) => !have.has(p.name.toLowerCase()),
           )
-          if (missing.length) {
-            const next = preferAnime1Last([...plugins, ...missing])
+          let changed = missing.length > 0
+          let next = plugins.map((p) => {
+            if (p.source !== 'builtin' && p.source !== undefined) return p
+            const seed = seedByName.get(p.name.toLowerCase())
+            if (!seed) return p
+            if (p.weight !== seed.weight) {
+              changed = true
+              return { ...p, weight: seed.weight }
+            }
+            return p
+          })
+          if (missing.length) next = [...next, ...missing]
+          if (changed) {
+            next = next.sort(comparePluginOrder)
             set({
               plugins: next,
               defaultsVersion: PLUGIN_DEFAULTS_VERSION,
@@ -275,6 +282,10 @@ export const usePluginStore = create<PluginState>()(
         // v11: pluginOrder for user sort.
         // v12: update built-in plugin rules (e.g. LIBVIO searchMode api -> xpath).
         // v13: add xifan-next (next.xifanacg.com).
+        // v14: fix xifan-next rule searchURL & searchMode definition.
+        // v15: add weight to built-in rules (weight sorting > alphabetical; external rules default to lowest weight).
+        // v16: tune weights (xifan-next: 70, libvio/anime1: 60, mxdm: 55, default builtin: 50, external/third-party: 0).
+        // v17: reset legacy pluginOrder on defaults upgrade to enforce weight-first ordering.
         const legacyBuiltinNames = new Set(
           [
             '7sefun',
@@ -300,6 +311,7 @@ export const usePluginStore = create<PluginState>()(
           set({
             plugins: seedFromDefaults(),
             defaultsVersion: PLUGIN_DEFAULTS_VERSION,
+            pluginOrder: [],
           })
           return
         }
@@ -334,10 +346,11 @@ export const usePluginStore = create<PluginState>()(
           }
         })
         if (missing.length) next = [...next, ...missing]
-        next = preferAnime1Last(next)
+        next = next.sort(comparePluginOrder)
         set({
           plugins: next,
           defaultsVersion: PLUGIN_DEFAULTS_VERSION,
+          pluginOrder: [],
         })
       },
       resetToDefaults: () => {

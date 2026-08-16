@@ -1,8 +1,9 @@
 {
   "api": "4",
   "type": "anime",
-  "name": "Anime1",
+  "name": "anime1",
   "version": "1.0",
+  "weight": 60,
   "requiresFullMediaProxy": true,
   "muliSources": false,
   "useWebview": false,

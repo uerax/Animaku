@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { PluginCatalogItem, PluginMeta } from '@animaku/shared'
-import { catalogItemStatus, PLAYER_SPEEDS } from '@animaku/shared'
+import { catalogItemStatus, comparePluginOrder, PLAYER_SPEEDS } from '@animaku/shared'
 import { bangumiApi } from '../lib/bangumi'
 import { pluginApi } from '../lib/plugin-api'
 import { validatePluginLocal } from '../lib/plugin-validate'
@@ -20,18 +20,16 @@ import { isBuiltinPlugin, usePluginStore } from '../stores/plugins'
 import { PageHeader } from '../components/ui'
 import { EMPTY_ARRAY, FALLBACK_DANMAKU, FALLBACK_PLAYER } from '../lib/stable'
 
-/** Sort plugins by user-defined order, falling back to alphabetical. */
+/** Sort plugins by user-defined order, falling back to weight > alphabetical. */
 function sortPluginsByOrder(
   plugins: PluginMeta[],
   order: string[],
   isBlocked: (plugin: PluginMeta) => boolean,
 ): PluginMeta[] {
-  const byName = (a: PluginMeta, b: PluginMeta) =>
-    a.name.toLowerCase().localeCompare(b.name.toLowerCase())
   if (!order.length) {
     return [...plugins].sort((a, b) => {
       const blocked = Number(isBlocked(a)) - Number(isBlocked(b))
-      return blocked !== 0 ? blocked : byName(a, b)
+      return blocked !== 0 ? blocked : comparePluginOrder(a, b)
     })
   }
   const rank = new Map<string, number>()
@@ -44,7 +42,7 @@ function sortPluginsByOrder(
     const ra = rank.get(a.name.toLowerCase()) ?? order.length
     const rb = rank.get(b.name.toLowerCase()) ?? order.length
     if (ra !== rb) return ra - rb
-    return byName(a, b)
+    return comparePluginOrder(a, b)
   })
 }
 
@@ -427,7 +425,7 @@ export function SettingsPage() {
             onClick={() => {
               if (
                 window.confirm(
-                  '将清空当前规则并恢复为内置默认（otage / xifan / MXdm / omofun / Anime1），确定？',
+                  '将清空当前规则并恢复为内置默认（xifan-next / anime1 / libvio / mxdm / omofun / otage / xifan），确定？',
                 )
               ) {
                 resetToDefaults()

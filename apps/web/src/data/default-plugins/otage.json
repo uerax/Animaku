@@ -3,6 +3,7 @@
   "type": "anime",
   "name": "otage",
   "version": "1.0",
+  "weight": 50,
   "muliSources": true,
   "useWebview": true,
   "useNativePlayer": true,

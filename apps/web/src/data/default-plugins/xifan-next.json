@@ -3,6 +3,7 @@
   "type": "anime",
   "name": "xifan-next",
   "version": "1.0",
+  "weight": 70,
   "muliSources": true,
   "useWebview": false,
   "useNativePlayer": true,

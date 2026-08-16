@@ -17,6 +17,7 @@ import {
   rankSearchItems,
   bestTitleSimilarity,
   coverOf,
+  comparePluginOrder,
   type BangumiItem,
   type PluginMeta,
   type SearchItem,
@@ -120,7 +121,7 @@ function lookupHistorySourceUrl(
 }
 
 /**
- * First enabled plugin based on user order, falling back to alphabetical name order.
+ * First enabled plugin based on user order, falling back to weight > alphabetical name order.
  * This is the default source auto-searched on first visit.
  */
 function findDefaultSourcePlugin(list: PluginMeta[], order: string[]): PluginMeta | undefined {
@@ -134,18 +135,14 @@ function findDefaultSourcePlugin(list: PluginMeta[], order: string[]): PluginMet
       if (hit) return hit
     }
   }
-  // Fallback: alphabetical name order.
-  return [...list].sort((a, b) =>
-    a.name.toLowerCase().localeCompare(b.name.toLowerCase()),
-  )[0]
+  // Fallback: weight descending > alphabetical name order.
+  return [...list].sort(comparePluginOrder)[0]
 }
 
-/** Sort search rows by stored order (first = top), falling back to alphabetical. */
+/** Sort search rows by stored order (first = top), falling back to weight > alphabetical. */
 function orderSearchRows(rows: SearchRow[], order: string[]): SearchRow[] {
   if (!order.length) {
-    return [...rows].sort((a, b) =>
-      a.plugin.name.toLowerCase().localeCompare(b.plugin.name.toLowerCase()),
-    )
+    return [...rows].sort((a, b) => comparePluginOrder(a.plugin, b.plugin))
   }
   const rank = new Map<string, number>()
   for (let i = 0; i < order.length; i++) {
@@ -155,7 +152,7 @@ function orderSearchRows(rows: SearchRow[], order: string[]): SearchRow[] {
     const ra = rank.get(a.plugin.name.toLowerCase()) ?? order.length
     const rb = rank.get(b.plugin.name.toLowerCase()) ?? order.length
     if (ra !== rb) return ra - rb
-    return a.plugin.name.toLowerCase().localeCompare(b.plugin.name.toLowerCase())
+    return comparePluginOrder(a.plugin, b.plugin)
   })
 }
 

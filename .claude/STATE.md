@@ -1,5 +1,24 @@
 # Animaku 项目状态
 
+## [2026-08-16] 优化视频源排序机制（权重排序 > 首字母排序，全量规则与文件名统一纯小写）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **数据模型与解析扩展**：
+     - 在 `@animaku/shared` 的 `PluginRule` 接口中增加 `weight?: number` 权重字段；
+     - 在 `parsePluginRule` 中支持解析 `weight` 数值字段；
+     - 封装并导出通用比较函数 `comparePluginOrder(a, b)`：优先按 `weight` 降序排列；内置源未指定时默认权重 50，第三方仓库/外部导入源默认权重 0；权重相同时按名称首字母 `a.name.toLowerCase().localeCompare(b.name.toLowerCase())` 稳定字母序排布。
+  2. **内置视频源梯度权重配置与小写规范化**：
+     - 将所有视频源名称（alias）与 JSON 文件名全量统一为小写（`mxdm.json`、`libvio.json`、`anime1.json`、`age.json` 等）；
+     - 精准配置各内置源权重：`xifan-next` (70) > `anime1` (60) = `libvio` (60) > `mxdm` (55) > `omofun` (50) = `otage` (50) = `xifan` (50) > 第三方外部源 (0)；
+     - 递增 `PLUGIN_DEFAULTS_VERSION` 至 18，并在 `ensureDefaults` 中自动清理旧版本遗留在本地 `localStorage` 中的旧排序列表（`pluginOrder: []`），使全新权重排序 100% 立即生效并消除旧排序覆盖。
+  3. **全站展示与选源排序统一**：
+     - `apps/web/src/stores/plugins.ts` 中的 `seedFromDefaults`、`defaultPluginOrder`、`sortByOrder`、`ensureDefaults` 全量统一接入 `comparePluginOrder`；
+     - 优化 `importRule`，未自定义顺序时外部引入规则默认沉底排在权重 0 位置；
+     - `use-watch-session.ts`（侧栏源行 `orderSearchRows` 与默认起搜源 `findDefaultSourcePlugin`）及 `SettingsPage.tsx`（已安装规则列表 `sortPluginsByOrder`）全面接入统一权重排序。
+- 涉及文件：packages/shared/src/plugin.ts, apps/web/src/data/default-plugins/*.json, apps/web/src/data/default-plugins/index.ts, apps/web/src/stores/plugins.ts, apps/web/src/lib/use-watch-session.ts, apps/web/src/pages/SettingsPage.tsx
+- 备注：`pnpm typecheck` 全仓 0 错误通过，`pnpm build` 全量打包验证通过。
+
 ## [2026-08-16] 修复切换视频源时首个默认源异步完成竞态覆盖的跳转 Bug
 - 状态：已完成
 - 优先级：P0

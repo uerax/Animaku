@@ -1,8 +1,9 @@
 {
   "api": "5",
   "type": "anime",
-  "name": "MXdm",
+  "name": "mxdm",
   "version": "2.3",
+  "weight": 55,
   "muliSources": true,
   "useWebview": true,
   "useNativePlayer": true,
