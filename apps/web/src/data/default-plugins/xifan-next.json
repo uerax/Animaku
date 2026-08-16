@@ -1,0 +1,21 @@
+{
+  "api": "1",
+  "type": "anime",
+  "name": "xifan-next",
+  "version": "1.0",
+  "muliSources": true,
+  "useWebview": false,
+  "useNativePlayer": true,
+  "usePost": false,
+  "useLegacyParser": false,
+  "adBlocker": false,
+  "userAgent": "",
+  "baseURL": "https://next.xifanacg.com/",
+  "searchURL": "https://next.xifanacg.com/browse?q=@keyword",
+  "searchList": "//a",
+  "searchName": ".",
+  "searchResult": ".",
+  "chapterRoads": "//div",
+  "chapterResult": ".//a",
+  "referer": "https://next.xifanacg.com/"
+}

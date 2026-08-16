@@ -512,6 +512,12 @@ export function VideoPlayer({
     video.muted = (cfg.volume ?? 0.7) <= 0
     applyPlaybackRate(cfg.speed || 1)
     video.playsInline = true
+    try {
+      ;(video as unknown as { referrerPolicy?: string }).referrerPolicy =
+        'no-referrer'
+    } catch {
+      /* ignore */
+    }
 
     /** Clean up softPlay waiters on src change / unmount */
     let softPlayCleanup: (() => void) | null = null

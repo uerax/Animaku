@@ -517,6 +517,7 @@ export function WatchPage() {
                       if (!r.pending) {
                         startTransition(() => {
                           void w.openPluginSearch(r.plugin, undefined, {
+                            clearSelection: true,
                             autoPickFirst: true,
                           })
                         })

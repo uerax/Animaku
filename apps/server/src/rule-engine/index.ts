@@ -837,6 +837,22 @@ export async function searchWithRule(
     }
   }
 
+  // xifan-next — Supabase RPC & REST adapter
+  {
+    const { isXifanNextRule, searchXifanNext } = await import('../lib/xifan-next')
+    if (isXifanNextRule(rule)) {
+      try {
+        return await searchXifanNext(rule, keyword)
+      } catch (e) {
+        return {
+          pluginName: rule.name,
+          items: [],
+          diagnostics: [e instanceof Error ? e.message : String(e)],
+        }
+      }
+    }
+  }
+
   // Omofun / 211dm — search gate + hash detail URLs (chapters/resolve stay generic)
   {
     const { isOmofunRule, searchOmofun } = await import('../lib/omofun')
@@ -1048,6 +1064,22 @@ export async function chaptersWithRule(
     if (isAnime1Rule(rule)) {
       try {
         return await chaptersAnime1(rule, source)
+      } catch (e) {
+        return {
+          pluginName: rule.name,
+          roads: [],
+          diagnostics: [e instanceof Error ? e.message : String(e)],
+        }
+      }
+    }
+  }
+
+  // xifan-next — Supabase episodes table adapter
+  {
+    const { isXifanNextRule, chaptersXifanNext } = await import('../lib/xifan-next')
+    if (isXifanNextRule(rule)) {
+      try {
+        return await chaptersXifanNext(rule, source)
       } catch (e) {
         return {
           pluginName: rule.name,
@@ -1436,6 +1468,14 @@ export async function resolvePlay(
     const { isAnime1Rule, resolveAnime1 } = await import('../lib/anime1')
     if (isAnime1Rule(rule)) {
       return await resolveAnime1(rule, pageUrl)
+    }
+  }
+
+  // xifan-next: Supabase Edge Function playback issue
+  {
+    const { isXifanNextRule, resolveXifanNext } = await import('../lib/xifan-next')
+    if (isXifanNextRule(rule)) {
+      return await resolveXifanNext(rule, pageUrl)
     }
   }
 

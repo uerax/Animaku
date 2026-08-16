@@ -1,5 +1,39 @@
 # Animaku 项目状态
 
+## [2026-08-16] 修复切换视频源时首个默认源异步完成竞态覆盖的跳转 Bug
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **排查根本原因（Race Condition）**：
+     - 用户从历史记录或播放页进入时，首个默认源（如 `libvio`）在后台启动了初始预搜索（`openPluginSearch(preferred, ..., { autoPickFirst: true })`）；
+     - 当用户点击其它视频源（如 `xifan-next`）时，`xifan-next` 的搜索和分集已选定并渲染；
+     - 随后较慢的首个默认源搜索结果异步返回，其内部的 `shouldAutoPick`（由于 `opts.autoPickFirst === true`）无条件触发了 `pickSource(libvio, items[0])`，强行清空并覆盖了用户当前已选择的 `xifan-next` 分集，视觉上呈现为“第一下切换正常，随后突然刷新跳回首个源”。
+  2. **全面防御性修复方案**：
+     - **目标源与已选源严格卡控**：在 `use-watch-session.ts` 的 `searchOnePlugin` 中增加多重防御断言，当搜索结果返回时，若 `selectionRef.current` 或 `keywordTargetPluginRef.current` 与当前返回结果的规则不同且未显式指定 `clearSelection` 时，**严禁自动覆盖选源**；
+     - **初始搜索状态幂等锁定**：进入时若 URL 带有 `plugin` 或已有激活选源，立即锁定 `defaultSearchDoneFor.current = bangumiId`，切断一切后续重复触发首源搜索的可能；
+     - **侧边栏切源语义明确化**：在 `WatchPage.tsx` 侧栏点击源卡片时显式传递 `{ clearSelection: true, autoPickFirst: true }`，确保用户主动切换行为具备最高优先级。
+- 涉及文件：apps/web/src/lib/use-watch-session.ts, apps/web/src/pages/WatchPage.tsx
+- 备注：`pnpm typecheck` 全仓 0 错误通过，`pnpm build` 全量打包通过。
+
+## [2026-08-16] 接入稀饭动漫全新平台（xifan-next）多线路解析与全量去防盗链修复
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **多线路（Multi-Roads）全量解析落地**：
+     - 重构 `apps/server/src/lib/xifan-next.ts` 中的 `chaptersXifanNext`，新增 Next.js SSR 串流 Chunk 提取器（`extractSourcesFromHtml`）；
+     - 完整解析平台全量播放线路（如「稀饭新番主线-1 (xfxf1)」、「稀饭新番主线-2 (AL)」、「稀饭备用-1 (CS)」、「稀饭旧番主线-1 (xfy2)」等），分集链接附带 `?source={code}`；
+     - 当 SSR 解析异常时平滑回退至 Supabase REST `episodes` 表。
+  2. **视频无法播放修复与全局 `no-referrer` 去防盗链**：
+     - **排查根本原因**：视频流重定向至联通云盘直链（`pan.wo.cn`），该 CDN 会严格拒绝带有外部跨域 Referer（如 `Referer: localhost` 或站点域名）的请求并报错 `400 Bad Request`；
+     - **解决方案**：
+       1. 在 `apps/server/src/lib/xifan-next.ts` 中针对 `pan.wo.cn` / `moedot.net` 主动重设 Referer 为 `https://pan.wo.cn/` 并于服务端抢跑探测 302 目标下发直链；
+       2. 在 `apps/web/index.html` 与 `VideoPlayer.tsx` `<video>` 上配置全局 `referrerPolicy = 'no-referrer'`，对齐 `next.xifanacg.com` 官方规范，彻底消除 CDN 防盗链拦截。
+  3. **规则规范与版本升级**：
+     - `xifan-next.json` 规则格式对齐 `Anime1.json`；
+     - 递增 `PLUGIN_DEFAULTS_VERSION` 至 14，客户端自动更新。
+- 涉及文件：apps/server/src/lib/xifan-next.ts, apps/web/src/player/VideoPlayer.tsx, apps/web/index.html, apps/web/src/data/default-plugins/xifan-next.json, apps/web/src/stores/plugins.ts, docs/video-source-integration.md
+- 备注：`pnpm typecheck` 全仓 0 错误通过，`pnpm build` 全量打包通过。
+
 ## [2026-08-15] 放大移动端超分面板字体与间距（对齐设置面板字号）
 - 状态：已完成
 - 优先级：P1

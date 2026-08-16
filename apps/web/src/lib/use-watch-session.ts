@@ -341,6 +341,8 @@ export function useWatchSession(bangumiId: number): WatchSession {
   /** Avoid auto-picking first hit when user already has a selection / resume. */
   const selectionRef = useRef<SourceSelection | null>(null)
   selectionRef.current = selection
+  const keywordTargetPluginRef = useRef<PluginMeta | null>(null)
+  keywordTargetPluginRef.current = keywordTargetPlugin
   const paramsRef = useRef(params)
   paramsRef.current = params
   const roadLoadingRef = useRef(roadLoading)
@@ -690,6 +692,23 @@ export function useWatchSession(bangumiId: number): WatchSession {
           ((isDefault || opts?.clearSelection) &&
             (opts?.clearSelection || !selectionRef.current)))
       if (shouldAutoPick && items[0]) {
+        // Guard against background search race conditions:
+        // Do not allow an in-flight background search of plugin A to clobber
+        // when the user has already selected or targeted a different plugin B.
+        if (
+          !opts?.clearSelection &&
+          selectionRef.current &&
+          selectionRef.current.plugin.name.toLowerCase() !== plugin.name.toLowerCase()
+        ) {
+          return
+        }
+        if (
+          !opts?.clearSelection &&
+          keywordTargetPluginRef.current &&
+          keywordTargetPluginRef.current.name.toLowerCase() !== plugin.name.toLowerCase()
+        ) {
+          return
+        }
         const score = bestTitleSimilarity(items[0].name, [
           ...titleRefsStable,
           keyword,
@@ -739,9 +758,12 @@ export function useWatchSession(bangumiId: number): WatchSession {
   // then auto-pick the first hit so episodes are ready immediately.
   useEffect(() => {
     if (!Number.isFinite(bangumiId) || bangumiId <= 0) return
-    // Resume deep-link owns the session — do not fan out a second source.
-    if (qPlugin && qPageUrl) return
     if (defaultSearchDoneFor.current === bangumiId) return
+    // If entered with a specific plugin or a selection already exists, mark default search done and skip
+    if (qPlugin || selectionRef.current || paramsRef.current.get('plugin')) {
+      defaultSearchDoneFor.current = bangumiId
+      return
+    }
     if (!plugins.length) return
 
     // Prefer full subject title; avoid searching "番剧 123" before Bangumi loads.
@@ -764,7 +786,6 @@ export function useWatchSession(bangumiId: number): WatchSession {
   }, [
     bangumiId,
     qPlugin,
-    qPageUrl,
     plugins,
     pluginOrder,
     item?.nameCn,

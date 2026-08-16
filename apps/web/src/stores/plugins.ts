@@ -16,7 +16,9 @@ migrateLocalStorageKey('animaku-plugins', [
 /** v10: Anime1 last (needs MEDIA_FULL_PROXY); HLS sources first */
 /** v11: add pluginOrder for user-custom sorting */
 /** v12: update built-in plugin rules (e.g. LIBVIO suggest API 403 -> xpath static search) */
-export const PLUGIN_DEFAULTS_VERSION = 12
+/** v13: add xifan-next (next.xifanacg.com) built-in */
+/** v14: fix xifan-next rule searchURL & searchMode definition */
+export const PLUGIN_DEFAULTS_VERSION = 14
 
 interface PluginState {
   plugins: PluginMeta[]
@@ -272,6 +274,7 @@ export const usePluginStore = create<PluginState>()(
         // v10: Anime1 last (MEDIA_FULL_PROXY).
         // v11: pluginOrder for user sort.
         // v12: update built-in plugin rules (e.g. LIBVIO searchMode api -> xpath).
+        // v13: add xifan-next (next.xifanacg.com).
         const legacyBuiltinNames = new Set(
           [
             '7sefun',
@@ -283,6 +286,7 @@ export const usePluginStore = create<PluginState>()(
             'anime1',
             'otage',
             'xifan',
+            'xifan-next',
             'omofun',
             'libvio',
           ].map((s) => s.toLowerCase()),
