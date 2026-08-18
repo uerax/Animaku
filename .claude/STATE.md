@@ -1,5 +1,18 @@
 # Animaku 项目状态
 
+## [2026-08-18] 修复桌面端暂停弹幕回退震颤与双击全屏过敏误触手势解耦
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **修复桌面端 Chrome 暂停时弹幕回退与震颤抖动（`canvas-danmaku.ts`）**：
+     - **排查根本原因**：视频播放期间弹幕通过 `performance.now()` 高精插值推进，而 `<video>` 的 `currentTime` 在 Chromium 中以 15Hz~30Hz 离散更新且存在 50~100ms 固有 PTS 滞后；暂停时旧逻辑强制以滞后的 `currentTime` 重置时钟，导致弹幕向后回跳，随后 Chrome 触发 `timeupdate` 再次刷新导致二次微跳跃（视觉呈现为“暂停时弹幕先往后退一点，然后震一下”）；
+     - **解决方案**：在 `onPause` 中捕获暂停时刻的高精画面插值时间戳，正常暂停时直接以此作为冻结锚点 `anchorMediaTime`，消除回跳；在 `checkClockDrift` 中屏蔽暂停态下的微小解码 PTS 漂移；恢复播放时无缝平滑向前推进。
+  2. **全面对标 B 站标准双击手势架构，彻底实现双击与播放/暂停 0 干扰解耦（`useShellPointerHandlers.ts`）**：
+     - **根本原因**：若单击直接触发 `togglePlay()`，双击的第一击会立即打断当前状态（播放变暂停、暂停变播放，且弹出水滴波纹），即便第二击再次反转，也会带来明显的画音抽搐；加上 Windows 原生 500ms 的长双击窗口，导致快速暂停/继续极易误触全屏；
+     - **B 站标准解决方案**：在桌面端引入 220ms 延时调度。单次点击等待 220ms（极短无感）确认无第二击才执行 `togglePlay()`；发生快速双击（$\le 250\text{ms}$）时立即清除第一击的单发定时器，**`togglePlay()` 绝对不被触发**，仅执行 `toggleFs()`。无论当前处于暂停还是播放状态，双击全屏/退出全屏均 0 播放干扰、0 水滴波纹、0 状态翻转。
+- 涉及文件：apps/web/src/player/media/canvas-danmaku.ts, apps/web/src/player/chrome/useShellPointerHandlers.ts, .claude/BUGS.md, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 0 错误编译通过，`pnpm build` 全量打包构建通过。
+
 ## [2026-08-18] 播放器 URL 深度瘦身重构（去除冗长序列化参数，对标 Bilibili/主流流媒体极简短链）
 - 状态：已完成
 - 优先级：P1

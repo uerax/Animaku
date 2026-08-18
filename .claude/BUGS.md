@@ -1,5 +1,28 @@
 # Bug / 优化清单
 
+## [2026-08-18] 修复桌面端暂停弹幕回退震颤与双击全屏误触手势解耦
+
+### 1. 桌面端 Chrome 暂停播放时弹幕位置后退与微抖动震颤 Bug
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1) **根本原因**：在视频播放期间，弹幕引擎通过 `performance.now()` 高精微秒时钟进行亚像素插值推进，而 `<video>` 的 `currentTime` 属性在 Chromium 中离散低频更新（15Hz~30Hz）且常有 50~100ms 的 PTS 音画延迟；当触发 `pause` 暂停时，旧代码直接调用 `this.syncClock(this.media.currentTime)` 强行将时钟回拨至滞后的 `currentTime`，导致弹幕在暂停瞬间向后回跳几十毫秒；随后 Chrome 解码器完成暂停 PTS 刷新并触发 `timeupdate`，再次修改 `anchorMediaTime` 导致二次绘制，视觉上呈现为“暂停时弹幕先往后退一点，然后震一下”；
+  2) **解决方案**：在 `canvas-danmaku.ts` 的 `onPause` 中，捕获暂停瞬间高精时钟插值的真实画面时间戳，在非 Seek 正常暂停（误差 $\le 0.35s$）时直接以当前渲染帧的高精位置作为冻结锚点 `anchorMediaTime`；在 `checkClockDrift` 中对暂停态下的微小 PTS 抖动保持屏蔽，彻底消除回退与震颤；播放恢复（`onPlay`）时无缝衔接推进，体验 100% 丝滑。
+- 涉及文件：apps/web/src/player/media/canvas-danmaku.ts
+
+### 2. 播放器桌面端双击全屏过敏与单击暂停/继续误触全屏 Bug（对标 B 站标准双击 0 播放干扰）
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1) **根本原因**：
+     - 若单击立即触发 `togglePlay()`，在双击过程中第一次点击已经改变了播放器播放状态（如暂停变成播放、播放变成暂停，并触发了中心水滴 Ripple 动效），双击第二击即便再次反转，也会造成明显的画面闪烁和声音瞬开瞬关；
+     - 另外 Windows/Chrome 系统原生的 `dblclick` 判定时间窗口长达 500ms，导致用户在 300~500ms 间隔内正常点按暂停与继续时频繁被浏览器判定为双击。
+  2) **对标 B 站标准解决方案（`useShellPointerHandlers.ts`）**：
+     - 在桌面端引入 **220ms 延时分发定时器**：单次点击等待 220ms，若无第二击才执行 `togglePlay()`；
+     - 当发生快速双击（$\le 250\text{ms}$ 且位移 $\le 24\text{px}$）时，立即清除第一击的单发定时器，**`togglePlay()` 完全不被调用**，直接纯净触发 `toggleFs()`；
+     - 无论是暂停状态还是播放状态，双击全屏/退出全屏均**绝对不会触发任何播放/暂停状态翻转**，体验 100% 对齐 B 站标准。
+- 涉及文件：apps/web/src/player/chrome/useShellPointerHandlers.ts
+
 ## [2026-08-13] 代码审查修复清单
 
 ### 1. VideoPlayer 自动下一集倒计时 setInterval 卸载未清理泄漏

@@ -198,17 +198,40 @@ export class CanvasDanmaku {
 
     this.onPlay = () => {
       this.isBuffering = false
-      this.syncClock(this.media.currentTime)
+      const curMediaT = this.media?.currentTime || 0
+      // If time drifted significantly (e.g. seeked while paused), re-sync anchor to currentTime
+      if (Math.abs(this.anchorMediaTime - curMediaT) > 0.35) {
+        this.anchorMediaTime = curMediaT
+      }
+      this.anchorPerfTime = performance.now()
+      this.lastPlaybackRate = this.effectivePlaybackRate()
       this.ensureLoop()
     }
     this.onPlaying = () => {
       this.isBuffering = false
-      this.syncClock(this.media.currentTime)
+      const curMediaT = this.media?.currentTime || 0
+      if (Math.abs(this.anchorMediaTime - curMediaT) > 0.35) {
+        this.anchorMediaTime = curMediaT
+      }
+      this.anchorPerfTime = performance.now()
+      this.lastPlaybackRate = this.effectivePlaybackRate()
       this.ensureLoop()
     }
     this.onPause = () => {
       this.isBuffering = false
-      this.syncClock(this.media.currentTime)
+      // Freeze smoothly at the exact interpolated visual time of current frame,
+      // avoiding backward jumps or PTS quantum quantization jitter
+      const now = performance.now()
+      const rate = this.effectivePlaybackRate()
+      const elapsed = (now - this.anchorPerfTime) * 0.001 * rate
+      const currentInterpolated = Math.max(0, this.anchorMediaTime + elapsed)
+      const curMediaT = this.media?.currentTime || 0
+      if (Math.abs(currentInterpolated - curMediaT) <= 0.35) {
+        this.anchorMediaTime = currentInterpolated
+      } else {
+        this.anchorMediaTime = curMediaT
+      }
+      this.anchorPerfTime = now
       this.stopLoop()
       this.paint()
     }
@@ -523,8 +546,12 @@ export class CanvasDanmaku {
   /** Monitor video clock drift and softly adjust anchor without visible snapping */
   private checkClockDrift(rawVideoTime: number): void {
     if (this.media.paused || this.isBuffering) {
-      this.anchorMediaTime = rawVideoTime
-      this.anchorPerfTime = performance.now()
+      // If user jumped / seeked without firing seeking event while paused
+      if (Math.abs(rawVideoTime - this.anchorMediaTime) > 0.35) {
+        this.anchorMediaTime = rawVideoTime
+        this.anchorPerfTime = performance.now()
+        this.seek()
+      }
       return
     }
     const now = performance.now()
@@ -547,7 +574,7 @@ export class CanvasDanmaku {
   private mediaTime(): number {
     if (!this.media) return 0
     if (this.media.paused || this.isBuffering) {
-      return this.media.currentTime || 0
+      return this.anchorMediaTime
     }
     const now = performance.now()
     const rate = this.effectivePlaybackRate()

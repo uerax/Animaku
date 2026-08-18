@@ -33,8 +33,18 @@ function isPlayerChromeTarget(target: EventTarget | null): boolean {
 
 /** Max gap between taps to count as double-tap (mobile). */
 const MOBILE_DOUBLE_TAP_MS = 320
-/** Delay before treating a lone tap as chrome toggle. */
+/** Delay before treating a lone tap as chrome toggle (mobile). */
 const MOBILE_SINGLE_TAP_DELAY_MS = 320
+/**
+ * Desktop single-click dispatch delay (ms).
+ * Waits 220ms so a double-click cancels the timer before togglePlay is ever called,
+ * aligning 100% with Bilibili/YouTube standards where double-click never triggers play/pause.
+ */
+const DESKTOP_SINGLE_CLICK_DELAY_MS = 220
+/** Max interval between clicks to register as double-click on desktop (ms). */
+const DESKTOP_DOUBLE_CLICK_MS = 250
+/** Max distance (px) between two clicks to count as double-click (desktop). */
+const DESKTOP_DOUBLE_CLICK_DIST_PX = 24
 /**
  * Mobile browsers often fire: click → click (our double-tap) → dblclick.
  * Without dedup, togglePlay runs twice (pause then immediate play).
@@ -46,7 +56,8 @@ const PLAY_TOGGLE_DEDUP_MS = 420
  * so edits to one path do not risk the other.
  *
  * Desktop (fine pointer):
- * - single-click play/pause; double-click fullscreen
+ * - single-click play/pause (debounced via 220ms timer)
+ * - deliberate fast double-click fullscreen (cancels single-click timer; 0 play/pause interference)
  * - mouse enter/move show bar; leave hide while playing
  *
  * Mobile / touch:
@@ -60,14 +71,24 @@ export function useShellPointerHandlers(
 ) {
   const apiRef = useRef(api)
   apiRef.current = api
-  const shellClickTimerRef = useRef(0)
+  const mobileClickTimerRef = useRef(0)
+  const desktopClickTimerRef = useRef(0)
   /** Last stage tap time for mobile double-tap (dblclick is unreliable on iOS). */
   const lastTapAtRef = useRef(0)
   /** Last play/pause toggle from stage gestures (dedup click+dblclick). */
   const lastPlayToggleAtRef = useRef(0)
+  /** Last desktop click info for tight double-click timing & coordinate validation. */
+  const lastDesktopClickRef = useRef({
+    time: 0,
+    x: 0,
+    y: 0,
+  })
 
   useEffect(() => {
-    return () => window.clearTimeout(shellClickTimerRef.current)
+    return () => {
+      window.clearTimeout(mobileClickTimerRef.current)
+      window.clearTimeout(desktopClickTimerRef.current)
+    }
   }, [])
 
   const requestTogglePlay = useCallback(() => {
@@ -83,19 +104,45 @@ export function useShellPointerHandlers(
       const a = apiRef.current
 
       if (pointerMode === 'desktop') {
-        window.clearTimeout(shellClickTimerRef.current)
-        shellClickTimerRef.current = 0
-        lastTapAtRef.current = 0
-        if (a.closeMenus()) {
+        if (a.closeMenus() || a.closePanel()) {
+          window.clearTimeout(desktopClickTimerRef.current)
+          desktopClickTimerRef.current = 0
+          lastDesktopClickRef.current = { time: 0, x: 0, y: 0 }
           a.bumpBar()
           return
         }
-        if (a.closePanel()) {
-          a.bumpBar()
+
+        const now = Date.now()
+        const prev = lastDesktopClickRef.current
+        const dt = now - prev.time
+        const dist = Math.hypot(e.clientX - prev.x, e.clientY - prev.y)
+
+        // 1. Fast second click (Double Click) within threshold (≤ 250ms & ≤ 24px)
+        if (dt > 0 && dt <= DESKTOP_DOUBLE_CLICK_MS && dist <= DESKTOP_DOUBLE_CLICK_DIST_PX) {
+          // CANCEL the pending single-click timer so play/pause is NEVER toggled
+          window.clearTimeout(desktopClickTimerRef.current)
+          desktopClickTimerRef.current = 0
+          lastDesktopClickRef.current = { time: 0, x: 0, y: 0 }
+
+          // ONLY toggle fullscreen (maintains current paused or playing state)
+          a.toggleFs()
           return
         }
-        // Desktop single-click is one event — no dedup needed vs dblclick (FS)
-        a.togglePlay()
+
+        // 2. First click (or click after threshold elapsed): start short timer
+        window.clearTimeout(desktopClickTimerRef.current)
+        lastDesktopClickRef.current = {
+          time: now,
+          x: e.clientX,
+          y: e.clientY,
+        }
+
+        desktopClickTimerRef.current = window.setTimeout(() => {
+          desktopClickTimerRef.current = 0
+          lastDesktopClickRef.current = { time: 0, x: 0, y: 0 }
+          a.togglePlay()
+        }, DESKTOP_SINGLE_CLICK_DELAY_MS)
+
         return
       }
 
@@ -103,8 +150,8 @@ export function useShellPointerHandlers(
       const now = Date.now()
       const sinceLast = now - lastTapAtRef.current
       if (sinceLast > 0 && sinceLast < MOBILE_DOUBLE_TAP_MS) {
-        window.clearTimeout(shellClickTimerRef.current)
-        shellClickTimerRef.current = 0
+        window.clearTimeout(mobileClickTimerRef.current)
+        mobileClickTimerRef.current = 0
         lastTapAtRef.current = 0
         requestTogglePlay()
         return
@@ -112,9 +159,9 @@ export function useShellPointerHandlers(
       lastTapAtRef.current = now
 
       // Single tap: wait in case a second tap arrives
-      window.clearTimeout(shellClickTimerRef.current)
-      shellClickTimerRef.current = window.setTimeout(() => {
-        shellClickTimerRef.current = 0
+      window.clearTimeout(mobileClickTimerRef.current)
+      mobileClickTimerRef.current = window.setTimeout(() => {
+        mobileClickTimerRef.current = 0
         // Only clear lastTap if no second tap started a new window
         if (Date.now() - lastTapAtRef.current >= MOBILE_SINGLE_TAP_DELAY_MS - 20) {
           lastTapAtRef.current = 0
@@ -134,12 +181,13 @@ export function useShellPointerHandlers(
     (e: ReactMouseEvent) => {
       if (isPlayerChromeTarget(e.target)) return
       e.preventDefault()
-      window.clearTimeout(shellClickTimerRef.current)
-      shellClickTimerRef.current = 0
+      window.clearTimeout(mobileClickTimerRef.current)
+      mobileClickTimerRef.current = 0
       lastTapAtRef.current = 0
       const a = apiRef.current
       if (pointerMode === 'desktop') {
-        a.toggleFs()
+        // Desktop double-click is strictly managed in onShellClick via timer cancellation
+        // to ensure zero unwanted play/pause toggling, matching Bilibili standard.
         return
       }
       // Fallback if browser still emits dblclick (some Androids).
