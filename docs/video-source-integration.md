@@ -20,20 +20,20 @@
    - 静态 HTML 渲染                - 主域名频繁被封                 - Next.js / Nuxt / SPA
    - suggest API 搜索              - 抓取发布页 XOR 动态解密         - Supabase / 自建后端 RPC
    - player_aaaa 播放配置          - 代表：LIBVIO                   - 异步 Edge Function 发流
-   - 代表：otage, mxdm             │                                - 代表：xifan-next, anime1, omofun
+   - 代表：mxdm                    │                                - 代表：cycani, xifan-next, anime1, omofun
          │                                 │                                │
          ▼                                 ▼                                ▼
 【纯 JSON 规则（零改代码）】      【Release 规则 (JSON 配置)】       【专有适配器 (TypeScript 模块)】
 - searchMode: xpath / api        - release.pageUrl                - apps/server/src/lib/{name}.ts
 - chapterRoads XPath             - release.xorKey / varName       - rule-engine/index.ts 挂载
-- apps/web/src/data/default-*    - 自动定时解析有效镜象             - 支持自动鉴权容灾 & 高性能直连
+- apps/web/src/data/default-*    - 自动定时解析有效镜像             - 支持自动鉴权容灾、区域路由 & 毫秒级直连
 ```
 
 ---
 
-## 2. 专有视频源接入标准 SOP（以 `xifan-next` 为例）
+## 2. 专有视频源接入标准 SOP
 
-针对现代 SPA / BaaS / 加密 API 类型的视频源，标准接入流程分为以下 6 个步骤：
+针对现代 SPA / BaaS / 加密 API 类型的视频源（如 `xifan-next`、`cycani`），标准接入流程分为以下 6 个步骤：
 
 ### 步骤一：抓包与协议探查
 
@@ -46,8 +46,9 @@
    - 分集列表的字段结构（`id`, `title`, `episode_number`, `kind` 正片/SP）。
    - 是否存在多个播放线路（如主线、备用线、清晰度分流）。
 3. **播放解析链路**：
-   - 获取视频流的触发方式（如 Edge Function `issue-web-playback`）。
+   - 获取视频流的触发方式（如 Edge Function `issue-web-playback` 或 `/api/v2/sections/.../play-url`）。
    - 返回格式（m3u8 还是 mp4 直链，是否 302 重定向至 CDN / 网盘）。
+   - **特别注意 BaaS 部署区域**：探查前端是否显式传递了 `region`（例如 Supabase 新加坡机房 `ap-southeast-1`）。
 4. **媒体流可播性与防盗链探查**：
    - 使用 `curl.exe -L -I "VIDEO_URL"` 检查状态码是否为 `200 OK` 或 `206 Partial Content`。
    - 检查是否携带 `Accept-Ranges: bytes`（决定能否在播放器中自由拖拽 Seek）。
@@ -60,7 +61,7 @@
 在 `apps/server/src/lib/` 目录下新建 `{name}.ts`，实现以下核心模块并导出：
 
 ```typescript
-// apps/server/src/lib/xifan-next.ts
+// apps/server/src/lib/{name}.ts
 
 import type {
   PluginChapterResult,
@@ -74,39 +75,62 @@ import { config } from '../config'
 import { fetchPublic } from './private-host'
 
 // 1. 规则匹配判定（通过 name 或 baseURL 域名特征识别）
-export function isXifanNextRule(rule: PluginRule): boolean {
+export function isMySourceRule(rule: PluginRule): boolean {
   const name = (rule.name || '').toLowerCase().trim()
-  return name === 'xifan-next' || (rule.baseURL || '').includes('next.xifanacg.com')
+  return name === 'my-source' || (rule.baseURL || '').includes('example.com')
 }
 
 // 2. 搜索逻辑（支持主 RPC 搜索 + 数据库模糊查询平滑回退）
-export async function searchXifanNext(rule: PluginRule, keyword: string): Promise<PluginSearchResult> {
+export async function searchMySource(rule: PluginRule, keyword: string): Promise<PluginSearchResult> {
   // 请求接口并组装 SearchItem[]: { name, src: `https://.../anime/${id}` }
 }
 
 // 3. 分集与线路逻辑（组装 Road[]，支持全量分流线路与 SP 分离）
-export async function chaptersXifanNext(rule: PluginRule, source: string): Promise<PluginChapterResult> {
+export async function chaptersMySource(rule: PluginRule, source: string): Promise<PluginChapterResult> {
   // 提取 animeId，解析全量多线路 Road[]: { name: '线路名', data: [epUrls...], identifier: [epNames...] }
 }
 
 // 4. 播放直链解析（解析 episodeId 并下发媒体地址与代理地址）
-export async function resolveXifanNext(rule: PluginRule, pageUrl: string): Promise<ResolvePlayResult> {
-  // 调用接口获取直链，服务端提前探测 302 目标，处理防盗链 Referer，返回 ResolvePlayResult
+export async function resolveMySource(rule: PluginRule, pageUrl: string): Promise<ResolvePlayResult> {
+  // 并发竞速解析直链，处理防盗链 Referer，返回 ResolvePlayResult
 }
 ```
 
 #### 🛡️ 容灾与自愈设计（必加项）
 若接口使用了前端静态 Key / Token，必须增加 **401/403 自动嗅探刷新机制**：
 ```typescript
-// 一旦请求返回 401/403，服务端主动抓取站点首页 JS 提取最新密钥并更新内存缓存后重试
+// 一旦请求返回 401/403，服务端主动抓取站点首页 JS 提取最新密钥或重新登录，并更新内存缓存后重试
 if (res.status === 401 || res.status === 403) {
   const newKey = await refreshPublishableKey()
   // 带上新 key 重新发起请求
 }
 ```
 
-#### ⚡ 302 提前探测优化（Server-side Pre-probe）
-对于返回 302 重定向至实际 CDN（如网盘直链）的中间地址，建议在服务端先发起一次探测获取重定向目标，直接下发真实 CDN 地址给客户端，减少前端起播握手延迟。
+#### ⚡ BaaS 区域路由直达（Region Routing，至关重要）
+对于 Supabase / Cloudflare Workers 等部署在指定区域的后端，必须显式注入区域参数：
+```typescript
+// 例如 xifan-next 部署在新加坡机房，若不带 region 会走全球默认 Edge Ingress 跨洲中继，延迟增加 7 倍（1.7s vs 0.25s）
+let url = `${DEFAULT_SUPABASE_URL}${endpoint}`
+if (endpoint.startsWith('/functions/v1/')) {
+  url += url.includes('?') ? '&forceFunctionRegion=ap-southeast-1' : '?forceFunctionRegion=ap-southeast-1'
+}
+headers['x-region'] = 'ap-southeast-1'
+```
+
+#### ⚡ 并发竞速代替串行试错（Concurrent Probing）
+当视频源支持多种流格式（如优先 HLS，未转码降级 MP4）时，**禁止使用串行 `await` 试错**，使用 `Promise.allSettled` 并发发起请求：
+```typescript
+const [hlsRes, fbRes] = await Promise.allSettled([
+  fetchHlsStream(episodeId),
+  fetchFallbackStream(episodeId),
+])
+// 优先采用 HLS，未就绪秒切 Fallback，总耗时对齐单次最快往返（~250ms）
+```
+
+#### 🚫 严禁服务端同步阻塞式 HEAD 探测
+- **不要**在服务端对返回的视频直链执行 `fetch(playUrl, { method: 'HEAD' })`。
+- 海外 CDN 节点对 HEAD 请求响应极其缓慢（常耗费 1000~2500ms），会严重拖慢首帧解析；
+- 浏览器 `<video>` 和 `Hls.js` 内核原生支持 0ms 自动跟随 302 重定向，服务端直接下发链接即可。
 
 ---
 
@@ -117,9 +141,9 @@ if (res.status === 401 || res.status === 403) {
 1. **`searchWithRule`**：
    ```typescript
    {
-     const { isXifanNextRule, searchXifanNext } = await import('../lib/xifan-next')
-     if (isXifanNextRule(rule)) {
-       try { return await searchXifanNext(rule, keyword) }
+     const { isMySourceRule, searchMySource } = await import('../lib/my-source')
+     if (isMySourceRule(rule)) {
+       try { return await searchMySource(rule, keyword) }
        catch (e) { return { pluginName: rule.name, items: [], diagnostics: [String(e)] } }
      }
    }
@@ -127,9 +151,9 @@ if (res.status === 401 || res.status === 403) {
 2. **`chaptersWithRule`**：
    ```typescript
    {
-     const { isXifanNextRule, chaptersXifanNext } = await import('../lib/xifan-next')
-     if (isXifanNextRule(rule)) {
-       try { return await chaptersXifanNext(rule, source) }
+     const { isMySourceRule, chaptersMySource } = await import('../lib/my-source')
+     if (isMySourceRule(rule)) {
+       try { return await chaptersMySource(rule, source) }
        catch (e) { return { pluginName: rule.name, roads: [], diagnostics: [String(e)] } }
      }
    }
@@ -137,9 +161,9 @@ if (res.status === 401 || res.status === 403) {
 3. **`resolvePlay`**：
    ```typescript
    {
-     const { isXifanNextRule, resolveXifanNext } = await import('../lib/xifan-next')
-     if (isXifanNextRule(rule)) {
-       return await resolveXifanNext(rule, pageUrl)
+     const { isMySourceRule, resolveMySource } = await import('../lib/my-source')
+     if (isMySourceRule(rule)) {
+       return await resolveMySource(rule, pageUrl)
      }
    }
    ```
@@ -153,34 +177,35 @@ if (res.status === 401 || res.status === 403) {
    {
      "api": "1",
      "type": "anime",
-     "name": "xifan-next",
+     "name": "my-source",
      "version": "1.0",
+     "weight": 70,
+     "preferOriginalTitle": false,
      "muliSources": true,
      "useWebview": false,
      "useNativePlayer": true,
      "usePost": false,
      "useLegacyParser": false,
      "adBlocker": false,
-     "baseURL": "https://next.xifanacg.com/",
-     "searchURL": "https://next.xifanacg.com/browse?q=@keyword",
+     "baseURL": "https://example.com/",
+     "searchURL": "https://example.com/search?q=@keyword",
      "searchList": "//a",
      "searchName": ".",
      "searchResult": ".",
      "chapterRoads": "//div",
      "chapterResult": ".//a",
-     "referer": "https://next.xifanacg.com/"
+     "referer": "https://example.com/"
    }
    ```
-   > **⚠️ 格式规范**：若由专有适配器全权接管解析（如 `isXifanNextRule` / `isAnime1Rule`），JSON 中的 `searchMode` 保持默认 `"xpath"` 并保留合法的 `searchURL`，避免声明 `searchMode: "api"` 却缺失 `searchApiConfig` 导致通用 Schema 校验报错 `400 Bad Request`。
+   > **⚠️ 格式规范**：若由专有适配器全权接管解析，JSON 中的 `searchMode` 保持默认 `"xpath"` 并保留合法的 `searchURL`，避免声明 `searchMode: "api"` 却缺失 `searchApiConfig` 导致通用 Schema 校验报错 `400 Bad Request`。  
+   > **💡 权重配置**：`weight` 决定列表排序（70 优质原画直链 > 60 代理源 > 55 普通源 > 50 备选源）。
 
 2. **在 `apps/web/src/data/default-plugins/index.ts` 中注册**：
    ```typescript
-   import xifanNext from './xifan-next.json'
+   import mySource from './my-source.json'
    
    export const DEFAULT_PLUGIN_RULES: PluginRule[] = [
-     mxdm as PluginRule,
-     omofun as PluginRule,
-     xifanNext as PluginRule, // 注册到内置规则列表
+     mySource as PluginRule, // 注册到内置规则列表
      ...
    ]
    ```
@@ -190,7 +215,7 @@ if (res.status === 401 || res.status === 403) {
 ### 步骤五：递增客户端默认规则版本号（至关重要）
 
 在 `apps/web/src/stores/plugins.ts` 中：
-1. **递增 `PLUGIN_DEFAULTS_VERSION`**（如 `13 -> 14`）；
+1. **递增 `PLUGIN_DEFAULTS_VERSION`**（如 `21 -> 22`）；
 2. **将新规则名称加入 `legacyBuiltinNames` 集合**；
 
 > **为什么必须做这一步？**  
@@ -210,6 +235,9 @@ if (res.status === 401 || res.status === 403) {
 
 | 关注维度 | 踩坑现象与常见隐患 | 正确做法与规范 |
 | :--- | :--- | :--- |
+| **BaaS / Serverless 区域路由** | 未指定机房 region，请求走全球 Edge Ingress 跨洲中继，单次往返延迟从 250ms 膨胀至 1800ms。 | 抓包官方前端 client 查看配置的 region（如 `ap-southeast-1`），在 URL 追加 `?forceFunctionRegion=...` 并在 Header 注入 `x-region` 直达实例。 |
+| **流分支串行试错** | 先 `await` HLS（失败报错），再 `await` Fallback，两次串行导致解析耗时成倍放大。 | 改用 `Promise.allSettled` 并发请求 HLS 与 Fallback，取最快且可用分支，将耗时压缩至单次请求最大值（~250ms）。 |
+| **无意义的 HEAD 探测** | 服务端在下发链接前使用 `HEAD` 方法探测海外 CDN 302 重定向，单次白白浪费 1~2.5 秒。 | 坚决移除服务端同步 HEAD 探测；现代浏览器内核原生支持 0ms 跟随重定向，直接将直链下发给客户端。 |
 | **防盗链与 Referer** | 联通云盘直链（`pan.wo.cn`）或部分 CDN 在携带跨域 Referer（如 `localhost:5173`）时直接报 `400 Bad Request`。 | 在 `index.html` 配置 `<meta name="referrer" content="no-referrer" />`，在 `<video>` 实例配置 `referrerPolicy = 'no-referrer'`；服务端根据目标 CDN 清除跨域 Referer。 |
 | **Next.js RSC 串流多线路解析** | 现代 Next.js 站点分集数据嵌套在 `self.__next_f.push([1, "..."])` 中，且含有三层转义（`\\\"sources\\\":[...]`），简单正则无法匹配。 | 编写带括号层级计数的 `extractNextFPushes` 块提取器，先将外层字符串 `JSON.parse` 解开一层，再解析内部 `sources` JSON 提取多线路。 |
 | **选源异步竞态（Race Condition）** | 初始后台预搜索较慢返回，强行触发 `autoPickFirst` 覆盖了用户刚刚点击选择的新源，导致页面突然跳回首个默认源。 | 在 `searchOnePlugin` 返回时增加断言：若当前用户已选中或正在聚焦另一个源（`selectionRef.current.plugin.name !== plugin.name`），**绝对禁止自动覆盖选集**；侧边栏切源传递 `clearSelection: true`。 |
