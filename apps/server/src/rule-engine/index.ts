@@ -13,6 +13,7 @@ import xpath from 'xpath'
 import { config } from '../config'
 import { assertPublicHttpUrl, fetchPublic } from '../lib/private-host'
 import { isReleaseRule, resolveReleaseBaseUrl, invalidateReleaseCache } from '../lib/release'
+import { simplifiedToTraditional } from '../lib/opencc-s2t'
 
 const MEDIA_RE =
   /(https?:\/\/[^\s"'<>\\]+?\.(?:m3u8|mp4)(?:\?[^\s"'<>\\]*)?)/gi
@@ -765,9 +766,18 @@ function parseSearchHtml(
 /**
  * Expand a single keyword into a few short variants.
  */
-function expandKeywordCandidates(keyword: string): string[] {
-  const raw = keyword.trim()
+function expandKeywordCandidates(keyword: string, rule?: PluginRule): string[] {
+  let raw = keyword.trim()
   if (!raw) return []
+
+  if (rule?.traditionalChinese) {
+    raw = simplifiedToTraditional(raw).trim()
+  }
+
+  if (rule?.stripSymbols) {
+    raw = raw.replace(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~～·・：；（）【】「」]/g, ' ').replace(/\s+/g, ' ').trim()
+  }
+
   const out: string[] = []
   const push = (s: string) => {
     const t = s.replace(/\s+/g, ' ').trim()
@@ -873,7 +883,7 @@ export async function searchWithRule(
   if (rule.searchMode === 'api') {
     try {
       const { searchWithApiRule } = await import('./api')
-      const candidates = expandKeywordCandidates(keyword)
+      const candidates = expandKeywordCandidates(keyword, rule)
       if (!candidates.length) {
         return {
           pluginName: rule.name,
@@ -938,7 +948,7 @@ export async function searchWithRule(
     }
   }
 
-  const candidates = expandKeywordCandidates(keyword)
+  const candidates = expandKeywordCandidates(keyword, rule)
   if (!candidates.length) {
     return {
       pluginName: rule.name,

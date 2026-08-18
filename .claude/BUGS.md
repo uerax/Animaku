@@ -84,6 +84,54 @@
 - 描述：参考 Bilibili Web/YouTube Web/DPlayer 移动端标准实践，引入 kz-player-backdrop 透明遮罩机制。当音量条/倍速/超分菜单开启时，点击遮罩 0 毫秒瞬间收起面板并隔离手势，解决关闭延迟与双击判定的冲突。
 - 涉及文件：apps/web/src/player/chrome/MobileControls.tsx, apps/web/src/player/chrome/useShellPointerHandlers.ts, apps/web/src/player/plyr-overrides.css
 
+## [2026-08-18] 视频源多源聚合交互与主题适配问题修复
+
+### 1. 首次打开播放页未自动获取默认源且源面板全部呈现 Rose 状态
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1) `useWatchSession` 修复为仅在解析到有效番剧关键词后才锁定 `defaultSearchDoneFor.current = bangumiId`，确保元数据异步到达后立即自动触发首源搜索并起播；
+  2) `WatchPage` 中将 `sourcesOpen` 初始值调整为 `false`（默认折叠），彻底杜绝首屏打开时自动展开并对所有源发起探测，严格遵循「起播零等待、正常播放 0 冗余请求」原则；
+  3) 探活超时从 3s 调整为 5s 避免慢速/爬虫源假超时。
+- 涉及文件：apps/web/src/lib/use-watch-session.ts, apps/web/src/pages/WatchPage.tsx, apps/web/src/lib/use-source-aggregator.ts
+
+### 2. 视频源在白天主题下字体看不清与搜索背景突兀
+- 状态：已完成
+- 优先级：P0
+- 描述：`SourceBoard.tsx` 全面移除硬编码暗黑类名，全量接入站点 `var(--kz-*)` 双模态设计 Token，使白天模式下底色清爽、字体黑白对比适度、关键词选择/输入栏自然和谐。
+- 涉及文件：apps/web/src/pages/watch/SourceBoard.tsx
+
+### 3. 带 query 参数直访链接时选中源显示排队等待且请求其他源
+- 状态：已完成
+- 优先级：P0
+- 描述：在 `useSourceAggregator` 中接入 `selection` 监听，当前激活源（activePlugin）自动同步为 `ready` 状态；配合 `sourcesOpen=false`，带参直访或从历史记录进入时不会触发多余源的请求。
+- 涉及文件：apps/web/src/lib/use-source-aggregator.ts, apps/web/src/pages/WatchPage.tsx, apps/web/src/lib/use-watch-session.ts
+
+### 4. 针对请求失败的源无法手动切换关键词或输入关键词重搜
+- 状态：已完成
+- 优先级：P1
+- 描述：为探测失败（`error` / `empty`）及待选（`needs_pick`）的源提供展开卡片能力，内置候选关键词快速点选 chips 及自定义关键词输入框，支持针对单源换词重搜与重新探活。
+- 涉及文件：apps/web/src/pages/watch/SourceBoard.tsx, apps/web/src/lib/use-source-aggregator.ts, apps/web/src/lib/use-watch-session.ts
+
+### 5. 精简视频源卡片状态文案、Safari字号紧凑化与单行省略截断
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1) 移除已有 3 色状态圆点下的冗余「🟢 已就绪 ·」等前缀文字，直接展示匹配条目名；
+  2) 针对匹配条目名称设置严格单行截断（`truncate` / `block`），彻底防止长标题换行撑大卡片高度；
+  3) 优化 Safari / 桌面端整体排版字号与内边距（avatar 7x7，字号 11~13px，card padding 2px）；
+  4) 统一「切换」、「换词重试」、「当前使用」、「选条目」等操作胶囊的尺寸（固定 `h-6`、`px-2.5`、`leading-none`、`font-semibold` 与统一描边），彻底解决大小不一致和字体不统一问题；
+  5) 移除面板顶部冗余的全局搜索下拉框与输入框，全面收敛至单卡内展开式精准操作。
+- 涉及文件：apps/web/src/pages/watch/SourceBoard.tsx, apps/web/src/pages/WatchPage.tsx
+
+### 6. 从历史记录进入时误触发默认首源搜索与链接不一致修复
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1) `HistoryPage.tsx` 中卡片主体链接此前为 `/subject/:id`（漏传 `plugin` 与 `pageUrl` 参数），导致点击卡片进入时丢失历史源并触发默认首源搜索；现已与「续播」按钮完全统一为带完整 query 的 `/play/:id?...` 链接；
+  2) `use-watch-session.ts` 中修复了 `keywordTargetPlugin` 预选逻辑：优先从 URL query 中获取 `qPlugin` 作为目标源，并在带有 `qPlugin` 时严格切断首源的默认搜索与自动探活，确保从历史播放点击进入时 100% 仅加载并请求历史指定的视频源。
+- 涉及文件：apps/web/src/pages/HistoryPage.tsx, apps/web/src/lib/use-watch-session.ts
+
 ## [2026-08-14] 修复部分大屏手机/浏览器渲染 WebKit 原生 range 步进箭角的 Bug
 
 - 状态：已完成

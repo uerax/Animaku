@@ -73,6 +73,14 @@ export interface PluginRule {
    * Defaults to false (Chinese title first).
    */
   preferOriginalTitle?: boolean
+  /**
+   * When true, automatically convert Simplified Chinese search keywords to Traditional Chinese.
+   */
+  traditionalChinese?: boolean
+  /**
+   * When true, strip special punctuation and symbols before sending search requests.
+   */
+  stripSymbols?: boolean
   muliSources?: boolean
   useWebview?: boolean
   useNativePlayer?: boolean
@@ -484,6 +492,16 @@ export function parsePluginRule(raw: unknown): PluginRule {
       ? j.preferOriginalTitle
       : undefined
 
+  const traditionalChinese =
+    typeof j.traditionalChinese === 'boolean'
+      ? j.traditionalChinese
+      : undefined
+
+  const stripSymbols =
+    typeof j.stripSymbols === 'boolean'
+      ? j.stripSymbols
+      : undefined
+
   return {
     api: String(j.api ?? '1'),
     type: String(j.type ?? 'anime'),
@@ -491,6 +509,8 @@ export function parsePluginRule(raw: unknown): PluginRule {
     version: String(j.version ?? ''),
     weight,
     preferOriginalTitle,
+    traditionalChinese,
+    stripSymbols,
     muliSources: Boolean(j.muliSources ?? true),
     useWebview: Boolean(j.useWebview ?? true),
     useNativePlayer: Boolean(j.useNativePlayer ?? true),

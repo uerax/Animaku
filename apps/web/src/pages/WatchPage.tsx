@@ -1,14 +1,12 @@
-import { FormEvent, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import clsx from 'clsx'
 import { CollectType } from '@animaku/shared'
-import {
-  useWatchSession,
-  bestTitleSimilarity,
-} from '../lib/use-watch-session'
+import { useWatchSession } from '../lib/use-watch-session'
 import { bangumiApi } from '../lib/bangumi'
 import { useSettingsStore } from '../stores/settings'
+import { usePluginStore } from '../stores/plugins'
 import { ErrorState } from '../components/ui'
 import {
   EmbedPlayerSuspense,
@@ -20,6 +18,8 @@ import { DesktopWatchLayout } from './watch/DesktopWatchLayout'
 import { MobileWatchLayout } from './watch/MobileWatchLayout'
 import { WatchMeta } from './watch/WatchMeta'
 import { MobileEpsSection } from './watch/MobileEpsSection'
+import { SourceBoard } from './watch/SourceBoard'
+import { WatchHudToast } from './watch/WatchHudToast'
 
 /**
  * Unified subject + cinema page (Bilibili-style).
@@ -37,8 +37,8 @@ export function WatchPage() {
   const [summaryOpen, setSummaryOpen] = useState(false)
   /** Mobile: whole meta card collapsed to 2 lines until expanded */
   const [metaOpen, setMetaOpen] = useState(false)
-  /** Sources open until a selection lands; then auto-collapse to focus 选集 */
-  const [sourcesOpen, setSourcesOpen] = useState(true)
+  /** Sources collapsed by default; on-demand stream probe when expanded by user */
+  const [sourcesOpen, setSourcesOpen] = useState(false)
   /** Bilibili strip: false = horizontal cards, true = full grid (desktop + mobile) */
   const [epsListExpanded, setEpsListExpanded] = useState(false)
   /** Last selection key we auto-focused (collapse sources / mobile scroll) */
@@ -48,8 +48,6 @@ export function WatchPage() {
    * Avoids re-forcing grid after the user collapses「全 N 话」.
    */
   const autoExpandedEpsKey = useRef<string | null>(null)
-
-  const [kwInput, setKwInput] = useState('')
 
   /** Collapse 视频源; default 选集 to full grid; on mobile scroll cinema into view. */
   const focusAfterSelection = useCallback(
@@ -144,13 +142,6 @@ export function WatchPage() {
   useEffect(() => {
     preloadVideoPlayer()
   }, [])
-
-  function onKeywordSubmit(e: FormEvent) {
-    e.preventDefault()
-    const kw = kwInput.trim()
-    if (!kw) return
-    void w.reSearchCurrentSource(kw)
-  }
 
   if (!Number.isFinite(bangumiId) || bangumiId <= 0) {
     return <ErrorState error={new Error('无效的番剧 ID')} />
@@ -320,329 +311,33 @@ export function WatchPage() {
     />
   )
 
-  const sourcesSearched = w.searchResults.filter((r) => r.searched).length
-  const sourcesTotal = w.searchResults.length
-  const sourcesSummary = w.selection
-    ? `${w.pluginName || w.selection.plugin.name}${
-        w.episode ? ` · 第 ${w.episode.episode} 集` : ''
-      }${sourcesTotal ? ` · ${sourcesSearched}/${sourcesTotal} 已搜` : ''}`
-    : sourcesTotal
-      ? `${sourcesSearched}/${sourcesTotal} 已搜 · 点源搜索后选条目`
-      : '点源搜索 → 再点条目加载选集'
+  const pluginOrder = usePluginStore((s) =>
+    Array.isArray(s.pluginOrder) ? s.pluginOrder : [],
+  )
 
   const sourcesPanel = (
-    <section
-      className={clsx(
-        /* Keep kz-watch-sources / -panel class hooks for desktop scroll CSS */
-        'kz-watch-sources-panel kz-watch-panel kz-bili-panel shrink-0 overflow-hidden',
-        sourcesOpen && 'kz-watch-sources',
-      )}
-    >
-      {/* bilibili 侧栏头：标题 + 摘要 + chevron */}
-      <button
-        type="button"
-        onClick={() => startTransition(() => setSourcesOpen((v) => !v))}
-        className="kz-bili-sec-head kz-bili-sec-head--btn"
-        aria-expanded={sourcesOpen}
-      >
-        <span className="kz-bili-sec-title">
-          视频源
-          {sourcesTotal > 0 ? (
-            <span className="kz-bili-sec-count">
-              ({sourcesSearched}/{sourcesTotal})
-            </span>
-          ) : null}
-        </span>
-        <span className="kz-bili-sec-summary" title={sourcesSummary}>
-          {w.selection
-            ? `${w.pluginName || w.selection.plugin.name}${
-                w.episode ? ` · 第${w.episode.episode}集` : ''
-              }`
-            : sourcesTotal
-              ? '点源搜索后选条目'
-              : '点源搜索'}
-        </span>
-        <span className="kz-bili-sec-more" aria-hidden>
-          <svg
-            className="kz-bili-chevron"
-            data-open={sourcesOpen ? 'true' : 'false'}
-            viewBox="0 0 16 16"
-            fill="none"
-          >
-            <path
-              d="M4 6.2L8 10.2L12 6.2"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </span>
-      </button>
-
-      {sourcesOpen && (
-        <div className="kz-watch-sources-body">
-          <div className="kz-bili-kw">
-            <form onSubmit={onKeywordSubmit} className="kz-bili-kw-form">
-              {/* 关键词高度仍由 .kz-kw-* 锁定 */}
-              <div className="kz-bili-kw-row">
-                <div className="relative min-w-0 flex-1">
-                  <select
-                    value={
-                      keywordOptions.includes(w.searchKeyword)
-                        ? w.searchKeyword
-                        : ''
-                    }
-                    disabled={!hasKeywordTarget}
-                    onChange={(e) => {
-                      const v = e.target.value
-                      if (!v) return
-                      setKwInput(v)
-                      const plugin = w.keywordTargetPlugin || w.selection?.plugin
-                      if (!plugin) return
-                      void w.searchOnePlugin(plugin, v, {
-                        clearSelection: true,
-                        autoPickFirst: true,
-                        isManual: true,
-                      })
-                    }}
-                    className="kz-kw-select kz-bili-kw-select w-full appearance-none truncate py-0 pl-2 pr-5 text-[var(--kz-fg)] outline-none disabled:opacity-40"
-                    title={
-                      keywordOptions.includes(w.searchKeyword)
-                        ? w.searchKeyword
-                        : hasKeywordTarget
-                          ? '选择关键词重搜'
-                          : '先点规则源'
-                    }
-                  >
-                    <option value="" disabled>
-                      {hasKeywordTarget
-                        ? keywordOptions.length
-                          ? '选择关键词…'
-                          : '暂无候选'
-                        : '先点下方规则源'}
-                    </option>
-                    {keywordOptions.map((kw) => (
-                      <option key={kw} value={kw} title={kw}>
-                        {kw}
-                      </option>
-                    ))}
-                  </select>
-                  <span
-                    className="pointer-events-none absolute inset-y-0 right-1.5 flex items-center text-[var(--kz-fg-muted)]"
-                    aria-hidden
-                  >
-                    <svg width="8" height="8" viewBox="0 0 16 16" fill="none">
-                      <path
-                        d="M4 6.2L8 10.2L12 6.2"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </span>
-                </div>
-              </div>
-              <div className="kz-bili-kw-row">
-                <input
-                  value={kwInput}
-                  onChange={(e) => setKwInput(e.target.value)}
-                  disabled={!hasKeywordTarget}
-                  placeholder={
-                    hasKeywordTarget ? '自定义关键词' : '点规则源后再搜'
-                  }
-                  className="kz-kw-input kz-bili-kw-input min-w-0 flex-1 px-2 py-0 text-[var(--kz-fg)] outline-none placeholder:text-[var(--kz-fg-dim)] disabled:opacity-40"
-                />
-                <button
-                  type="submit"
-                  disabled={!hasKeywordTarget || !kwInput.trim()}
-                  className="kz-kw-search-btn kz-bili-kw-btn shrink-0 disabled:opacity-40"
-                >
-                  搜索
-                </button>
-              </div>
-            </form>
-          </div>
-
-          <div className="kz-bili-source-list">
-            {!w.searchResults.length && (
-              <div className="kz-bili-empty">
-                <p>没有启用的规则。请到设置中启用或导入。</p>
-                <Link
-                  to="/settings"
-                  className="mt-1 font-medium text-[var(--kz-accent)] hover:underline"
-                >
-                  打开设置
-                </Link>
-              </div>
-            )}
-            {w.searchResults.map((r) => {
-              const isTarget =
-                (w.keywordTargetPlugin?.name || w.selection?.plugin.name) ===
-                r.plugin.name
-              const isDefault =
-                r.plugin.name.toLowerCase() ===
-                  w.defaultSourceName.toLowerCase() ||
-                r.plugin.name
-                  .toLowerCase()
-                  .includes(w.defaultSourceName.toLowerCase())
-              const hasItems = r.searched && !r.pending && r.items.length > 0
-              const selectedInThis = w.selection?.plugin.name === r.plugin.name
-              const needsPick = hasItems && !selectedInThis
-              const statusLabel = r.pending
-                ? '搜索中'
-                : needsPick
-                  ? `点选·${r.items.length}`
-                  : r.searched
-                    ? r.items.length
-                      ? selectedInThis
-                        ? '已选'
-                        : `${r.items.length}条`
-                      : '无结果'
-                    : '点搜'
-              return (
-                <div
-                  key={r.plugin.id}
-                  className={clsx(
-                    'kz-bili-source',
-                    needsPick && 'kz-bili-source--pick',
-                    isTarget && !needsPick && 'kz-bili-source--active',
-                  )}
-                >
-                  <button
-                    type="button"
-                    className="kz-bili-source-row"
-                    onClick={() => {
-                      w.setKeywordTargetPlugin(r.plugin)
-                      if (!r.pending) {
-                        startTransition(() => {
-                          void w.openPluginSearch(r.plugin, undefined, {
-                            clearSelection: true,
-                            autoPickFirst: true,
-                          })
-                        })
-                      }
-                    }}
-                    title={
-                      needsPick
-                        ? '已搜到结果，请在下方点选番剧条目'
-                        : isDefault
-                          ? `默认源 ${w.defaultSourceName} · 点击搜索`
-                          : '点击搜索此源'
-                    }
-                  >
-                    <span className="kz-bili-source-avatar" aria-hidden>
-                      {(r.plugin.name.trim().charAt(0) || '?').toUpperCase()}
-                    </span>
-                    <span className="kz-bili-source-main min-w-0 flex-1">
-                      <span className="kz-bili-source-name-row">
-                        <span className="kz-bili-source-name">
-                          {r.plugin.name}
-                        </span>
-                        {isDefault ? (
-                          <span className="kz-bili-tag">默认</span>
-                        ) : null}
-                        {isTarget ? (
-                          <span className="kz-bili-tag kz-bili-tag--accent">
-                            当前
-                          </span>
-                        ) : null}
-                      </span>
-                      <span className="kz-bili-source-sub">
-                        {r.keyword
-                          ? `「${r.keyword}」${needsPick ? ' · 点选条目' : ''}`
-                          : isDefault
-                            ? '自动搜此源'
-                            : '点此搜索'}
-                      </span>
-                    </span>
-                    <span
-                      className={clsx(
-                        'kz-bili-source-action',
-                        r.pending && 'kz-bili-source-action--pending',
-                        needsPick && 'kz-bili-source-action--pick',
-                        selectedInThis &&
-                          !needsPick &&
-                          'kz-bili-source-action--done',
-                      )}
-                    >
-                      {statusLabel}
-                    </span>
-                  </button>
-
-                  {!r.pending && r.searched && r.error && (
-                    <div className="kz-bili-source-error">{r.error}</div>
-                  )}
-
-                  {hasItems && (
-                    <ul
-                      className={clsx(
-                        'kz-bili-hits',
-                        needsPick && 'kz-bili-hits--emphasis',
-                      )}
-                      aria-label={`${r.plugin.name} 搜索结果，点击条目加载选集`}
-                    >
-                      {needsPick && (
-                        <li className="kz-bili-hits-tip">点选条目加载分集</li>
-                      )}
-                      {r.items.map((it, idx) => {
-                        const selected =
-                          w.selection?.plugin.name === r.plugin.name &&
-                          w.selection?.source.src === it.src
-                        const pending =
-                          w.pendingSource?.pluginName === r.plugin.name &&
-                          w.pendingSource?.src === it.src
-                        const score = bestTitleSimilarity(it.name, w.titleRefs)
-                        return (
-                          <li key={`${r.plugin.name}:${it.src}:${idx}`}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                w.setKeywordTargetPlugin(r.plugin)
-                                startTransition(() => {
-                                  void w.pickSource(r.plugin, it)
-                                })
-                              }}
-                              className={clsx(
-                                'kz-bili-hit',
-                                selected && 'kz-bili-hit--on',
-                                pending && !selected && 'kz-bili-hit--pending',
-                              )}
-                            >
-                              <span className="kz-bili-hit-title">{it.name}</span>
-                              <span className="kz-bili-hit-meta">
-                                {selected ? (
-                                  <>
-                                    <span
-                                      className="kz-bili-hit-live"
-                                      aria-hidden
-                                    />
-                                    播放中
-                                  </>
-                                ) : pending ? (
-                                  '加载中'
-                                ) : needsPick ? (
-                                  '选用'
-                                ) : score >= 0.85 ? (
-                                  '相近'
-                                ) : (
-                                  '选用'
-                                )}
-                              </span>
-                            </button>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-    </section>
+    <SourceBoard
+      bangumiId={bangumiId}
+      sourcesOpen={sourcesOpen}
+      onToggleSourcesOpen={() => setSourcesOpen((v) => !v)}
+      activePluginName={w.pluginName}
+      activeEpisodeNumber={w.episode?.episode}
+      plugins={w.enabledPlugins}
+      pluginOrder={pluginOrder}
+      titleRefs={w.titleRefs}
+      bangumiItem={w.bangumiItem}
+      defaultKeyword={w.defaultKeyword}
+      keywordOptions={keywordOptions}
+      onSwitchSource={(plugin, targetItem) => {
+        startTransition(() => {
+          void w.switchToPlugin(plugin, targetItem)
+        })
+      }}
+      selection={w.selection}
+      pendingSource={w.pendingSource}
+      roadLoading={w.roadLoading}
+      defaultSourceName={w.defaultSourceName}
+    />
   )
 
   /* Bilibili-style 选集 — shared desktop rail + mobile */
@@ -674,6 +369,7 @@ export function WatchPage() {
 
   return (
     <div className="kz-watch -mx-4 -mt-2 sm:mx-0 sm:mt-0">
+      <WatchHudToast message={w.hudMessage} />
       {layoutMode === 'desktop' ? (
         <DesktopWatchLayout
           player={playerBlock}

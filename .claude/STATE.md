@@ -1,5 +1,54 @@
 # Animaku 项目状态
 
+## [2026-08-18] 修复视频源首屏起播、折叠时机、白天主题适配与失败源自定义重搜
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **首屏起播与默认折叠（0 冗余网络请求）**：
+     - 修复 `use-watch-session.ts`：在条目元数据（`item`）异步获取完成前不提前标记 `defaultSearchDoneFor`，确保元数据就绪后 100% 自动触发首个默认源（如 `xifan-next`）的搜索与起播；
+     - `WatchPage.tsx` 中将 `sourcesOpen` 调整为 `false`（默认折叠），消除打开播放页时先展开后折叠的闪烁，且起播期间对其他视频源 0 网络请求；仅当用户主动展开视频源时才按需触发流式探测。
+  2. **白天/黑夜双模态设计 Token 全面适配**：
+     - `SourceBoard.tsx` 全面移除硬编码暗色类名，接入 `var(--kz-*)` 双模态设计系统（`--kz-bg-elevated`、`--kz-bg-soft`、`--kz-border`、`--kz-fg`、`--kz-accent` 等）；
+     - 白天模式下文字黑白对比舒适清晰，关键词选择下拉框与输入框背景柔和自然。
+  3. **直访与续播激活源状态同步**：
+     - 从带 `plugin=...` 直链或历史记录进入时，`useSourceAggregator` 自动将当前激活源识别为 `ready` 状态；
+     - 配合 `sourcesOpen=false`，从历史记录进入时仅请求历史源，绝不再并发请求排第一的默认源。
+  4. **失败源与待选源手动换词与自定义重搜**：
+     - 在 `useSourceAggregator` 中支持 `reProbePlugin(pluginName, customKeyword)` 与 5s 柔性超时；
+     - 在 `SourceBoard.tsx` 中，针对探测失败（`error` / `empty`）及待选（`needs_pick`）源提供平滑展开卡片能力，包含快捷候选关键词 chips（日语原名/中文译名等）及单独的关键词输入框，支持针对单源换词重搜。
+  5. **卡片视觉排版升维与胶囊统一（对标 Safari / 主流流媒体）**：
+     - 移除已有 3 色状态圆点下的冗余前缀文本（如「🟢 已就绪 ·」等），副标题直接展示匹配条目名；
+     - 匹配标题严格限制为单行文本截断（`truncate` / `block`），杜绝长标题折行撑大卡片高度；
+     - 统一所有操作胶囊（「切换」、「换词重试」、「当前使用」、「选条目」、「加载中」）为统一尺寸体系：固定 `h-6`（24px）、`px-2.5`、`leading-none`、`font-semibold` 与统一描边，彻底消除高低不一和字体差异；
+     - 移除面板顶部冗余的全局搜索栏，将界面空间百分之百留给视频源卡片列表。
+  6. **历史记录进入精准定向目标源（0 冗余默认源加载）**：
+     - `HistoryPage.tsx` 中卡片主体链接统一为带完整 query 的 `/play/:id?...` 链接，消除此前跳转丢失历史源参数的问题；
+     - `use-watch-session.ts` 中 `keywordTargetPlugin` 预选优先读取 `qPlugin`，并在检测到 URL 显式带源时绝对阻断首位默认源的后台搜索与探测，确保 100% 仅加载并请求历史指定的视频源。
+  7. **首页「继续观看」卡片上限精简为 4 项**：
+     - `HomePage.tsx` 中将最近观看数量由 6 条精简为 **4 条**（`items.slice(0, 4)`）；
+     - 网格布局调整为 `grid-cols-1 sm:grid-cols-2 lg:grid-cols-4`，在大屏/桌面端整齐铺满 1 整行，手机端避免竖向过长占用首屏视线。
+- 涉及文件：apps/web/src/pages/HomePage.tsx, apps/web/src/pages/HistoryPage.tsx, apps/web/src/lib/use-watch-session.ts, apps/web/src/lib/use-source-aggregator.ts, apps/web/src/pages/WatchPage.tsx, apps/web/src/pages/watch/SourceBoard.tsx, apps/web/src/index.css, .claude/BUGS.md, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 0 错误通过，`pnpm build` 全量构建打包通过。
+
+## [2026-08-18] 视频源架构体系重构与流媒体级交互体验升级落地
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **阶段 1：数据持久化、集数对齐与切源继承**：
+     - 在 `packages/shared/src/episode.ts` 中实现 `parseEpisodeNumber` 与 `findMatchingEpisodeIndex` 算法，支持常规话数、带前缀/后缀、小数分集、SP/OVA 等多样化标题归一化与跨源对齐；
+     - 在 `apps/web/src/stores/source-bindings.ts` 中构建 `useSourceBindingStore`（Zustand + `localStorage` + 1000条 LRU，~150KB），支持 0ms 绑定直达与静默安全门禁（相似度 $\ge 0.50$ 才持久化，$< 0.50$ 仅内存播放防投毒）；
+     - 在 `apps/web/src/lib/use-watch-session.ts` 中重构切源链路：支持 0ms 绑定直达起播、跨源切源时自动对齐当前集数与秒级播放进度无缝继承。
+  2. **阶段 2：按需流式聚合探测器与 3 色琉璃流媒体看板**：
+     - 实现 `apps/web/src/lib/use-source-aggregator.ts`，基于 2 并发轻量池进行 3s 快速超时熔断探测，支持源级独立状态流式推送与用户点击插队抢占；
+     - 构建 `apps/web/src/pages/watch/SourceBoard.tsx` 与 `WatchHudToast.tsx`，采用 Dark Glassmorphism 琉璃暗场美学与流媒体级 3 色动态微光指示器（🟢 Emerald 已就绪 / 🟡 Amber 待选 / 🔴 Rose 异常或未收录 / ⏳ 探活 Shimmer）；
+     - 在 `WatchPage.tsx` 中全面替换为新看板与浮层 HUD 提示。
+  3. **阶段 3：故障自愈闭环与规则预处理完善**：
+     - 实现 404 / 502 / 空分集时的静默自愈机制（自动剔除损坏的持久化绑定并回源单次重搜）；
+     - 在 `PluginRule` 中扩展 `traditionalChinese` 与 `stripSymbols` 特性声明，并在服务端 `searchWithRule` 中接入预处理；
+     - 在内置源 `anime1.json` 中配置 `"traditionalChinese": true`。
+- 涉及文件：packages/shared/src/episode.ts, packages/shared/src/index.ts, packages/shared/src/plugin.ts, apps/web/src/stores/source-bindings.ts, apps/web/src/lib/use-watch-session.ts, apps/web/src/lib/use-source-aggregator.ts, apps/web/src/pages/watch/SourceBoard.tsx, apps/web/src/pages/watch/WatchHudToast.tsx, apps/web/src/pages/WatchPage.tsx, apps/web/src/data/default-plugins/anime1.json, apps/server/src/rule-engine/index.ts, docs/TODO.md, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 0 错误通过，`pnpm build` 全量打包验证通过。
+
 ## [2026-08-18] 视频源关键字搜索偏好与源级独立记忆机制（日语原名优先 / 中文优先）
 - 状态：已完成
 - 优先级：P1

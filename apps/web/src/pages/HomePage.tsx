@@ -24,7 +24,7 @@ export function HomePage() {
   const items = useHistoryStore((s) =>
     Array.isArray(s.items) ? s.items : EMPTY_ARRAY,
   )
-  const recent = useMemo(() => items.slice(0, 6), [items])
+  const recent = useMemo(() => items.slice(0, 4), [items])
 
   // Idle preload: warm player bundle during browser idle time so mobile taps never stall
   useEffect(() => {
@@ -68,7 +68,7 @@ export function HomePage() {
             children, so horizontal resume cards (long plugin names) can grow
             wider than the page shell / Bangumi grid.
           */}
-          <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {recent.map((h) => (
               <Link
                 key={h.id}

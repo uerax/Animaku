@@ -59,7 +59,7 @@ export function HistoryPage() {
               className="flex items-center gap-3 rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)]/60 p-3"
             >
               <Link
-                to={`/subject/${h.bangumiId}`}
+                to={`/play/${h.bangumiId}?${resumeQ}`}
                 className="flex min-w-0 flex-1 items-center gap-3"
               >
                 {h.cover ? (
