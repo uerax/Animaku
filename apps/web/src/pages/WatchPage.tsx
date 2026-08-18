@@ -1,7 +1,6 @@
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import clsx from 'clsx'
 import { CollectType } from '@animaku/shared'
 import { useWatchSession } from '../lib/use-watch-session'
 import { bangumiApi } from '../lib/bangumi'
@@ -251,31 +250,6 @@ export function WatchPage() {
           </span>
         </div>
       )}
-
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] px-3 py-2 text-xs text-[var(--kz-fg-muted)]">
-        <span className="text-[var(--kz-fg-muted)]">弹幕</span>
-        <span className="min-w-0 flex-1 truncate text-[var(--kz-fg)]">
-          {w.dm.statusLine || '未加载'}
-        </span>
-        {w.dm.chips.map((c) => (
-          <button
-            key={c.id}
-            type="button"
-            disabled={!c.loaded}
-            onClick={() => w.dm.toggleSource(c.id)}
-            className={clsx(
-              'rounded-full px-2 py-0.5 text-[11px]',
-              !c.loaded && 'opacity-40',
-              c.loaded && c.enabled
-                ? 'bg-[var(--kz-accent)] text-white'
-                : 'bg-[var(--kz-bg-soft)] text-[var(--kz-fg-muted)]',
-            )}
-          >
-            {c.label}
-            {c.loaded ? ` ${c.count}` : ''}
-          </button>
-        ))}
-      </div>
     </div>
   )
 
