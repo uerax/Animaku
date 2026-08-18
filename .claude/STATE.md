@@ -1,5 +1,14 @@
 # Animaku 项目状态快照 (STATE.md)
 
+## [2026-08-18] 补齐重解析熔断与凭证二次过期终态用户反馈
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **重解析熔断终态 HUD 提示**：在 `useWatchSession.ts` 中，当 `resolveFailBudgetFor` 重试预算耗尽（直链失败转代理、代理失败重解析后依然无法播放）时，消除静默返回，通过 `setHudMessage('视频源多次连接失败，建议点击右侧切换视频源')` 明确引导用户切源；
+  2. **播放中凭证二次过期终态错误态**：在 `VideoPlayer.tsx` 中，当 `authRetryRef` 刷新预算耗尽后若 `onStalled` 再次探测到 401/403，立即结束 loading/buffering 转圈并显示 `setMediaError('播放凭证已过期，请重新选集或切源')`，彻底消除播放器无限转圈卡死。
+- 涉及文件：apps/web/src/lib/use-watch-session.ts, apps/web/src/player/VideoPlayer.tsx
+- 备注：全仓类型检查与打包验证通过。
+
 ## [2026-08-18] 优化 xifan-next HLS 优先探测切片秒开与播放器分级起播门禁调优
 - 状态：已完成
 - 优先级：P0

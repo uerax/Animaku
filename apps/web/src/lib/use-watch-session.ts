@@ -1527,7 +1527,11 @@ export function useWatchSession(bangumiId: number): WatchSession {
     }
     // Already proxying (or no direct) — playUrl may be stale; force re-resolve once
     const id = episode?.pageUrl || ''
-    if (!id || resolveFailBudgetFor.current === id) return
+    if (!id) return
+    if (resolveFailBudgetFor.current === id) {
+      setHudMessage('视频源多次连接失败，建议点击右侧切换视频源')
+      return
+    }
     resolveFailBudgetFor.current = id
     void reResolveFresh()
   }

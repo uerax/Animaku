@@ -713,16 +713,37 @@ export function VideoPlayer({
 
       // Mid-play 403 often surfaces as stalled buffer; probe proxy once
       const onStalled = () => {
-        if (!alive() || authRetryRef.current) return
+        if (!alive()) return
         if (!/[?&]cookie=/.test(activeSrc) || !onMediaAuthExpiredRef.current) return
+        if (authRetryRef.current) {
+          // If already retried auth once, probe if it failed again and surface clear terminal state
+          void fetch(activeSrc, {
+            headers: { Range: 'bytes=0-1' },
+            credentials: 'same-origin',
+          }).then((r) => {
+            if (!alive()) return
+            if (r.status === 403 || r.status === 401) {
+              setLoading(false)
+              setBufferingUi(false)
+              setMediaError('播放凭证已过期，请重新选集或切源')
+            }
+          })
+          return
+        }
         const pos = video.currentTime || 0
         // lightweight HEAD-ish GET with range to detect auth_expired JSON
         void fetch(activeSrc, {
           headers: { Range: 'bytes=0-1' },
           credentials: 'same-origin',
         }).then(async (r) => {
-          if (!alive() || authRetryRef.current) return
+          if (!alive()) return
           if (r.status === 403 || r.status === 401) {
+            if (authRetryRef.current) {
+              setLoading(false)
+              setBufferingUi(false)
+              setMediaError('播放凭证已过期，请重新选集或切源')
+              return
+            }
             try {
               const j = (await r.json()) as { error?: string }
               if (j?.error === 'auth_expired' || r.status === 403) {
