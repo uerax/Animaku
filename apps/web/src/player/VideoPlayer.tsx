@@ -53,6 +53,11 @@ import { useChromeVisibility } from './chrome/useChromeVisibility'
 import { useShellPointerHandlers } from './chrome/useShellPointerHandlers'
 import { DesktopControls } from './chrome/DesktopControls'
 import { MobileControls } from './chrome/MobileControls'
+import { PlayerContextMenu } from './chrome/PlayerContextMenu'
+import {
+  PlayerStatsOverlay,
+  type PlayerStatsData,
+} from './chrome/PlayerStatsOverlay'
 import type { PlayerControlsProps } from './chrome/types'
 
 export type { DanmakuPanelState, VideoPlayerProps } from './types'
@@ -252,9 +257,64 @@ export function VideoPlayer({
   const toggleFsRef = useRef<() => void>(() => {})
   const togglePlayRef = useRef<() => void>(() => {})
 
+  const [mirror, setMirror] = useState(false)
+  const [loop, setLoop] = useState(false)
+  const loopRef = useRef(loop)
+  loopRef.current = loop
+  const [statsOpen, setStatsOpen] = useState(false)
+  const [contextMenu, setContextMenu] = useState<{
+    x: number
+    y: number
+    visible: boolean
+  }>({
+    x: 0,
+    y: 0,
+    visible: false,
+  })
+  const [pipActive, setPipActive] = useState(false)
+  const [pipSupported, setPipSupported] = useState(false)
+  const [bandwidthEstimateBps, setBandwidthEstimateBps] = useState(0)
+  const [lastFragStats, setLastFragStats] = useState<{
+    bytes: number
+    loadTimeMs: number
+    speedBytesPerSec: number
+  } | null>(null)
+  const [fps, setFps] = useState(0)
+  const [droppedFrames, setDroppedFrames] = useState(0)
+  const [totalFrames, setTotalFrames] = useState(0)
+  const [videoCodec, setVideoCodec] = useState('')
+  const [audioCodec, setAudioCodec] = useState('')
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      setPipSupported(Boolean(document.pictureInPictureEnabled))
+    }
+  }, [])
+
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v) return
+
+    const onEnterPip = () => setPipActive(true)
+    const onLeavePip = () => setPipActive(false)
+
+    v.addEventListener('enterpictureinpicture', onEnterPip)
+    v.addEventListener('leavepictureinpicture', onLeavePip)
+
+    return () => {
+      v.removeEventListener('enterpictureinpicture', onEnterPip)
+      v.removeEventListener('leavepictureinpicture', onLeavePip)
+    }
+  }, [activeSrc])
+
   const pointerMode = usePointerMode()
   const menusOpen =
-    panelOpen || speedMenuOpen || srMenuOpen || volumeMenuOpen || settingsMenuOpen
+    panelOpen ||
+    speedMenuOpen ||
+    srMenuOpen ||
+    volumeMenuOpen ||
+    settingsMenuOpen ||
+    contextMenu.visible
   const {
     showBar,
     showBarRef,
@@ -437,12 +497,19 @@ export function VideoPlayer({
     hideBar,
     showBarRef,
     closeMenus: () => {
-      if (!speedMenuOpen && !srMenuOpen && !volumeMenuOpen && !settingsMenuOpen) return false
-      setSpeedMenuOpen(false)
-      setSrMenuOpen(false)
-      setVolumeMenuOpen(false)
-      setSettingsMenuOpen(false)
-      return true
+      let closed = false
+      if (contextMenu.visible) {
+        setContextMenu((prev) => ({ ...prev, visible: false }))
+        closed = true
+      }
+      if (speedMenuOpen || srMenuOpen || volumeMenuOpen || settingsMenuOpen) {
+        setSpeedMenuOpen(false)
+        setSrMenuOpen(false)
+        setVolumeMenuOpen(false)
+        setSettingsMenuOpen(false)
+        closed = true
+      }
+      return closed
     },
     closePanel: () => {
       if (!panelOpen) return false
@@ -794,6 +861,43 @@ export function VideoPlayer({
               if (!alive()) return
               onReady()
             })
+            hls.on(HlsCtor.Events.FRAG_LOADED, (_e, data) => {
+              if (!alive()) return
+              if (hls.bandwidthEstimate) {
+                setBandwidthEstimateBps(hls.bandwidthEstimate)
+              }
+              const fragData = data as unknown as {
+                stats?: { total?: number; loading?: { start: number; end: number } }
+                frag?: { stats?: { total?: number; loading?: { start: number; end: number } } }
+              }
+              const stats = fragData.stats || fragData.frag?.stats
+              const bytes = stats?.total || 0
+              const loadTimeMs =
+                stats?.loading && stats.loading.end > stats.loading.start
+                  ? stats.loading.end - stats.loading.start
+                  : 0
+              if (loadTimeMs > 0 && bytes > 0) {
+                setLastFragStats({
+                  bytes,
+                  loadTimeMs,
+                  speedBytesPerSec: bytes / (loadTimeMs / 1000),
+                })
+              }
+              if (hls.currentLevel >= 0 && hls.levels[hls.currentLevel]) {
+                const lvl = hls.levels[hls.currentLevel]
+                if (lvl.videoCodec) setVideoCodec(lvl.videoCodec)
+                if (lvl.audioCodec) setAudioCodec(lvl.audioCodec)
+              }
+            })
+            hls.on(HlsCtor.Events.LEVEL_LOADED, (_e, data) => {
+              if (!alive()) return
+              if (hls.bandwidthEstimate) {
+                setBandwidthEstimateBps(hls.bandwidthEstimate)
+              }
+              if (data.details.totalduration) {
+                setDuration(data.details.totalduration)
+              }
+            })
             hls.on(HlsCtor.Events.ERROR, (_e, data) => {
               if (!alive()) return
               if (!data.fatal) {
@@ -952,6 +1056,13 @@ export function VideoPlayer({
       userPausedRef.current = false
       bufferGatePausedRef.current = false
       hideBufferingUi()
+      if (loopRef.current) {
+        video.currentTime = 0
+        void video.play().catch(() => {
+          /* ignore */
+        })
+        return
+      }
       onPause()
       if (playerRef.current.autoNext && onNextRef.current) {
         // Bilibili-style countdown before advancing to the next episode
@@ -1315,6 +1426,8 @@ export function VideoPlayer({
         setSrMenuOpen(false)
         setVolumeMenuOpen(false)
         setSettingsMenuOpen(false)
+        setContextMenu((prev) => ({ ...prev, visible: false }))
+        setStatsOpen(false)
         // Exit CSS web-fs + any DOM fullscreen (browser also exits DOM FS)
         setWebFs(false)
         setPlayerFs(false)
@@ -1912,10 +2025,179 @@ export function VideoPlayer({
     setFilterDraft('')
   }
 
+  async function togglePip() {
+    const v = videoRef.current
+    if (!v) return
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture()
+      } else if (document.pictureInPictureEnabled) {
+        await v.requestPictureInPicture()
+      }
+    } catch (e) {
+      console.warn('[player] PiP error', e)
+    }
+  }
+
+  function handleCaptureFrame() {
+    const v = videoRef.current
+    if (!v || !v.videoWidth || !v.videoHeight) {
+      flashSkipHint('当前无法截图（视频画面未就绪）', 1500)
+      return
+    }
+    try {
+      const canvas = document.createElement('canvas')
+      canvas.width = v.videoWidth
+      canvas.height = v.videoHeight
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+      if (mirror) {
+        ctx.translate(canvas.width, 0)
+        ctx.scale(-1, 1)
+      }
+      ctx.drawImage(v, 0, 0, canvas.width, canvas.height)
+      const dataUrl = canvas.toDataURL('image/png')
+      const a = document.createElement('a')
+      const safeTitle = (title || 'animaku').replace(/[\\/:*?"<>|]/g, '_')
+      const timeStr = formatTime(v.currentTime).replace(':', '-')
+      a.download = `${safeTitle}_${timeStr}.png`
+      a.href = dataUrl
+      a.click()
+      flashSkipHint('已保存当前帧截图 (PNG)', 1800)
+    } catch (e) {
+      console.warn('[screenshot failed]', e)
+      flashSkipHint('截图失败（可能受跨域保护）', 1800)
+    }
+  }
+
+  function handleCopyCurrentTimeUrl() {
+    const v = videoRef.current
+    const t = Math.floor(v?.currentTime || current || 0)
+    const url = new URL(window.location.href)
+    url.searchParams.set('t', String(t))
+    void navigator.clipboard.writeText(url.toString()).then(() => {
+      flashSkipHint(`已复制当前时间点播放链接 (${formatTime(t)})`, 1800)
+    })
+  }
+
+  function handleCopyVideoUrl() {
+    void navigator.clipboard.writeText(activeSrc).then(() => {
+      flashSkipHint('已复制视频直链地址', 1800)
+    })
+  }
+
+  function handleCopyDebugStats() {
+    const statsObj = {
+      title,
+      src: activeSrc,
+      currentTime: current,
+      duration,
+      resolution: `${videoRef.current?.videoWidth || 0}x${videoRef.current?.videoHeight || 0}`,
+      bandwidthEstimateBps,
+      fps,
+      droppedFrames,
+      totalFrames,
+      aspectRatio,
+      speed: player.speed || 1,
+      volume: player.volume ?? 0.7,
+      srMode: player.superResolution || 'off',
+      srActive,
+      engine: isM3u8(activeSrc) ? 'HLS.js (MSE)' : 'Progressive MP4',
+      userAgent: navigator.userAgent,
+    }
+    void navigator.clipboard.writeText(JSON.stringify(statsObj, null, 2)).then(() => {
+      flashSkipHint('已复制调试统计数据 (JSON)', 1800)
+    })
+  }
+
+  // Periodic FPS & quality sampling
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v) return
+
+    let lastTime = performance.now()
+    let lastFrames = 0
+
+    const interval = window.setInterval(() => {
+      const video = videoRef.current
+      if (!video) return
+
+      if (typeof video.getVideoPlaybackQuality === 'function') {
+        const q = video.getVideoPlaybackQuality()
+        const now = performance.now()
+        const dt = (now - lastTime) / 1000
+        if (dt > 0.5) {
+          const dFrames = q.totalVideoFrames - lastFrames
+          if (dFrames >= 0) {
+            setFps(Math.round((dFrames / dt) * 10) / 10)
+          }
+          lastFrames = q.totalVideoFrames
+          lastTime = now
+        }
+        setDroppedFrames(q.droppedVideoFrames)
+        setTotalFrames(q.totalVideoFrames)
+      }
+
+      if (hlsRef.current?.bandwidthEstimate) {
+        setBandwidthEstimateBps(hlsRef.current.bandwidthEstimate)
+      }
+    }, 1000)
+
+    return () => window.clearInterval(interval)
+  }, [activeSrc])
+
+  let sourceHost = ''
+  try {
+    if (activeSrc.startsWith('http')) {
+      const parsed = new URL(activeSrc)
+      sourceHost = parsed.hostname
+      if (activeSrc.includes('/api/media/proxy')) {
+        const realUrl = parsed.searchParams.get('url')
+        if (realUrl) {
+          sourceHost = `${new URL(realUrl).hostname} (代理中继)`
+        }
+      }
+    } else if (localVideo) {
+      sourceHost = `本地文件 (${localVideo.name})`
+    }
+  } catch {
+    sourceHost = ''
+  }
+
+  const srMode = (player.superResolution || 'off') as SuperResolutionMode
+
+  const statsData: PlayerStatsData = {
+    videoWidth: videoRef.current?.videoWidth || 0,
+    videoHeight: videoRef.current?.videoHeight || 0,
+    displayWidth: videoRef.current?.clientWidth || 0,
+    displayHeight: videoRef.current?.clientHeight || 0,
+    fps,
+    droppedFrames,
+    totalFrames,
+    bandwidthEstimateBps,
+    lastFragStats,
+    bufferAhead: videoRef.current ? bufferedAhead(videoRef.current) : 0,
+    duration,
+    currentTime: current,
+    volume: player.volume ?? 0.7,
+    speed: player.speed || 1,
+    videoCodec,
+    audioCodec,
+    engine: isM3u8(activeSrc)
+      ? hlsRef.current
+        ? 'Hls.js (MSE)'
+        : 'Safari 原生 HLS'
+      : 'Progressive MP4',
+    srMode,
+    srActive,
+    sourceHost,
+    aspectRatio: ASPECT_RATIO_LABELS[aspectRatio] || aspectRatio,
+    isPaused: paused,
+  }
+
   const progress =
     duration > 0 ? Math.min(100, Math.max(0, (current / duration) * 100)) : 0
 
-  const srMode = (player.superResolution || 'off') as SuperResolutionMode
   const shellClass = [
     'kz-player-shell',
     webFs ? 'kz-web-fs' : '',
@@ -2133,6 +2415,30 @@ export function VideoPlayer({
       onMouseLeave={onShellMouseLeave}
       onClick={onShellClick}
       onDoubleClick={onShellDoubleClick}
+      onContextMenu={(e) => {
+        if (pointerMode !== 'desktop') return
+        e.preventDefault()
+        e.stopPropagation()
+        const shell = shellRef.current
+        if (!shell) return
+        const rect = shell.getBoundingClientRect()
+        const menuWidth = 240
+        const menuHeight = 380
+        const rawX = e.clientX - rect.left
+        const rawY = e.clientY - rect.top
+        const clampedX = Math.max(8, Math.min(rawX, rect.width - menuWidth - 8))
+        const clampedY = Math.max(8, Math.min(rawY, rect.height - menuHeight - 8))
+        setContextMenu({
+          x: clampedX,
+          y: clampedY,
+          visible: true,
+        })
+        setSpeedMenuOpen(false)
+        setSrMenuOpen(false)
+        setVolumeMenuOpen(false)
+        setSettingsMenuOpen(false)
+        setPanelOpen(false)
+      }}
       onDrop={handleDrop}
       onDragOver={(e) => {
         e.preventDefault()
@@ -2152,7 +2458,12 @@ export function VideoPlayer({
           position: 'absolute',
           top: 0,
           left: aspectRatio === '4:3' ? '50%' : 0,
-          transform: aspectRatio === '4:3' ? 'translateX(-50%)' : undefined,
+          transform: [
+            aspectRatio === '4:3' ? 'translateX(-50%)' : '',
+            mirror ? 'scaleX(-1)' : '',
+          ]
+            .filter(Boolean)
+            .join(' ') || undefined,
           width: aspectRatio === '4:3' ? 'auto' : '100%',
           height: '100%',
           maxWidth: '100%',
@@ -2181,7 +2492,12 @@ export function VideoPlayer({
           position: 'absolute',
           top: 0,
           left: aspectRatio === '4:3' ? '50%' : 0,
-          transform: aspectRatio === '4:3' ? 'translateX(-50%)' : undefined,
+          transform: [
+            aspectRatio === '4:3' ? 'translateX(-50%)' : '',
+            mirror ? 'scaleX(-1)' : '',
+          ]
+            .filter(Boolean)
+            .join(' ') || undefined,
           width: aspectRatio === '4:3' ? 'auto' : '100%',
           height: '100%',
           maxWidth: '100%',
@@ -2340,6 +2656,92 @@ export function VideoPlayer({
         <DesktopControls key="desktop" {...controlsProps} />
       ) : (
         <MobileControls key="mobile" {...controlsProps} />
+      )}
+
+      {/* Desktop Player Context Menu */}
+      {pointerMode === 'desktop' && (
+        <PlayerContextMenu
+          key={`${contextMenu.x}-${contextMenu.y}`}
+          x={contextMenu.x}
+          y={contextMenu.y}
+          visible={contextMenu.visible}
+          onClose={() =>
+            setContextMenu((prev) => ({ ...prev, visible: false }))
+          }
+          statsOpen={statsOpen}
+          onToggleStats={() => setStatsOpen((v) => !v)}
+          mirror={mirror}
+          onToggleMirror={() => {
+            setMirror((v) => {
+              const next = !v
+              flashSkipHint(
+                next ? '画面镜像：已开启' : '画面镜像：已关闭',
+                1500,
+              )
+              return next
+            })
+          }}
+          loop={loop}
+          onToggleLoop={() => {
+            setLoop((v) => {
+              const next = !v
+              flashSkipHint(
+                next ? '循环播放：已开启' : '循环播放：已关闭',
+                1500,
+              )
+              return next
+            })
+          }}
+          aspectRatio={aspectRatio}
+          onAspectRatioChange={setAspectRatioMode}
+          speed={player.speed || 1}
+          onPickSpeed={(s) => {
+            const v = videoRef.current
+            if (v) {
+              try {
+                v.defaultPlaybackRate = s
+                v.playbackRate = s
+              } catch {
+                /* ignore */
+              }
+            }
+            onPlayerChange?.({ speed: s })
+          }}
+          speedOptions={PLAYER_SPEEDS}
+          srMode={srMode}
+          srActive={srActive}
+          webGpuOk={webGpuOk}
+          onPickSr={(m) => {
+            onPlayerChange?.({ superResolution: m })
+            if (m === 'off') {
+              flashSrHint('超分已关闭', 1600)
+            }
+          }}
+          srLabels={SUPER_RESOLUTION_LABELS}
+          playerFs={playerFs}
+          onTogglePlayerFs={() => void togglePlayerFs()}
+          webFs={webFs}
+          onToggleWebFs={toggleWebFs}
+          pipActive={pipActive}
+          pipSupported={pipSupported}
+          onTogglePip={togglePip}
+          onCaptureFrame={handleCaptureFrame}
+          onCopyCurrentTimeUrl={handleCopyCurrentTimeUrl}
+          onCopyVideoUrl={handleCopyVideoUrl}
+          onCopyDebugStats={handleCopyDebugStats}
+          videoWidth={videoRef.current?.videoWidth || 0}
+          videoHeight={videoRef.current?.videoHeight || 0}
+          bandwidthEstimateBps={bandwidthEstimateBps}
+        />
+      )}
+
+      {/* Video Detailed Stats for Nerds HUD */}
+      {statsOpen && (
+        <PlayerStatsOverlay
+          stats={statsData}
+          onClose={() => setStatsOpen(false)}
+          formatTime={formatTime}
+        />
       )}
 
       {/* Mobile danmaku sheet portal */}

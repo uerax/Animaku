@@ -2467,6 +2467,105 @@ html[data-theme='light'] .kz-countdown-label {
   color: #0f172a;
 }
 
+/* ─── Desktop Context Menu & Stats Overlay ─── */
+@keyframes kz-ctx-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.kz-context-menu {
+  animation: kz-ctx-pop 0.1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: top left;
+  box-shadow:
+    0 24px 54px rgba(0, 0, 0, 0.75),
+    0 0 0 1px rgba(29, 155, 240, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  user-select: none;
+  will-change: transform, opacity;
+}
+
+.kz-submenu-popover {
+  animation: kz-ctx-pop 0.08s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  box-shadow:
+    0 24px 54px rgba(0, 0, 0, 0.75),
+    0 0 0 1px rgba(29, 155, 240, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  user-select: none;
+  will-change: transform, opacity;
+}
+
+.kz-stats-overlay {
+  animation: kz-ctx-pop 0.12s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  box-shadow:
+    0 24px 54px rgba(0, 0, 0, 0.75),
+    0 0 0 1px rgba(29, 155, 240, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  user-select: text;
+  will-change: transform, opacity;
+}
+
+html[data-theme='light'] .kz-context-menu,
+html[data-theme='light'] .kz-submenu-popover {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.16);
+  color: #0f172a;
+}
+
+html[data-theme='light'] .kz-context-menu button,
+html[data-theme='light'] .kz-submenu-popover button {
+  color: #1e293b;
+}
+
+html[data-theme='light'] .kz-context-menu button:hover,
+html[data-theme='light'] .kz-submenu-popover button:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #0f172a;
+}
+
+html[data-theme='light'] .kz-stats-overlay {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.16);
+  color: #0f172a;
+}
+
+html[data-theme='light'] .kz-stats-overlay .text-slate-100 {
+  color: #0f172a !important;
+}
+
+html[data-theme='light'] .kz-stats-overlay .text-slate-300 {
+  color: #334155 !important;
+}
+
+html[data-theme='light'] .kz-stats-overlay .text-slate-400 {
+  color: #64748b !important;
+}
+
+html[data-theme='light'] .kz-stats-overlay .text-slate-200 {
+  color: #1e293b !important;
+}
+
+html[data-theme='light'] .kz-stats-overlay button {
+  color: #334155 !important;
+}
+
+html[data-theme='light'] .kz-stats-overlay button:hover {
+  background: rgba(0, 0, 0, 0.08) !important;
+  color: #0f172a !important;
+}
+
+html[data-theme='light'] .kz-stats-overlay .border-b {
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+
 html[data-theme='light'] .kz-countdown-sub {
   color: #64748b;
 }

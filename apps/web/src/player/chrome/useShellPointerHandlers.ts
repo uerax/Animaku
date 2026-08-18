@@ -26,7 +26,7 @@ function isPlayerChromeTarget(target: EventTarget | null): boolean {
   if (!el?.closest) return false
   return Boolean(
     el.closest(
-      '.kz-bar, .kz-big-play, .kz-speed-menu, .kz-sr-menu, .kz-vol-popup, .kz-settings-popover, button, a, input, select, textarea, label, [role="dialog"], [data-player-chrome]',
+      '.kz-bar, .kz-big-play, .kz-speed-menu, .kz-sr-menu, .kz-vol-popup, .kz-settings-popover, .kz-context-menu, .kz-stats-overlay, button, a, input, select, textarea, label, [role="dialog"], [data-player-chrome]',
     ),
   )
 }

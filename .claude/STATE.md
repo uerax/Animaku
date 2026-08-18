@@ -1,5 +1,46 @@
 # Animaku 项目状态快照 (STATE.md)
 
+## [2026-08-18] 优化视频统计面板排版（固定宽度 + 横向 Header + 补全关闭按钮与圆整毫秒）
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **固定卡片宽度（`w-[22.5rem]`）**：将统计信息 HUD 卡片宽度固定为 `22.5rem`（360px），解决因网速、切片吞吐、帧率等实时数据长度变动导致的宽度抖动与忽大忽小问题；
+  2. **标题与复制按钮横向排版**：为 `IconStats`、`IconCopy`、`IconClose`、`IconCheck` 等统一注入固定尺寸限制（`w-4 h-4` / `w-3.5 h-3.5 shrink-0`），消除 SVG 撑开导致文字被迫换行竖置的缺陷，保证标题与右侧「复制」文字始终保持整洁的单行水平排版；
+  3. **补齐并增强关闭按钮**：为右上角补齐 `IconClose` 并适配日夜双模态高对比度悬浮交互与 `Esc` 关闭提示；
+  4. **浮点毫秒数值取整**：对分片加载耗时（`loadTimeMs`）进行整数四舍五入（`Math.round(loadTimeMs)`），消除 `189.300000000074506ms` 等过长浮点数展示。
+- 涉及文件：apps/web/src/player/chrome/PlayerStatsOverlay.tsx, apps/web/src/player/chrome/icons.tsx, apps/web/src/player/plyr-overrides.css
+- 备注：全仓类型检查与打包构建全部通过。
+
+## [2026-08-18] 修复右键菜单漂移位移与卡顿（同步坐标约束 + 零延迟动画）
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **消除异步二次定位漂移**：原先菜单使用 `useEffect` + `useState` 延迟调整边界位置，导致二次右键时残留上一次点击坐标并在首帧渲染后异步平移；重构为在 `onContextMenu` 事件中基于播放器视窗同步完成精确防溢出约束（Clamped coordinates），渲染首帧即精准定位；
+  2. **消除动画与位移冲突**：去除容易产生位移插值的类名，在 `plyr-overrides.css` 引入 GPU 硬件加速的 100ms 纯透明度与微缩放入场动效（`@keyframes kz-ctx-pop`），配合 `key={contextMenu.x-contextMenu.y}` 保证每次右键在光标落点瞬间以 0 延迟平滑展开；
+  3. **自适应子菜单展开方向**：当菜单靠近播放器左侧边界（$x < 220\text{px}$）时，二级子菜单自动向右侧展开（`left-full ml-1.5`），避免向左溢出画面。
+- 涉及文件：apps/web/src/player/chrome/PlayerContextMenu.tsx, apps/web/src/player/VideoPlayer.tsx, apps/web/src/player/plyr-overrides.css
+- 备注：全仓类型检查与打包构建全部通过。
+
+## [2026-08-18] 桌面端播放器右键菜单与视频实时统计信息（Stats for Nerds）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **播放器右键菜单组件（`PlayerContextMenu.tsx`）**：
+     - 桌面端播放器内部右键原生拦截唤起 Glassmorphic 悬浮菜单，智能贴合视窗与边界防溢出裁剪；
+     - 顶部快捷状态栏展示当前视频分辨率（如 `1920×1080`）与实时带宽吞吐速率胶囊，支持一键唤起详细统计；
+     - 集成常用快捷功能：详细统计信息开关、原画帧截图（下载 PNG + 剪贴板）、画面水平镜像翻转（`scaleX(-1)`）、单集循环播放、画中画（PiP）；
+     - 集成级联子菜单：画面比例（16:9 / 铺满 Cover / 拉伸 Fill / 4:3）、播放倍速（0.5x~3.0x）、Anime4K 超分辨率（效率/质量）、全屏模式（网页全屏/原生全屏）；
+     - 集成数据复制：复制当前时间点播放链接、复制视频直链、复制调试统计 JSON 数据。
+  2. **视频详细统计面板（`PlayerStatsOverlay.tsx`）**：
+     - 实现对标 Bilibili/YouTube「详细统计信息 (Stats for Nerds)」悬浮 HUD 卡片；
+     - 实时采集与展示：原始分辨率与渲染尺寸、实时带宽与分片加载速度、前方缓冲时长与占比、解码帧率（FPS）与丢帧统计（`getVideoPlaybackQuality`）、音视频编码格式、流媒体引擎（Hls.js MSE / 原生）、超分管线状态、源站主机域名等；
+     - 支持一键格式化复制完整排错统计信息。
+  3. **交互手势与事件解耦**：
+     - `useShellPointerHandlers.ts` 与 `VideoPlayer.tsx` 隔离 `.kz-context-menu` / `.kz-stats-overlay` 交互事件，避免误触底层视频播放/暂停或双击全屏；
+     - 支持点击外部、按 `Escape` 键或选取任意选项后平滑收起。
+- 涉及文件：apps/web/src/player/chrome/PlayerContextMenu.tsx, apps/web/src/player/chrome/PlayerStatsOverlay.tsx, apps/web/src/player/chrome/icons.tsx, apps/web/src/player/chrome/useShellPointerHandlers.ts, apps/web/src/player/VideoPlayer.tsx, apps/web/src/player/plyr-overrides.css
+- 备注：全仓类型检查与打包构建全部通过。
+
 ## [2026-08-18] 优化 xifan-next 视频解析性能（新加坡区域直达 + 并发请求 + 消除冗余 HEAD 探测）
 - 状态：已完成
 - 优先级：P0
