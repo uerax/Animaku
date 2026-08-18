@@ -1,5 +1,25 @@
 # Animaku 项目状态
 
+## [2026-08-18] 视频源关键字搜索偏好与源级独立记忆机制（日语原名优先 / 中文优先）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **数据模型与偏好解析（`packages/shared/src/plugin.ts`）**：
+     - 在 `PluginRule` 中新增 `preferOriginalTitle?: boolean` 可选布尔字段；
+     - 在 `parsePluginRule` 中完成解析；
+     - 封装并导出通用关键词解析纯函数 `resolvePluginDefaultKeyword(plugin, item, fallback)`：当源规则开启 `preferOriginalTitle` 时，优先使用日文原名 `item.name`，否则默认使用中文译名 `item.nameCn`；
+  2. **内置源规则配置与版本升级（`apps/web/src/data/default-plugins/` & `stores/plugins.ts`）**：
+     - 为日文标题友好的三大内置源配置 `"preferOriginalTitle": true`：`xifan-next.json`（稀饭 Next）、`libvio.json`（LIBVIO）、`omofun.json`（Omofun）；
+     - 其余内置源（`anime1`、`mxdm`、`otage`、`xifan`、`age` 等）及外部源维持缺省（中文优先）；
+     - 递增 `PLUGIN_DEFAULTS_VERSION` 至 19，并在 `ensureDefaults` 中自动对齐现有缓存的 `preferOriginalTitle` 配置；
+  3. **播放会话多源动态关键词与源级独立记忆（`apps/web/src/lib/use-watch-session.ts`）**：
+     - 引入 `manualKeywords: Record<string, string>` 记录用户手动干预过的源及其关键词；
+     - **未手动干预时（纯切源）**：点击切源时自动按目标源自身偏好（如切到 xifan-next 搜日文原名，切到 mxdm 搜中文译名）计算关键词并同步更新输入框与搜索，消除上一源残留关键词污染；
+     - **手动干预后（源级记忆）**：用户在输入框打字或下拉框点选关键词后，仅在该源上锁定手动关键词，切其他源不强加覆盖，切回该源继续保持手动词；
+     - **候选列表智能置顶**：`keywordCandidates` 动态将当前源偏好的主标题（日文原名或中文名）置顶于首项，下拉菜单体验高度自然。
+- 涉及文件：packages/shared/src/plugin.ts, apps/web/src/data/default-plugins/xifan-next.json, apps/web/src/data/default-plugins/libvio.json, apps/web/src/data/default-plugins/omofun.json, apps/web/src/data/default-plugins/index.ts, apps/web/src/stores/plugins.ts, apps/web/src/lib/use-watch-session.ts, apps/web/src/pages/WatchPage.tsx, docs/TODO.md
+- 备注：`pnpm typecheck` 全仓 0 错误通过，`pnpm build` 全量打包构建通过。
+
 ## [2026-08-17] 番剧简介图片支持点击跳转 Bangumi (bgm.tv) 条目页与桌面端大封面重构
 - 状态：已完成
 - 优先级：P2

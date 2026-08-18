@@ -403,6 +403,7 @@ export function WatchPage() {
                       void w.searchOnePlugin(plugin, v, {
                         clearSelection: true,
                         autoPickFirst: true,
+                        isManual: true,
                       })
                     }}
                     className="kz-kw-select kz-bili-kw-select w-full appearance-none truncate py-0 pl-2 pr-5 text-[var(--kz-fg)] outline-none disabled:opacity-40"

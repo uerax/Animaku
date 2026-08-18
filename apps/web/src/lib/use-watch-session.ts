@@ -18,6 +18,7 @@ import {
   bestTitleSimilarity,
   coverOf,
   comparePluginOrder,
+  resolvePluginDefaultKeyword,
   type BangumiItem,
   type PluginMeta,
   type SearchItem,
@@ -202,12 +203,22 @@ export type WatchSession = {
   openPluginSearch: (
     plugin: PluginMeta,
     keyword?: string,
-    opts?: { clearSelection?: boolean; autoPickFirst?: boolean },
+    opts?: {
+      clearSelection?: boolean
+      autoPickFirst?: boolean
+      refresh?: boolean
+      isManual?: boolean
+    },
   ) => Promise<void>
   searchOnePlugin: (
     plugin: PluginMeta,
     keyword: string,
-    opts?: { clearSelection?: boolean; autoPickFirst?: boolean },
+    opts?: {
+      clearSelection?: boolean
+      autoPickFirst?: boolean
+      refresh?: boolean
+      isManual?: boolean
+    },
   ) => Promise<void>
   reSearchCurrentSource: (keyword: string) => Promise<void>
   pickSource: (plugin: PluginMeta, item: SearchItem) => Promise<void>
@@ -316,6 +327,8 @@ export function useWatchSession(bangumiId: number): WatchSession {
   const [sessionKeywords, setSessionKeywords] = useState<
     Record<string, string[]>
   >({})
+  /** Per-source manual keyword overrides when user explicitly types or selects a keyword */
+  const [manualKeywords, setManualKeywords] = useState<Record<string, string>>({})
   const [playerRemount, setPlayerRemount] = useState(0)
   const [forceProxy, setForceProxy] = useState(false)
   /** Continue-play seek target — state (not ref) so first media mount sees it. */
@@ -350,24 +363,38 @@ export function useWatchSession(bangumiId: number): WatchSession {
     return [item.nameCn, item.name, ...(item.alias || [])].filter(Boolean)
   }, [item, qTitle])
 
+  const activeTargetPlugin =
+    keywordTargetPlugin ||
+    selection?.plugin ||
+    findDefaultSourcePlugin(plugins, pluginOrder)
+  const preferOriginal = activeTargetPlugin?.preferOriginalTitle === true
+
   const keywordCandidates = useMemo(() => {
     if (!item) {
       const t = (qTitle || title || '').trim()
       return t ? [t] : ([] as string[])
     }
     // Full title first for the dropdown; shorter variants remain as fallbacks.
-    const primary = (item.nameCn || item.name || '').trim()
+    // Honor the active source's title preference (Japanese/original vs Chinese).
+    const primary = (
+      preferOriginal
+        ? item.name || item.nameCn || ''
+        : item.nameCn || item.name || ''
+    ).trim()
     const variants = buildSearchKeywords(item.nameCn, item.name, item.alias)
     const seen = new Set<string>()
     const out: string[] = []
-    for (const k of [primary, item.nameCn, item.name, ...variants]) {
+    const titleOrder = preferOriginal
+      ? [primary, item.name, item.nameCn, ...variants]
+      : [primary, item.nameCn, item.name, ...variants]
+    for (const k of titleOrder) {
       const t = (k || '').trim()
       if (!t || seen.has(t.toLowerCase())) continue
       seen.add(t.toLowerCase())
       out.push(t)
     }
     return out
-  }, [item, qTitle, title])
+  }, [item, qTitle, title, preferOriginal])
 
   /** Default search uses the display title, not the shortest stripped variant. */
   const defaultKeyword = useMemo(() => {
@@ -380,6 +407,27 @@ export function useWatchSession(bangumiId: number): WatchSession {
       ''
     ).trim()
   }, [item, qTitle, title, keywordCandidates])
+
+  /**
+   * Resolve keyword for a specific plugin:
+   * 1. Per-source manual keyword if user explicitly typed/selected one.
+   * 2. Otherwise calculate default keyword according to plugin's preferOriginalTitle.
+   */
+  const getPluginKeyword = useCallback(
+    (plugin: PluginMeta) => {
+      if (manualKeywords[plugin.name]) {
+        return manualKeywords[plugin.name]
+      }
+      return resolvePluginDefaultKeyword(
+        plugin,
+        item,
+        (qTitle && !/^番剧\s*\d+$/.test(qTitle) ? qTitle : '') ||
+          defaultKeyword ||
+          '',
+      )
+    },
+    [manualKeywords, item, qTitle, defaultKeyword],
+  )
 
   const dm = useDanmakuSession({
     bangumiId,
@@ -413,6 +461,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     setRoadLoading(false)
     setKeywordTargetPlugin(null)
     setSessionKeywords({})
+    setManualKeywords({})
     chaptersGen.current += 1
     dmResetPools()
     pluginSearchGen.current = {}
@@ -441,10 +490,23 @@ export function useWatchSession(bangumiId: number): WatchSession {
 
   // Keep default keyword in state for UI once subject loads
   useEffect(() => {
-    if (defaultKeyword && !searchKeyword) {
-      setSearchKeyword(defaultKeyword)
+    const target =
+      keywordTargetPlugin ||
+      selection?.plugin ||
+      findDefaultSourcePlugin(plugins, pluginOrder)
+    if (!target) return
+    const kw = getPluginKeyword(target)
+    if (kw && !searchKeyword) {
+      setSearchKeyword(kw)
     }
-  }, [defaultKeyword, searchKeyword])
+  }, [
+    keywordTargetPlugin,
+    selection?.plugin,
+    plugins,
+    pluginOrder,
+    getPluginKeyword,
+    searchKeyword,
+  ])
 
   // Pre-select the first source so the rail is not a blank wall.
   useEffect(() => {
@@ -558,6 +620,8 @@ export function useWatchSession(bangumiId: number): WatchSession {
         autoPickFirst?: boolean
         /** Skip client search cache (and ask server refresh when true). */
         refresh?: boolean
+        /** Explicitly manual keyword override */
+        isManual?: boolean
       },
     ) => {
       const gen = (pluginSearchGen.current[plugin.name] || 0) + 1
@@ -569,6 +633,12 @@ export function useWatchSession(bangumiId: number): WatchSession {
       }
       const searchAc = new AbortController()
       pluginSearchAbort.current[plugin.name] = searchAc
+      if (opts?.isManual) {
+        setManualKeywords((prev) => ({
+          ...prev,
+          [plugin.name]: keyword.trim(),
+        }))
+      }
       rememberSessionKeyword(plugin.name, keyword)
       setSearchKeyword(keyword)
       setKeywordTargetPlugin(plugin)
@@ -742,13 +812,31 @@ export function useWatchSession(bangumiId: number): WatchSession {
     async (
       plugin: PluginMeta,
       keyword?: string,
-      opts?: { clearSelection?: boolean; autoPickFirst?: boolean },
+      opts?: {
+        clearSelection?: boolean
+        autoPickFirst?: boolean
+        refresh?: boolean
+        isManual?: boolean
+      },
     ) => {
-      const kw = (keyword || searchKeyword || defaultKeyword || '').trim()
+      const isManual = Boolean(keyword?.trim() || opts?.isManual)
+      if (isManual && keyword?.trim()) {
+        setManualKeywords((prev) => ({
+          ...prev,
+          [plugin.name]: keyword.trim(),
+        }))
+      }
+      const kw = (
+        keyword ||
+        getPluginKeyword(plugin) ||
+        searchKeyword ||
+        defaultKeyword ||
+        ''
+      ).trim()
       if (!kw) return
-      await searchOnePlugin(plugin, kw, opts)
+      await searchOnePlugin(plugin, kw, { ...opts, isManual })
     },
-    [searchOnePlugin, searchKeyword, defaultKeyword],
+    [searchOnePlugin, getPluginKeyword, searchKeyword, defaultKeyword],
   )
 
   // First visit (not history resume): search the first enabled source with the show title,
@@ -763,18 +851,18 @@ export function useWatchSession(bangumiId: number): WatchSession {
     }
     if (!plugins.length) return
 
-    // Prefer full subject title; avoid searching "番剧 123" before Bangumi loads.
-    const kw = (
-      item?.nameCn ||
-      item?.name ||
-      (qTitle && !/^番剧\s*\d+$/.test(qTitle) ? qTitle : '') ||
-      defaultKeyword ||
-      ''
-    ).trim()
-    if (!kw || /^番剧\s*\d+$/.test(kw)) return
-
     const preferred = findDefaultSourcePlugin(plugins, pluginOrder)
     if (!preferred) return
+
+    // Prefer full subject title matching the default source's title preference.
+    const kw = (
+      resolvePluginDefaultKeyword(
+        preferred,
+        item,
+        (qTitle && !/^番剧\s*\d+$/.test(qTitle) ? qTitle : '') || defaultKeyword,
+      ) || ''
+    ).trim()
+    if (!kw || /^番剧\s*\d+$/.test(kw)) return
 
     defaultSearchDoneFor.current = bangumiId
     setKeywordTargetPlugin(preferred)
@@ -785,8 +873,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     qPlugin,
     plugins,
     pluginOrder,
-    item?.nameCn,
-    item?.name,
+    item,
     qTitle,
     defaultKeyword,
     openPluginSearch,
@@ -1108,6 +1195,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
       clearSelection: true,
       autoPickFirst: false,
       refresh: true,
+      isManual: true,
     })
   }
 

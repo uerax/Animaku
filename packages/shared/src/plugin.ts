@@ -67,6 +67,12 @@ export interface PluginRule {
   version: string
   /** Display sorting weight (higher weight = higher priority). Missing defaults to lowest weight. */
   weight?: number
+  /**
+   * Title search preference:
+   * When true, prefer Japanese / original title (`item.name`) over Chinese title (`item.nameCn`).
+   * Defaults to false (Chinese title first).
+   */
+  preferOriginalTitle?: boolean
   muliSources?: boolean
   useWebview?: boolean
   useNativePlayer?: boolean
@@ -203,6 +209,25 @@ export interface ResolvePlayResult {
   referer?: string
   headers?: Record<string, string>
   diagnostics?: string[]
+}
+
+/**
+ * Resolve the default search keyword for a given plugin rule based on its title preference.
+ * - When `preferOriginalTitle` is true: item.name (Japanese/original) -> item.nameCn (Chinese) -> fallback
+ * - Otherwise: item.nameCn (Chinese) -> item.name (Japanese/original) -> fallback
+ */
+export function resolvePluginDefaultKeyword(
+  plugin: { preferOriginalTitle?: boolean } | null | undefined,
+  item: { nameCn?: string | null; name?: string | null } | null | undefined,
+  fallback?: string,
+): string {
+  const name = (item?.name || '').trim()
+  const nameCn = (item?.nameCn || '').trim()
+  const fb = (fallback || '').trim()
+  if (plugin?.preferOriginalTitle) {
+    return name || nameCn || fb
+  }
+  return nameCn || name || fb
 }
 
 /**
@@ -454,12 +479,18 @@ export function parsePluginRule(raw: unknown): PluginRule {
       ? j.weight
       : undefined
 
+  const preferOriginalTitle =
+    typeof j.preferOriginalTitle === 'boolean'
+      ? j.preferOriginalTitle
+      : undefined
+
   return {
     api: String(j.api ?? '1'),
     type: String(j.type ?? 'anime'),
     name,
     version: String(j.version ?? ''),
     weight,
+    preferOriginalTitle,
     muliSources: Boolean(j.muliSources ?? true),
     useWebview: Boolean(j.useWebview ?? true),
     useNativePlayer: Boolean(j.useNativePlayer ?? true),

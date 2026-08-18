@@ -4,6 +4,7 @@
   "name": "xifan-next",
   "version": "1.0",
   "weight": 70,
+  "preferOriginalTitle": true,
   "muliSources": true,
   "useWebview": false,
   "useNativePlayer": true,

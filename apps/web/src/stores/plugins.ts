@@ -22,7 +22,8 @@ migrateLocalStorageKey('animaku-plugins', [
 /** v16: tune weights (xifan-next: 70, libvio/anime1: 60, mxdm: 55, default builtin: 50, external/third-party: 0) */
 /** v17: reset legacy pluginOrder on defaults upgrade to enforce weight-first ordering */
 /** v18: normalize all built-in plugin names and JSON files to lowercase */
-export const PLUGIN_DEFAULTS_VERSION = 18
+/** v19: add preferOriginalTitle support (xifan-next, libvio, omofun prefer Japanese title) */
+export const PLUGIN_DEFAULTS_VERSION = 19
 
 interface PluginState {
   plugins: PluginMeta[]
@@ -256,9 +257,16 @@ export const usePluginStore = create<PluginState>()(
             if (p.source !== 'builtin' && p.source !== undefined) return p
             const seed = seedByName.get(p.name.toLowerCase())
             if (!seed) return p
-            if (p.weight !== seed.weight) {
+            if (
+              p.weight !== seed.weight ||
+              p.preferOriginalTitle !== seed.preferOriginalTitle
+            ) {
               changed = true
-              return { ...p, weight: seed.weight }
+              return {
+                ...p,
+                weight: seed.weight,
+                preferOriginalTitle: seed.preferOriginalTitle,
+              }
             }
             return p
           })
