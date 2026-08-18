@@ -165,7 +165,7 @@ export function MobileEpsSection({
             …
           </p>
         )}
-        {roadError && <p className="kz-bili-error">{roadError}</p>}
+        {roadError && !hasSelection && <p className="kz-bili-error">{roadError}</p>}
         {!hasSelection && !roadLoading && (
           <div className="kz-bili-hint my-2 rounded-xl bg-[var(--kz-bg-soft)]/50 p-4 border border-[var(--kz-border)]">
             <p className="text-[var(--kz-fg)] font-medium">

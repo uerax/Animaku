@@ -17,6 +17,7 @@ export interface SourceBindingEntry {
   sourceUrl: string
   title: string
   similarity?: number
+  isManual?: boolean
   updatedAt: number
 }
 
@@ -26,8 +27,9 @@ export interface SourceBindingState {
   setBinding: (
     bangumiId: number,
     pluginName: string,
-    entry: { sourceUrl: string; title: string; similarity?: number },
+    entry: { sourceUrl: string; title: string; similarity?: number; isManual?: boolean },
     referenceTitles?: Array<string | null | undefined>,
+    isManual?: boolean,
   ) => boolean
   removeBinding: (bangumiId: number, pluginName: string) => void
   clearBindings: () => void
@@ -72,11 +74,12 @@ export const useSourceBindingStore = create<SourceBindingState>()(
         return binding
       },
 
-      setBinding: (bangumiId, pluginName, entry, referenceTitles) => {
+      setBinding: (bangumiId, pluginName, entry, referenceTitles, isManual) => {
         if (!Number.isFinite(bangumiId) || !pluginName || !entry.sourceUrl) {
           return false
         }
 
+        const manual = Boolean(isManual || entry.isManual)
         let sim = entry.similarity
         if (
           sim === undefined &&
@@ -87,8 +90,9 @@ export const useSourceBindingStore = create<SourceBindingState>()(
         }
 
         // Silent contamination gatekeeper:
-        // If similarity is below 0.50, do not persist to long-term storage
-        if (sim !== undefined && sim < MIN_PERSIST_SIMILARITY) {
+        // Only block unverified automated guesses with low similarity (< 0.50).
+        // User manual picks (isManual = true) are always trusted and persisted!
+        if (!manual && sim !== undefined && sim < MIN_PERSIST_SIMILARITY) {
           return false
         }
 
@@ -99,6 +103,7 @@ export const useSourceBindingStore = create<SourceBindingState>()(
           sourceUrl: entry.sourceUrl.trim(),
           title: entry.title.trim(),
           similarity: sim,
+          isManual: manual,
           updatedAt: Date.now(),
         }
 

@@ -52,12 +52,12 @@ export function clientRemoteAddress(c: Context): string {
 }
 
 /**
- * Whether this request may use open-proxy style APIs (media + plugin exec).
+ * Whether this request may use media stream proxying (/api/media/*).
  * - When PROXY_TOKEN is set: strictly requires matching token in Header or Query.
  *   Docker bridge NAT (172.x) and reverse proxies will NEVER bypass token check.
  * - When PROXY_TOKEN is empty: PUBLIC_PROXY=1 allows all, PUBLIC_PROXY=0 restricts to LAN.
  */
-export function canUseOpenProxy(c: Context): boolean {
+export function canUseMediaProxy(c: Context): boolean {
   const token = config.proxyToken?.trim()
   if (token) {
     const hdr =
@@ -90,15 +90,63 @@ export function canUseOpenProxy(c: Context): boolean {
   return false
 }
 
-/** Middleware for media proxy + plugin search/chapters/resolve */
-export async function requireLocalOrToken(c: Context, next: Next) {
-  if (canUseOpenProxy(c)) return next()
+/**
+ * Whether this request may use plugin parsing APIs (/api/plugin/*).
+ * - If PUBLIC_PROXY=1 (default), allows web clients to parse anime sources with SSRF protection.
+ * - If PUBLIC_PROXY=0 (LAN-only lockdown), restricts to LAN or loopback (unless PROXY_TOKEN matches).
+ */
+export function canUsePluginApi(c: Context): boolean {
+  if (config.publicProxy) return true
+
+  const token = config.proxyToken?.trim()
+  if (token) {
+    const hdr =
+      c.req.header('x-animaku-proxy-token') ||
+      c.req.header('x-aniku-proxy-token') ||
+      c.req.header('x-proxy-token') ||
+      ''
+    if (hdr && hdr === token) return true
+    const q = c.req.query('proxyToken') || c.req.query('token') || ''
+    if (q && q === token) return true
+  }
+
+  const ip = clientRemoteAddress(c)
+  if (!ip) {
+    const origin = c.req.header('origin')
+    return isCorsOriginAllowed(origin)
+  }
+  if (isPrivateHost(ip)) return true
+  return false
+}
+
+/** Legacy alias for media proxy access check */
+export const canUseOpenProxy = canUseMediaProxy
+
+/** Middleware for media stream proxying */
+export async function requireMediaProxyAccess(c: Context, next: Next) {
+  if (canUseMediaProxy(c)) return next()
   return c.json(
     {
       error: 'forbidden',
       message:
-        '媒体/规则代理当前仅允许本机或局域网（PUBLIC_PROXY=0）。公网访问请设 PUBLIC_PROXY=1，或配置 PROXY_TOKEN。',
+        '媒体代理当前需管理员口令或局域网访问（PUBLIC_PROXY=0 / PROXY_TOKEN 已开启）。请在设置中输入口令解锁。',
     },
     403,
   )
 }
+
+/** Middleware for plugin search/chapters/resolve */
+export async function requirePluginApiAccess(c: Context, next: Next) {
+  if (canUsePluginApi(c)) return next()
+  return c.json(
+    {
+      error: 'forbidden',
+      message:
+        '插件解析当前仅允许本机或局域网（PUBLIC_PROXY=0）。公网访问请设 PUBLIC_PROXY=1。',
+    },
+    403,
+  )
+}
+
+/** Legacy middleware alias pointing to requireMediaProxyAccess */
+export const requireLocalOrToken = requireMediaProxyAccess

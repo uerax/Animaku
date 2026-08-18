@@ -44,7 +44,7 @@ services:
       # Access / media (see .env.example). PUBLIC_PROXY default 1; MEDIA_FULL_PROXY default 0.
       PUBLIC_PROXY: ${PUBLIC_PROXY:-1}
       MEDIA_FULL_PROXY: ${MEDIA_FULL_PROXY:-0}
-      PROXY_TOKEN: ${PROXY_TOKEN:-animaku_admin_secret}
+      PROXY_TOKEN: ${PROXY_TOKEN:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
       # Public origin for /robots.txt Sitemap + /sitemap.xml (runtime)
       SITE_URL: ${SITE_URL:-}

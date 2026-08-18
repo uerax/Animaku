@@ -1,6 +1,28 @@
 # Animaku 项目状态
 
-## [2026-08-18] 保持移动端弹幕面板原有居中弹窗样式并补齐多源管理与状态统计
+## [2026-08-18] 修复视频源持久化绑定、续播竞态报错与服务端搜索鉴权隔离
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **视频源黄色待选（needs_pick）手动点选后未持久化到缓存 Bug 修复**：
+     - **排查原因**：当视频源触发黄色待选时，其与 Bangumi 参考标题相似度 $< 0.50$；用户手动从候选列表点击选条目绑定时，`setBinding` 内部的门禁逻辑一刀切 `if (sim < 0.50) return false`，导致用户的明确手动选源被当作未验证的机器猜测丢弃，未写入 `localStorage`；
+     - **修复方案**：在 `SourceBindingEntry` 与 `setBinding` 中引入 `isManual?: boolean` 字段。用户主动在看板或列表中点选条目时标记 `isManual: true`，100% 信任并持久化保存，仅对后台未经验证的机器猜测维持相似度门禁。
+  2. **续播功能解析成功却同时显示「续播：未解析到分集」报错 Bug 修复**：
+     - **排查原因**：
+       a) 页面冷启动（`/play/:id?plugin=...&ep=...`）时 Bangumi 元数据异步拉取，`title` 占位为 `番剧 xxx`；旧续播逻辑在无绑定时拿占位标题向源站发起搜索并瞬间失败，设置了 `roadError` 且因缺少依赖项在元数据就绪后未自愈；
+       b) 播放中切换分集时 `qEp` 变动，重新触发了续播 `useEffect`，因旧逻辑未检查当前已激活的 `selection` 是否已具备该源的全量分集，导致后台重复搜索失败覆盖了 `roadError`；
+       c) `MobileEpsSection` 在已有选集并渲染集数按钮的同时无差别展示了 `roadError`。
+     - **修复方案**：
+       a) 续播逻辑中优先检查 `selectionRef.current`：若当前源已加载全量分集，直接秒级同步集数并清空 `roadError`，绝不重复回源；
+       b) 在元数据未加载完成且无非占位标题时静默等待，杜绝使用 `番剧 xxx` 盲目起搜；
+       c) `MobileEpsSection` 增加防御，仅在 `!hasSelection` 时才渲染错误提示。
+  3. **服务端 PROXY_TOKEN 拦截插件搜索导致新用户全源 🔴 源站响应异常修复**：
+     - **排查原因**：此前将管理员媒体代理鉴权 `requireLocalOrToken` 错误地全量挂载在了 `/api/plugin/search`、`/chapters`、`/resolve` 上；当配置了 `PROXY_TOKEN`（或 docker-compose 默认配置）时，所有未授权的新用户访问搜索全部被 403 阻断；
+     - **修复方案**：
+       a) 区分 `requireMediaProxyAccess`（媒体流中继代理，需要鉴权防盗刷 VPS 流量）与 `requirePluginApiAccess`（规则引擎元数据解析，由 `fetchPublic` 防御 SSRF，公网用户正常可用）；
+       b) 清理 `docker-compose.yml` 中 `PROXY_TOKEN` 的强制默认硬编码。
+- 涉及文件：apps/web/src/stores/source-bindings.ts, apps/web/src/lib/use-watch-session.ts, apps/web/src/pages/watch/MobileEpsSection.tsx, apps/server/src/lib/access.ts, apps/server/src/routes/plugin.ts, apps/server/src/routes/media.ts, docker-compose.yml, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 0 错误编译通过，`pnpm build` 全量打包通过。
 - 状态：已完成
 - 优先级：P1
 - 描述：

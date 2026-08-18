@@ -1,5 +1,31 @@
 # Bug / 优化清单
 
+## [2026-08-18] 修复视频源持久化绑定、续播竞态与源站搜索鉴权异常
+
+### 1. 视频源黄色待选（needs_pick）手动点选后未记录到缓存 Bug
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1) **根本原因**：当视频源自动匹配相似度 $< 0.50$ 时会呈现黄色待选状态。用户手动点选条目后，`pickSource` 调用 `setBinding`，但 `setBinding` 内部一律执行 `if (sim < 0.50) return false` 拦截，导致用户明确的手动选源被判定为低相似度并拒绝持久化到 `localStorage`；
+  2) **解决方案**：在 `source-bindings.ts` 中引入 `isManual?: boolean`，用户手动点选（或手动切源）时 100% 信任并持久化保存，彻底解决手动选源后刷新/续播丢失绑定的问题。
+- 涉及文件：apps/web/src/stores/source-bindings.ts, apps/web/src/lib/use-watch-session.ts
+
+### 2. 续播功能正常解析但显示「续播：未解析到分集」红字报错 Bug
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1) **根本原因**：冷启动进入带参续播时，若元数据异步请求尚未返回，`title` 会退化为 `番剧 xxx`，续播盲目用占位名搜索导致失败并设置了 `roadError`；另外在播放中切集更新 URL 时，续播 `useEffect` 未识别当前已激活的 `selection` 而重复回源；同时 `MobileEpsSection` 在已有选集的情况下依旧渲染了 `roadError`；
+  2) **解决方案**：续播优先复用当前已就绪的 `selection` 分集；元数据就绪前不使用占位标题盲目搜索；`MobileEpsSection` 增加防御，仅在无选集时才显示错误。
+- 涉及文件：apps/web/src/lib/use-watch-session.ts, apps/web/src/pages/watch/MobileEpsSection.tsx
+
+### 3. 服务端 PROXY_TOKEN 拦截插件搜索导致新用户全源 🔴 源站响应异常 Bug
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1) **根本原因**：将仅用于防 VPS 流量盗刷的媒体代理鉴权（`requireLocalOrToken`）挂载到了 `/api/plugin/search`、`/chapters`、`/resolve` 上，导致未在本地设置中输入管理员口令的新用户/外部访客所有视频源搜索全部返回 403 阻断；
+  2) **解决方案**：拆分 `requireMediaProxyAccess`（保护 `/api/media/*` 视频流）与 `requirePluginApiAccess`（允许公网用户搜索番剧与解析分集）；移除 `docker-compose.yml` 中 `PROXY_TOKEN` 的强制默认硬编码。
+- 涉及文件：apps/server/src/lib/access.ts, apps/server/src/routes/plugin.ts, apps/server/src/routes/media.ts, docker-compose.yml
+
 ## [2026-08-18] 修复桌面端暂停弹幕回退震颤与双击全屏误触手势解耦
 
 ### 1. 桌面端 Chrome 暂停播放时弹幕位置后退与微抖动震颤 Bug

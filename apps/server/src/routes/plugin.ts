@@ -5,7 +5,7 @@ import {
   chaptersWithRule,
   resolvePlay,
 } from '../rule-engine'
-import { requireLocalOrToken } from '../lib/access'
+import { requirePluginApiAccess } from '../lib/access'
 import {
   PLUGIN_CACHE_TTL,
   PLUGIN_MAX_ENTRIES,
@@ -51,7 +51,7 @@ pluginRoutes.post('/validate', async (c) => {
 })
 
 // Exec routes are open-proxy style (client supplies rule + URLs) — gate them
-pluginRoutes.post('/search', requireLocalOrToken, async (c) => {
+pluginRoutes.post('/search', requirePluginApiAccess, async (c) => {
   const body = await c.req.json<{ rule: unknown; keyword: string }>()
   if (!body.keyword?.trim()) {
     return c.json({ error: 'bad_request', message: '缺少 keyword' }, 400)
@@ -121,7 +121,7 @@ pluginRoutes.post('/search', requireLocalOrToken, async (c) => {
   }
 })
 
-pluginRoutes.post('/chapters', requireLocalOrToken, async (c) => {
+pluginRoutes.post('/chapters', requirePluginApiAccess, async (c) => {
   const body = await c.req.json<{ rule: unknown; source: string }>()
   if (!body.source?.trim() || !body.rule) {
     return c.json({ error: 'bad_request', message: '缺少 rule 或 source' }, 400)
@@ -153,7 +153,7 @@ pluginRoutes.post('/chapters', requireLocalOrToken, async (c) => {
   }
 })
 
-pluginRoutes.post('/resolve', requireLocalOrToken, async (c) => {
+pluginRoutes.post('/resolve', requirePluginApiAccess, async (c) => {
   const body = await c.req.json<{ rule: unknown; pageUrl: string }>()
   if (!body.pageUrl?.trim() || !body.rule) {
     return c.json({ error: 'bad_request', message: '缺少 rule 或 pageUrl' }, 400)

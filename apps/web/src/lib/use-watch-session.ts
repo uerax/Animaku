@@ -568,7 +568,11 @@ export function useWatchSession(bangumiId: number): WatchSession {
   )
 
   const pickSource = useCallback(
-    async (plugin: PluginMeta, searchItem: SearchItem) => {
+    async (
+      plugin: PluginMeta,
+      searchItem: SearchItem,
+      opts?: { isManual?: boolean },
+    ) => {
       if (
         !roadLoadingRef.current &&
         selectionRef.current?.plugin.name === plugin.name &&
@@ -627,13 +631,15 @@ export function useWatchSession(bangumiId: number): WatchSession {
         }
 
         // Silent contamination gatekeeper & persistent binding
+        // User manual picks (opts.isManual !== false) are always persisted
         useSourceBindingStore
           .getState()
           .setBinding(
             bangumiId,
             plugin.name,
-            { sourceUrl: searchItem.src, title: searchItem.name },
+            { sourceUrl: searchItem.src, title: searchItem.name, isManual: opts?.isManual ?? true },
             titleRefsStable,
+            opts?.isManual ?? true,
           )
 
         // Episode alignment & seamless progress inheritance
@@ -657,6 +663,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
         setSelection({ plugin, source: searchItem, roads })
         setVisibleRoad(targetRoadIdx)
         setPendingSource(null)
+        setRoadError('')
 
         const inheritPos =
           prevEpisode && currentPosition > 5 ? currentPosition : 0
@@ -698,6 +705,8 @@ export function useWatchSession(bangumiId: number): WatchSession {
           q.delete('title')
           q.delete('cover')
           q.delete('source')
+          const key = `${bangumiId}|${plugin.name}||${targetEpNum}|${targetRoadIdx}`
+          resumeDoneFor.current = key
           safeSetParams(q, { replace: true })
         } else {
           setEpisode(null)
@@ -972,7 +981,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     async (plugin: PluginMeta, targetItem?: SearchItem) => {
       setKeywordTargetPlugin(plugin)
       if (targetItem) {
-        await pickSource(plugin, targetItem)
+        await pickSource(plugin, targetItem, { isManual: true })
         return
       }
 
@@ -984,7 +993,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
           await pickSource(plugin, {
             name: binding.title || plugin.name,
             src: binding.sourceUrl,
-          })
+          }, { isManual: true })
           return
         } catch {
           useSourceBindingStore.getState().removeBinding(bangumiId, plugin.name)
@@ -1085,6 +1094,37 @@ export function useWatchSession(bangumiId: number): WatchSession {
     const key = `${bangumiId}|${qPlugin}|${qPageUrl}|${qEp}|${qRoad}`
     if (resumeDoneFor.current === key) return
 
+    // If selection already matches target plugin and has loaded roads, sync state instantly without refetching
+    const currentSel = selectionRef.current
+    if (
+      currentSel &&
+      currentSel.plugin.name.toLowerCase() === qPlugin.toLowerCase() &&
+      currentSel.roads.length > 0
+    ) {
+      resumeDoneFor.current = key
+      setRoadError('')
+      const roadIdx = Math.max(0, Math.min(qRoad, currentSel.roads.length - 1))
+      const epIdx = Math.max(0, (qEp || 1) - 1)
+      const targetPageUrl = currentSel.roads[roadIdx]?.data[epIdx] || qPageUrl
+      const epNum = epIdx + 1
+      if (
+        episodeRef.current?.episode !== epNum ||
+        episodeRef.current?.road !== roadIdx ||
+        episodeRef.current?.pageUrl !== targetPageUrl
+      ) {
+        const pos = lookupResumePosition(bangumiId, qPlugin, epNum, roadIdx)
+        resumeOverrideRef.current = null
+        setResumePosition(pos)
+        setVisibleRoad(roadIdx)
+        setEpisode({
+          pageUrl: targetPageUrl,
+          episode: epNum,
+          road: roadIdx,
+        })
+      }
+      return
+    }
+
     // Resolve plugin from store so array identity churn doesn't cancel mid-flight
     const plugin =
       usePluginStore.getState().getByName(qPlugin) ||
@@ -1109,17 +1149,26 @@ export function useWatchSession(bangumiId: number): WatchSession {
 
         // If not bound on this device yet (e.g. shared link), auto-search and bind best match
         if (!sourceUrl) {
-          const kw = resolvePluginDefaultKeyword(plugin, item, defaultKeyword) || title
-          if (kw) {
-            const searchRes = await pluginApi.search(plugin, kw)
-            if (cancelled) return
-            if (searchRes.data?.items?.length) {
-              const ranked = rankSearchItems(searchRes.data.items, titleRefsStable)
-              const matched = ranked[0]
-              if (matched) {
-                sourceUrl = matched.src
-                sourceTitle = matched.name
-              }
+          const kw = (
+            resolvePluginDefaultKeyword(
+              plugin,
+              item,
+              (qTitle && !/^番剧\s*\d+$/.test(qTitle) ? qTitle : '') || defaultKeyword,
+            ) || ''
+          ).trim()
+          // Wait for Bangumi subject metadata if we only have placeholder title
+          if (!kw || /^番剧\s*\d+$/.test(kw)) {
+            setRoadLoading(false)
+            return
+          }
+          const searchRes = await pluginApi.search(plugin, kw)
+          if (cancelled) return
+          if (searchRes.data?.items?.length) {
+            const ranked = rankSearchItems(searchRes.data.items, titleRefsStable)
+            const matched = ranked[0]
+            if (matched) {
+              sourceUrl = matched.src
+              sourceTitle = matched.name
             }
           }
         }
@@ -1192,6 +1241,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
         const targetPageUrl = roads[roadIdx]?.data[epIdx] || qPageUrl
         setSelection({ plugin, source, roads })
         setVisibleRoad(roadIdx)
+        setRoadError('')
         setEpisode({
           pageUrl: targetPageUrl,
           episode: epNum,
@@ -1204,8 +1254,9 @@ export function useWatchSession(bangumiId: number): WatchSession {
             .setBinding(
               bangumiId,
               qPlugin,
-              { sourceUrl: source.src, title: source.name },
+              { sourceUrl: source.src, title: source.name, isManual: true },
               titleRefsStable,
+              true,
             )
         }
         const q = new URLSearchParams(paramsRef.current)
@@ -1233,9 +1284,9 @@ export function useWatchSession(bangumiId: number): WatchSession {
     return () => {
       cancelled = true
     }
-    // plugins length/names only — avoid identity thrash from ensureDefaults
+    // plugins length/names & item only — avoid identity thrash from ensureDefaults
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bangumiId, qPlugin, qPageUrl, qEp, qRoad, plugins.length])
+  }, [bangumiId, qPlugin, qPageUrl, qEp, qRoad, plugins.length, item])
 
   const resolve = useQuery({
     queryKey: [

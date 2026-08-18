@@ -1,12 +1,12 @@
 import { Hono } from 'hono'
 import { filterM3u8AdsIfApplicable } from '@animaku/shared'
 import { config } from '../config'
-import { requireLocalOrToken, clientRemoteAddress } from '../lib/access'
+import { requireMediaProxyAccess, clientRemoteAddress } from '../lib/access'
 import { fetchPublic, isPrivateHost } from '../lib/private-host'
 
 export const mediaRoutes = new Hono()
 
-mediaRoutes.use('*', requireLocalOrToken)
+mediaRoutes.use('*', requireMediaProxyAccess)
 
 /** Track active streaming connections per client IP to prevent concurrency DDoS / mass-leeching */
 const MAX_CONCURRENT_MEDIA_PER_IP = 8
