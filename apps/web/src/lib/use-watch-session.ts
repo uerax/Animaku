@@ -658,7 +658,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
 
         // Episode alignment & seamless progress inheritance
         let targetRoadIdx = 0
-        let targetEpIdx = 0
+        let targetEpIdx: number | null = null
 
         if (prevEpisode && roads[0]?.identifier?.length) {
           const matchIdx = findMatchingEpisodeIndex(
@@ -668,62 +668,92 @@ export function useWatchSession(bangumiId: number): WatchSession {
           )
           if (matchIdx >= 0) {
             targetEpIdx = matchIdx
+          } else {
+            targetEpIdx = Math.max(
+              0,
+              Math.min(prevEpisode.episode - 1, (roads[0]?.data?.length || 1) - 1),
+            )
+          }
+        } else if (qEp && qEp > 0) {
+          // Explicit deep-link episode specified in URL
+          targetEpIdx = Math.max(
+            0,
+            Math.min(qEp - 1, (roads[0]?.data?.length || 1) - 1),
+          )
+          if (qRoad && qRoad >= 0 && qRoad < roads.length) {
+            targetRoadIdx = qRoad
           }
         }
-
-        const targetEpNum = targetEpIdx + 1
-        const targetPageUrl = roads[targetRoadIdx]?.data[targetEpIdx] || ''
 
         setSelection({ plugin, source: searchItem, roads })
         setVisibleRoad(targetRoadIdx)
         setPendingSource(null)
         setRoadError('')
 
-        const inheritPos =
-          prevEpisode && currentPosition > 5 ? currentPosition : 0
-        const effectivePos =
-          inheritPos > 0
-            ? inheritPos
-            : lookupResumePosition(
-                bangumiId,
-                plugin.name,
-                targetEpNum,
-                targetRoadIdx,
+        if (targetEpIdx !== null) {
+          const targetEpNum = targetEpIdx + 1
+          const targetPageUrl = roads[targetRoadIdx]?.data[targetEpIdx] || ''
+
+          const inheritPos =
+            prevEpisode && currentPosition > 5 ? currentPosition : 0
+          const effectivePos =
+            inheritPos > 0
+              ? inheritPos
+              : lookupResumePosition(
+                  bangumiId,
+                  plugin.name,
+                  targetEpNum,
+                  targetRoadIdx,
+                )
+
+          resumeOverrideRef.current = effectivePos > 0 ? effectivePos : null
+          setResumePosition(effectivePos)
+
+          if (targetPageUrl) {
+            setEpisode({
+              pageUrl: targetPageUrl,
+              episode: targetEpNum,
+              road: targetRoadIdx,
+            })
+
+            if (prevEpisode) {
+              const timeStr =
+                inheritPos > 5 ? ` ${formatMinutesSeconds(inheritPos)}` : ''
+              setHudMessage(
+                `已切换至 ${plugin.name} · 第 ${targetEpNum} 集${timeStr}`,
               )
+            }
 
-        resumeOverrideRef.current = effectivePos > 0 ? effectivePos : null
-        setResumePosition(effectivePos)
-
-        if (targetPageUrl) {
-          setEpisode({
-            pageUrl: targetPageUrl,
-            episode: targetEpNum,
-            road: targetRoadIdx,
-          })
-
-          if (prevEpisode) {
-            const timeStr =
-              inheritPos > 5 ? ` ${formatMinutesSeconds(inheritPos)}` : ''
-            setHudMessage(
-              `已切换至 ${plugin.name} · 第 ${targetEpNum} 集${timeStr}`,
-            )
+            const q = new URLSearchParams(paramsRef.current)
+            q.set('plugin', plugin.name)
+            q.set('ep', String(targetEpNum))
+            if (targetRoadIdx > 0) q.set('road', String(targetRoadIdx))
+            else q.delete('road')
+            // Clean redundant long metadata from address bar
+            q.delete('pageUrl')
+            q.delete('title')
+            q.delete('cover')
+            q.delete('source')
+            const key = `${bangumiId}|${plugin.name}||${targetEpNum}|${targetRoadIdx}`
+            resumeDoneFor.current = key
+            safeSetParams(q, { replace: true })
+          } else {
+            setEpisode(null)
+            const q = new URLSearchParams(paramsRef.current)
+            q.set('plugin', plugin.name)
+            q.delete('pageUrl')
+            q.delete('ep')
+            q.delete('road')
+            q.delete('title')
+            q.delete('cover')
+            q.delete('source')
+            safeSetParams(q, { replace: true })
           }
-
-          const q = new URLSearchParams(paramsRef.current)
-          q.set('plugin', plugin.name)
-          q.set('ep', String(targetEpNum))
-          if (targetRoadIdx > 0) q.set('road', String(targetRoadIdx))
-          else q.delete('road')
-          // Clean redundant long metadata from address bar
-          q.delete('pageUrl')
-          q.delete('title')
-          q.delete('cover')
-          q.delete('source')
-          const key = `${bangumiId}|${plugin.name}||${targetEpNum}|${targetRoadIdx}`
-          resumeDoneFor.current = key
-          safeSetParams(q, { replace: true })
         } else {
+          // Do not auto-request first episode when opening subject page without explicit ?ep
           setEpisode(null)
+          setResumePosition(0)
+          resumeOverrideRef.current = null
           const q = new URLSearchParams(paramsRef.current)
           q.set('plugin', plugin.name)
           q.delete('pageUrl')

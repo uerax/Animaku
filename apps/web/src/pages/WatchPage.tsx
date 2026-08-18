@@ -245,11 +245,13 @@ export function WatchPage() {
               {w.roadLoading
                 ? `正在加载 ${w.pendingSource?.pluginName || w.defaultSourceName} 分集…`
                 : w.selection
-                  ? '在选集区点集数即可播放'
+                  ? '请在选集区点击集数开始播放'
                   : `已默认搜索 ${w.defaultSourceName}，请稍候或点下方结果`}
             </span>
             <span className="text-xs text-[var(--kz-fg-dim)]">
-              默认会选中第一条搜索结果并加载分集；其它源需手动点搜
+              {w.selection
+                ? `${w.selection.plugin.name} 分集已就绪 · 点击集数即时起播`
+                : '默认会选中第一条搜索结果并加载分集；其它源需手动点搜'}
             </span>
           </div>
         )}
