@@ -20,14 +20,14 @@
   - 针对媒体拉流与插件搜索错误提供清晰的可视化归因标识。
 
 ### 4. 混合模式 M3U8 去广告文本解析与 PROXY_TOKEN 媒体流中继鉴权解耦（P0）
-- [ ] **痛点分析**：
+- [x] **痛点分析**：
   - 当服务端配置了 `PROXY_TOKEN` 保护 VPS 流量时，普通用户访问开启了「去广告（adFilter）」的源（如 Omofun、MXdm）或在播放器设置开启「强力去广告」时，播放器请求 `/api/media/proxy?url=...&adFilter=1` 会被服务端直接 403 阻断；
   - 导致 Hls.js 报 `manifestLoadError`（网络错误重试并卡死播放），关闭去广告直连 CDN 即可正常播放。
-- [ ] **根本原因与流媒体架构原理**：
+- [x] **根本原因与流媒体架构原理**：
   - `adFilter`（去广告）本质只是 **M3U8 文本重写**（服务端拉取仅几 KB 的纯文本播放列表，剔除 `#EXT-X-DISCONTINUITY` 广告标签，并将 TS 切片重写为 CDN 直连地址）；
   - 在混合去广告模式下（Hybrid Ad-Filter），真正的视频分片流量**完全由浏览器直连 CDN**，根本不消耗服务端的视频带宽；
   - 但目前 `requireMediaProxyAccess` 一刀切拦截了所有未带 Token 的请求（包括几 KB 的 M3U8 文本过滤请求）。
-- [ ] **优化方案**：
+- [x] **优化方案**：
   - 在 `apps/server/src/routes/media.ts` 中精细化分流：当未携带 `PROXY_TOKEN` 时，**允许纯 M3U8 文本去广告重写**（`isM3u8 && !fullProxy && !cookie`，TS 切片保持直连 CDN，消耗流量 < 10KB）；
   - 凡涉及 `fullProxy=1`、需 Cookie 的整段代理、或二进制视频流切片（TS/M4S/MP4）的中继转发，严格维持 `PROXY_TOKEN` 拦截，在保障服务器流量安全的同时，让普通用户免密享受高速 M3U8 去广告播放。
 

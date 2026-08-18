@@ -21,7 +21,7 @@
 - 涉及文件：apps/server/src/index.ts
 
 ### 4. 开启去广告（adFilter）时无 Token 普通用户报 manifestLoadError 无法播放 Bug
-- 状态：待处理
+- 状态：已完成
 - 优先级：P0
 - 描述：
   1) **根本原因**：当源（如 Omofun、MXdm）配置了 `adFilter` 或开启全局去广告时，播放器请求 `/api/media/proxy?url=...&adFilter=1`。在配置了 `PROXY_TOKEN` 的服务端上，该接口一刀切 403 拒绝未带 Token 的请求。实际上混合去广告（Hybrid Ad-Filter）仅需服务端解析重写几 KB 的 M3U8 文本（TS 视频流由浏览器直连 CDN，不耗费服务器视频带宽）；

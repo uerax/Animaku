@@ -1,5 +1,20 @@
 # Animaku 项目状态
 
+## [2026-08-18] 混合模式 M3U8 去广告文本解析与 PROXY_TOKEN 媒体流中继鉴权解耦
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **排查根本原因**：
+     - 当服务端配置了 `PROXY_TOKEN`（用于保护 VPS 媒体流量防盗刷）时，此前在 `mediaRoutes.use('*', requireMediaProxyAccess)` 挂载了一刀切的全局鉴权拦截；
+     - 当视频源配置了 `adBlocker`（如 Omofun、MXdm）或用户开启了「强力去广告」时，播放器请求 `/api/media/proxy?url=...&adFilter=1` 会被服务端 403 阻断，导致 Hls.js 抛出 `manifestLoadError` 无法起播；
+     - 实际上混合去广告（Hybrid Ad-Filter）模式下，服务端仅拉取并解析几 KB 的 M3U8 文本（剔除 `#EXT-X-DISCONTINUITY` 广告标签并把 TS 切片重写为直连 CDN 地址），真正的视频分片流量 100% 由浏览器直连源站 CDN，根本不消耗 VPS 视频带宽。
+  2. **精细化分流解决方案（`apps/server/src/routes/media.ts`）**：
+     - **M3U8 纯文本去广告免密放行**：对未携带 `PROXY_TOKEN` 的普通请求，允许纯 M3U8 文本播放列表（`isM3u8 && !cookie && !fullProxy`）拉取、去广告过滤与 CDN 直连重写；
+     - **二进制媒体流与隧道代理严格鉴权**：凡涉及 `cookie`（如 Anime1 整段代理）、`fullProxy=1`（全量隧道代理）、或非 M3U8 二进制媒体分片（TS/M4S/MP4），严格执行 `PROXY_TOKEN` 拦截（403 阻断）；
+     - **子分片重写安全闭环**：在 `rewriteM3u8Uri` 与 `rewriteExtUriAttrs` 中，未授权请求的非播放列表资源统一输出源站 CDN 绝对直连链接，兼顾服务器流量安全与普通用户免密高速去广告观影。
+- 涉及文件：apps/server/src/routes/media.ts, .claude/BUGS.md, docs/TODO.md, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 0 错误编译通过，`pnpm build` 全量构建打包验证通过。
+
 ## [2026-08-18] 修复视频源持久化绑定、续播竞态报错与服务端搜索鉴权隔离
 - 状态：已完成
 - 优先级：P0

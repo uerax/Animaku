@@ -1,12 +1,10 @@
 import { Hono } from 'hono'
 import { filterM3u8AdsIfApplicable } from '@animaku/shared'
 import { config } from '../config'
-import { requireMediaProxyAccess, clientRemoteAddress } from '../lib/access'
+import { canUseMediaProxy, clientRemoteAddress } from '../lib/access'
 import { fetchPublic, isPrivateHost } from '../lib/private-host'
 
 export const mediaRoutes = new Hono()
-
-mediaRoutes.use('*', requireMediaProxyAccess)
 
 /** Track active streaming connections per client IP to prevent concurrency DDoS / mass-leeching */
 const MAX_CONCURRENT_MEDIA_PER_IP = 8
@@ -200,6 +198,8 @@ type RewriteOpts = {
   cookie: string
   /** Administrator proxy authorization token (propagated to child segments) */
   token?: string
+  /** Whether client has full media proxy privileges */
+  hasMediaAuth?: boolean
   /** Propagate so nested media playlists still filter (master is a no-op) */
   adFilter?: boolean
   /**
@@ -235,15 +235,14 @@ function rewriteM3u8Uri(u: string, base: URL, opts: RewriteOpts): string {
   const token = opts.token || ''
   const playlist = isM3u8Path(abs)
 
-  // Hybrid ad-filter: browser pulls media segments straight from CDN.
+  // Hybrid ad-filter / unauthenticated: browser pulls media segments straight from CDN.
   if (
-    adFilter &&
-    !cookie &&
-    !fullProxy &&
-    !playlist &&
-    !opts.alwaysProxy
+    !opts.hasMediaAuth ||
+    (adFilter && !cookie && !fullProxy && !playlist && !opts.alwaysProxy)
   ) {
-    return abs.toString()
+    if (!playlist) {
+      return abs.toString()
+    }
   }
 
   const q = new URLSearchParams({
@@ -270,8 +269,11 @@ function rewriteExtUriAttrs(
 ): string {
   return line.replace(/URI=(["'])([^"']+)\1/gi, (_m, quote: string, u: string) => {
     try {
-      // KEY/MAP: always proxy even in hybrid — tiny payloads, often referer-gated
-      const proxied = rewriteM3u8Uri(u, base, { ...opts, alwaysProxy: true })
+      // KEY/MAP: proxy when media proxy authorization is available (token/LAN)
+      const proxied = rewriteM3u8Uri(u, base, {
+        ...opts,
+        alwaysProxy: Boolean(opts.hasMediaAuth && (opts.token || opts.fullProxy)),
+      })
       return `URI=${quote}${proxied}${quote}`
     } catch {
       return `URI=${quote}${u}${quote}`
@@ -336,8 +338,48 @@ mediaRoutes.get('/proxy', async (c) => {
     return c.json({ error: 'forbidden', message: '禁止代理内网地址' }, 403)
   }
 
-  // MEDIA_FULL_PROXY=0 (default): only HLS playlists — no ts/mp4 bandwidth tunnel
-  if (!config.mediaFullProxy) {
+  const hasMediaAuth = canUseMediaProxy(c)
+
+  // Granular media proxy authorization:
+  // - If client has full media proxy access (token / loopback / LAN): allowed (subject to MEDIA_FULL_PROXY).
+  // - If client lacks token/auth: strictly allow pure M3U8 text parsing / ad-filtering (TS segments straight to CDN).
+  if (!hasMediaAuth) {
+    if (cookie) {
+      releaseStream(clientIp)
+      return c.json(
+        {
+          error: 'forbidden',
+          message:
+            '带 Cookie 鉴权的媒体代理当前需管理员口令或局域网访问（PUBLIC_PROXY=0 / PROXY_TOKEN 已开启）。请在设置中输入口令解锁。',
+        },
+        403,
+      )
+    }
+    if (fullProxyRequested) {
+      releaseStream(clientIp)
+      return c.json(
+        {
+          error: 'forbidden',
+          message:
+            '全量媒体流代理当前需管理员口令或局域网访问（PUBLIC_PROXY=0 / PROXY_TOKEN 已开启）。请在设置中输入口令解锁。',
+        },
+        403,
+      )
+    }
+    if (!isM3u8Path(target)) {
+      releaseStream(clientIp)
+      return c.json(
+        {
+          error: 'forbidden',
+          message:
+            '媒体分片与流代理当前需管理员口令或局域网访问（PUBLIC_PROXY=0 / PROXY_TOKEN 已开启）。请在设置中输入口令解锁。',
+          hint: 'M3U8 播放列表文本解析免密可用；TS/MP4 视频流分片请由浏览器直连 CDN',
+        },
+        403,
+      )
+    }
+  } else if (!config.mediaFullProxy) {
+    // MEDIA_FULL_PROXY=0 (default): only HLS playlists — no ts/mp4 bandwidth tunnel
     if (cookie && !isM3u8Path(target)) {
       releaseStream(clientIp)
       return c.json(
@@ -527,14 +569,15 @@ mediaRoutes.get('/proxy', async (c) => {
         // Keep original playlist if filter fails
       }
     }
-    // When full media proxy is off, never rewrite segments through us even if
-    // client sent fullProxy/cookie (cookie on m3u8 master is rare; still hybrid).
+    // When full media proxy is off or client is unauthenticated, never rewrite
+    // segments through us (hybrid ad-filter keeps segments on CDN).
     const rewriteOpts: RewriteOpts = {
       referer: effectiveReferer,
-      cookie: config.mediaFullProxy ? cookie : '',
-      token,
+      cookie: config.mediaFullProxy && hasMediaAuth ? cookie : '',
+      token: hasMediaAuth ? token : '',
+      hasMediaAuth,
       adFilter,
-      fullProxy,
+      fullProxy: hasMediaAuth ? fullProxy : false,
     }
     const rewritten = text
       .split('\n')
@@ -568,6 +611,21 @@ mediaRoutes.get('/proxy', async (c) => {
       'Cache-Control': cacheControl,
       'X-Media-Full-Proxy': config.mediaFullProxy ? '1' : '0',
     })
+  }
+
+  // Non-M3U8 responses require full media proxy authorization (token / LAN / dev)
+  if (!hasMediaAuth) {
+    cancelBody(upstream)
+    releaseStream(clientIp)
+    return c.json(
+      {
+        error: 'forbidden',
+        message:
+          '媒体流代理当前需管理员口令或局域网访问（PUBLIC_PROXY=0 / PROXY_TOKEN 已开启）。请在设置中输入口令解锁。',
+        hint: 'M3U8 播放列表文本解析免密可用；TS/MP4 视频流分片请由浏览器直连 CDN',
+      },
+      403,
+    )
   }
 
   // Non-M3U8 media stream safety checks (MIME & size)
