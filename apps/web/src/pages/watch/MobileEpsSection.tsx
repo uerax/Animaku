@@ -173,7 +173,7 @@ export function MobileEpsSection({
               在「视频源」选择播放源或点击搜索
             </p>
             <p className="text-[var(--kz-fg-muted)]">
-              <span className="kz-watch-step bg-[var(--kz-bg-hover)] text-[var(--kz-fg-dim)]">2</span>
+              <span className="kz-watch-step bg-[var(--kz-bg-soft)] text-[var(--kz-fg-dim)] border border-[var(--kz-border-subtle)]">2</span>
               选中关联资源条目即可加载全集播放
             </p>
           </div>

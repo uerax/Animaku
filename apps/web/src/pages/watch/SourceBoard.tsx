@@ -176,7 +176,7 @@ export function SourceBoard({
                     'group relative rounded-xl border transition-all duration-200 overflow-hidden',
                     isActive
                       ? 'border-[var(--kz-accent)] bg-[var(--kz-accent-soft)] shadow-xs'
-                      : 'border-[var(--kz-border-subtle)] bg-[var(--kz-bg-elevated)] hover:border-[var(--kz-border)] hover:bg-[var(--kz-bg-hover)]',
+                      : 'border-[var(--kz-border-subtle)] bg-[var(--kz-bg-card)] hover:border-[var(--kz-border)] hover:bg-[var(--kz-bg-hover)]/50',
                   )}
                 >
                   {/* Card Main Row */}
@@ -352,7 +352,7 @@ export function SourceBoard({
 
                   {/* Expandable Hits Section for needs_pick */}
                   {isExpanded && state.status === 'needs_pick' && (
-                    <div className="border-t border-[var(--kz-border-subtle)] bg-[var(--kz-bg-soft)] p-2.5 space-y-2.5 animate-in fade-in duration-150">
+                    <div className="border-t border-[var(--kz-border-subtle)] bg-[var(--kz-bg-soft)]/50 p-2.5 space-y-2.5 animate-in fade-in duration-150">
                       {state.items.length > 0 && (
                         <div className="space-y-1.5">
                           <div className="px-0.5 text-[10.5px] font-medium text-amber-600 dark:text-amber-300">
@@ -373,7 +373,7 @@ export function SourceBoard({
                                     'flex w-full items-center justify-between rounded-lg px-2.5 py-1 text-left text-[11.5px] transition-colors cursor-pointer',
                                     isItemSelected
                                       ? 'bg-[var(--kz-accent-soft)] text-[var(--kz-accent)] border border-[var(--kz-accent)] font-medium'
-                                      : 'bg-[var(--kz-bg-elevated)] text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] border border-[var(--kz-border-subtle)]',
+                                      : 'bg-[var(--kz-bg-card)] text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] border border-[var(--kz-border-subtle)]',
                                   )}
                                 >
                                   <span className="truncate flex-1 pr-2">
@@ -404,7 +404,7 @@ export function SourceBoard({
                                   reProbePlugin(plugin.name, kw)
                                 }}
                                 title={`以「${kw}」重新检索 ${plugin.name}`}
-                                className="rounded-md bg-[var(--kz-bg-elevated)] px-2 py-0.5 text-[10.5px] font-medium leading-tight text-[var(--kz-fg-muted)] hover:text-[var(--kz-accent)] border border-[var(--kz-border-subtle)] hover:border-[var(--kz-accent)] hover:bg-[var(--kz-accent-soft)] transition-all duration-150 cursor-pointer select-none"
+                                className="rounded-md bg-[var(--kz-bg-card)] px-2 py-0.5 text-[10.5px] font-medium leading-tight text-[var(--kz-fg-muted)] hover:text-[var(--kz-accent)] border border-[var(--kz-border-subtle)] hover:border-[var(--kz-accent)] hover:bg-[var(--kz-accent-soft)] transition-all duration-150 cursor-pointer select-none"
                               >
                                 {kw}
                               </button>
@@ -427,7 +427,7 @@ export function SourceBoard({
                             }))
                           }
                           placeholder={`换词重搜 ${plugin.name}…`}
-                          className="min-w-0 flex-1 rounded-md bg-[var(--kz-bg-elevated)] px-2.5 py-1 text-[11px] text-[var(--kz-fg)] border border-[var(--kz-border-subtle)] placeholder:text-[var(--kz-fg-dim)] outline-none focus:border-[var(--kz-accent)] focus:ring-1 focus:ring-[var(--kz-accent)] transition-all"
+                          className="min-w-0 flex-1 rounded-md bg-[var(--kz-bg-card)] px-2.5 py-1 text-[11px] text-[var(--kz-fg)] border border-[var(--kz-border-subtle)] placeholder:text-[var(--kz-fg-dim)] outline-none focus:border-[var(--kz-accent)] focus:ring-1 focus:ring-[var(--kz-accent)] transition-all"
                         />
                         <button
                           type="submit"
@@ -442,7 +442,7 @@ export function SourceBoard({
 
                   {/* Expandable Keyword Search/Retry for error or empty states */}
                   {isExpanded && (state.status === 'error' || state.status === 'empty') && (
-                    <div className="border-t border-[var(--kz-border-subtle)] bg-[var(--kz-bg-soft)] p-2.5 space-y-2.5 animate-in fade-in duration-150">
+                    <div className="border-t border-[var(--kz-border-subtle)] bg-[var(--kz-bg-soft)]/50 p-2.5 space-y-2.5 animate-in fade-in duration-150">
                       {keywordOptions.length > 0 && (
                         <div className="space-y-1.5">
                           <div className="text-[10.5px] font-medium text-[var(--kz-fg-muted)]">
@@ -457,7 +457,7 @@ export function SourceBoard({
                                   reProbePlugin(plugin.name, kw)
                                 }}
                                 title={`以「${kw}」重新检索 ${plugin.name}`}
-                                className="rounded-md bg-[var(--kz-bg-elevated)] px-2 py-0.5 text-[10.5px] font-medium leading-tight text-[var(--kz-fg-muted)] hover:text-[var(--kz-accent)] border border-[var(--kz-border-subtle)] hover:border-[var(--kz-accent)] hover:bg-[var(--kz-accent-soft)] transition-all duration-150 cursor-pointer select-none"
+                                className="rounded-md bg-[var(--kz-bg-card)] px-2 py-0.5 text-[10.5px] font-medium leading-tight text-[var(--kz-fg-muted)] hover:text-[var(--kz-accent)] border border-[var(--kz-border-subtle)] hover:border-[var(--kz-accent)] hover:bg-[var(--kz-accent-soft)] transition-all duration-150 cursor-pointer select-none"
                               >
                                 {kw}
                               </button>
@@ -479,7 +479,7 @@ export function SourceBoard({
                             }))
                           }
                           placeholder={`输入针对 ${plugin.name} 的关键词…`}
-                          className="min-w-0 flex-1 rounded-md bg-[var(--kz-bg-elevated)] px-2.5 py-1 text-[11px] text-[var(--kz-fg)] border border-[var(--kz-border-subtle)] placeholder:text-[var(--kz-fg-dim)] outline-none focus:border-[var(--kz-accent)] focus:ring-1 focus:ring-[var(--kz-accent)] transition-all"
+                          className="min-w-0 flex-1 rounded-md bg-[var(--kz-bg-card)] px-2.5 py-1 text-[11px] text-[var(--kz-fg)] border border-[var(--kz-border-subtle)] placeholder:text-[var(--kz-fg-dim)] outline-none focus:border-[var(--kz-accent)] focus:ring-1 focus:ring-[var(--kz-accent)] transition-all"
                         />
                         <button
                           type="submit"
