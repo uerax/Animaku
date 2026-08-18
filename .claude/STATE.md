@@ -1,5 +1,14 @@
 # Animaku 项目状态快照 (STATE.md)
 
+## [2026-08-18] 视频源换词重搜候选关键词 Chips 排版与微型字号精致化
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **关键词 Chips 微型精致排版**：优化 `SourceBoard.tsx` 中视频源卡片展开换词时的候选关键词 Chips；字号从 11px 精炼至 10.5px 微型排版（`text-[10.5px]`），优化内边距（`px-2 py-0.5`）、圆角（`rounded-md`）与柔和边框，提供流畅的天青色悬浮微高亮交互（`hover:bg-[var(--kz-accent-soft)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)]`）；
+  2. **待选（`needs_pick`）与重搜表单交互协同**：在待选多条目卡片中亦补充候选关键词 Chips，当返回条目不匹配时允许一键点击关键词重新探活；微调重搜输入框与重搜按钮至一致的精致圆角和对齐内边距。
+- 涉及文件：apps/web/src/pages/watch/SourceBoard.tsx
+- 备注：全仓类型检查与打包构建全通过。
+
 ## [2026-08-18] 补齐重解析熔断与凭证二次过期终态用户反馈
 - 状态：已完成
 - 优先级：P1

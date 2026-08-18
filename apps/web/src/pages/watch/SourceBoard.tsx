@@ -242,13 +242,13 @@ export function SourceBoard({
                         </span>
 
                         {isDefault && (
-                          <span className="rounded bg-[var(--kz-bg-soft)] px-1 py-0.2 text-[9.5px] font-medium text-[var(--kz-fg-muted)] border border-[var(--kz-border-subtle)]">
+                          <span className="rounded bg-[var(--kz-bg-soft)] px-1.5 py-0.5 text-[9.5px] font-medium leading-none text-[var(--kz-fg-muted)] border border-[var(--kz-border-subtle)]">
                             默认
                           </span>
                         )}
 
                         {isActive && (
-                          <span className="rounded bg-[var(--kz-accent)] px-1 py-0.2 text-[9.5px] font-medium text-white shadow-xs">
+                          <span className="rounded bg-[var(--kz-accent)] px-1.5 py-0.5 text-[9.5px] font-medium leading-none text-white shadow-xs">
                             播放中
                           </span>
                         )}
@@ -352,10 +352,10 @@ export function SourceBoard({
 
                   {/* Expandable Hits Section for needs_pick */}
                   {isExpanded && state.status === 'needs_pick' && (
-                    <div className="border-t border-[var(--kz-border-subtle)] bg-[var(--kz-bg-soft)] p-2 space-y-2 animate-in fade-in duration-150">
+                    <div className="border-t border-[var(--kz-border-subtle)] bg-[var(--kz-bg-soft)] p-2.5 space-y-2.5 animate-in fade-in duration-150">
                       {state.items.length > 0 && (
-                        <>
-                          <div className="px-1 text-[11px] font-medium text-amber-600 dark:text-amber-300">
+                        <div className="space-y-1.5">
+                          <div className="px-0.5 text-[10.5px] font-medium text-amber-600 dark:text-amber-300">
                             请点选匹配的番剧条目以绑定：
                           </div>
                           <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
@@ -370,7 +370,7 @@ export function SourceBoard({
                                     onSwitchSource(plugin, it)
                                   }}
                                   className={clsx(
-                                    'flex w-full items-center justify-between rounded-lg px-2 py-1 text-left text-xs transition-colors cursor-pointer',
+                                    'flex w-full items-center justify-between rounded-lg px-2.5 py-1 text-left text-[11.5px] transition-colors cursor-pointer',
                                     isItemSelected
                                       ? 'bg-[var(--kz-accent-soft)] text-[var(--kz-accent)] border border-[var(--kz-accent)] font-medium'
                                       : 'bg-[var(--kz-bg-elevated)] text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] border border-[var(--kz-border-subtle)]',
@@ -379,20 +379,44 @@ export function SourceBoard({
                                   <span className="truncate flex-1 pr-2">
                                     {it.name}
                                   </span>
-                                  <span className="text-[10px] text-[var(--kz-fg-muted)] flex-shrink-0">
+                                  <span className="text-[9.5px] text-[var(--kz-fg-muted)] flex-shrink-0">
                                     {isItemSelected ? '当前选用' : '点击选用'}
                                   </span>
                                 </button>
                               )
                             })}
                           </div>
-                        </>
+                        </div>
+                      )}
+
+                      {/* Candidate keyword chips if candidate items don't match */}
+                      {keywordOptions.length > 0 && (
+                        <div className="space-y-1.5 pt-1 border-t border-[var(--kz-border-subtle)]">
+                          <div className="text-[10.5px] font-medium text-[var(--kz-fg-muted)]">
+                            点选候选关键词重新探活：
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {keywordOptions.slice(0, 8).map((kw) => (
+                              <button
+                                key={kw}
+                                type="button"
+                                onClick={() => {
+                                  reProbePlugin(plugin.name, kw)
+                                }}
+                                title={`以「${kw}」重新检索 ${plugin.name}`}
+                                className="rounded-md bg-[var(--kz-bg-elevated)] px-2 py-0.5 text-[10.5px] font-medium leading-tight text-[var(--kz-fg-muted)] hover:text-[var(--kz-accent)] border border-[var(--kz-border-subtle)] hover:border-[var(--kz-accent)] hover:bg-[var(--kz-accent-soft)] transition-all duration-150 cursor-pointer select-none"
+                              >
+                                {kw}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       )}
 
                       {/* Also allow custom search if candidate items are not correct */}
                       <form
                         onSubmit={(e) => handleCardKeywordSubmit(plugin.name, e)}
-                        className="flex gap-1 pt-1 border-t border-[var(--kz-border-subtle)]"
+                        className="flex gap-1.5 pt-1 border-t border-[var(--kz-border-subtle)]"
                       >
                         <input
                           value={cardKwInputs[plugin.name] || ''}
@@ -403,12 +427,12 @@ export function SourceBoard({
                             }))
                           }
                           placeholder={`换词重搜 ${plugin.name}…`}
-                          className="min-w-0 flex-1 rounded bg-[var(--kz-bg-elevated)] px-2 py-0.5 text-[11px] text-[var(--kz-fg)] border border-[var(--kz-border)] placeholder:text-[var(--kz-fg-dim)] outline-none focus:border-[var(--kz-accent)]"
+                          className="min-w-0 flex-1 rounded-md bg-[var(--kz-bg-elevated)] px-2.5 py-1 text-[11px] text-[var(--kz-fg)] border border-[var(--kz-border-subtle)] placeholder:text-[var(--kz-fg-dim)] outline-none focus:border-[var(--kz-accent)] focus:ring-1 focus:ring-[var(--kz-accent)] transition-all"
                         />
                         <button
                           type="submit"
                           disabled={!(cardKwInputs[plugin.name] || '').trim()}
-                          className="rounded bg-[var(--kz-accent)] px-2 py-0.5 text-[11px] font-medium text-white hover:bg-[var(--kz-accent-hover)] disabled:opacity-40 transition-all cursor-pointer"
+                          className="rounded-md bg-[var(--kz-accent)] px-2.5 py-1 text-[11px] font-medium text-white hover:bg-[var(--kz-accent-hover)] disabled:opacity-40 transition-all cursor-pointer select-none"
                         >
                           重搜
                         </button>
@@ -418,21 +442,22 @@ export function SourceBoard({
 
                   {/* Expandable Keyword Search/Retry for error or empty states */}
                   {isExpanded && (state.status === 'error' || state.status === 'empty') && (
-                    <div className="border-t border-[var(--kz-border-subtle)] bg-[var(--kz-bg-soft)] p-2 space-y-2 animate-in fade-in duration-150">
+                    <div className="border-t border-[var(--kz-border-subtle)] bg-[var(--kz-bg-soft)] p-2.5 space-y-2.5 animate-in fade-in duration-150">
                       {keywordOptions.length > 0 && (
-                        <div className="space-y-1">
-                          <div className="text-[11px] font-medium text-[var(--kz-fg-muted)]">
+                        <div className="space-y-1.5">
+                          <div className="text-[10.5px] font-medium text-[var(--kz-fg-muted)]">
                             点选候选关键词重新探活：
                           </div>
-                          <div className="flex flex-wrap gap-1">
-                            {keywordOptions.slice(0, 6).map((kw) => (
+                          <div className="flex flex-wrap gap-1.5">
+                            {keywordOptions.slice(0, 8).map((kw) => (
                               <button
                                 key={kw}
                                 type="button"
                                 onClick={() => {
                                   reProbePlugin(plugin.name, kw)
                                 }}
-                                className="rounded bg-[var(--kz-bg-elevated)] px-1.5 py-0.5 text-[11px] text-[var(--kz-fg)] border border-[var(--kz-border)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] transition-colors cursor-pointer"
+                                title={`以「${kw}」重新检索 ${plugin.name}`}
+                                className="rounded-md bg-[var(--kz-bg-elevated)] px-2 py-0.5 text-[10.5px] font-medium leading-tight text-[var(--kz-fg-muted)] hover:text-[var(--kz-accent)] border border-[var(--kz-border-subtle)] hover:border-[var(--kz-accent)] hover:bg-[var(--kz-accent-soft)] transition-all duration-150 cursor-pointer select-none"
                               >
                                 {kw}
                               </button>
@@ -443,7 +468,7 @@ export function SourceBoard({
 
                       <form
                         onSubmit={(e) => handleCardKeywordSubmit(plugin.name, e)}
-                        className="flex gap-1"
+                        className="flex gap-1.5"
                       >
                         <input
                           value={cardKwInputs[plugin.name] || ''}
@@ -454,12 +479,12 @@ export function SourceBoard({
                             }))
                           }
                           placeholder={`输入针对 ${plugin.name} 的关键词…`}
-                          className="min-w-0 flex-1 rounded bg-[var(--kz-bg-elevated)] px-2 py-0.5 text-[11px] text-[var(--kz-fg)] border border-[var(--kz-border)] placeholder:text-[var(--kz-fg-dim)] outline-none focus:border-[var(--kz-accent)]"
+                          className="min-w-0 flex-1 rounded-md bg-[var(--kz-bg-elevated)] px-2.5 py-1 text-[11px] text-[var(--kz-fg)] border border-[var(--kz-border-subtle)] placeholder:text-[var(--kz-fg-dim)] outline-none focus:border-[var(--kz-accent)] focus:ring-1 focus:ring-[var(--kz-accent)] transition-all"
                         />
                         <button
                           type="submit"
                           disabled={!(cardKwInputs[plugin.name] || '').trim()}
-                          className="rounded bg-[var(--kz-accent)] px-2 py-0.5 text-[11px] font-medium text-white hover:bg-[var(--kz-accent-hover)] disabled:opacity-40 transition-all cursor-pointer"
+                          className="rounded-md bg-[var(--kz-accent)] px-2.5 py-1 text-[11px] font-medium text-white hover:bg-[var(--kz-accent-hover)] disabled:opacity-40 transition-all cursor-pointer select-none"
                         >
                           重搜
                         </button>

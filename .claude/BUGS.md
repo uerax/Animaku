@@ -2,18 +2,17 @@
 
 ## 📌 待处理清单 (Active TODOs)
 
-### 1. 视频源展开卡片候选关键词 Chips 排版与字号精致化
-- 状态：待处理
-- 优先级：P2
-- 描述：视频源卡片展开换词时，候选关键词 Chips 字体偏大。优化为 10~10.5px 微型排版、舒展内边距与双模态柔和边框，提升视觉精致度。
-- 涉及文件：`apps/web/src/pages/watch/SourceBoard.tsx`
+*(当前待处理清单暂无未决条目)*
 
 ---
 
 ## 历史已解决归档 (Recently Resolved)
 
 ### [2026-08-18]
-1. **全站双模态色彩系统美化与默认白天模式（Light Mode）改造 (P1)**
+1. **视频源展开卡片候选关键词 Chips 排版与字号精致化 (P2)**
+   - 解决：优化 `SourceBoard.tsx` 中视频源卡片展开换词时的候选关键词 Chips；字号从 11px 精炼至 10.5px 微型排版，优化内边距（`px-2 py-0.5`）、圆角（`rounded-md`）与柔和边框，提供悬浮天青高亮微动效；在待选（`needs_pick`）卡片中亦补充候选关键词 Chips，提升换词交互流畅度。
+   - 文件：`apps/web/src/pages/watch/SourceBoard.tsx`
+2. **全站双模态色彩系统美化与默认白天模式（Light Mode）改造 (P1)**
    - 解决：新用户访问及无缓存时默认启用白天模式；重构 Warm Slate / Paper 灰白分层与柔和阴影体系；夜间模式中和 Deep Charcoal 深灰避免死黑。
    - 文件：`apps/web/index.html`, `apps/web/src/stores/settings.ts`, `apps/web/src/index.css`
 2. **切换视频源 HUD 提示位置重构与播放器内联锚定 (P1)**
