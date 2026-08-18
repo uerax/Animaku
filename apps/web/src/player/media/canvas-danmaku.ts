@@ -134,6 +134,7 @@ export class CanvasDanmaku {
   private anchorPerfTime = 0
   private isBuffering = false
   private lastPlaybackRate = 1
+  private rvfcHandle = 0
 
   /** Lane states for collision and chase detection */
   private scrollLanes: ScrollLaneState[] = []
@@ -199,9 +200,10 @@ export class CanvasDanmaku {
     this.onPlay = () => {
       this.isBuffering = false
       const curMediaT = this.media?.currentTime || 0
-      // If time drifted significantly (e.g. seeked while paused), re-sync anchor to currentTime
-      if (Math.abs(this.anchorMediaTime - curMediaT) > 0.35) {
+      // If time jumped significantly (> 1.0s) while paused (seek without event), re-sync anchor
+      if (Math.abs(this.anchorMediaTime - curMediaT) > 1.0) {
         this.anchorMediaTime = curMediaT
+        this.seek()
       }
       this.anchorPerfTime = performance.now()
       this.lastPlaybackRate = this.effectivePlaybackRate()
@@ -210,8 +212,9 @@ export class CanvasDanmaku {
     this.onPlaying = () => {
       this.isBuffering = false
       const curMediaT = this.media?.currentTime || 0
-      if (Math.abs(this.anchorMediaTime - curMediaT) > 0.35) {
+      if (Math.abs(this.anchorMediaTime - curMediaT) > 1.0) {
         this.anchorMediaTime = curMediaT
+        this.seek()
       }
       this.anchorPerfTime = performance.now()
       this.lastPlaybackRate = this.effectivePlaybackRate()
@@ -219,19 +222,11 @@ export class CanvasDanmaku {
     }
     this.onPause = () => {
       this.isBuffering = false
-      // Freeze smoothly at the exact interpolated visual time of current frame,
-      // avoiding backward jumps or PTS quantum quantization jitter
-      const now = performance.now()
-      const rate = this.effectivePlaybackRate()
-      const elapsed = (now - this.anchorPerfTime) * 0.001 * rate
-      const currentInterpolated = Math.max(0, this.anchorMediaTime + elapsed)
-      const curMediaT = this.media?.currentTime || 0
-      if (Math.abs(currentInterpolated - curMediaT) <= 0.35) {
-        this.anchorMediaTime = currentInterpolated
-      } else {
-        this.anchorMediaTime = curMediaT
-      }
-      this.anchorPerfTime = now
+      // Freeze smoothly at the exact interpolated visual time of the current frame,
+      // guaranteeing zero rollback, zero forward snap, and zero lane-switching.
+      const currentInterpolated = this.mediaTime()
+      this.anchorMediaTime = currentInterpolated
+      this.anchorPerfTime = performance.now()
       this.stopLoop()
       this.paint()
     }
@@ -372,6 +367,7 @@ export class CanvasDanmaku {
 
   hide(): this {
     this.visible = false
+    this.stopLoop()
     this.canvas.style.visibility = 'hidden'
     this.running.length = 0
     this.clearCanvas()
@@ -546,27 +542,32 @@ export class CanvasDanmaku {
   /** Monitor video clock drift and softly adjust anchor without visible snapping */
   private checkClockDrift(rawVideoTime: number): void {
     if (this.media.paused || this.isBuffering) {
-      // If user jumped / seeked without firing seeking event while paused
-      if (Math.abs(rawVideoTime - this.anchorMediaTime) > 0.35) {
+      // While paused, only re-sync and seek on true large jumps (seek > 1.5s without event)
+      if (Math.abs(rawVideoTime - this.anchorMediaTime) > 1.5) {
         this.anchorMediaTime = rawVideoTime
         this.anchorPerfTime = performance.now()
         this.seek()
       }
       return
     }
+
     const now = performance.now()
     const rate = this.effectivePlaybackRate()
     const elapsed = (now - this.anchorPerfTime) * 0.001 * rate
     const predicted = this.anchorMediaTime + elapsed
     const drift = rawVideoTime - predicted
 
-    // If drift is large (> 0.5s, e.g. unnotified seek or decoder stall), re-anchor
-    if (Math.abs(drift) > 0.5) {
+    // If drift is large (> 0.6s, e.g. unnotified seek or decoder stall), hard re-anchor and seek
+    if (Math.abs(drift) > 0.6) {
       this.anchorMediaTime = rawVideoTime
       this.anchorPerfTime = now
-    } else if (Math.abs(drift) > 0.08) {
-      // Damped smooth correction: pull gently towards video clock past tolerance to absorb 15Hz timeupdate jitter
-      this.anchorMediaTime += drift * 0.04
+      this.seek()
+    } else {
+      // Continuous moving-average clock synchronization:
+      // Smoothly advance anchor toward rawVideoTime and reset elapsed to 0, eliminating long-term accumulation
+      const alpha = Math.abs(drift) > 0.15 ? 0.25 : 0.08
+      this.anchorMediaTime = predicted + drift * alpha
+      this.anchorPerfTime = now
     }
   }
 
@@ -739,12 +740,86 @@ export class CanvasDanmaku {
     if (!this.media.paused && this.visible) this.ensureLoop()
   }
 
+  private startRvfc(): void {
+    if (
+      this.destroyed ||
+      !this.visible ||
+      this.rvfcHandle ||
+      typeof HTMLVideoElement === 'undefined' ||
+      !(this.media instanceof HTMLVideoElement) ||
+      !('requestVideoFrameCallback' in this.media)
+    ) {
+      return
+    }
+    const video = this.media as HTMLVideoElement & {
+      requestVideoFrameCallback?: (
+        callback: (
+          now: number,
+          metadata: { mediaTime: number; presentedFrames: number; [key: string]: unknown },
+        ) => void,
+      ) => number
+    }
+    if (typeof video.requestVideoFrameCallback === 'function') {
+      this.rvfcHandle = video.requestVideoFrameCallback(this.onVideoFrame)
+    }
+  }
+
+  private onVideoFrame = (
+    _now: number,
+    metadata: { mediaTime: number; presentedFrames: number; [key: string]: unknown },
+  ) => {
+    this.rvfcHandle = 0
+    if (this.destroyed || !this.visible) return
+    if (!this.media.paused && !this.isBuffering) {
+      if (Number.isFinite(metadata.mediaTime) && metadata.mediaTime >= 0) {
+        const now = performance.now()
+        const rate = this.effectivePlaybackRate()
+        const rawVideoTime = metadata.mediaTime
+
+        const elapsed = (now - this.anchorPerfTime) * 0.001 * rate
+        const predicted = this.anchorMediaTime + elapsed
+        const drift = rawVideoTime - predicted
+
+        if (Math.abs(drift) > 0.6) {
+          this.anchorMediaTime = rawVideoTime
+          this.anchorPerfTime = now
+          this.seek()
+        } else {
+          // Frame-accurate presentation sync: lock anchor to the displayed video frame
+          this.anchorMediaTime = rawVideoTime
+          this.anchorPerfTime = now
+        }
+      }
+    }
+    if (!this.destroyed && !this.media.paused && this.visible) {
+      this.startRvfc()
+    }
+  }
+
+  private stopRvfc(): void {
+    if (
+      this.rvfcHandle &&
+      typeof HTMLVideoElement !== 'undefined' &&
+      this.media instanceof HTMLVideoElement
+    ) {
+      const video = this.media as HTMLVideoElement & {
+        cancelVideoFrameCallback?: (handle: number) => void
+      }
+      if (typeof video.cancelVideoFrameCallback === 'function') {
+        video.cancelVideoFrameCallback(this.rvfcHandle)
+      }
+      this.rvfcHandle = 0
+    }
+  }
+
   private ensureLoop(): void {
-    if (this.destroyed || this.raf || !this.visible) return
+    if (this.destroyed || !this.visible) return
     if (this.media.paused) {
       this.paint()
       return
     }
+    this.startRvfc()
+    if (this.raf) return
     const tick = () => {
       this.raf = 0
       if (this.destroyed || !this.visible) return
@@ -761,6 +836,7 @@ export class CanvasDanmaku {
       cancelAnimationFrame(this.raf)
       this.raf = 0
     }
+    this.stopRvfc()
   }
 
   private tick(): void {

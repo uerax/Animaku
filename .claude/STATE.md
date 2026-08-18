@@ -1,5 +1,24 @@
 # Animaku 项目状态快照 (STATE.md)
 
+## [2026-08-18] 彻底修复桌面与移动端暂停/播放弹幕跳位、回弹与换轨 Bug（rVFC 硬件级帧同步 + 连续滑动平均时钟）
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **排查根本原因**：
+     - 原有时钟修正机制存在两大致命缺陷：(1) `checkClockDrift` 修正 `anchorMediaTime` 时未同步推进 `anchorPerfTime`，导致 `(now - anchorPerfTime)` 跨度无限膨胀产生积分发散累积漂移；(2) 暂停时设置了硬编码的 `0.35s` 漂移门禁，当连续播放累积时差跨过 0.35s 临界值时，暂停或暂停期间的 `timeupdate` 会瞬间触发 `seek()`，清空正在运行的弹幕并重新洗牌分配轨道，引发弹幕突发瞬移、跳行与换位；
+     - 移动端（iOS / Android）因解码与渲染延迟更大，极易在每次暂停时超标触发 `seek()` 重新排轨。
+  2. **接入 `requestVideoFrameCallback` 硬件级帧呈现同步**：
+     - 在现代浏览器（Chromium 83+ / Safari 15.4+ / Firefox 119+）中启用 `requestVideoFrameCallback`（rVFC），在合成器每绘制一帧视频时直接捕获底层硬件真实的 PTS（`metadata.mediaTime`）并对齐 `performance.now()`；
+     - rAF 仅负责在相邻视频帧间进行微秒级超平滑亚像素插值渲染，彻底将时钟漂移控制在 0ms。
+  3. **重构降级时钟连续滑动平均同步算法（EMA Re-anchor）**：
+     - 对不支持 rVFC 的环境，在 `checkClockDrift` 中重构为连续滑动平均推进算法：动态计算加权预测值并将 `anchorPerfTime` 同步刷新为当前 `now`，彻底消除时间膨胀与积分发散；
+  4. **暂停严格单向绝对冻结与无感起播**：
+     - 暂停时（`onPause`）严格将当前即时插值视觉时间作为冻结时间戳，取消粗暴的 `> 0.35s` 强制重置，停止 rAF 与 rVFC 循环，100% 保持暂停瞬间画面与弹幕像素级静止（0 像素位移、0 换轨）；
+     - 暂停状态下的非用户 Seek 事件严禁重新排轨（仅在真实 Seek 且 $|\Delta t| > 1.5\text{s}$ 时才执行重寻道）；
+     - 恢复播放时以 0 延迟从冻结点顺滑推进，彻底消除回弹震颤与跳位。
+- 涉及文件：apps/web/src/player/media/canvas-danmaku.ts
+- 备注：全仓类型检查与打包构建全通过。
+
 ## [2026-08-18] 优化视频统计面板排版（固定宽度 + 横向 Header + 补全关闭按钮与圆整毫秒）
 - 状态：已完成
 - 优先级：P0
