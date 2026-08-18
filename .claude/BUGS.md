@@ -1,5 +1,33 @@
 # Bug / 优化清单
 
+## [2026-08-18] 待处理体验与日志优化清单
+
+### 1. 切换视频源 HUD 提示位置重构与播放器内联锚定
+- 状态：待处理
+- 优先级：P1
+- 描述：当前 `WatchHudToast` 使用全网页顶部固定定位（`fixed top-16 left-1/2`），在宽屏下与播放器脱节且全屏模式下位置突兀。对标 Bilibili/YouTube 标准，将其改造为挂载在播放器画面容器内部的轻量浮层（Player HUD Overlay），保持窗口/网页全屏/系统全屏始终居中伴随画面提示。
+- 涉及文件：apps/web/src/pages/watch/WatchHudToast.tsx, apps/web/src/player/VideoPlayer.tsx, apps/web/src/pages/WatchPage.tsx
+
+### 2. 视频源展开卡片候选关键词 Chips 排版与字号精致化
+- 状态：待处理
+- 优先级：P2
+- 描述：视频源卡片展开换词时，候选关键词 Chips 字体偏大。优化为 10~10.5px 微型排版、舒展内边距与双模态柔和边框，提升视觉精致度。
+- 涉及文件：apps/web/src/pages/watch/SourceBoard.tsx
+
+### 3. 服务端日志输出结构化与健康检查心跳静默过滤
+- 状态：待处理
+- 优先级：P1
+- 描述：过滤 Docker 每 30s 的 `/api/health` 刷屏，实现结构化输出中间件，记录标准时间戳 `[YYYY-MM-DD HH:mm:ss]`、客户端真实 IP、请求方法、接口路径、状态码与执行耗时毫秒数。
+- 涉及文件：apps/server/src/index.ts
+
+### 4. 开启去广告（adFilter）时无 Token 普通用户报 manifestLoadError 无法播放 Bug
+- 状态：待处理
+- 优先级：P0
+- 描述：
+  1) **根本原因**：当源（如 Omofun、MXdm）配置了 `adFilter` 或开启全局去广告时，播放器请求 `/api/media/proxy?url=...&adFilter=1`。在配置了 `PROXY_TOKEN` 的服务端上，该接口一刀切 403 拒绝未带 Token 的请求。实际上混合去广告（Hybrid Ad-Filter）仅需服务端解析重写几 KB 的 M3U8 文本（TS 视频流由浏览器直连 CDN，不耗费服务器视频带宽）；
+  2) **解决方案**：在 `/api/media/proxy` 中对纯 M3U8 文本重写（`!fullProxy && !cookie && isM3u8`）放行，仅对真正的二进制媒体流（TS/M4S/MP4/全量隧道代理）严格校验 `PROXY_TOKEN`，兼顾服务器流量安全与免密去广告播放。
+- 涉及文件：apps/server/src/routes/media.ts, apps/server/src/lib/access.ts
+
 ## [2026-08-18] 修复视频源持久化绑定、续播竞态与源站搜索鉴权异常
 
 ### 1. 视频源黄色待选（needs_pick）手动点选后未记录到缓存 Bug
