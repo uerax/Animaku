@@ -1,5 +1,16 @@
 # Animaku 项目状态快照 (STATE.md)
 
+## [2026-08-18] 修复播放页强依赖代理源（Anime1/LIBVIO）鉴权状态不同步问题
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **排查根本原因**：当本地 `localStorage` 在开启代理口令前曾保存过 `player.serverProxy: true` 时，设置页受 `isProxyUnlocked` 门禁约束正确呈现为关闭/禁用；但 `useWatchSession.ts` 原先直接读取原始 `player.serverProxy` 且未校验 `isProxyUnlocked`，导致播放页 `enabledPlugins` 仍判定全量代理源可用并展示。新用户桌面端因默认 `serverProxy: false` 因而不会显示。
+  2. **全面同步解锁门禁**：
+     - `useWatchSession.ts` 接入 `isProxyUnlocked = !proxyTokenRequired || Boolean(proxyToken?.trim())`，使 `serverProxyEnabled` 严格对齐设置页状态；
+     - `plugin-capabilities.ts` 中 `isFullProxySourceUsable` 与 `pluginShouldUseProxy` 补齐 `isProxyUnlocked` 校验，未解锁或未授权时严禁激活全量代理源。
+- 涉及文件：apps/web/src/lib/plugin-capabilities.ts, apps/web/src/lib/use-watch-session.ts
+- 备注：全仓类型检查与打包验证通过。
+
 ## [2026-08-18] 混合模式 M3U8 去广告文本解析与 PROXY_TOKEN 媒体流中继鉴权解耦
 - 状态：已完成
 - 优先级：P0

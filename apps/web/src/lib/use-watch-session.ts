@@ -292,20 +292,30 @@ export function useWatchSession(bangumiId: number): WatchSession {
     staleTime: 60_000,
   })
   const mediaFullProxy = mediaFullProxyEnabled(serverCaps.data)
+  const proxyTokenRequired = Boolean(serverCaps.data?.proxyTokenRequired)
   const playerSettings = useSettingsStore((s) => s.player ?? FALLBACK_PLAYER)
   const proxyToken = useSettingsStore((s) => s.proxyToken)
   const setPlayer = useSettingsStore((s) => s.setPlayer)
-  const serverProxyEnabled = Boolean(playerSettings.serverProxy)
+  const isProxyUnlocked = !proxyTokenRequired || Boolean(proxyToken?.trim())
+  const serverProxyEnabled =
+    mediaFullProxy && Boolean(playerSettings.serverProxy) && isProxyUnlocked
   const plugins = useMemo(
     () =>
       allPlugins.filter((p) => {
         if (!p || p.enabled === false) return false
-        if (!isFullProxySourceUsable(p, mediaFullProxy, serverProxyEnabled)) {
+        if (
+          !isFullProxySourceUsable(
+            p,
+            mediaFullProxy,
+            serverProxyEnabled,
+            isProxyUnlocked,
+          )
+        ) {
           return false
         }
         return true
       }),
-    [allPlugins, mediaFullProxy, serverProxyEnabled],
+    [allPlugins, mediaFullProxy, serverProxyEnabled, isProxyUnlocked],
   )
   const upsertHistory = useHistoryStore((s) => s.upsert)
   const danmakuSettings = useSettingsStore((s) => s.danmaku ?? FALLBACK_DANMAKU)
@@ -1129,7 +1139,17 @@ export function useWatchSession(bangumiId: number): WatchSession {
     const plugin =
       usePluginStore.getState().getByName(qPlugin) ||
       plugins.find((p) => p.name === qPlugin)
-    if (!plugin || plugin.enabled === false) return
+    if (
+      !plugin ||
+      plugin.enabled === false ||
+      !isFullProxySourceUsable(
+        plugin,
+        mediaFullProxy,
+        serverProxyEnabled,
+        isProxyUnlocked,
+      )
+    )
+      return
 
     let cancelled = false
     // Do NOT mark done until success — cancel/plugins churn must retry
@@ -1428,7 +1448,12 @@ export function useWatchSession(bangumiId: number): WatchSession {
   // Per-source proxy decision: plugin's own toggle, gated by master switches.
   const currentPluginForProxy = selection?.plugin ?? null
   const preferMediaProxy = currentPluginForProxy
-    ? pluginShouldUseProxy(currentPluginForProxy, mediaFullProxy, serverProxyEnabled)
+    ? pluginShouldUseProxy(
+        currentPluginForProxy,
+        mediaFullProxy,
+        serverProxyEnabled,
+        isProxyUnlocked,
+      )
     : false
   const sessionForceProxy = mediaFullProxy && forceProxy
   const playback = useMemo(

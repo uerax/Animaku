@@ -31,9 +31,11 @@ export function isFullProxySourceUsable(
   plugin: { requiresFullMediaProxy?: boolean; name?: string; baseURL?: string },
   mediaFullProxy: boolean,
   serverProxyEnabled: boolean,
+  isProxyUnlocked = true,
 ): boolean {
   return (
-    !pluginNeedsFullMediaProxy(plugin) || (mediaFullProxy && serverProxyEnabled)
+    !pluginNeedsFullMediaProxy(plugin) ||
+    (mediaFullProxy && serverProxyEnabled && isProxyUnlocked)
   )
 }
 
@@ -46,7 +48,8 @@ export function pluginShouldUseProxy(
   plugin: { proxy?: boolean },
   mediaFullProxy: boolean,
   serverProxyEnabled: boolean,
+  isProxyUnlocked = true,
 ): boolean {
-  if (!mediaFullProxy || !serverProxyEnabled) return false
+  if (!mediaFullProxy || !serverProxyEnabled || !isProxyUnlocked) return false
   return Boolean(plugin.proxy)
 }
