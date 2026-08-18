@@ -1,12 +1,67 @@
 import { Hono } from 'hono'
 import { filterM3u8AdsIfApplicable } from '@animaku/shared'
 import { config } from '../config'
-import { requireLocalOrToken } from '../lib/access'
+import { requireLocalOrToken, clientRemoteAddress } from '../lib/access'
 import { fetchPublic, isPrivateHost } from '../lib/private-host'
 
 export const mediaRoutes = new Hono()
 
 mediaRoutes.use('*', requireLocalOrToken)
+
+/** Track active streaming connections per client IP to prevent concurrency DDoS / mass-leeching */
+const MAX_CONCURRENT_MEDIA_PER_IP = 8
+const activeStreamsPerIp = new Map<string, number>()
+
+function acquireStream(ip: string): boolean {
+  const current = activeStreamsPerIp.get(ip) || 0
+  if (current >= MAX_CONCURRENT_MEDIA_PER_IP) return false
+  activeStreamsPerIp.set(ip, current + 1)
+  return true
+}
+
+function releaseStream(ip: string): void {
+  const current = activeStreamsPerIp.get(ip) || 1
+  if (current <= 1) {
+    activeStreamsPerIp.delete(ip)
+  } else {
+    activeStreamsPerIp.set(ip, current - 1)
+  }
+}
+
+/** Wrap a ReadableStream to guarantee connection counter decrement on close/abort/error */
+function createTrackedStream(
+  body: ReadableStream<Uint8Array>,
+  onDone: () => void,
+): ReadableStream<Uint8Array> {
+  let released = false
+  const doRelease = () => {
+    if (!released) {
+      released = true
+      onDone()
+    }
+  }
+  const reader = body.getReader()
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const { done, value } = await reader.read()
+        if (done) {
+          doRelease()
+          controller.close()
+        } else {
+          controller.enqueue(value)
+        }
+      } catch (err) {
+        doRelease()
+        controller.error(err)
+      }
+    },
+    cancel(reason) {
+      doRelease()
+      return reader.cancel(reason)
+    },
+  })
+}
 
 function originFromReferer(referer: string): string {
   try {
@@ -143,6 +198,8 @@ function isM3u8Path(abs: URL): boolean {
 type RewriteOpts = {
   referer: string
   cookie: string
+  /** Administrator proxy authorization token (propagated to child segments) */
+  token?: string
   /** Propagate so nested media playlists still filter (master is a no-op) */
   adFilter?: boolean
   /**
@@ -175,6 +232,7 @@ function rewriteM3u8Uri(u: string, base: URL, opts: RewriteOpts): string {
   const adFilter = Boolean(opts.adFilter)
   const fullProxy = Boolean(opts.fullProxy)
   const cookie = opts.cookie || ''
+  const token = opts.token || ''
   const playlist = isM3u8Path(abs)
 
   // Hybrid ad-filter: browser pulls media segments straight from CDN.
@@ -193,6 +251,7 @@ function rewriteM3u8Uri(u: string, base: URL, opts: RewriteOpts): string {
     referer: opts.referer,
   })
   if (cookie) q.set('cookie', cookie)
+  if (token) q.set('token', token)
   if (fullProxy) q.set('fullProxy', '1')
   // Master → media child must keep adFilter=1; without this only the
   // top playlist is filtered (no-op on master) and ads stay in mixed.m3u8.
@@ -225,6 +284,15 @@ mediaRoutes.get('/proxy', async (c) => {
   const referer = c.req.query('referer') || ''
   /** Optional upstream Cookie (e.g. anime1 path-scoped e/p/h). Not used by most sources. */
   const cookie = c.req.query('cookie') || ''
+  /** Proxy token extracted from query or headers */
+  const token = (
+    c.req.query('token') ||
+    c.req.query('proxyToken') ||
+    c.req.header('x-animaku-proxy-token') ||
+    c.req.header('x-aniku-proxy-token') ||
+    c.req.header('x-proxy-token') ||
+    ''
+  ).trim()
   /** HLS discontinuity ad-filter. Query: adFilter=1 */
   const adFilter =
     c.req.query('adFilter') === '1' ||
@@ -241,22 +309,37 @@ mediaRoutes.get('/proxy', async (c) => {
   const fullProxy = fullProxyRequested && config.mediaFullProxy
   if (!url) return c.json({ error: 'bad_request', message: '缺少 url' }, 400)
 
+  const clientIp = clientRemoteAddress(c) || 'unknown'
+  if (!acquireStream(clientIp)) {
+    return c.json(
+      {
+        error: 'rate_limited',
+        message: '媒体流并发连接数超限（单IP最多8个并发），请勿使用多线程下载工具并发请求',
+      },
+      429,
+    )
+  }
+
   let target: URL
   try {
     target = new URL(url)
   } catch {
+    releaseStream(clientIp)
     return c.json({ error: 'bad_request', message: 'url 无效' }, 400)
   }
   if (target.protocol !== 'http:' && target.protocol !== 'https:') {
+    releaseStream(clientIp)
     return c.json({ error: 'bad_request', message: '仅支持 http/https' }, 400)
   }
   if (isPrivateHost(target.hostname)) {
+    releaseStream(clientIp)
     return c.json({ error: 'forbidden', message: '禁止代理内网地址' }, 403)
   }
 
   // MEDIA_FULL_PROXY=0 (default): only HLS playlists — no ts/mp4 bandwidth tunnel
   if (!config.mediaFullProxy) {
     if (cookie && !isM3u8Path(target)) {
+      releaseStream(clientIp)
       return c.json(
         {
           error: 'forbidden',
@@ -269,6 +352,7 @@ mediaRoutes.get('/proxy', async (c) => {
       )
     }
     if (!isM3u8Path(target)) {
+      releaseStream(clientIp)
       return c.json(
         {
           error: 'forbidden',
@@ -312,6 +396,7 @@ mediaRoutes.get('/proxy', async (c) => {
     })
   } catch (e) {
     connect.clear()
+    releaseStream(clientIp)
     const msg = e instanceof Error ? e.message : String(e)
     if (/内网|重定向/.test(msg)) {
       return c.json({ error: 'forbidden', message: msg }, 403)
@@ -332,6 +417,7 @@ mediaRoutes.get('/proxy', async (c) => {
     // Cookie / auth expired (anime1 and similar)
     if (cookie && (upstream.status === 403 || upstream.status === 401)) {
       cancelBody(upstream)
+      releaseStream(clientIp)
       return c.json(
         {
           error: 'auth_expired',
@@ -360,6 +446,7 @@ mediaRoutes.get('/proxy', async (c) => {
           upstream = retry
         } else {
           cancelBody(retry)
+          releaseStream(clientIp)
           return c.json(
             {
               error: 'upstream',
@@ -374,6 +461,7 @@ mediaRoutes.get('/proxy', async (c) => {
         }
       } catch (e) {
         retryConnect.clear()
+        releaseStream(clientIp)
         const msg = e instanceof Error ? e.message : String(e)
         if (/内网|重定向/.test(msg)) {
           return c.json({ error: 'forbidden', message: msg }, 403)
@@ -389,6 +477,7 @@ mediaRoutes.get('/proxy', async (c) => {
       }
     } else {
       cancelBody(upstream)
+      releaseStream(clientIp)
       return c.json(
         {
           error: 'upstream',
@@ -403,10 +492,10 @@ mediaRoutes.get('/proxy', async (c) => {
     }
   }
 
-  const contentType = upstream.headers.get('content-type') || ''
+  const rawContentType = (upstream.headers.get('content-type') || '').toLowerCase()
   const isM3u8 =
-    contentType.includes('mpegurl') ||
-    contentType.includes('m3u8') ||
+    rawContentType.includes('mpegurl') ||
+    rawContentType.includes('m3u8') ||
     target.pathname.endsWith('.m3u8')
 
   if (isM3u8) {
@@ -415,6 +504,7 @@ mediaRoutes.get('/proxy', async (c) => {
       text = await readTextLimited(upstream, MAX_M3U8_BYTES)
     } catch (e) {
       cancelBody(upstream)
+      releaseStream(clientIp)
       const msg = e instanceof Error ? e.message : String(e)
       return c.json(
         {
@@ -425,6 +515,9 @@ mediaRoutes.get('/proxy', async (c) => {
         502,
       )
     }
+    // M3U8 text parsing is complete in memory — release stream concurrency counter immediately
+    releaseStream(clientIp)
+
     const base = target
     if (adFilter) {
       try {
@@ -439,6 +532,7 @@ mediaRoutes.get('/proxy', async (c) => {
     const rewriteOpts: RewriteOpts = {
       referer: effectiveReferer,
       cookie: config.mediaFullProxy ? cookie : '',
+      token,
       adFilter,
       fullProxy,
     }
@@ -476,6 +570,38 @@ mediaRoutes.get('/proxy', async (c) => {
     })
   }
 
+  // Non-M3U8 media stream safety checks (MIME & size)
+  const isMediaStream =
+    rawContentType.startsWith('video/') ||
+    rawContentType.startsWith('audio/') ||
+    rawContentType === 'application/octet-stream' ||
+    /\.(ts|m4s|mp4|webm|aac|mp3|m4a|flv)(\?|$)/i.test(target.pathname + target.search)
+
+  if (!isMediaStream) {
+    cancelBody(upstream)
+    releaseStream(clientIp)
+    return c.json(
+      {
+        error: 'forbidden',
+        message: '拒绝代理非音视频流内容',
+      },
+      403,
+    )
+  }
+
+  const contentLength = Number(upstream.headers.get('content-length') || 0)
+  if (contentLength > 150_000_000 && !config.mediaFullProxy) {
+    cancelBody(upstream)
+    releaseStream(clientIp)
+    return c.json(
+      {
+        error: 'forbidden',
+        message: '单个媒体分片体积超过上限 (150MB)',
+      },
+      403,
+    )
+  }
+
   const resHeaders: Record<string, string> = {
     'Access-Control-Expose-Headers':
       'Content-Length, Content-Range, Accept-Ranges',
@@ -493,7 +619,12 @@ mediaRoutes.get('/proxy', async (c) => {
   }
 
   resHeaders['X-Media-Full-Proxy'] = config.mediaFullProxy ? '1' : '0'
-  return new Response(upstream.body, {
+
+  const trackedBody = upstream.body
+    ? createTrackedStream(upstream.body as ReadableStream<Uint8Array>, () => releaseStream(clientIp))
+    : null
+
+  return new Response(trackedBody, {
     status: upstream.status,
     headers: resHeaders,
   })

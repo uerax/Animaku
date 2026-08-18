@@ -72,7 +72,7 @@ export function HomePage() {
             {recent.map((h) => (
               <Link
                 key={h.id}
-                to={`/play/${h.bangumiId}?plugin=${encodeURIComponent(h.pluginName)}&pageUrl=${encodeURIComponent(h.pageUrl)}&ep=${h.episode}&road=${h.road}&title=${encodeURIComponent(h.title)}${h.cover ? `&cover=${encodeURIComponent(h.cover)}` : ''}${h.sourceUrl ? `&source=${encodeURIComponent(h.sourceUrl)}` : ''}`}
+                to={`/play/${h.bangumiId}?plugin=${encodeURIComponent(h.pluginName)}&ep=${h.episode}${h.road > 0 ? `&road=${h.road}` : ''}`}
                 onMouseEnter={preloadVideoPlayer}
                 onFocus={preloadVideoPlayer}
                 onTouchStart={preloadVideoPlayer}

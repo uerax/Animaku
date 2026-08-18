@@ -53,7 +53,8 @@ export function clientRemoteAddress(c: Context): string {
 
 /**
  * Whether this request may use open-proxy style APIs (media + plugin exec).
- * - When PROXY_TOKEN is set: requires matching token (or loopback/LAN access).
+ * - When PROXY_TOKEN is set: strictly requires matching token in Header or Query.
+ *   Docker bridge NAT (172.x) and reverse proxies will NEVER bypass token check.
  * - When PROXY_TOKEN is empty: PUBLIC_PROXY=1 allows all, PUBLIC_PROXY=0 restricts to LAN.
  */
 export function canUseOpenProxy(c: Context): boolean {
@@ -68,12 +69,11 @@ export function canUseOpenProxy(c: Context): boolean {
     const q = c.req.query('proxyToken') || c.req.query('token') || ''
     if (q && q === token) return true
 
-    // When PROXY_TOKEN is configured, still permit local loopback/LAN developer access
+    // Only allow direct loopback socket from same host without proxy token in local dev
     const ip = clientRemoteAddress(c)
-    if (ip && isPrivateHost(ip)) return true
-    if (!ip) {
-      const origin = c.req.header('origin')
-      if (origin && isLoopbackOrigin(origin)) return true
+    const origin = c.req.header('origin')
+    if ((ip === '127.0.0.1' || ip === '::1' || ip === 'localhost') && (!origin || isLoopbackOrigin(origin))) {
+      return true
     }
     return false
   }

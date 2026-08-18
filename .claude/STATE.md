@@ -1,5 +1,40 @@
 # Animaku 项目状态
 
+## [2026-08-18] 播放器 URL 深度瘦身重构（去除冗长序列化参数，对标 Bilibili/主流流媒体极简短链）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **排查 URL 膨胀根本原因**：
+     - 此前选集或切源时，将原本属于本地存储或 API 元数据的 `title`（中文编码）、`cover`（图片完整直链）、`source`（源站主页 URL）、`pageUrl`（源站深层播放链接）全部序列化塞进了浏览器地址栏，导致 URL 膨胀至近 300 字符。
+  2. **URL 参数精简与状态下沉解耦（`apps/web/src/lib/use-watch-session.ts`）**：
+     - **参数瘦身 90%**：地址栏彻底清理 `title`、`cover`、`source`、`pageUrl` 字段，仅保留定位必须的最小核心元数据 `ep`（分集）、`plugin`（指定源）、`road`（指定线路）；
+     - **默认播放极简短链**：如 `/play/445882?ep=2`（仅十几个字符，对标 Bilibili `?p=2` 哲学）；
+     - **深层续播与分享自愈**：当从干净短链或分享链接进入时，通过 `bangumiId` + `qPlugin` 优先读取本地持久化绑定 `useSourceBindingStore`；若新设备无绑定则自动触发源站搜索与最佳匹配绑定，平滑起播目标分集；
+     - **旧版本长链接 100% 向后兼容**：若用户点开旧书签带 `pageUrl` 的长链接，依然能正常匹配并自动平滑洗成极简短链。
+  3. **历史记录与首页继续观看卡片跳转优化（`HistoryPage.tsx` & `HomePage.tsx`）**：
+     - 简化历史记录和继续观看卡片的 `<Link to="...">` 参数构造，消除庞大的 URL 字符串拼接。
+- 涉及文件：apps/web/src/lib/use-watch-session.ts, apps/web/src/pages/HistoryPage.tsx, apps/web/src/pages/HomePage.tsx, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 0 错误通过，`pnpm build` 全量打包编译通过。
+
+## [2026-08-18] 修复服务器媒体代理高危漏洞（Docker 网桥绕过、M3U8 Token 丢失、单 IP 并发与格式熔断）
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **封堵 Docker 网桥 / 反向代理内网免密绕过漏洞（`apps/server/src/lib/access.ts`）**：
+     - 排查发现当处于 Docker NAT（`172.18.x.x`）或 Nginx/Caddy 反向代理时，容器内的 `clientRemoteAddress` 会识别为内网 IP，导致原本配置了 `PROXY_TOKEN` 的安全卡控被内网判定意外绕过；
+     - 彻底重构 `canUseOpenProxy`：一旦配置了 `PROXY_TOKEN`，严格要求必须提供匹配的口令，彻底禁止 Docker 网桥和反向代理 IP 自动豁免，公网未授权流量一律 403 阻断。
+  2. **修复 M3U8 递归重写切片 Token 丢失 Bug（`apps/server/src/routes/media.ts`）**：
+     - 在 `RewriteOpts` 与 `rewriteM3u8Uri` 中增加 `token` 级联透传；
+     - 服务端解析重写 M3U8 播放列表时，自动将当前请求的 `token` 注入到所有子播放列表与 `.ts`/`.m4s` 切片链接中，彻底解决输入密码解锁后 HLS 分片 403 播放卡死的致命问题。
+  3. **单 IP 并发流连接数限制与非媒体格式拦截（`apps/server/src/routes/media.ts`）**：
+     - **并发防刷**：引入 `activeStreamsPerIp` 活跃连接计数器，限制单 IP 最大媒体并发流传输数 $\le 8$ 个，超额返回 `429 Too Many Requests`，杜绝 `aria2` / 多线程脚本瞬间拉满 VPS 出站带宽；
+     - **流生命周期准确追踪**：通过 `createTrackedStream` 包装 Web Streams，在连接断开、拉取完成或客户端中途取消时 100% 可靠回收并发配额；
+     - **MIME 校验与单分片体积熔断**：非 M3U8 响应严格校验 `video/*`、`audio/*`、`octet-stream` 与多媒体后缀，拦截非法格式；单分片大于 150MB 强制熔断，防止服务器被利用为大文件免流/中继跳板。
+  4. **默认密码安全兜底配置（`.env.example` & `docker-compose.yml`）**：
+     - 在 `.env.example` 与 `docker-compose.yml` 中默认配置 `PROXY_TOKEN=animaku_admin_secret`，防止新手小白在公网盲目使用默认配置时被未授权刷取流量。
+- 涉及文件：apps/server/src/lib/access.ts, apps/server/src/routes/media.ts, .env.example, docker-compose.yml, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 0 错误通过，`pnpm build` 全量打包构建通过，安全单测验证全通过。
+
 ## [2026-08-18] 服务器代理开关权限上锁与行内琉璃解锁交互设计落地
 - 状态：已完成
 - 优先级：P0

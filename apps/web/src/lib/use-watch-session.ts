@@ -690,23 +690,25 @@ export function useWatchSession(bangumiId: number): WatchSession {
 
           const q = new URLSearchParams(paramsRef.current)
           q.set('plugin', plugin.name)
-          q.set('pageUrl', targetPageUrl)
           q.set('ep', String(targetEpNum))
-          q.set('road', String(targetRoadIdx))
-          q.set('title', title)
-          if (cover) q.set('cover', cover)
-          q.set('source', searchItem.src)
+          if (targetRoadIdx > 0) q.set('road', String(targetRoadIdx))
+          else q.delete('road')
+          // Clean redundant long metadata from address bar
+          q.delete('pageUrl')
+          q.delete('title')
+          q.delete('cover')
+          q.delete('source')
           safeSetParams(q, { replace: true })
         } else {
           setEpisode(null)
           const q = new URLSearchParams(paramsRef.current)
           q.set('plugin', plugin.name)
-          q.set('title', title)
-          if (cover) q.set('cover', cover)
-          q.set('source', searchItem.src)
           q.delete('pageUrl')
           q.delete('ep')
           q.delete('road')
+          q.delete('title')
+          q.delete('cover')
+          q.delete('source')
           safeSetParams(q, { replace: true })
         }
       } catch (e) {
@@ -1077,9 +1079,9 @@ export function useWatchSession(bangumiId: number): WatchSession {
     pickSource,
   ])
 
-  // Resume from deep-link query (history / home)
+  // Resume from deep-link query (history / home / shared clean link)
   useEffect(() => {
-    if (!Number.isFinite(bangumiId) || !qPlugin || !qPageUrl) return
+    if (!Number.isFinite(bangumiId) || !qPlugin || (!qPageUrl && !qEp)) return
     const key = `${bangumiId}|${qPlugin}|${qPageUrl}|${qEp}|${qRoad}`
     if (resumeDoneFor.current === key) return
 
@@ -1097,39 +1099,54 @@ export function useWatchSession(bangumiId: number): WatchSession {
       setRoadLoading(true)
       setRoadError('')
       try {
-        const sourceUrl =
+        const boundItem = useSourceBindingStore.getState().getBinding(bangumiId, qPlugin)
+        let sourceUrl =
+          boundItem?.sourceUrl ||
           paramsRef.current.get('source') ||
           lookupHistorySourceUrl(bangumiId, qPlugin, qPageUrl) ||
           ''
+        let sourceTitle = boundItem?.title || qTitle || title || qPlugin
 
-        let roads =
-          findRoadsForPlay({
-            bangumiId,
-            pluginName: qPlugin,
-            pageUrl: qPageUrl,
-            sourceUrl: sourceUrl || undefined,
-          }) || []
+        // If not bound on this device yet (e.g. shared link), auto-search and bind best match
+        if (!sourceUrl) {
+          const kw = resolvePluginDefaultKeyword(plugin, item, defaultKeyword) || title
+          if (kw) {
+            const searchRes = await pluginApi.search(plugin, kw)
+            if (cancelled) return
+            if (searchRes.data?.items?.length) {
+              const ranked = rankSearchItems(searchRes.data.items, titleRefsStable)
+              const matched = ranked[0]
+              if (matched) {
+                sourceUrl = matched.src
+                sourceTitle = matched.name
+              }
+            }
+          }
+        }
 
-        if (!roads.length) {
+        let roads = sourceUrl
+          ? findRoadsForPlay({
+              bangumiId,
+              pluginName: qPlugin,
+              pageUrl: qPageUrl,
+              sourceUrl: sourceUrl || undefined,
+            }) || []
+          : []
+
+        if (!roads.length && (sourceUrl || qPageUrl)) {
           // Chapters need the detail/source URL, not the episode play page.
           // Try sourceUrl first; only fall back to pageUrl for legacy rows.
           const chapterSrc = sourceUrl || qPageUrl
           const res = await pluginApi.chapters(plugin, chapterSrc)
           if (cancelled) return
           roads = res.data.roads || []
-          if (roads.length) {
+          if (roads.length && (sourceUrl || chapterSrc)) {
             writeRoadsForSource(
               bangumiId,
               qPlugin,
               sourceUrl || chapterSrc,
               roads,
             )
-          }
-          // If episode URL was wrongly used and failed, surface clearer error
-          if (!roads.length && sourceUrl && sourceUrl !== qPageUrl) {
-            // already failed with source — no second guess
-          } else if (!roads.length && !sourceUrl) {
-            // Legacy: episode URL often isn't a chapters source
           }
         }
         if (cancelled) return
@@ -1142,22 +1159,24 @@ export function useWatchSession(bangumiId: number): WatchSession {
         }
 
         const source: SearchItem = {
-          name: qTitle || title || qPlugin,
+          name: sourceTitle,
           src: sourceUrl || qPageUrl,
         }
         let roadIdx = Math.max(0, qRoad)
         let epIdx = Math.max(0, (qEp || 1) - 1)
-        for (let ri = 0; ri < roads.length; ri++) {
-          const r = roads[ri]
-          const found = r.data.findIndex(
-            (u) =>
-              u === qPageUrl ||
-              u.replace(/\/$/, '') === qPageUrl.replace(/\/$/, ''),
-          )
-          if (found >= 0) {
-            roadIdx = ri
-            epIdx = found
-            break
+        if (qPageUrl) {
+          for (let ri = 0; ri < roads.length; ri++) {
+            const r = roads[ri]
+            const found = r.data.findIndex(
+              (u) =>
+                u === qPageUrl ||
+                u.replace(/\/$/, '') === qPageUrl.replace(/\/$/, ''),
+            )
+            if (found >= 0) {
+              roadIdx = ri
+              epIdx = found
+              break
+            }
           }
         }
 
@@ -1170,10 +1189,11 @@ export function useWatchSession(bangumiId: number): WatchSession {
         if (!isWatchPage()) return
         if (cancelled) return
 
+        const targetPageUrl = roads[roadIdx]?.data[epIdx] || qPageUrl
         setSelection({ plugin, source, roads })
         setVisibleRoad(roadIdx)
         setEpisode({
-          pageUrl: roads[roadIdx]?.data[epIdx] || qPageUrl,
+          pageUrl: targetPageUrl,
           episode: epNum,
           road: roadIdx,
         })
@@ -1190,12 +1210,14 @@ export function useWatchSession(bangumiId: number): WatchSession {
         }
         const q = new URLSearchParams(paramsRef.current)
         q.set('plugin', qPlugin)
-        q.set('pageUrl', roads[roadIdx]?.data[epIdx] || qPageUrl)
         q.set('ep', String(epNum))
-        q.set('road', String(roadIdx))
-        if (source.src) q.set('source', source.src)
-        if (title) q.set('title', title)
-        if (cover) q.set('cover', cover)
+        if (roadIdx > 0) q.set('road', String(roadIdx))
+        else q.delete('road')
+        // Clean legacy / bloated URL params from address bar
+        q.delete('pageUrl')
+        q.delete('title')
+        q.delete('cover')
+        q.delete('source')
         safeSetParams(q, { replace: true })
         // Only lock after a successful attach
         if (!cancelled) resumeDoneFor.current = key
@@ -1285,12 +1307,14 @@ export function useWatchSession(bangumiId: number): WatchSession {
     })
     const q = new URLSearchParams(paramsRef.current)
     q.set('plugin', selection.plugin.name)
-    q.set('pageUrl', pageUrl)
     q.set('ep', String(epNum))
-    q.set('road', String(roadIndex))
-    if (selection.source.src) q.set('source', selection.source.src)
-    q.set('title', title)
-    if (cover) q.set('cover', cover)
+    if (roadIndex > 0) q.set('road', String(roadIndex))
+    else q.delete('road')
+    // Clean redundant metadata parameters
+    q.delete('pageUrl')
+    q.delete('title')
+    q.delete('cover')
+    q.delete('source')
     safeSetParams(q, { replace: true })
   }
 

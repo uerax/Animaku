@@ -44,22 +44,17 @@ export function HistoryPage() {
             h.duration > 0
               ? Math.min(100, Math.round((h.position / h.duration) * 100))
               : 0
-          const resumeQ = new URLSearchParams({
-            plugin: h.pluginName,
-            pageUrl: h.pageUrl,
-            ep: String(h.episode),
-            road: String(h.road),
-            title: h.title,
-            cover: h.cover || '',
-          })
-          if (h.sourceUrl) resumeQ.set('source', h.sourceUrl)
+          const resumeQ = new URLSearchParams()
+          if (h.pluginName) resumeQ.set('plugin', h.pluginName)
+          if (h.episode) resumeQ.set('ep', String(h.episode))
+          if (h.road > 0) resumeQ.set('road', String(h.road))
           return (
             <div
               key={h.id}
               className="flex items-center gap-3 rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)]/60 p-3"
             >
               <Link
-                to={`/play/${h.bangumiId}?${resumeQ}`}
+                to={`/play/${h.bangumiId}?${resumeQ.toString()}`}
                 className="flex min-w-0 flex-1 items-center gap-3"
               >
                 {h.cover ? (
