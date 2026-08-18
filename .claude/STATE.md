@@ -42,8 +42,8 @@
      - 在 `Dockerfile` 中安全预建 `/app/data` 并赋权 `node:node` 用户，声明 `VOLUME ["/app/data"]`；
      - 在 `.env.example` 中补充 `DATA_DIR` 与 `SQLITE_PATH` 配置说明；
      - 在 `.gitignore` 中完善 `data/`、`*.db`、`*.db-wal`、`*.db-shm` 规则，防止本地数据库污染 git 仓库。
-- 涉及文件：apps/server/src/db/connection.ts, apps/server/src/db/schema.ts, apps/server/src/db/repositories/plugin-search-cache.ts, apps/server/src/db/repositories/kv-cache.ts, apps/server/src/db/index.ts, apps/server/src/config.ts, apps/server/src/index.ts, apps/server/src/routes/plugin.ts, docker-compose.yml, Dockerfile, .env.example, .gitignore, .claude/STATE.md
-- 备注：`pnpm typecheck` 全仓 0 错误通过，`pnpm build` 全量打包编译通过，SQLite 全量单元/集成测试通过。
+- 涉及文件：apps/server/src/db/connection.ts, apps/server/src/db/schema.ts, apps/server/src/db/repositories/plugin-search-cache.ts, apps/server/src/db/repositories/kv-cache.ts, apps/server/src/db/index.ts, apps/server/src/config.ts, apps/server/src/index.ts, apps/server/src/routes/plugin.ts, docker-compose.yml, Dockerfile, data/.gitkeep, .env.example, .gitignore, .claude/STATE.md
+- 备注：通过在仓库内维护 `data/.gitkeep`，确保用户通过 `git clone` 拉取项目时宿主机已预先存在 `data/` 目录，杜绝 Docker daemon 以 root 自动建目录导致的非 root 容器用户写权限拒绝（EACCES）问题。`pnpm typecheck` 全仓 0 错误通过，`pnpm build` 全量打包编译通过。
 
 ## [2026-08-18] 修复视频源首屏起播、折叠时机、白天主题适配与失败源自定义重搜
 - 状态：已完成

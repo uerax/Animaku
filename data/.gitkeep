@@ -1,0 +1,1 @@
+# Keep data directory in git tracking so clone creates ./data with correct user permissions

@@ -13,7 +13,8 @@ apps/server/public
 .tmp*
 .claude/settings.local.json
 CLAUDE.local.md
-data
+data/*
+!data/.gitkeep
 *.db
 *.db-wal
 *.db-shm
