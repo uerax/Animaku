@@ -1,5 +1,21 @@
 # Animaku 项目状态快照 (STATE.md)
 
+## [2026-08-19] 彻底修复桌面端网页全屏（Web Fullscreen）失效问题与补全 Shift+W 快捷键
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **排查根本原因**：
+     - 在 `WatchPage.tsx` 中，`playerBlock` 曾在外层引入 `<div className="relative kz-player-frame mx-auto">` 容器包裹 `VideoPlayerSuspense`；
+     - 由于 `.kz-player-frame` 在 CSS 中配置了 `contain: layout;`（用于防 low-res MP4 元数据加载时的回流抖动），根据 W3C CSS Containment 规范，`contain: layout` 会强制为所有后代元素（包括 `position: fixed`）创建独立包含块（Containing Block）；
+     - 当用户触发「网页全屏」时，底层播放器 `.kz-player-shell.kz-web-fs`（`position: fixed; inset: 0; width: 100vw; height: 100vh;`）被外层 `kz-player-frame` 容器强制约束在原本的 16:9 盒模型中，无法铺满浏览器视口。
+  2. **消除包含块约束**：
+     - 移除 `WatchPage.tsx` 中 `VideoPlayerSuspense` 外层冗余的 `kz-player-frame` 包装容器，播放器在非全屏态下自主管理自身的 `kz-player-frame relative` 类名，全屏态下直接脱离文档流扩展至全视口；
+     - 在 `plyr-overrides.css` 中为 `.kz-has-web-fs` 补全防御性样式 `.kz-has-web-fs .kz-player-frame { contain: none !important; }` 并提升 `.kz-watch-cinema` 与 `.kz-watch` 层叠上下文。
+  3. **补齐 `Shift+W` 快捷键映射**：
+     - 修复 `VideoPlayer.tsx` 键盘事件中 `Shift+W` 被单键 `w`（切换画面比例）截断的问题，按 `Shift+W` 正常触发 `toggleWebFs()`。
+- 涉及文件：apps/web/src/pages/WatchPage.tsx, apps/web/src/player/VideoPlayer.tsx, apps/web/src/player/plyr-overrides.css
+- 备注：全仓类型检查与打包构建全通过。
+
 ## [2026-08-18] 彻底修复桌面与移动端暂停/播放弹幕跳位、回弹与换轨 Bug（rVFC 硬件级帧同步 + 连续滑动平均时钟）
 - 状态：已完成
 - 优先级：P0

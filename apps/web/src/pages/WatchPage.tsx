@@ -174,88 +174,86 @@ export function WatchPage() {
 
   const playerBlock = (
     <div className="relative w-full space-y-2 lg:static sticky top-0 z-40 bg-[var(--kz-bg)] shadow-md lg:shadow-none">
-      <div className="relative kz-player-frame mx-auto">
-        {!w.mediaSrc && <WatchHudToast message={w.hudMessage} />}
-        {w.resolveLoading && !w.mediaSrc && (
-          <div className="kz-player-placeholder text-sm text-[var(--kz-fg-muted)]">
-            <div className="flex flex-col items-center gap-2">
-              <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-[var(--kz-border)] border-t-[var(--kz-accent)]" />
-              解析播放地址…
-            </div>
+      {!w.mediaSrc && <WatchHudToast message={w.hudMessage} />}
+      {w.resolveLoading && !w.mediaSrc && (
+        <div className="kz-player-placeholder text-sm text-[var(--kz-fg-muted)]">
+          <div className="flex flex-col items-center gap-2">
+            <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-[var(--kz-border)] border-t-[var(--kz-accent)]" />
+            解析播放地址…
           </div>
-        )}
+        </div>
+      )}
 
-        {w.mediaSrc && (
-          <VideoPlayerSuspense
-            key={w.playerKey}
-            title={
-              w.title
-                ? `${w.title}${w.episode ? ` 第 ${w.episode.episode} 集` : ''}`
-                : undefined
+      {w.mediaSrc && (
+        <VideoPlayerSuspense
+          key={w.playerKey}
+          title={
+            w.title
+              ? `${w.title}${w.episode ? ` 第 ${w.episode.episode} 集` : ''}`
+              : undefined
+          }
+          src={w.mediaSrc}
+          initialTime={w.resumeTime}
+          comments={w.dm.visibleComments}
+          danmaku={w.danmakuSettings}
+          player={w.playerSettings}
+          onPlayerChange={w.setPlayer}
+          onProgress={w.onProgress}
+          onToggleDanmaku={() => {
+            const cur = w.danmakuSettings
+            const isEnabled = cur.enabled !== false
+            const isSimplify = Boolean(cur.simplify)
+            if (isEnabled && !isSimplify) {
+              w.setDanmaku({ enabled: true, simplify: true })
+            } else if (isEnabled && isSimplify) {
+              w.setDanmaku({ enabled: false, simplify: false })
+            } else {
+              w.setDanmaku({ enabled: true, simplify: false })
             }
-            src={w.mediaSrc}
-            initialTime={w.resumeTime}
-            comments={w.dm.visibleComments}
-            danmaku={w.danmakuSettings}
-            player={w.playerSettings}
-            onPlayerChange={w.setPlayer}
-            onProgress={w.onProgress}
-            onToggleDanmaku={() => {
-              const cur = w.danmakuSettings
-              const isEnabled = cur.enabled !== false
-              const isSimplify = Boolean(cur.simplify)
-              if (isEnabled && !isSimplify) {
-                w.setDanmaku({ enabled: true, simplify: true })
-              } else if (isEnabled && isSimplify) {
-                w.setDanmaku({ enabled: false, simplify: false })
-              } else {
-                w.setDanmaku({ enabled: true, simplify: false })
-              }
-            }}
-            onDanmakuChange={w.setDanmaku}
-            onPrev={() => startTransition(() => w.goAdjacentEpisode(-1))}
-            onNext={() => startTransition(() => w.goAdjacentEpisode(1))}
-            onMediaAuthExpired={w.onMediaAuthExpired}
-            onMediaLoadFailed={w.onMediaLoadFailed}
-            danmakuPanel={w.dm.panel}
-            hudMessage={w.hudMessage}
+          }}
+          onDanmakuChange={w.setDanmaku}
+          onPrev={() => startTransition(() => w.goAdjacentEpisode(-1))}
+          onNext={() => startTransition(() => w.goAdjacentEpisode(1))}
+          onMediaAuthExpired={w.onMediaAuthExpired}
+          onMediaLoadFailed={w.onMediaLoadFailed}
+          danmakuPanel={w.dm.panel}
+          hudMessage={w.hudMessage}
+        />
+      )}
+
+      {w.selection &&
+        w.episode &&
+        Boolean(w.resolveError) &&
+        !w.mediaSrc &&
+        !w.resolveLoading && (
+          <EmbedPlayerSuspense
+            pageUrl={w.pageUrl}
+            title={w.title}
+            reason={
+              w.resolveError instanceof Error
+                ? w.resolveError.message
+                : '静态解析失败'
+            }
+            onRetryResolve={w.refetchResolve}
           />
         )}
 
-        {w.selection &&
-          w.episode &&
-          Boolean(w.resolveError) &&
-          !w.mediaSrc &&
-          !w.resolveLoading && (
-            <EmbedPlayerSuspense
-              pageUrl={w.pageUrl}
-              title={w.title}
-              reason={
-                w.resolveError instanceof Error
-                  ? w.resolveError.message
-                  : '静态解析失败'
-              }
-              onRetryResolve={w.refetchResolve}
-            />
-          )}
-
-        {!w.mediaSrc && !w.resolveLoading && !w.resolveError && (
-          <div className="kz-player-placeholder flex-col gap-1.5 text-sm text-[var(--kz-fg-muted)]">
-            <span>
-              {w.roadLoading
-                ? `正在加载 ${w.pendingSource?.pluginName || w.defaultSourceName} 分集…`
-                : w.selection
-                  ? '请在选集区点击集数开始播放'
-                  : `已默认搜索 ${w.defaultSourceName}，请稍候或点下方结果`}
-            </span>
-            <span className="text-xs text-[var(--kz-fg-dim)]">
-              {w.selection
-                ? `${w.selection.plugin.name} 分集已就绪 · 点击集数即时起播`
-                : '默认会选中第一条搜索结果并加载分集；其它源需手动点搜'}
-            </span>
-          </div>
-        )}
-      </div>
+      {!w.mediaSrc && !w.resolveLoading && !w.resolveError && (
+        <div className="kz-player-placeholder flex-col gap-1.5 text-sm text-[var(--kz-fg-muted)]">
+          <span>
+            {w.roadLoading
+              ? `正在加载 ${w.pendingSource?.pluginName || w.defaultSourceName} 分集…`
+              : w.selection
+                ? '请在选集区点击集数开始播放'
+                : `已默认搜索 ${w.defaultSourceName}，请稍候或点下方结果`}
+          </span>
+          <span className="text-xs text-[var(--kz-fg-dim)]">
+            {w.selection
+              ? `${w.selection.plugin.name} 分集已就绪 · 点击集数即时起播`
+              : '默认会选中第一条搜索结果并加载分集；其它源需手动点搜'}
+          </span>
+        </div>
+      )}
     </div>
   )
 

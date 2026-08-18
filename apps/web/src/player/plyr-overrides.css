@@ -1770,9 +1770,15 @@ body.kz-has-web-fs header {
 .kz-player-stack:has(.kz-web-fs),
 .kz-watch-cinema--mobile .kz-player-stack--sticky:has(.kz-web-fs),
 .kz-has-web-fs .kz-player-stack,
-.kz-has-web-fs .kz-player-stack--sticky {
+.kz-has-web-fs .kz-player-stack--sticky,
+.kz-has-web-fs .kz-watch-cinema,
+.kz-has-web-fs .kz-watch {
   position: static !important;
   z-index: 99999 !important;
+}
+
+.kz-has-web-fs .kz-player-frame {
+  contain: none !important;
 }
 
 .kz-player-shell.kz-web-fs {

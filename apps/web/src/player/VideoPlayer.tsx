@@ -1364,7 +1364,11 @@ export function VideoPlayer({
         toggleFsRef.current()
       } else if (k === 'w') {
         e.preventDefault()
-        toggleAspectRatioRef.current?.()
+        if (e.shiftKey) {
+          void toggleWebFs()
+        } else {
+          toggleAspectRatioRef.current?.()
+        }
       } else if (k === 'p') onPrevRef.current?.()
       else if (k === 'n') onNextRef.current?.()
       else if (k === 'd') {
