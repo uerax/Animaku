@@ -524,50 +524,79 @@ export async function resolveXifanNext(
     throw new Error(`无法从播放链接提取分集 ID: ${pageUrl}`)
   }
 
-  const reqBody: Record<string, unknown> = {
-    action: 'fallback',
-    episode_id: episodeId,
-  }
-  if (sourceCode) {
-    reqBody.source = sourceCode
-  }
+  let playUrl = ''
+  let playbackAction = ''
 
-  // Request playback URL from issue-web-playback edge function
-  const res = await fetchSupabaseJson<PlaybackResponse>(
-    '/functions/v1/issue-web-playback',
-    {
-      method: 'POST',
-      body: reqBody,
-    },
-  )
-
-  if (!res || !res.ok || !res.url) {
-    throw new Error(
-      `稀饭Next解析失败: ${res?.error || '未能生成有效播放直链'}`,
-    )
-  }
-
-  let playUrl = res.url
-
-  // Probe and follow 302 redirects on server side using HEAD (zero body transfer) to provide direct pre-signed stream URL
+  // 1. Primary: probe HLS adaptive stream (m3u8) first
   try {
-    const redirectProbe = await fetchPublic(
-      playUrl,
+    const hlsRes = await fetchSupabaseJson<PlaybackResponse>(
+      '/functions/v1/issue-web-playback',
       {
-        method: 'HEAD',
-        redirect: 'manual',
-        headers: {
-          'User-Agent': config.defaultUserAgent,
+        method: 'POST',
+        body: {
+          action: 'hls',
+          episode_id: episodeId,
         },
+        timeoutMs: 4_000,
       },
-      { timeoutMs: 3_000 },
     )
-    const loc = redirectProbe.headers.get('location')
-    if (loc && /^https?:\/\//i.test(loc)) {
-      playUrl = loc
+    if (hlsRes?.ok && hlsRes?.url) {
+      playUrl = hlsRes.url
+      playbackAction = 'hls'
     }
   } catch {
-    /* keep initial url */
+    /* fallback to raw progressive storage stream */
+  }
+
+  // 2. Fallback: request raw storage stream (direct MP4 / pan.wo.cn / xfvod)
+  if (!playUrl) {
+    const reqBody: Record<string, unknown> = {
+      action: 'fallback',
+      episode_id: episodeId,
+    }
+    if (sourceCode) {
+      reqBody.source = sourceCode
+    }
+
+    const fbRes = await fetchSupabaseJson<PlaybackResponse>(
+      '/functions/v1/issue-web-playback',
+      {
+        method: 'POST',
+        body: reqBody,
+      },
+    )
+
+    if (!fbRes || !fbRes.ok || !fbRes.url) {
+      throw new Error(
+        `稀饭Next解析失败: ${fbRes?.error || '未能生成有效播放直链'}`,
+      )
+    }
+
+    playUrl = fbRes.url
+    playbackAction = fbRes.action || 'fallback'
+  }
+
+  // Probe and follow 302 redirects on server side using HEAD (zero body transfer) to provide direct pre-signed stream URL
+  if (playbackAction !== 'hls') {
+    try {
+      const redirectProbe = await fetchPublic(
+        playUrl,
+        {
+          method: 'HEAD',
+          redirect: 'manual',
+          headers: {
+            'User-Agent': config.defaultUserAgent,
+          },
+        },
+        { timeoutMs: 3_000 },
+      )
+      const loc = redirectProbe.headers.get('location')
+      if (loc && /^https?:\/\//i.test(loc)) {
+        playUrl = loc
+      }
+    } catch {
+      /* keep initial url */
+    }
   }
 
   // pan.wo.cn rejects cross-origin referers with 400 Bad Request; use pan.wo.cn or empty
@@ -583,6 +612,10 @@ export async function resolveXifanNext(
       'User-Agent': rule.userAgent || config.defaultUserAgent,
       Referer: referer,
     },
-    diagnostics: [`成功解析直链 (${res.action || 'fallback'}): ${playUrl}`],
+    diagnostics: [
+      playbackAction === 'hls'
+        ? `成功解析 HLS 自适应多码率切片流: ${playUrl}`
+        : `成功解析直链 (${playbackAction}): ${playUrl}`,
+    ],
   }
 }

@@ -65,12 +65,14 @@ const ASPECT_RATIO_LABELS: Record<AspectRatioMode, string> = {
   '4:3': '画幅 4:3',
 }
 
-/** Min buffer before first play — reduces weak-net audio-before-picture. */
-const MIN_START_BUFFER_SEC = 2.2
+/** Min buffer before first play — tiered for HLS vs progressive MP4. */
+const MIN_START_BUFFER_HLS_SEC = 0.4
+const MIN_START_BUFFER_MP4_SEC = 0.8
 /** After rebuffer pause, wait for this much ahead before resume. */
-const MIN_RESUME_BUFFER_SEC = 2.8
+const MIN_RESUME_BUFFER_HLS_SEC = 1.0
+const MIN_RESUME_BUFFER_MP4_SEC = 1.5
 /** Don't stall forever on empty CDN; start anyway after this. */
-const MAX_START_WAIT_MS = 14_000
+const MAX_START_WAIT_MS = 8_000
 
 export function VideoPlayer({
   title,
@@ -544,15 +546,21 @@ export function VideoPlayer({
       const startedAt = Date.now()
       let settled = false
 
+      const isHls = isM3u8(activeSrc)
+      const minStartBuffer = isHls
+        ? MIN_START_BUFFER_HLS_SEC
+        : MIN_START_BUFFER_MP4_SEC
+
       const tryStart = () => {
         if (!alive() || settled) return
         const ahead = bufferedAhead(video)
         const waited = Date.now() - startedAt
-        // Prefer real buffered seconds; HAVE_FUTURE_DATA alone is too early on weak net
+        // Tiered start: HLS pipelines fragments immediately; MP4 checks readyState & safe head buffer
         const readyEnough =
-          ahead >= MIN_START_BUFFER_SEC ||
-          (ahead >= 1.2 &&
+          ahead >= minStartBuffer ||
+          (ahead >= 0.3 &&
             video.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA) ||
+          (isHls && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) ||
           waited >= MAX_START_WAIT_MS
         if (!readyEnough) return
 
@@ -1065,8 +1073,11 @@ export function VideoPlayer({
         return
       }
       const ahead = bufferedAhead(video)
+      const minResumeBuffer = isM3u8(activeSrc)
+        ? MIN_RESUME_BUFFER_HLS_SEC
+        : MIN_RESUME_BUFFER_MP4_SEC
       if (
-        ahead >= MIN_RESUME_BUFFER_SEC ||
+        ahead >= minResumeBuffer ||
         video.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA
       ) {
         clearResumePoll()

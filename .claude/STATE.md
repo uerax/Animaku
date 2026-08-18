@@ -1,5 +1,20 @@
 # Animaku 项目状态快照 (STATE.md)
 
+## [2026-08-18] 优化 xifan-next HLS 优先探测切片秒开与播放器分级起播门禁调优
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **xifan-next 服务端 HLS 优先探测与平滑降级**：
+     - 修复 `resolveXifanNext` 硬编码 `action: 'fallback'` 问题，对标官方 Next.js 客户端改为「优先探测 `action: 'hls'` $\rightarrow$ 失败/未切片自动降级 `action: 'fallback'`」；
+     - 大量热门/已切片番剧直接获取 Supabase Bento4 多码率自适应 HLS 切片（1080p/720p/480p），彻底摆脱海外 600MB 单体 MP4 与 `moov` 末尾导致的 7s+ 延迟；
+     - 保持对 raw MP4 与国内联通云盘直链（`pan.wo.cn` / `moedot.net`）防盗链规则 100% 向下兼容。
+  2. **播放器 `softPlay` 起播门禁分级调优**：
+     - 针对 HLS 流：由于 Hls.js 内置分片流水线与 `startFragPrefetch`，缓冲门槛降至 `0.4s`（或 `HAVE_CURRENT_DATA`），实现毫秒级快速起播；
+     - 针对 MP4 流：起播安全缓冲从保守的 `2.2s` 调优至 `0.8s`（或 `HAVE_ENOUGH_DATA`），削减 1.5s+ 白屏等待；
+     - 播放中断后二次唤醒缓冲门槛从 `2.8s` 调优为 HLS `1.0s` / MP4 `1.5s`，显著改善弱网缓冲恢复体验。
+- 涉及文件：apps/server/src/lib/xifan-next.ts, apps/web/src/player/VideoPlayer.tsx
+- 备注：全仓类型检查与构建打包全通过，已通过 tsx 验证 HLS 与 Fallback 双分支解析。
+
 ## [2026-08-18] 优化番剧播放页按需选集起播与消除首屏默认请求第一集
 - 状态：已完成
 - 优先级：P1
