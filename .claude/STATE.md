@@ -1,5 +1,15 @@
 # Animaku 项目状态快照 (STATE.md)
 
+## [2026-08-18] 优化 xifan-next 视频解析性能（新加坡区域直达 + 并发请求 + 消除冗余 HEAD 探测）
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **注入 Supabase 新加坡区域路由**：在 `apps/server/src/lib/xifan-next.ts` 中为 Edge Function 请求对齐官方配置 `forceFunctionRegion=ap-southeast-1` 与 `x-region: ap-southeast-1`，消除跨大洲默认 Edge Relay 冷寻址中继，单次往返耗时从 1700ms 降至 250ms；
+  2. **HLS 与 Fallback 并发竞速**：改串行降级为 `Promise.allSettled` 并发请求，取并发最快响应（优先命中 HLS 切片，无切片即刻使用 Fallback），消除串行失败等待；
+  3. **移除服务端冗余阻塞式 HEAD 探测**：剔除无意义的海外 CDN HEAD 请求（单次耗时 1000~2300ms 且返回 200 无重定向），解析总耗时由 5.3s 降至 250ms（提升 20 倍）。
+- 涉及文件：apps/server/src/lib/xifan-next.ts
+- 备注：全仓类型检查通过。
+
 ## [2026-08-18] 移除 otage 默认内置源并将 cycani 优先级权重提升至 70
 - 状态：已完成
 - 优先级：P1

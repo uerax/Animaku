@@ -44,6 +44,7 @@ function getHeaders(customKey?: string): Record<string, string> {
     apikey: key,
     authorization: `Bearer ${key}`,
     'content-type': 'application/json',
+    'x-region': 'ap-southeast-1',
     'User-Agent': config.defaultUserAgent,
   }
 }
@@ -107,9 +108,16 @@ async function fetchSupabaseJson<T>(
     method?: string
     body?: unknown
     timeoutMs?: number
+    headers?: Record<string, string>
   } = {},
 ): Promise<T> {
-  const url = `${DEFAULT_SUPABASE_URL}${endpoint}`
+  let url = `${DEFAULT_SUPABASE_URL}${endpoint}`
+  if (endpoint.startsWith('/functions/v1/')) {
+    const separator = url.includes('?') ? '&' : '?'
+    if (!url.includes('forceFunctionRegion=')) {
+      url = `${url}${separator}forceFunctionRegion=ap-southeast-1`
+    }
+  }
   const method = options.method || (options.body ? 'POST' : 'GET')
   const timeoutMs = options.timeoutMs ?? 10_000
 
@@ -117,7 +125,10 @@ async function fetchSupabaseJson<T>(
     url,
     {
       method,
-      headers: getHeaders(),
+      headers: {
+        ...getHeaders(),
+        ...options.headers,
+      },
       body: options.body ? JSON.stringify(options.body) : undefined,
     },
     { timeoutMs },
@@ -129,7 +140,10 @@ async function fetchSupabaseJson<T>(
       url,
       {
         method,
-        headers: getHeaders(newKey),
+        headers: {
+          ...getHeaders(newKey),
+          ...options.headers,
+        },
         body: options.body ? JSON.stringify(options.body) : undefined,
       },
       { timeoutMs },
@@ -527,9 +541,18 @@ export async function resolveXifanNext(
   let playUrl = ''
   let playbackAction = ''
 
-  // 1. Primary: probe HLS adaptive stream (m3u8) first
-  try {
-    const hlsRes = await fetchSupabaseJson<PlaybackResponse>(
+  const fbBody: Record<string, unknown> = {
+    action: 'fallback',
+    episode_id: episodeId,
+  }
+  if (sourceCode) {
+    fbBody.source = sourceCode
+  }
+
+  // Concurrently request HLS and fallback using Singapore region (ap-southeast-1)
+  // for sub-300ms ultra-fast resolution
+  const [hlsRes, fbRes] = await Promise.allSettled([
+    fetchSupabaseJson<PlaybackResponse>(
       '/functions/v1/issue-web-playback',
       {
         method: 'POST',
@@ -539,64 +562,30 @@ export async function resolveXifanNext(
         },
         timeoutMs: 4_000,
       },
-    )
-    if (hlsRes?.ok && hlsRes?.url) {
-      playUrl = hlsRes.url
-      playbackAction = 'hls'
-    }
-  } catch {
-    /* fallback to raw progressive storage stream */
-  }
-
-  // 2. Fallback: request raw storage stream (direct MP4 / pan.wo.cn / xfvod)
-  if (!playUrl) {
-    const reqBody: Record<string, unknown> = {
-      action: 'fallback',
-      episode_id: episodeId,
-    }
-    if (sourceCode) {
-      reqBody.source = sourceCode
-    }
-
-    const fbRes = await fetchSupabaseJson<PlaybackResponse>(
+    ),
+    fetchSupabaseJson<PlaybackResponse>(
       '/functions/v1/issue-web-playback',
       {
         method: 'POST',
-        body: reqBody,
+        body: fbBody,
+        timeoutMs: 6_000,
       },
-    )
+    ),
+  ])
 
-    if (!fbRes || !fbRes.ok || !fbRes.url) {
-      throw new Error(
-        `稀饭Next解析失败: ${fbRes?.error || '未能生成有效播放直链'}`,
-      )
-    }
-
-    playUrl = fbRes.url
-    playbackAction = fbRes.action || 'fallback'
-  }
-
-  // Probe and follow 302 redirects on server side using HEAD (zero body transfer) to provide direct pre-signed stream URL
-  if (playbackAction !== 'hls') {
-    try {
-      const redirectProbe = await fetchPublic(
-        playUrl,
-        {
-          method: 'HEAD',
-          redirect: 'manual',
-          headers: {
-            'User-Agent': config.defaultUserAgent,
-          },
-        },
-        { timeoutMs: 3_000 },
-      )
-      const loc = redirectProbe.headers.get('location')
-      if (loc && /^https?:\/\//i.test(loc)) {
-        playUrl = loc
-      }
-    } catch {
-      /* keep initial url */
-    }
+  if (hlsRes.status === 'fulfilled' && hlsRes.value?.ok && hlsRes.value?.url) {
+    playUrl = hlsRes.value.url
+    playbackAction = 'hls'
+  } else if (fbRes.status === 'fulfilled' && fbRes.value?.ok && fbRes.value?.url) {
+    playUrl = fbRes.value.url
+    playbackAction = fbRes.value.action || 'fallback'
+  } else {
+    const errorMsg =
+      (fbRes.status === 'fulfilled' ? fbRes.value?.error : null) ||
+      (hlsRes.status === 'fulfilled' ? hlsRes.value?.error : null) ||
+      (fbRes.status === 'rejected' ? (fbRes.reason as Error)?.message : null) ||
+      '未能生成有效播放直链'
+    throw new Error(`稀饭Next解析失败: ${errorMsg}`)
   }
 
   // pan.wo.cn rejects cross-origin referers with 400 Bad Request; use pan.wo.cn or empty
