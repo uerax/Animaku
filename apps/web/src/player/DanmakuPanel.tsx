@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import clsx from 'clsx'
 import type {
   DanmakuAnime,
   DanmakuEpisode,
@@ -163,25 +164,39 @@ function DesktopCard(props: Props) {
   )
 }
 
-/* ─── Mobile bottom sheet: dense, touch-first ─── */
+/* ─── Mobile bottom sheet / right drawer: dense, touch-first ─── */
 
 function MobileSheet(props: Props) {
-  const { tab, onTabChange, onClose, danmaku, onDanmakuChange } = props
+  const {
+    tab,
+    onTabChange,
+    onClose,
+    status,
+    commentsCount,
+    visibleCount,
+    danmaku,
+    onDanmakuChange,
+    sources,
+    onToggleSource,
+  } = props
+
+  const shown =
+    typeof visibleCount === 'number' ? visibleCount : commentsCount
 
   return (
     <>
       {/* Fullscreen dimmed backdrop — tap closes */}
       <button
         type="button"
-        className="fixed inset-0 z-[99998] bg-black/65 backdrop-blur-sm cursor-pointer border-0 p-0 m-0"
+        className="fixed inset-0 z-[99998] bg-black/65 backdrop-blur-sm cursor-pointer border-0 p-0 m-0 animate-in fade-in duration-150"
         aria-label="关闭弹幕面板"
         onClick={onClose}
         onMouseDown={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
       />
-      {/* Centered Modal Card: 88% width, 65dvh height, centered with margin auto */}
+      {/* Bottom Sheet (Portrait) / Right Drawer (Landscape) */}
       <div
-        className="fixed inset-0 z-[99999] m-auto flex flex-col w-[88%] max-w-[22rem] h-[65dvh] max-h-[26rem] bg-[var(--kz-bg-elevated)]/95 text-[var(--kz-fg)] backdrop-blur-2xl border border-[var(--kz-border)] rounded-2xl shadow-2xl overflow-hidden pointer-events-auto animate-in zoom-in-95 duration-150"
+        className="fixed inset-x-0 bottom-0 z-[99999] flex flex-col max-h-[82dvh] w-full rounded-t-3xl border-t border-[var(--kz-border)] bg-[var(--kz-bg-elevated)]/98 text-[var(--kz-fg)] backdrop-blur-2xl shadow-2xl overflow-hidden pb-safe animate-in slide-in-from-bottom duration-200 pointer-events-auto landscape:fixed landscape:right-0 landscape:top-0 landscape:bottom-0 landscape:left-auto landscape:w-88 landscape:max-w-[85vw] landscape:h-full landscape:max-h-full landscape:rounded-l-2xl landscape:rounded-r-none landscape:border-l landscape:border-t-0 landscape:slide-in-from-right"
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
@@ -189,7 +204,11 @@ function MobileSheet(props: Props) {
         aria-label="弹幕面板"
         data-player-chrome
       >
-        <div className="flex items-center gap-2 px-3.5 py-2.5 shrink-0 border-b border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/60">
+        {/* Top drag handle indicator (portrait only) */}
+        <div className="w-10 h-1 rounded-full bg-[var(--kz-border)] hover:bg-[var(--kz-fg-muted)] mx-auto mt-2.5 mb-1 shrink-0 landscape:hidden transition-colors" />
+
+        {/* Header with Segmented Tabs & Close */}
+        <div className="flex items-center gap-2 px-3.5 py-2 shrink-0 border-b border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/60">
           <div className="flex-1 flex gap-1 p-1 rounded-xl bg-[var(--kz-bg)] border border-[var(--kz-border)] min-w-0" role="tablist">
             {TABS.map(([id, label]) => (
               <button
@@ -200,8 +219,8 @@ function MobileSheet(props: Props) {
                 onClick={() => onTabChange(id)}
                 className={
                   tab === id
-                    ? 'flex-1 h-7 rounded-lg text-xs font-semibold bg-[var(--kz-accent)] text-white shadow-md transition-all border-0 cursor-pointer'
-                    : 'flex-1 h-7 rounded-lg text-xs font-semibold text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] transition-all border-0 bg-transparent cursor-pointer'
+                    ? 'flex-1 h-7.5 rounded-lg text-xs font-bold bg-[var(--kz-accent)] text-white shadow-md transition-all border-0 cursor-pointer'
+                    : 'flex-1 h-7.5 rounded-lg text-xs font-semibold text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] transition-all border-0 bg-transparent cursor-pointer'
                 }
               >
                 {label}
@@ -211,14 +230,25 @@ function MobileSheet(props: Props) {
           <button
             type="button"
             onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] rounded-lg hover:bg-[var(--kz-bg-soft)] transition-colors text-sm border-0 bg-transparent cursor-pointer"
+            className="w-8 h-8 flex items-center justify-center text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] rounded-xl hover:bg-[var(--kz-bg-soft)] active:scale-95 transition-colors text-sm border-0 bg-transparent cursor-pointer shrink-0"
             aria-label="关闭"
           >
             ✕
           </button>
         </div>
 
-        <div className="flex-1 min-h-0 h-full overflow-y-auto overscroll-contain p-3.5 space-y-3 text-sm text-[var(--kz-fg)]">
+        {/* Sub-header status & total count bar */}
+        <div className="shrink-0 flex items-center justify-between border-b border-[var(--kz-border)] px-4 py-1.5 text-xs text-[var(--kz-fg-muted)] bg-[var(--kz-bg-soft)]/30">
+          <span className="truncate min-w-0 flex-1">{status || '—'}</span>
+          {commentsCount > 0 && (
+            <span className="shrink-0 ml-2 font-semibold text-[var(--kz-accent)]">
+              共 {commentsCount} 条{shown !== commentsCount ? ` · 显示 ${shown}` : ''}
+            </span>
+          )}
+        </div>
+
+        {/* Scrollable Tab Content Body */}
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-3.5 text-sm text-[var(--kz-fg)]">
           {tab === 'search' && <SearchTab {...props} compact />}
           {tab === 'settings' && (
             <SettingsTab
@@ -229,6 +259,9 @@ function MobileSheet(props: Props) {
           )}
           {tab === 'import' && <ImportTab {...props} compact />}
         </div>
+
+        {/* Multi-source chips footer */}
+        <SourcesFooter sources={sources} onToggleSource={onToggleSource} compact={true} />
       </div>
     </>
   )
@@ -249,18 +282,13 @@ function SourcesFooter({
     <div
       className={
         compact
-          ? 'kz-danmaku-panel-sources shrink-0 border-t border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/60 px-3 py-2.5 text-[var(--kz-fg-muted)]'
+          ? 'kz-danmaku-panel-sources shrink-0 border-t border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/70 px-4 py-2.5 text-[var(--kz-fg-muted)]'
           : 'kz-danmaku-panel-sources shrink-0 border-t border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/60 px-3 py-2 text-[var(--kz-fg-muted)]'
       }
     >
-      <div
-        className={
-          compact
-            ? 'mb-1 text-[11px] font-medium text-[var(--kz-fg-muted)]'
-            : 'mb-1.5 text-[11px] text-[var(--kz-fg-muted)]'
-        }
-      >
-        弹幕源
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[11px] font-semibold text-[var(--kz-fg-muted)]">弹幕源（点击切换）</span>
+        {compact && <span className="text-[10px] text-[var(--kz-fg-dim)]">多源自动合并</span>}
       </div>
       <div className="flex flex-wrap gap-1.5">
         {loaded.map((s) => (
@@ -273,14 +301,15 @@ function SourcesFooter({
                 ? `点击关闭「${s.label}」${s.meta ? ` · ${s.meta}` : ''}`
                 : `点击显示「${s.label}」${s.meta ? ` · ${s.meta}` : ''}`
             }
-            className={
+            className={clsx(
+              'rounded-full px-2.5 py-1 text-[11px] font-medium transition-all cursor-pointer border active:scale-95 flex items-center gap-1',
               s.enabled
-                ? 'rounded-full bg-[var(--kz-accent-soft)] border border-[var(--kz-accent)] px-2.5 py-1 text-[11px] font-medium text-[var(--kz-accent)] shadow-sm transition-all cursor-pointer'
-                : 'rounded-full bg-[var(--kz-bg-soft)] border border-[var(--kz-border)] px-2.5 py-1 text-[11px] font-medium text-[var(--kz-fg-muted)] hover:bg-[var(--kz-bg-hover)] hover:text-[var(--kz-fg)] transition-all cursor-pointer'
-            }
+                ? 'bg-[var(--kz-accent-soft)] border-[var(--kz-accent)] text-[var(--kz-accent)] shadow-sm'
+                : 'bg-[var(--kz-bg-soft)] border-[var(--kz-border)] text-[var(--kz-fg-muted)] hover:bg-[var(--kz-bg-hover)] hover:text-[var(--kz-fg)]'
+            )}
           >
-            {s.label}
-            <span className="ml-1 opacity-80">
+            <span>{s.label}</span>
+            <span className="opacity-80 font-bold">
               {s.count}
             </span>
           </button>
@@ -393,30 +422,30 @@ function CustomSelect<T extends number | string>({
 function SearchTab({ compact, ...props }: Props & { compact: boolean }) {
   if (compact) {
     return (
-      <div className="kz-dm-form">
-        <div className="kz-dm-row">
+      <div className="space-y-3">
+        <div className="flex gap-2">
           <input
-            className="kz-dm-input"
+            className="flex-1 min-w-0 h-9 px-3 rounded-xl bg-[var(--kz-bg-soft)] border border-[var(--kz-border)] text-sm text-[var(--kz-fg)] placeholder:text-[var(--kz-fg-muted)] outline-none focus:border-[var(--kz-accent)] transition-colors"
             value={props.keyword}
             onChange={(e) => props.onKeywordChange(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') props.onSearch()
             }}
-            placeholder="弹弹play 番名"
+            placeholder="搜索弹弹play 番名…"
             enterKeyHint="search"
           />
           <button
             type="button"
             disabled={props.searchBusy}
             onClick={props.onSearch}
-            className="kz-dm-btn-primary"
+            className="h-9 px-4 rounded-xl bg-[var(--kz-accent)] text-white text-xs font-semibold hover:bg-[var(--kz-accent-hover)] active:scale-95 disabled:opacity-50 transition-all border-0 cursor-pointer shadow-sm"
           >
             {props.searchBusy ? '…' : '搜索'}
           </button>
         </div>
 
-        <label className="kz-dm-field">
-          <span className="kz-dm-label">番剧</span>
+        <div className="space-y-1">
+          <span className="text-[11px] font-semibold text-[var(--kz-fg-muted)]">匹配番剧</span>
           <CustomSelect
             value={props.animeId}
             placeholder="选择番剧…"
@@ -426,10 +455,10 @@ function SearchTab({ compact, ...props }: Props & { compact: boolean }) {
             }))}
             onChange={(val) => props.onAnimeChange(val as number)}
           />
-        </label>
+        </div>
 
-        <label className="kz-dm-field">
-          <span className="kz-dm-label">章节</span>
+        <div className="space-y-1">
+          <span className="text-[11px] font-semibold text-[var(--kz-fg-muted)]">匹配章节</span>
           <CustomSelect
             value={props.episodeId}
             placeholder="选择章节…"
@@ -439,10 +468,10 @@ function SearchTab({ compact, ...props }: Props & { compact: boolean }) {
             }))}
             onChange={(val) => props.onEpisodeChange(val as number)}
           />
-        </label>
+        </div>
 
-        <p className="kz-dm-hint">
-          弹弹写入「弹弹」源；B 站 / XML 默认追加。源开关在播放器下方。
+        <p className="text-[11px] leading-relaxed text-[var(--kz-fg-muted)]">
+          弹弹play 匹配后写入「弹弹」源。可在面板底部开关各源，或在「导入」中追加 B 站/本地 XML 弹幕。
         </p>
       </div>
     )
@@ -517,96 +546,137 @@ function SettingsTab({
 }) {
   if (compact) {
     return (
-      <div className="kz-dm-form">
-        <button
-          type="button"
-          className="kz-dm-toggle-row"
+      <div className="space-y-3">
+        {/* Switch Card: 显示弹幕 */}
+        <div
+          role="button"
+          tabIndex={0}
           onClick={() => onDanmakuChange({ enabled: !danmaku.enabled })}
-          aria-pressed={danmaku.enabled}
+          className="flex items-center justify-between p-3 rounded-2xl bg-[var(--kz-bg-soft)]/60 border border-[var(--kz-border)] cursor-pointer select-none active:scale-[0.99] transition-all"
         >
-          <span>显示弹幕</span>
-          <span
-            className={
-              danmaku.enabled ? 'kz-dm-switch kz-dm-switch--on' : 'kz-dm-switch'
-            }
-            aria-hidden
-          />
-        </button>
-
-        <button
-          type="button"
-          className="kz-dm-toggle-row"
-          onClick={() => onDanmakuChange({ simplify: !danmaku.simplify })}
-          aria-pressed={Boolean(danmaku.simplify)}
-        >
-          <div className="flex flex-col text-left">
-            <span>弹幕精简</span>
-            <span className="text-[10px] text-[var(--kz-fg-muted)]">智能合并重复刷屏 (xN)</span>
+          <div className="flex flex-col">
+            <span className="text-xs font-bold text-[var(--kz-fg)]">显示弹幕</span>
+            <span className="text-[10px] text-[var(--kz-fg-muted)]">开启后在屏幕上浮动显示弹幕</span>
           </div>
-          <span
-            className={
-              danmaku.simplify ? 'kz-dm-switch kz-dm-switch--on' : 'kz-dm-switch'
-            }
-            aria-hidden
+          <div
+            className={clsx(
+              'w-11 h-6 rounded-full transition-colors relative p-0.5 shrink-0',
+              danmaku.enabled ? 'bg-[var(--kz-accent)]' : 'bg-[var(--kz-border)]'
+            )}
+          >
+            <div
+              className={clsx(
+                'w-5 h-5 rounded-full bg-white shadow-md transition-transform',
+                danmaku.enabled ? 'translate-x-5' : 'translate-x-0'
+              )}
+            />
+          </div>
+        </div>
+
+        {/* Switch Card: 弹幕精简 */}
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => onDanmakuChange({ simplify: !danmaku.simplify })}
+          className="flex items-center justify-between p-3 rounded-2xl bg-[var(--kz-bg-soft)]/60 border border-[var(--kz-border)] cursor-pointer select-none active:scale-[0.99] transition-all"
+        >
+          <div className="flex flex-col">
+            <span className="text-xs font-bold text-[var(--kz-fg)]">弹幕精简</span>
+            <span className="text-[10px] text-[var(--kz-fg-muted)]">智能合并连续复读与刷屏 (xN)</span>
+          </div>
+          <div
+            className={clsx(
+              'w-11 h-6 rounded-full transition-colors relative p-0.5 shrink-0',
+              danmaku.simplify ? 'bg-[var(--kz-accent)]' : 'bg-[var(--kz-border)]'
+            )}
+          >
+            <div
+              className={clsx(
+                'w-5 h-5 rounded-full bg-white shadow-md transition-transform',
+                danmaku.simplify ? 'translate-x-5' : 'translate-x-0'
+              )}
+            />
+          </div>
+        </div>
+
+        {/* 4 Range Sliders */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <RangeRow
+            label="透明度"
+            value={danmaku.opacity}
+            min={0.1}
+            max={1}
+            step={0.05}
+            display={`${Math.round(danmaku.opacity * 100)}%`}
+            onChange={(v) => onDanmakuChange({ opacity: v })}
+            compact
           />
-        </button>
-
-        <RangeRow
-          label="透明度"
-          value={danmaku.opacity}
-          min={0.1}
-          max={1}
-          step={0.05}
-          display={`${Math.round(danmaku.opacity * 100)}%`}
-          onChange={(v) => onDanmakuChange({ opacity: v })}
-          compact
-        />
-        <RangeRow
-          label="字号"
-          value={danmaku.fontSize}
-          min={0.5}
-          max={2}
-          step={0.05}
-          display={`${danmaku.fontSize.toFixed(2)}×`}
-          onChange={(v) => onDanmakuChange({ fontSize: v })}
-          compact
-        />
-        <RangeRow
-          label="速度"
-          value={danmaku.speed}
-          min={0.5}
-          max={2}
-          step={0.05}
-          display={`${danmaku.speed.toFixed(2)}×`}
-          onChange={(v) => onDanmakuChange({ speed: v })}
-          compact
-        />
-        <RangeRow
-          label="区域"
-          value={danmaku.area}
-          min={0.2}
-          max={1}
-          step={0.05}
-          display={`${Math.round(danmaku.area * 100)}%`}
-          onChange={(v) => onDanmakuChange({ area: v })}
-          compact
-        />
-
-        <label className="kz-dm-inline-num">
-          <span>时间偏移 (秒)</span>
-          <input
-            type="number"
-            step={0.5}
-            inputMode="decimal"
-            value={danmaku.timeOffset}
-            onChange={(e) =>
-              onDanmakuChange({ timeOffset: Number(e.target.value) || 0 })
-            }
-            className="kz-dm-num"
+          <RangeRow
+            label="字号"
+            value={danmaku.fontSize}
+            min={0.5}
+            max={2}
+            step={0.05}
+            display={`${danmaku.fontSize.toFixed(2)}×`}
+            onChange={(v) => onDanmakuChange({ fontSize: v })}
+            compact
           />
-        </label>
+          <RangeRow
+            label="速度"
+            value={danmaku.speed}
+            min={0.5}
+            max={2}
+            step={0.05}
+            display={`${danmaku.speed.toFixed(2)}×`}
+            onChange={(v) => onDanmakuChange({ speed: v })}
+            compact
+          />
+          <RangeRow
+            label="显示区域"
+            value={danmaku.area}
+            min={0.2}
+            max={1}
+            step={0.05}
+            display={`${Math.round(danmaku.area * 100)}%`}
+            onChange={(v) => onDanmakuChange({ area: v })}
+            compact
+          />
+        </div>
 
-        <div className="kz-dm-chip-toggles">
+        {/* Time Offset Card */}
+        <div className="p-2.5 rounded-2xl bg-[var(--kz-bg-soft)]/50 border border-[var(--kz-border)]/70 flex items-center justify-between gap-2">
+          <div className="flex flex-col">
+            <span className="text-xs font-semibold text-[var(--kz-fg)]">时间偏移</span>
+            <span className="text-[10px] text-[var(--kz-fg-muted)]">正数延后，负数提前</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => onDanmakuChange({ timeOffset: Number(((danmaku.timeOffset || 0) - 0.5).toFixed(1)) })}
+              className="h-7 px-2.5 rounded-lg bg-[var(--kz-bg-elevated)] border border-[var(--kz-border)] text-xs font-bold text-[var(--kz-fg)] active:scale-95 transition-all cursor-pointer"
+            >
+              -0.5s
+            </button>
+            <input
+              type="number"
+              step={0.5}
+              inputMode="decimal"
+              value={danmaku.timeOffset || 0}
+              onChange={(e) => onDanmakuChange({ timeOffset: Number(e.target.value) || 0 })}
+              className="w-14 h-7 text-center rounded-lg bg-[var(--kz-bg-elevated)] border border-[var(--kz-border)] text-xs font-bold text-[var(--kz-fg)] outline-none focus:border-[var(--kz-accent)] tabular-nums"
+            />
+            <button
+              type="button"
+              onClick={() => onDanmakuChange({ timeOffset: Number(((danmaku.timeOffset || 0) + 0.5).toFixed(1)) })}
+              className="h-7 px-2.5 rounded-lg bg-[var(--kz-bg-elevated)] border border-[var(--kz-border)] text-xs font-bold text-[var(--kz-fg)] active:scale-95 transition-all cursor-pointer"
+            >
+              +0.5s
+            </button>
+          </div>
+        </div>
+
+        {/* Type Filter Chips */}
+        <div className="grid grid-cols-4 gap-1.5">
           {(
             [
               ['showScroll', '滚动'],
@@ -618,9 +688,13 @@ function SettingsTab({
             <button
               key={key}
               type="button"
-              data-on={danmaku[key]}
-              className="kz-dm-type-chip"
               onClick={() => onDanmakuChange({ [key]: !danmaku[key] })}
+              className={clsx(
+                'h-8 rounded-xl text-xs font-bold transition-all border cursor-pointer active:scale-95 flex items-center justify-center',
+                danmaku[key]
+                  ? 'bg-[var(--kz-accent)] text-white border-[var(--kz-accent)] shadow-sm'
+                  : 'bg-[var(--kz-bg-soft)] text-[var(--kz-fg-muted)] border-[var(--kz-border)] hover:text-[var(--kz-fg)]'
+              )}
             >
               {label}
             </button>
@@ -734,11 +808,11 @@ function SettingsTab({
 function ImportTab({ compact, ...props }: Props & { compact: boolean }) {
   if (compact) {
     return (
-      <div className="kz-dm-form">
-        <div className="kz-dm-section">
-          <div className="kz-dm-label">B 站 BV 号 / 链接</div>
+      <div className="space-y-3">
+        <div className="p-3 rounded-2xl bg-[var(--kz-bg-soft)]/50 border border-[var(--kz-border)]/70 space-y-2">
+          <div className="text-xs font-semibold text-[var(--kz-fg)]">B 站 BV 号 / 视频链接</div>
           <input
-            className="kz-dm-input"
+            className="w-full h-8.5 px-3 rounded-xl bg-[var(--kz-bg-elevated)] border border-[var(--kz-border)] text-xs text-[var(--kz-fg)] placeholder:text-[var(--kz-fg-muted)] outline-none focus:border-[var(--kz-accent)] transition-colors"
             value={props.bvInput}
             onChange={(e) => props.onBvInputChange(e.target.value)}
             placeholder="BV1… 或完整链接"
@@ -746,9 +820,9 @@ function ImportTab({ compact, ...props }: Props & { compact: boolean }) {
               if (e.key === 'Enter') props.onLoadBilibili()
             }}
           />
-          <div className="flex items-center justify-between gap-2 mt-1">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-[var(--kz-fg-muted)]">分P</span>
+          <div className="flex items-center justify-between gap-2 pt-0.5">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-[var(--kz-fg-muted)]">分P</span>
               <input
                 type="number"
                 min={1}
@@ -757,16 +831,16 @@ function ImportTab({ compact, ...props }: Props & { compact: boolean }) {
                 onChange={(e) =>
                   props.onBvPageChange(Math.max(1, Number(e.target.value) || 1))
                 }
-                className="w-16 h-8 px-2 rounded-lg bg-[var(--kz-bg-soft)] border border-[var(--kz-border)] text-[var(--kz-fg)] text-center text-xs font-bold outline-none focus:border-[var(--kz-accent)]"
+                className="w-14 h-7.5 px-1.5 rounded-lg bg-[var(--kz-bg-elevated)] border border-[var(--kz-border)] text-[var(--kz-fg)] text-center text-xs font-bold outline-none focus:border-[var(--kz-accent)]"
               />
             </div>
             <button
               type="button"
               disabled={props.bilibiliBusy}
               onClick={props.onLoadBilibili}
-              className="h-8 px-3.5 rounded-lg bg-[var(--kz-accent)] text-white text-xs font-semibold hover:bg-[var(--kz-accent-hover)] active:scale-95 transition-all cursor-pointer border-0 shadow-sm disabled:opacity-50"
+              className="h-7.5 px-3 rounded-lg bg-[var(--kz-accent)] text-white text-xs font-semibold hover:bg-[var(--kz-accent-hover)] active:scale-95 transition-all cursor-pointer border-0 shadow-sm disabled:opacity-50"
             >
-              {props.bilibiliBusy ? '拉取中…' : '追加 B 站'}
+              {props.bilibiliBusy ? '拉取中…' : '追加 B 站弹幕'}
             </button>
           </div>
         </div>
@@ -774,25 +848,29 @@ function ImportTab({ compact, ...props }: Props & { compact: boolean }) {
         <button
           type="button"
           onClick={props.onPickXmlFile}
-          className="flex items-center justify-between gap-2 w-full p-2.5 rounded-xl bg-[var(--kz-bg-soft)] border border-dashed border-[var(--kz-border)] text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] transition-all cursor-pointer text-left"
+          className="flex items-center justify-between gap-2 w-full p-3 rounded-2xl bg-[var(--kz-bg-soft)]/50 border border-dashed border-[var(--kz-border)] text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] active:scale-[0.99] transition-all cursor-pointer text-left"
         >
-          <div className="flex items-center gap-2">
-            <span className="text-base">📁</span>
-            <span className="text-xs font-semibold">选择本地 XML 弹幕文件</span>
+          <div className="flex items-center gap-2.5">
+            <span className="text-lg">📁</span>
+            <div className="flex flex-col">
+              <span className="text-xs font-bold">导入本地 XML 弹幕</span>
+              <span className="text-[10px] text-[var(--kz-fg-muted)]">支持 B 站 / pakku 导出的 XML 文件</span>
+            </div>
           </div>
-          <span className="text-[11px] text-[var(--kz-fg-muted)]">B 站 / pakku</span>
+          <span className="text-xs text-[var(--kz-accent)] font-semibold">选择文件 →</span>
         </button>
 
-        <div className="kz-dm-section kz-dm-section--border">
-          <div className="kz-dm-label">
-            屏蔽词 · {props.danmaku.filters.length} 条
+        <div className="p-3 rounded-2xl bg-[var(--kz-bg-soft)]/50 border border-[var(--kz-border)]/70 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-[var(--kz-fg)]">屏蔽词过滤</span>
+            <span className="text-[10px] text-[var(--kz-fg-muted)]">{props.danmaku.filters.length} 条已生效</span>
           </div>
           <div className="flex items-center gap-2">
             <input
-              className="flex-1 min-w-0 h-8 px-2.5 rounded-lg bg-[var(--kz-bg-soft)] border border-[var(--kz-border)] text-[var(--kz-fg)] text-xs outline-none focus:border-[var(--kz-accent)] placeholder:text-[var(--kz-fg-muted)]"
+              className="flex-1 min-w-0 h-8 px-2.5 rounded-xl bg-[var(--kz-bg-elevated)] border border-[var(--kz-border)] text-[var(--kz-fg)] text-xs outline-none focus:border-[var(--kz-accent)] placeholder:text-[var(--kz-fg-muted)]"
               value={props.filterDraft}
               onChange={(e) => props.onFilterDraftChange(e.target.value)}
-              placeholder="关键词 或 /regex/"
+              placeholder="输入关键词 或 /正则表达式/"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') props.onAddFilter()
               }}
@@ -800,22 +878,25 @@ function ImportTab({ compact, ...props }: Props & { compact: boolean }) {
             <button
               type="button"
               onClick={props.onAddFilter}
-              className="h-8 px-3 rounded-lg bg-[var(--kz-accent)] text-white text-xs font-semibold hover:bg-[var(--kz-accent-hover)] active:scale-95 transition-all cursor-pointer border-0 shrink-0"
+              className="h-8 px-3 rounded-xl bg-[var(--kz-accent)] text-white text-xs font-semibold hover:bg-[var(--kz-accent-hover)] active:scale-95 transition-all cursor-pointer border-0 shrink-0"
             >
               添加
             </button>
           </div>
           {props.danmaku.filters.length > 0 && (
-            <ul className="kz-dm-filter-list">
+            <ul className="max-h-28 space-y-1 overflow-y-auto m-0 p-0 list-none">
               {props.danmaku.filters.map((rule) => (
-                <li key={rule} className="kz-dm-filter-item">
-                  <span className="kz-dm-filter-rule">{rule}</span>
+                <li
+                  key={rule}
+                  className="flex items-center justify-between gap-2 rounded-lg bg-[var(--kz-bg-elevated)] px-2.5 py-1 text-xs text-[var(--kz-fg)]"
+                >
+                  <span className="truncate font-mono text-[var(--kz-fg)] text-[11px]">{rule}</span>
                   <button
                     type="button"
-                    className="kz-dm-filter-del"
+                    className="text-red-400 hover:text-red-300 active:scale-90 border-0 bg-transparent cursor-pointer font-bold px-1"
                     onClick={() => props.onRemoveFilter(rule)}
                   >
-                    删
+                    ✕
                   </button>
                 </li>
               ))}
@@ -947,10 +1028,10 @@ function RangeRow({
 }) {
   if (compact) {
     return (
-      <label className="kz-dm-range">
-        <div className="kz-dm-range-meta">
-          <span>{label}</span>
-          <span className="kz-dm-range-val">{display}</span>
+      <div className="p-2.5 rounded-2xl bg-[var(--kz-bg-soft)]/50 border border-[var(--kz-border)]/70 space-y-1.5">
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-semibold text-[var(--kz-fg)]">{label}</span>
+          <span className="font-bold tabular-nums text-[var(--kz-accent)] text-xs">{display}</span>
         </div>
         <input
           type="range"
@@ -959,9 +1040,9 @@ function RangeRow({
           step={step}
           value={value}
           onChange={(e) => onChange(Number(e.target.value))}
-          className="kz-dm-range-input"
+          className="w-full h-5 appearance-none bg-transparent cursor-pointer accent-[var(--kz-accent)]"
         />
-      </label>
+      </div>
     )
   }
 
