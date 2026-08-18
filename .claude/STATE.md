@@ -1,21 +1,5 @@
 # Animaku 项目状态快照 (STATE.md)
 
-## [2026-08-18] 修复夜晚模式视频源与选集卡片色彩层级与视觉融合
-- 状态：已完成
-- 优先级：P1
-- 描述：
-  1. **暗色系统色彩层级（Elevation Hierarchy）全面对齐**：
-     - 修复暗色模式下底色与提升层色阶倒挂问题，将基础画布（`--kz-bg`）定为 `#121417`（深炭黑），提升面板（`--kz-bg-elevated` / `--kz-bg-card`）定为 `#1a1d21`，内嵌软容器（`--kz-bg-soft`）定为 `#22262c`，悬停层定为 `#2a2f37`，边框定为 `#2e343d` / `#242930`；
-     - 消除选集方块与视频源卡片在夜间模式下的厚重生硬「补丁灰块」感，呈现通透自然的暗场微光质感。
-  2. **选集方块（`.kz-bili-ep`）与线路标签（`.kz-bili-road`）视觉精致化**：
-     - 增加细腻的 `1px` 双模态微弱边框（`var(--kz-border-subtle)`）与 `rounded-lg` 圆角；
-     - 悬浮时轻量提亮并响应边框（`hover:border-color: var(--kz-border)`），播放中高亮状态精准响应品牌天青色。
-  3. **视频源面板展开层级与 Chips 嵌套融合**：
-     - 将展开换词容器从生硬实色调整为柔和半透明内嵌层（`bg-[var(--kz-bg-soft)]/50`），候选关键词 Chips 适配 `--kz-bg-card` 柔和边框，消除黑洞反差与割裂感；
-     - 同步更新 `index.html` 暗色 `theme-color` 为 `#121417`。
-- 涉及文件：apps/web/src/index.css, apps/web/index.html, apps/web/src/pages/watch/SourceBoard.tsx, apps/web/src/pages/watch/MobileEpsSection.tsx
-- 备注：全仓类型检查与打包构建全通过。
-
 ## [2026-08-18] 视频源换词重搜候选关键词 Chips 排版与微型字号精致化
 - 状态：已完成
 - 优先级：P2

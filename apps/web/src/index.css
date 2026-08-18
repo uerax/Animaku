@@ -68,21 +68,21 @@ html[data-theme='dark'] {
   color-scheme: dark;
 
   /* Canvas — ColorsWall signature charcoal background & elevated layers */
-  --kz-bg: #121417;
-  --kz-bg-elevated: #1a1d21;
-  --kz-bg-card: #1a1d21;
-  --kz-bg-soft: #22262c;
-  --kz-bg-hover: #2a2f37;
+  --kz-bg: #1d2225;
+  --kz-bg-elevated: #15181b;
+  --kz-bg-card: #15181b;
+  --kz-bg-soft: #252b30;
+  --kz-bg-hover: #2e353b;
   --kz-header-bg: rgba(18, 20, 23, 0.85);
 
   /* Lines — refined cool charcoal border */
-  --kz-border: #2e343d;
-  --kz-border-subtle: #242930;
+  --kz-border: #2f363d;
+  --kz-border-subtle: #242a30;
 
   /* Type */
   --kz-fg: #f1f5f9;
-  --kz-fg-muted: #94a3b8;
-  --kz-fg-dim: #64748b;
+  --kz-fg-muted: #b9c3d0;
+  --kz-fg-dim: #79828d;
 
   /* Accent — ColorsWall Vibrant Azure Sky Blue */
   --kz-accent: #2cabff;
@@ -116,7 +116,7 @@ html[data-theme='dark'] {
   --kz-scroll-thumb-hover: #434c55;
 
   /* Native select chevron stroke */
-  --kz-chevron: %2394a3b8;
+  --kz-chevron: %23b9c3d0;
 }
 
 html {
@@ -1042,27 +1042,26 @@ html[data-theme='dark'] .kz-source-pill--pick {
   align-items: center;
   gap: 0.25rem;
   border-radius: 9999px;
-  border: 1px solid var(--kz-border-subtle);
-  padding: 0.25rem 0.65rem;
+  border: none;
+  padding: 0.3rem 0.7rem;
   font-size: 0.75rem;
   font-weight: 500;
   line-height: 1.2;
   color: var(--kz-fg-muted);
   background: var(--kz-bg-soft);
   cursor: pointer;
-  transition: all 0.12s ease;
+  transition:
+    color 0.12s ease,
+    background 0.12s ease;
 }
 
 .kz-bili-road:hover {
   color: var(--kz-fg);
-  background: var(--kz-bg-hover);
-  border-color: var(--kz-border);
 }
 
 .kz-bili-road--active {
   color: var(--kz-accent);
   background: var(--kz-accent-soft);
-  border-color: var(--kz-accent);
   font-weight: 600;
 }
 
@@ -1138,13 +1137,13 @@ html[data-theme='dark'] .kz-source-pill--pick {
   box-sizing: border-box;
   min-height: 2.35rem;
   min-width: 0;
-  border: 1px solid var(--kz-border-subtle);
-  border-radius: 8px;
+  border: none;
+  border-radius: 6px;
   padding: 0.4rem 0.45rem;
   background: var(--kz-bg-soft);
   color: var(--kz-fg);
   cursor: pointer;
-  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background 0.12s ease;
 }
 
 /* ~4 cards visible: (100% - 3 gaps) / 4 ; gap = 0.4rem */
@@ -1156,14 +1155,11 @@ html[data-theme='dark'] .kz-source-pill--pick {
 
 .kz-bili-ep:hover {
   background: var(--kz-bg-hover);
-  border-color: var(--kz-border);
-  color: var(--kz-fg);
 }
 
 .kz-bili-ep--playing {
   background: var(--kz-accent-soft);
   color: var(--kz-accent);
-  border-color: var(--kz-accent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--kz-accent) 40%, transparent);
 }
 
