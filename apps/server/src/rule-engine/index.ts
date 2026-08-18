@@ -831,6 +831,22 @@ export async function searchWithRule(
 
   const diagnostics: string[] = []
 
+  // cycani — dedicated adapter (RESTful JSON API + Bearer Token)
+  {
+    const { isCycaniRule, searchCycani } = await import('../lib/cycani')
+    if (isCycaniRule(rule)) {
+      try {
+        return await searchCycani(rule, keyword)
+      } catch (e) {
+        return {
+          pluginName: rule.name,
+          items: [],
+          diagnostics: [e instanceof Error ? e.message : String(e)],
+        }
+      }
+    }
+  }
+
   // Anime1.me — dedicated adapter (s2t search + category grouping)
   {
     const { isAnime1Rule, searchAnime1 } = await import('../lib/anime1')
@@ -1068,6 +1084,22 @@ export async function chaptersWithRule(
   }
 
   const diagnostics: string[] = []
+
+  // cycani — dedicated adapter (RESTful JSON API + multiple player lines)
+  {
+    const { isCycaniRule, chaptersCycani } = await import('../lib/cycani')
+    if (isCycaniRule(rule)) {
+      try {
+        return await chaptersCycani(rule, source)
+      } catch (e) {
+        return {
+          pluginName: rule.name,
+          roads: [],
+          diagnostics: [e instanceof Error ? e.message : String(e)],
+        }
+      }
+    }
+  }
 
   {
     const { isAnime1Rule, chaptersAnime1 } = await import('../lib/anime1')
@@ -1471,6 +1503,14 @@ export async function resolvePlay(
   if (isReleaseRule(rule)) {
     const resolved = await resolveEffectiveBaseUrl(rule)
     rule.baseURL = resolved
+  }
+
+  // cycani: dedicated adapter (Bearer token + Cloudflare MP4 direct stream)
+  {
+    const { isCycaniRule, resolveCycani } = await import('../lib/cycani')
+    if (isCycaniRule(rule)) {
+      return await resolveCycani(rule, pageUrl)
+    }
   }
 
   // Anime1: API + cookie-gated progressive mp4 (not static HTML media)

@@ -1,5 +1,21 @@
 # Animaku 项目状态快照 (STATE.md)
 
+## [2026-08-18] 接入次元城动画（cycani.org）专有适配器与 Cloudflare 1080P MP4 原画直链
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **服务端专有适配器（`cycani.ts`）**：
+     - 实现 `isCycaniRule`、`searchCycani`、`chaptersCycani`、`resolveCycani`；
+     - 搜索与分集直接请求官方 RESTful JSON API，多线路（`play_from`）全量并发提取；
+     - 内置凭证与 Token 内存缓存生命周期管理，支持 401 自动重新登录与自愈重试；
+     - 解析获取 Cloudflare CDN 托管的高清 1080P MP4 直链（支持 `Accept-Ranges: bytes` 与断点拖拽，0 服务端带宽代理消耗）；
+  2. **规则引擎挂载**：在 `apps/server/src/rule-engine/index.ts` 的搜索、章节与解析三处核心链路旁路挂载 `isCycaniRule`；
+  3. **内置规则与客户端版本升级**：
+     - 新建 `apps/web/src/data/default-plugins/cycani.json`（weight: 68，preferOriginalTitle: false），并在 `index.ts` 注册；
+     - 在 `apps/web/src/stores/plugins.ts` 中递增 `PLUGIN_DEFAULTS_VERSION`（19 -> 20）并将 `'cycani'` 加入 `legacyBuiltinNames`，确保老用户无感自动升级。
+- 涉及文件：apps/server/src/lib/cycani.ts, apps/server/src/rule-engine/index.ts, apps/web/src/data/default-plugins/cycani.json, apps/web/src/data/default-plugins/index.ts, apps/web/src/stores/plugins.ts
+- 备注：全流程真实 API 单元测试通过，全仓类型检查与打包构建全通过。
+
 ## [2026-08-18] 修复历史记录/异名番剧选集反查失败与消除看板假绿色
 - 状态：已完成
 - 优先级：P0

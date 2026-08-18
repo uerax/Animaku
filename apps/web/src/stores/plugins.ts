@@ -23,7 +23,8 @@ migrateLocalStorageKey('animaku-plugins', [
 /** v17: reset legacy pluginOrder on defaults upgrade to enforce weight-first ordering */
 /** v18: normalize all built-in plugin names and JSON files to lowercase */
 /** v19: add preferOriginalTitle support (xifan-next, libvio, omofun prefer Japanese title) */
-export const PLUGIN_DEFAULTS_VERSION = 19
+/** v20: add cycani (cycani.org) built-in */
+export const PLUGIN_DEFAULTS_VERSION = 20
 
 interface PluginState {
   plugins: PluginMeta[]
@@ -294,6 +295,7 @@ export const usePluginStore = create<PluginState>()(
         // v15: add weight to built-in rules (weight sorting > alphabetical; external rules default to lowest weight).
         // v16: tune weights (xifan-next: 70, libvio/anime1: 60, mxdm: 55, default builtin: 50, external/third-party: 0).
         // v17: reset legacy pluginOrder on defaults upgrade to enforce weight-first ordering.
+        // v20: add cycani (cycani.org).
         const legacyBuiltinNames = new Set(
           [
             '7sefun',
@@ -308,6 +310,7 @@ export const usePluginStore = create<PluginState>()(
             'xifan-next',
             'omofun',
             'libvio',
+            'cycani',
           ].map((s) => s.toLowerCase()),
         )
         const onlyLegacyBuiltins = plugins.every(
