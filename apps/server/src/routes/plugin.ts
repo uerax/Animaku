@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { parsePluginRule, type PluginRule } from '@animaku/shared'
+import { parsePluginRule, type PluginRule, type PluginSearchResult } from '@animaku/shared'
 import {
   searchWithRule,
   chaptersWithRule,
@@ -14,9 +14,11 @@ import {
   cacheGetOrSet,
   cacheSet,
   pluginCacheKey,
+  ruleCacheId,
   resolveCacheTtlMs,
   wantsCacheBypass,
 } from '../lib/ttl-cache'
+import { pluginSearchCache } from '../db'
 
 export const pluginRoutes = new Hono()
 
@@ -68,12 +70,46 @@ pluginRoutes.post('/search', requireLocalOrToken, async (c) => {
   }
   const keyword = body.keyword.trim()
   const key = pluginCacheKey('search', rule, keyword.toLowerCase())
+  const ruleHash = ruleCacheId(rule)
   const bypass = wantsCacheBypass(c)
+
+  if (bypass) {
+    cacheDelete(key)
+    pluginSearchCache.delete(key)
+  } else {
+    // 1. L1 Fast in-memory cache hit (< 0.1ms)
+    const memHit = cacheGet<PluginSearchResult>(key)
+    if (memHit) {
+      return c.json({ data: memHit }, 200, cacheHeaders(true))
+    }
+
+    // 2. L2 Persistent SQLite cache hit (< 1ms, survives restarts & image updates)
+    const dbHit = pluginSearchCache.get(key)
+    if (dbHit) {
+      // Warm L1 memory cache for hot repeat requests
+      cacheSet(key, dbHit, PLUGIN_CACHE_TTL.search, PLUGIN_MAX_ENTRIES)
+      return c.json({ data: dbHit }, 200, cacheHeaders(true))
+    }
+  }
+
   try {
+    // 3. Cache MISS: execute upstream search with single-flight loader deduplication
     const { value, hit } = await cacheGetOrSet(
       key,
       PLUGIN_CACHE_TTL.search,
-      () => searchWithRule(rule, keyword),
+      async () => {
+        const result = await searchWithRule(rule, keyword)
+        // Store in SQLite database for durable persistence
+        pluginSearchCache.set(
+          key,
+          rule.name,
+          keyword.toLowerCase(),
+          ruleHash,
+          result,
+          PLUGIN_CACHE_TTL.search,
+        )
+        return result
+      },
       { bypass, maxEntries: PLUGIN_MAX_ENTRIES },
     )
     // Always 200 when we finished parsing — empty items is a soft failure

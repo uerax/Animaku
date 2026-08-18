@@ -13,3 +13,8 @@ apps/server/public
 .tmp*
 .claude/settings.local.json
 CLAUDE.local.md
+data
+*.db
+*.db-wal
+*.db-shm
+*.db-journal

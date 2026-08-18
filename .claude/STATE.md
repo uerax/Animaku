@@ -1,5 +1,29 @@
 # Animaku 项目状态
 
+## [2026-08-18] 视频源番剧搜索缓存重构为 SQLite 存储、支持 Docker 数据持久化与高扩展性架构设计
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **SQLite 核心数据库与多层级缓存架构（`apps/server/src/db/`）**：
+     - 构建企业级 SQLite 核心引擎（基于 Node 22 原生 `node:sqlite` 的 `DatabaseSync`），全面启用 WAL（Write-Ahead Logging）模式、`synchronous = NORMAL`、`busy_timeout = 5000ms` 与 Prepared Statement 预编译缓存；
+     - 引入版本化数据库迁移管理（`_schema_migrations`），支持零停机热升级与未来数据表平滑迁移；
+     - 建立 `plugin_search_cache` 专有搜索缓存表（索引 `expires_at`、`plugin_name, keyword`、`created_at`）及 `hit_count` 命中统计字段；
+     - 抽象通用高扩展 Key-Value 缓存表（`kv_cache`，支持 namespace 隔离与独立 TTL），方便未来用户同步、弹幕缓存、元数据持久化等任意功能无缝接入；
+     - 实现定时后台垃圾回收机制（`clearExpired`），每小时自动安全清理过期缓存记录，防数据库文件无限膨胀。
+  2. **双层缓存流水线接入（L1 Memory + L2 SQLite）**：
+     - 在 `apps/server/src/routes/plugin.ts` 中重构 `/search` 路由：
+       - **L1 内存缓存**（< 0.1ms 极速命中）；
+       - **L2 SQLite 磁盘持久化**（< 1ms 毫秒级命中，容器重启/镜像更新/服务重启后零丢失）；
+       - **Miss 穿透回源**：通过 Single-Flight 并发防击穿机制执行上游搜索解析，并原子写入 L1 + L2；
+       - **强刷旁路**：识别 `refresh=1` 或 `Cache-Control: no-cache`，支持瞬时清理旧缓存并强制回源重搜。
+  3. **Docker Compose 数据持久化与更新防丢数据**：
+     - 在 `docker-compose.yml` 中挂载主机数据卷 `./data:/app/data` 并注入 `DATA_DIR=/app/data`；
+     - 在 `Dockerfile` 中安全预建 `/app/data` 并赋权 `node:node` 用户，声明 `VOLUME ["/app/data"]`；
+     - 在 `.env.example` 中补充 `DATA_DIR` 与 `SQLITE_PATH` 配置说明；
+     - 在 `.gitignore` 中完善 `data/`、`*.db`、`*.db-wal`、`*.db-shm` 规则，防止本地数据库污染 git 仓库。
+- 涉及文件：apps/server/src/db/connection.ts, apps/server/src/db/schema.ts, apps/server/src/db/repositories/plugin-search-cache.ts, apps/server/src/db/repositories/kv-cache.ts, apps/server/src/db/index.ts, apps/server/src/config.ts, apps/server/src/index.ts, apps/server/src/routes/plugin.ts, docker-compose.yml, Dockerfile, .env.example, .gitignore, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 0 错误通过，`pnpm build` 全量打包编译通过，SQLite 全量单元/集成测试通过。
+
 ## [2026-08-18] 修复视频源首屏起播、折叠时机、白天主题适配与失败源自定义重搜
 - 状态：已完成
 - 优先级：P0

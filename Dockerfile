@@ -54,15 +54,21 @@ FROM node:22-bookworm-slim AS runner
 ENV NODE_ENV=production \
     PORT=8787 \
     HOST=0.0.0.0 \
-    WEB_DIST=public
+    WEB_DIST=public \
+    DATA_DIR=/app/data
 
 WORKDIR /app
+
+# Ensure data directory exists with correct permissions for non-root node user
+RUN mkdir -p /app/data && chown -R node:node /app/data
 
 # Bundled server is self-contained; only need the JS + SPA assets (no sourcemaps)
 COPY --from=build --chown=node:node /app/apps/server/dist/index.js ./dist/index.js
 COPY --from=build --chown=node:node /app/apps/web/dist ./public
 
 USER node
+
+VOLUME ["/app/data"]
 
 EXPOSE 8787
 

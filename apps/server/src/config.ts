@@ -50,7 +50,29 @@ function parseCorsOrigins(raw: string | undefined): string[] {
     .filter(Boolean)
 }
 
+function resolveDataDir(): string {
+  if (process.env.DATA_DIR?.trim()) {
+    return resolve(process.env.DATA_DIR.trim())
+  }
+  if (process.cwd().endsWith('apps/server') || process.cwd().endsWith('apps\\server')) {
+    return resolve(process.cwd(), '../../data')
+  }
+  return resolve(process.cwd(), 'data')
+}
+
+const dataDir = resolveDataDir()
+
 export const config = {
+  /** Directory for persistent state (SQLite db, cache, etc.) */
+  dataDir,
+  /** Full path to primary SQLite database file */
+  sqlitePath: process.env.SQLITE_PATH?.trim()
+    ? resolve(process.env.SQLITE_PATH.trim())
+    : resolve(dataDir, 'animaku.db'),
+  /** Enable SQLite Write-Ahead Logging (WAL) for concurrent read/write throughput */
+  sqliteWal: envBool(process.env.SQLITE_WAL, true),
+  /** Busy timeout in ms before throwing SQLITE_BUSY */
+  sqliteBusyTimeout: envInt(process.env.SQLITE_BUSY_TIMEOUT, 5000),
   /** API listen port — `PORT` in root `.env` */
   port: envInt(process.env.PORT, 8787),
   /** API bind host — `HOST` in root `.env` */

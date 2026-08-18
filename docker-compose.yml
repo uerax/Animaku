@@ -32,11 +32,15 @@ services:
     # Browser: http://localhost:$PORT
     ports:
       - "${PORT:-8787}:${PORT:-8787}"
+    volumes:
+      # Persistent SQLite database & cache directory (persists across container updates)
+      - ./data:/app/data
     environment:
       # Listen inside the container (must match the right-hand side of ports)
       PORT: ${PORT:-8787}
       HOST: "0.0.0.0"
       WEB_DIST: "public"
+      DATA_DIR: "/app/data"
       # Access / media (see .env.example). PUBLIC_PROXY default 1; MEDIA_FULL_PROXY default 0.
       PUBLIC_PROXY: ${PUBLIC_PROXY:-1}
       MEDIA_FULL_PROXY: ${MEDIA_FULL_PROXY:-0}

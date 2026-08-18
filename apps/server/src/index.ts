@@ -7,6 +7,7 @@ import { logger } from 'hono/logger'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { config } from './config'
+import { initDatabase, closeDatabase } from './db'
 import { corsOriginDecision } from './lib/access'
 import { bangumiRoutes } from './routes/bangumi'
 import { danmakuRoutes } from './routes/danmaku'
@@ -193,6 +194,7 @@ app.onError((err, c) => {
 })
 
 console.log(`animaku server listening on http://${config.host}:${config.port}`)
+initDatabase()
 const server = serve({
   fetch: app.fetch,
   port: config.port,
@@ -248,6 +250,17 @@ function isBenignAbort(err: unknown): boolean {
     pattern.test(causeMsg)
   )
 }
+
+process.on('SIGINT', () => {
+  console.log('[server] received SIGINT, closing database...')
+  closeDatabase()
+  process.exit(0)
+})
+process.on('SIGTERM', () => {
+  console.log('[server] received SIGTERM, closing database...')
+  closeDatabase()
+  process.exit(0)
+})
 
 process.on('uncaughtException', (err) => {
   if (isBenignAbort(err)) {
