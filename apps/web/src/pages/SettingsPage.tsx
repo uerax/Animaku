@@ -481,7 +481,7 @@ export function SettingsPage() {
             onClick={() => {
               if (
                 window.confirm(
-                  '将清空当前规则并恢复为内置默认（xifan-next / anime1 / libvio / mxdm / omofun / otage / xifan），确定？',
+                  '将清空当前规则并恢复为内置默认（xifan-next / cycani / anime1 / libvio / mxdm / omofun / xifan），确定？',
                 )
               ) {
                 resetToDefaults()
@@ -956,7 +956,7 @@ export function SettingsPage() {
         />
         <p className="text-xs text-[var(--kz-fg-dim)]">
           开启后所有规则播放 m3u8 时强制过滤（忽略下方规则的「广告过滤」关闭）。默认仅
-          MXdm 规则开启；Anime1 / otage / xifan 默认关。无 DISCONTINUITY
+          MXdm 规则开启；Anime1 / xifan 默认关。无 DISCONTINUITY
           的片源无效。只需服务器处理播放列表；无 cookie
           时分片仍直连 CDN（不经本机出站）。若分片被热链拦截，可开上方「媒体走服务器代理」。
         </p>

@@ -1,5 +1,16 @@
 # Animaku 项目状态快照 (STATE.md)
 
+## [2026-08-18] 移除 otage 默认内置源并将 cycani 优先级权重提升至 70
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **移除 otage 默认调用**：对齐 age / 7sefun / gugu3 模式，保留 `otage.json` 规则定义文件仅供本地/手动导入，从 `DEFAULT_PLUGIN_RULES` 中移除；
+  2. **提升 cycani 优先级权重至 70**：将 `cycani.json` 的 `weight` 设为 `70`，与 `xifan-next` 并列最高梯队优质原画源；
+  3. **客户端版本迁移与自动下线**：在 `apps/web/src/stores/plugins.ts` 中递增 `PLUGIN_DEFAULTS_VERSION`（20 -> 21），在 `ensureDefaults` 中自动过滤移除已下线的内置 `otage` 规则；
+  4. **设置页文案同步**：更新 `SettingsPage.tsx` 中恢复默认规则与广告过滤说明文案。
+- 涉及文件：apps/web/src/data/default-plugins/cycani.json, apps/web/src/data/default-plugins/index.ts, apps/web/src/stores/plugins.ts, apps/web/src/pages/SettingsPage.tsx
+- 备注：全仓类型检查与构建打包验证全通过。
+
 ## [2026-08-18] 接入次元城动画（cycani.org）专有适配器与 Cloudflare 1080P MP4 原画直链
 - 状态：已完成
 - 优先级：P0

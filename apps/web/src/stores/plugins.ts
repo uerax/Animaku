@@ -24,7 +24,8 @@ migrateLocalStorageKey('animaku-plugins', [
 /** v18: normalize all built-in plugin names and JSON files to lowercase */
 /** v19: add preferOriginalTitle support (xifan-next, libvio, omofun prefer Japanese title) */
 /** v20: add cycani (cycani.org) built-in */
-export const PLUGIN_DEFAULTS_VERSION = 20
+/** v21: retire otage from default built-ins, set cycani weight to 70 */
+export const PLUGIN_DEFAULTS_VERSION = 21
 
 interface PluginState {
   plugins: PluginMeta[]
@@ -326,7 +327,7 @@ export const usePluginStore = create<PluginState>()(
           })
           return
         }
-        // Mixed store: add any new built-ins; drop retired default 7sefun
+        // Mixed store: add any new built-ins; drop retired default 7sefun/otage
         // only when it was backend marked builtin (user re-import keeps source=import).
         // Also align *builtin* rule definitions and adBlocker/proxy flags to current
         // DEFAULT_PLUGIN_RULES without overwriting user/catalog rules.
@@ -340,7 +341,7 @@ export const usePluginStore = create<PluginState>()(
         let next = plugins.filter(
           (p) =>
             !(
-              p.name.toLowerCase() === '7sefun' &&
+              (p.name.toLowerCase() === '7sefun' || p.name.toLowerCase() === 'otage') &&
               (p.source === 'builtin' || p.source === undefined)
             ),
         )
