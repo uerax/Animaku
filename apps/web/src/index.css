@@ -8,25 +8,81 @@
  */
 
 :root,
+html[data-theme='light'] {
+  color-scheme: light;
+
+  /* Canvas — warm clean slate paper */
+  --kz-bg: #f8fafc;
+  --kz-bg-elevated: #ffffff;
+  --kz-bg-card: #ffffff;
+  --kz-bg-soft: #f1f5f9;
+  --kz-bg-hover: #e2e8f0;
+  --kz-header-bg: rgba(248, 250, 252, 0.85);
+
+  /* Lines — subtle crisp slate borders */
+  --kz-border: #e2e8f0;
+  --kz-border-subtle: #edf2f7;
+
+  /* Type — deep slate contrast */
+  --kz-fg: #0f172a;
+  --kz-fg-muted: #475569;
+  --kz-fg-dim: #94a3b8;
+
+  /* Accent — vibrant azure blue */
+  --kz-accent: #0284c7;
+  --kz-accent-hover: #0369a1;
+  --kz-accent-soft: rgba(2, 132, 199, 0.1);
+  --kz-accent-ring: rgba(2, 132, 199, 0.35);
+  --kz-accent-glow: 0 0 16px rgba(2, 132, 199, 0.25);
+  --kz-accent-fg: #ffffff;
+
+  /* Score chip (vibrant amber-gold) */
+  --kz-score: #d97706;
+
+  /* Air-progress chip on covers */
+  --kz-air-airing: #0284c7;
+  --kz-air-finished: #059669;
+  --kz-air-upcoming: #4f46e5;
+
+  /* Semantic */
+  --kz-like: #e11d48;
+  --kz-success: #10b981;
+  --kz-danger: #f43f5e;
+
+  /* Elevation & Shadows — refined layered soft shadows */
+  --kz-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.05), 0 1px 2px rgba(15, 23, 42, 0.03);
+  --kz-shadow-md: 0 4px 16px -2px rgba(15, 23, 42, 0.08), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
+  --kz-shadow-lg: 0 12px 32px -4px rgba(15, 23, 42, 0.12), 0 4px 12px -2px rgba(15, 23, 42, 0.06);
+  --kz-radius-surface: 1.15rem;
+
+  /* Scrollbar thumb */
+  --kz-scroll-thumb: #cbd5e1;
+  --kz-scroll-thumb-hover: #94a3b8;
+
+  /* Native select chevron stroke */
+  --kz-chevron: %23475569;
+}
+
+/* Dark — deep charcoal & slate gray (harmonized, non-dead black) */
 html[data-theme='dark'] {
   color-scheme: dark;
 
-  /* Canvas — deep modern cyber slate */
-  --kz-bg: #0b0e14;
-  --kz-bg-elevated: #131822;
-  --kz-bg-card: #131822;
-  --kz-bg-soft: #1a202c;
-  --kz-bg-hover: #1f2634;
-  --kz-header-bg: rgba(11, 14, 20, 0.82);
+  /* Canvas — deep modern cyber slate & charcoal */
+  --kz-bg: #0d1117;
+  --kz-bg-elevated: #161b22;
+  --kz-bg-card: #161b22;
+  --kz-bg-soft: #21262d;
+  --kz-bg-hover: #30363d;
+  --kz-header-bg: rgba(13, 17, 23, 0.85);
 
   /* Lines — refined cool slate border */
-  --kz-border: #262d3a;
-  --kz-border-subtle: #1c222e;
+  --kz-border: #30363d;
+  --kz-border-subtle: #21262d;
 
   /* Type */
-  --kz-fg: #f0f3f6;
-  --kz-fg-muted: #94a0b0;
-  --kz-fg-dim: #606d7d;
+  --kz-fg: #f0f6fc;
+  --kz-fg-muted: #8b949e;
+  --kz-fg-dim: #6e7681;
 
   /* Accent — X Vibrant Blue with ambient glow */
   --kz-accent: #1d9bf0;
@@ -50,63 +106,17 @@ html[data-theme='dark'] {
   --kz-danger: #f43f5e;
 
   /* Elevation & Shadows */
-  --kz-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
-  --kz-shadow-md: 0 12px 32px rgba(0, 0, 0, 0.45);
-  --kz-shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.55);
+  --kz-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --kz-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --kz-shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.55);
   --kz-radius-surface: 1.15rem;
 
   /* Scrollbar thumb */
-  --kz-scroll-thumb: #333d4d;
-  --kz-scroll-thumb-hover: #4b586c;
+  --kz-scroll-thumb: #30363d;
+  --kz-scroll-thumb-hover: #484f58;
 
   /* Native select chevron stroke */
-  --kz-chevron: %2394a0b0;
-}
-
-/* Light — warm clean slate paper */
-html[data-theme='light'] {
-  color-scheme: light;
-
-  --kz-bg: #f4f6f9;
-  --kz-bg-elevated: #ffffff;
-  --kz-bg-card: #ffffff;
-  --kz-bg-soft: #eaedf2;
-  --kz-bg-hover: #e2e7ee;
-  --kz-header-bg: rgba(244, 246, 249, 0.88);
-
-  --kz-border: #dce1e8;
-  --kz-border-subtle: #e9ecf1;
-
-  --kz-fg: #0f172a;
-  --kz-fg-muted: #475569;
-  --kz-fg-dim: #78899a;
-
-  --kz-accent: #0284c7;
-  --kz-accent-hover: #0369a1;
-  --kz-accent-soft: rgba(2, 132, 199, 0.1);
-  --kz-accent-ring: rgba(2, 132, 199, 0.35);
-  --kz-accent-glow: 0 0 16px rgba(2, 132, 199, 0.25);
-  --kz-accent-fg: #ffffff;
-
-  --kz-score: #d97706;
-
-  --kz-air-airing: #0284c7;
-  --kz-air-finished: #059669;
-  --kz-air-upcoming: #4f46e5;
-
-  --kz-like: #e11d48;
-  --kz-success: #10b981;
-  --kz-danger: #f43f5e;
-
-  --kz-shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.05);
-  --kz-shadow-md: 0 12px 32px rgba(15, 23, 42, 0.09);
-  --kz-shadow-lg: 0 20px 48px rgba(15, 23, 42, 0.14);
-  --kz-radius-surface: 1.15rem;
-
-  --kz-scroll-thumb: #cbd5e1;
-  --kz-scroll-thumb-hover: #94a3b8;
-
-  --kz-chevron: %23475569;
+  --kz-chevron: %238b949e;
 }
 
 html {

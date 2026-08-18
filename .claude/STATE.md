@@ -1,5 +1,33 @@
 # Animaku 项目状态快照 (STATE.md)
 
+## [2026-08-18] 服务端日志输出结构化与健康检查心跳静默过滤
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **健康检查与媒体分片静默**：过滤 Docker/K8s 正常的 `GET /api/health` 每 30s 心跳轮询日志（仅在非 200 异常时输出）；静默 `<400` 的媒体代理分片流量；
+  2. **结构化日志输出**：实现精炼中间件，格式统一为 `[YYYY-MM-DD HH:mm:ss] [IP] METHOD PATH -> STATUS (Xms)`；对媒体拉流错误（$\ge 400$）添加 `[MEDIA_FAIL]` 标识。
+- 涉及文件：apps/server/src/index.ts
+- 备注：全仓类型检查与打包验证通过。
+
+## [2026-08-18] 切换视频源 HUD 提示位置重构与播放器内联锚定
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **播放器内联浮层**：将切源 HUD 提示从全网页顶部脱离，锚定至播放器内部状态层（`.kz-player-shell` 内部），支持双模态磨砂琉璃视觉与入场动效；
+  2. **多模式全景对齐**：无论常规窗口、网页全屏（Web FS）还是系统 DOM 全屏，HUD 始终居中伴随画面顶部优雅提示，彻底消除视线分裂。
+- 涉及文件：apps/web/src/player/types.ts, apps/web/src/player/VideoPlayer.tsx, apps/web/src/pages/watch/WatchHudToast.tsx, apps/web/src/pages/WatchPage.tsx
+- 备注：全仓构建验证通过。
+
+## [2026-08-18] 全站双模态色彩系统美化与默认白天模式（Light Mode）改造
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **默认白天模式**：新用户访问及无本地偏好缓存时默认启用白天模式（Light Mode），同步更新 `index.html` 首屏防白屏闪烁脚本与 `useSettingsStore` 初始值；
+  2. **白天模式视觉升级**：重构 Warm Slate / Paper 灰白分层体系（`#f8fafc` 底色 + `#ffffff` 卡片 + `#e2e8f0` 边框 + 细腻阴影），消除生硬苍白感；
+  3. **夜间模式深炭灰中和**：在暗色基底中融入深灰（Deep Charcoal `#0d1117` + `#161b22` 卡片 + `#30363d` 边框），改善纯黑死底，提升暗场通透度与层次感。
+- 涉及文件：apps/web/index.html, apps/web/src/stores/settings.ts, apps/web/src/index.css
+- 备注：全仓类型检查与打包验证通过。
+
 ## [2026-08-18] 修复播放页强依赖代理源（Anime1/LIBVIO）鉴权状态不同步问题
 - 状态：已完成
 - 优先级：P0

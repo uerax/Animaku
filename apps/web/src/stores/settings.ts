@@ -106,7 +106,7 @@ export const useSettingsStore = create<SettingsState>()(
     (set) => ({
       bangumiToken: '',
       proxyToken: '',
-      theme: 'dark',
+      theme: 'light',
       bangumiImageHost: DEFAULT_BANGUMI_IMAGE_HOST,
       danmaku: { ...defaultDanmakuSettings },
       player: { ...defaultPlayerSettings },
@@ -211,5 +211,5 @@ if (
   typeof document !== 'undefined' &&
   !document.documentElement.getAttribute('data-theme')
 ) {
-  applyDocumentTheme('dark')
+  applyDocumentTheme('light')
 }

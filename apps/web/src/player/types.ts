@@ -52,6 +52,8 @@ export interface VideoPlayerProps {
   embedded?: boolean
   hideHints?: boolean
   danmakuPanel?: DanmakuPanelState
+  /** HUD toast message overlaid inside the player frame (e.g. source switch notification) */
+  hudMessage?: string | null
   /**
    * Cookie / signed media expired (proxy 403 auth_expired or media error on cookie URL).
    * Parent should re-resolve and pass a new src; return a Promise to await.

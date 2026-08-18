@@ -3,7 +3,6 @@ import { join, relative, resolve } from 'node:path'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { compress } from 'hono/compress'
-import { logger } from 'hono/logger'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { config } from './config'
@@ -16,6 +15,32 @@ import { pluginRoutes } from './routes/plugin'
 import { pluginCatalogRoutes } from './routes/plugin-catalog'
 import { mediaRoutes } from './routes/media'
 import { buildRobotsTxt, buildSitemapXml, resolvePublicOrigin } from './lib/seo-static'
+
+/** Formats local date-time to [YYYY-MM-DD HH:mm:ss] */
+function formatLogTimestamp(d: Date = new Date()): string {
+  const pad = (n: number) => n.toString().padStart(2, '0')
+  const Y = d.getFullYear()
+  const M = pad(d.getMonth() + 1)
+  const D = pad(d.getDate())
+  const h = pad(d.getHours())
+  const m = pad(d.getMinutes())
+  const s = pad(d.getSeconds())
+  return `${Y}-${M}-${D} ${h}:${m}:${s}`
+}
+
+/** Extracts client IP from reverse proxy headers or socket */
+function getClientIp(req: { header: (name: string) => string | undefined }): string {
+  const xff = req.header('x-forwarded-for')
+  if (xff) {
+    const first = xff.split(',')[0]?.trim()
+    if (first) return first
+  }
+  const xReal = req.header('x-real-ip')
+  if (xReal) return xReal.trim()
+  const cfIp = req.header('cf-connecting-ip')
+  if (cfIp) return cfIp.trim()
+  return '127.0.0.1'
+}
 
 /**
  * Resolve SPA build output. @hono/node-server serveStatic only accepts
@@ -60,19 +85,42 @@ function resolveWebRootRel(): string | null {
 
 const app = new Hono()
 
-const accessLog = logger()
-// Skip successful media segment spam (HLS can be 100s of lines per episode)
+// Structured access logger:
+// 1. Silently skip successful /api/health heartbeats (Docker/K8s polling)
+// 2. Silently skip successful /api/media/proxy requests (HLS TS/M4S segments)
+// 3. Output standard format: [YYYY-MM-DD HH:mm:ss] [IP] METHOD PATH -> STATUS (Xms)
 app.use('*', async (c, next) => {
+  const start = Date.now()
   const path = c.req.path
-  if (path.startsWith('/api/media/proxy')) {
+  const method = c.req.method
+  const ip = getClientIp(c.req)
+  const isMediaProxy = path.startsWith('/api/media/proxy')
+  const isHealthCheck = path === '/api/health' || path === '/api/health/'
+
+  try {
     await next()
-    const status = c.res.status
-    if (status >= 400) {
-      console.log(`<- ${c.req.method} ${path} ${status}`)
+  } finally {
+    const elapsed = Date.now() - start
+    const status = c.res ? c.res.status : 500
+
+    // Silent health check on success (filter Docker/K8s heartbeats)
+    if (isHealthCheck && status === 200) {
+      return
     }
-    return
+
+    // Silent media proxy segment traffic on success (<400)
+    if (isMediaProxy && status < 400) {
+      return
+    }
+
+    const timeStr = formatLogTimestamp()
+    const tag = isMediaProxy && status >= 400 ? ' [MEDIA_FAIL]' : ''
+    const urlPath = status >= 400 && c.req.url.includes('?')
+      ? `${path}?${c.req.url.split('?')[1]}`
+      : path
+
+    console.log(`[${timeStr}] [${ip}]${tag} ${method} ${urlPath} -> ${status} (${elapsed}ms)`)
   }
-  return accessLog(c, next)
 })
 
 // Compress API payloads (Danmaku XML/JSON, Bangumi metadata) and SPA static assets.

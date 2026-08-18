@@ -603,6 +603,10 @@ export function useWatchSession(bangumiId: number): WatchSession {
       const currentPosition =
         currentPlaybackPositionRef.current || resumePosition || 0
 
+      if (prevEpisode) {
+        setHudMessage(`正在切换至 ${plugin.name}…`)
+      }
+
       const gen = ++chaptersGen.current
       try {
         chaptersAbort.current?.abort()
@@ -990,6 +994,9 @@ export function useWatchSession(bangumiId: number): WatchSession {
   const switchToPlugin = useCallback(
     async (plugin: PluginMeta, targetItem?: SearchItem) => {
       setKeywordTargetPlugin(plugin)
+      if (episodeRef.current) {
+        setHudMessage(`正在切换至 ${plugin.name}…`)
+      }
       if (targetItem) {
         await pickSource(plugin, targetItem, { isManual: true })
         return
