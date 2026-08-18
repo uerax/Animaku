@@ -26,12 +26,15 @@ export type AppTheme = 'dark' | 'light'
 
 interface SettingsState {
   bangumiToken: string
+  /** 管理员服务器代理授权口令（用于解锁媒体流代理出站） */
+  proxyToken: string
   theme: AppTheme
   /** 封面图片源 host（默认取 .env 的 VITE_BANGUMI_IMAGE_HOST） */
   bangumiImageHost: string
   danmaku: DanmakuSettings
   player: PlayerSettings
   setBangumiToken: (token: string) => void
+  setProxyToken: (token: string) => void
   setBangumiImageHost: (host: string) => void
   setTheme: (theme: AppTheme) => void
   toggleTheme: () => void
@@ -102,11 +105,13 @@ export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
       bangumiToken: '',
+      proxyToken: '',
       theme: 'dark',
       bangumiImageHost: DEFAULT_BANGUMI_IMAGE_HOST,
       danmaku: { ...defaultDanmakuSettings },
       player: { ...defaultPlayerSettings },
       setBangumiToken: (bangumiToken) => set({ bangumiToken }),
+      setProxyToken: (proxyToken) => set({ proxyToken }),
       setBangumiImageHost: (raw) => {
         const bangumiImageHost = resolveBangumiImageHost(raw)
         // shared 状态先更新，再 set 触发重渲染 → 新 URL 立即生效
@@ -162,6 +167,7 @@ export const useSettingsStore = create<SettingsState>()(
       ),
       partialize: (s) => ({
         bangumiToken: s.bangumiToken,
+        proxyToken: s.proxyToken,
         theme: s.theme,
         bangumiImageHost: s.bangumiImageHost,
         danmaku: s.danmaku,
@@ -175,6 +181,10 @@ export const useSettingsStore = create<SettingsState>()(
             typeof p.bangumiToken === 'string'
               ? p.bangumiToken
               : current.bangumiToken,
+          proxyToken:
+            typeof p.proxyToken === 'string'
+              ? p.proxyToken
+              : current.proxyToken,
           theme:
             p.theme === 'light' || p.theme === 'dark' ? p.theme : current.theme,
           bangumiImageHost: resolveBangumiImageHost(p.bangumiImageHost),

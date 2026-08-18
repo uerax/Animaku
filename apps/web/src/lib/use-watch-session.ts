@@ -293,6 +293,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
   })
   const mediaFullProxy = mediaFullProxyEnabled(serverCaps.data)
   const playerSettings = useSettingsStore((s) => s.player ?? FALLBACK_PLAYER)
+  const proxyToken = useSettingsStore((s) => s.proxyToken)
   const setPlayer = useSettingsStore((s) => s.setPlayer)
   const serverProxyEnabled = Boolean(playerSettings.serverProxy)
   const plugins = useMemo(
@@ -1362,8 +1363,9 @@ export function useWatchSession(bangumiId: number): WatchSession {
         proxyUrl,
         forceProxy: preferMediaProxy || sessionForceProxy,
         forceAdFilter,
+        proxyToken,
       }),
-    [playUrl, proxyUrl, preferMediaProxy, sessionForceProxy, forceAdFilter],
+    [playUrl, proxyUrl, preferMediaProxy, sessionForceProxy, forceAdFilter, proxyToken],
   )
   const mediaSrc = episode ? playback.src : ''
   const effectiveResume =

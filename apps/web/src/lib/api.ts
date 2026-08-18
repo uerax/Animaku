@@ -1,3 +1,5 @@
+import { useSettingsStore } from '../stores/settings'
+
 export class ApiError extends Error {
   status: number
   body: unknown
@@ -19,6 +21,16 @@ export async function api<T>(
   if (init.token) {
     headers.set('Authorization', `Bearer ${init.token}`)
   }
+  // Inject administrator proxy token if available in local settings
+  try {
+    const proxyToken = useSettingsStore.getState().proxyToken?.trim()
+    if (proxyToken && !headers.has('X-Animaku-Proxy-Token')) {
+      headers.set('X-Animaku-Proxy-Token', proxyToken)
+    }
+  } catch {
+    /* ignore store access error */
+  }
+
   const { token: _t, ...rest } = init
   // `signal` from React Query / caller is preserved via rest — abort on navigate.
   const res = await fetch(path, { ...rest, headers })

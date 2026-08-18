@@ -1,5 +1,26 @@
 # Animaku 项目状态
 
+## [2026-08-18] 服务器代理开关权限上锁与行内琉璃解锁交互设计落地
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **服务端管理员代理口令保护与鉴权拦截（`apps/server/`）**：
+     - `apps/server/src/lib/access.ts`：当配置了 `PROXY_TOKEN` 时，凡访问 `/api/media/proxy` 等代理接口，严格校验 Header `X-Animaku-Proxy-Token` 或 Query `?token=`；未提供或口令不符时一律 403 拒绝拉流（防止未授权访客刷取服务器流量）；
+     - `apps/server/src/index.ts`：在 `/api/health` 中暴露 `proxyTokenRequired` 状态感知字段；
+     - 新增 `POST /api/proxy/verify` 验证接口：验证传入的 `token`，口令错误时主动延时 300ms（防暴力穷举），口令正确返回 `{ ok: true, required: true }`。
+  2. **客户端静默鉴权与持久化（`apps/web/src/stores/settings.ts` & `playback-src.ts`）**：
+     - 在 `useSettingsStore` 中增加 `proxyToken` 字段并持久化于 `localStorage`；
+     - `apps/web/src/lib/api.ts` 全局拦截器自动在请求头中注入 `X-Animaku-Proxy-Token`；
+     - `apps/web/src/lib/playback-src.ts` 与 `use-watch-session.ts` 中，为需要走代理的媒体流链接自动追加 `?token=...`，保证 `<video>` 与 Hls.js 分片鉴权无缝透传。
+  3. **设置页「服务器代理」开关上锁与行内平滑解锁 UI（`SettingsPage.tsx`）**：
+     - **锁定态**：若服务端配置了 `PROXY_TOKEN` 且本地未解锁，开关展示 `🔒 服务器代理（需口令解锁）`；
+     - **行内展开卡片（Inline Spring Accordion）**：点击开关平滑展开磨砂卡片，包含密码输入框、👁️ 显隐切换、Enter 快捷提交；
+     - **错误物理震颤微动效**：密码错误时触发 `animate-kz-shake` 左右晃动微动效与绯红提示；
+     - **解锁成功动效**：验证通过后自动转为 `🔓 已解锁管理员权限`，开关自动拨至开启态并关闭卡片；
+     - **随时重新锁定**：解锁后提供 `[🔒 重新锁定]` 快捷按钮，点击一键清除本地保存的口令并重新闭锁。
+- 涉及文件：apps/server/src/lib/access.ts, apps/server/src/index.ts, apps/web/src/stores/settings.ts, apps/web/src/lib/server-capabilities.ts, apps/web/src/lib/api.ts, apps/web/src/lib/playback-src.ts, apps/web/src/lib/use-watch-session.ts, apps/web/src/pages/SettingsPage.tsx, apps/web/src/index.css, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 0 错误通过，`pnpm build` 全量打包编译通过。
+
 ## [2026-08-18] 视频源番剧搜索缓存重构为 SQLite 存储、支持 Docker 数据持久化与高扩展性架构设计
 - 状态：已完成
 - 优先级：P0

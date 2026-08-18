@@ -53,13 +53,11 @@ export function clientRemoteAddress(c: Context): string {
 
 /**
  * Whether this request may use open-proxy style APIs (media + plugin exec).
- * Default PUBLIC_PROXY=1 → all clients (VPS-ready).
- * PUBLIC_PROXY=0 → loopback / private LAN only (or matching PROXY_TOKEN).
+ * - When PROXY_TOKEN is set: requires matching token (or loopback/LAN access).
+ * - When PROXY_TOKEN is empty: PUBLIC_PROXY=1 allows all, PUBLIC_PROXY=0 restricts to LAN.
  */
 export function canUseOpenProxy(c: Context): boolean {
-  if (config.publicProxy) return true
-
-  const token = config.proxyToken
+  const token = config.proxyToken?.trim()
   if (token) {
     const hdr =
       c.req.header('x-animaku-proxy-token') ||
@@ -69,7 +67,18 @@ export function canUseOpenProxy(c: Context): boolean {
     if (hdr && hdr === token) return true
     const q = c.req.query('proxyToken') || c.req.query('token') || ''
     if (q && q === token) return true
+
+    // When PROXY_TOKEN is configured, still permit local loopback/LAN developer access
+    const ip = clientRemoteAddress(c)
+    if (ip && isPrivateHost(ip)) return true
+    if (!ip) {
+      const origin = c.req.header('origin')
+      if (origin && isLoopbackOrigin(origin)) return true
+    }
+    return false
   }
+
+  if (config.publicProxy) return true
 
   const ip = clientRemoteAddress(c)
   if (!ip) {

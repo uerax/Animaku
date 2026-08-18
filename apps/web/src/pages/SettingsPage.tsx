@@ -61,6 +61,8 @@ export function SettingsPage() {
   const player = useSettingsStore((s) => s.player ?? FALLBACK_PLAYER)
   const setPlayer = useSettingsStore((s) => s.setPlayer)
   const resetPlayer = useSettingsStore((s) => s.resetPlayer)
+  const proxyToken = useSettingsStore((s) => s.proxyToken)
+  const setProxyToken = useSettingsStore((s) => s.setProxyToken)
 
   const plugins = usePluginStore((s) =>
     Array.isArray(s.plugins) ? s.plugins : EMPTY_ARRAY,
@@ -101,8 +103,62 @@ export function SettingsPage() {
     queryFn: ({ signal }) => fetchServerHealth(signal),
     staleTime: 60_000,
   })
+  const proxyTokenRequired = Boolean((health.data as ServerHealth | undefined)?.proxyTokenRequired)
+  const isProxyUnlocked = !proxyTokenRequired || Boolean(proxyToken?.trim())
   const mediaFullProxy = mediaFullProxyEnabled(health.data as ServerHealth | undefined)
-  const canUseFullProxySource = mediaFullProxy && Boolean(player.serverProxy)
+  const canUseFullProxySource = mediaFullProxy && Boolean(player.serverProxy) && isProxyUnlocked
+
+  // Proxy unlock state
+  const [showUnlockInput, setShowUnlockInput] = useState(false)
+  const [unlockPassword, setUnlockPassword] = useState('')
+  const [showPasswordText, setShowPasswordText] = useState(false)
+  const [isVerifying, setIsVerifying] = useState(false)
+  const [verifyError, setVerifyError] = useState('')
+  const [isShaking, setIsShaking] = useState(false)
+  const [unlockSuccess, setUnlockSuccess] = useState(false)
+  const unlockInputRef = useRef<HTMLInputElement>(null)
+
+  async function handleVerifyUnlock() {
+    if (!unlockPassword.trim() || isVerifying) return
+    setIsVerifying(true)
+    setVerifyError('')
+    try {
+      const res = await fetch('/api/proxy/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: unlockPassword.trim() }),
+      })
+      const data = (await res.json()) as { ok: boolean; message?: string }
+      if (res.ok && data.ok) {
+        setUnlockSuccess(true)
+        setProxyToken(unlockPassword.trim())
+        setPlayer({ serverProxy: true })
+        setTimeout(() => {
+          setShowUnlockInput(false)
+          setUnlockPassword('')
+          setUnlockSuccess(false)
+        }, 400)
+      } else {
+        setVerifyError(data.message || '口令错误，请检查 .env 中的 PROXY_TOKEN')
+        setIsShaking(true)
+        setTimeout(() => setIsShaking(false), 450)
+        unlockInputRef.current?.select()
+      }
+    } catch (e) {
+      setVerifyError(e instanceof Error ? e.message : '验证失败，请检查网络')
+      setIsShaking(true)
+      setTimeout(() => setIsShaking(false), 450)
+    } finally {
+      setIsVerifying(false)
+    }
+  }
+
+  function handleRelockProxy() {
+    setProxyToken('')
+    setPlayer({ serverProxy: false })
+    setShowUnlockInput(false)
+    setVerifyError('')
+  }
   /** User order within available/blocked groups; blocked sources stay at the end. */
   const sortedPlugins = useMemo(
     () =>
@@ -752,27 +808,147 @@ export function SettingsPage() {
           默认关闭时不占 GPU。也可在播放器控制条切换。
           HLS 广告过滤：按 discontinuity 短段启发式剔除，非域名拦截。
         </p>
-        <Toggle
-          label="服务器代理"
-          checked={mediaFullProxy && Boolean(player.serverProxy)}
-          disabled={!mediaFullProxy}
-          onChange={(v) => setPlayer({ serverProxy: v })}
-        />
-        <p className="text-xs text-[var(--kz-fg-dim)]">
-          {mediaFullProxy ? (
-            <>
-              总开关。关闭后下方所有源的「代理」不可勾选，全部直连 CDN。开启后可单独为每个源设置是否走
-              <code className="mx-0.5 text-[var(--kz-fg-muted)]">/api/media/proxy</code>
-              。只影响播放媒体，会增加服务器出站。此项仅存本机，不能改服务器 env。
-            </>
-          ) : (
-            <>
-              服务器 <code className="text-[var(--kz-fg-muted)]">MEDIA_FULL_PROXY=0</code>
-              （默认）：最多代理 m3u8 列表，分片由浏览器直连 CDN。设置无法开启全量代拉；需要
-              Anime1 等源时由部署方在 .env 设 MEDIA_FULL_PROXY=1。
-            </>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span>{proxyTokenRequired ? (isProxyUnlocked ? '🔓' : '🔒') : '⚡'}</span>
+              <span className="text-sm font-medium text-[var(--kz-fg)]">服务器代理</span>
+              {proxyTokenRequired && (
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
+                    isProxyUnlocked
+                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                      : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                  }`}
+                >
+                  {isProxyUnlocked ? '已解锁管理员权限' : '需口令解锁'}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              {proxyTokenRequired && isProxyUnlocked && (
+                <button
+                  type="button"
+                  onClick={handleRelockProxy}
+                  className="text-xs text-[var(--kz-fg-dim)] hover:text-amber-400 transition-colors underline decoration-dotted"
+                  title="清空当前保存的口令并重新上锁"
+                >
+                  🔒 重新锁定
+                </button>
+              )}
+              <input
+                type="checkbox"
+                disabled={!mediaFullProxy}
+                checked={mediaFullProxy && Boolean(player.serverProxy) && isProxyUnlocked}
+                onChange={(e) => {
+                  if (proxyTokenRequired && !isProxyUnlocked) {
+                    setShowUnlockInput(true)
+                    setTimeout(() => unlockInputRef.current?.focus(), 50)
+                    return
+                  }
+                  setPlayer({ serverProxy: e.target.checked })
+                }}
+                className="h-4 w-4 rounded accent-[var(--kz-accent)] cursor-pointer disabled:cursor-not-allowed"
+              />
+            </div>
+          </div>
+
+          {/* Inline smooth expanding password card when locked */}
+          {proxyTokenRequired && showUnlockInput && !isProxyUnlocked && (
+            <div
+              className={`rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/80 backdrop-blur-md p-4 space-y-3 shadow-lg transition-all duration-200 ${
+                isShaking ? 'animate-kz-shake ring-2 ring-rose-500/50' : ''
+              } ${unlockSuccess ? 'ring-2 ring-emerald-500/60 bg-emerald-950/20' : ''}`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-semibold text-[var(--kz-fg)]">
+                  <span>🔑</span>
+                  <span>请输入管理员代理口令 (PROXY_TOKEN)</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowUnlockInput(false)
+                    setVerifyError('')
+                  }}
+                  className="text-xs text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] px-1.5 py-0.5 rounded hover:bg-[var(--kz-bg)]"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                <div className="relative flex-1 min-w-[12rem]">
+                  <input
+                    ref={unlockInputRef}
+                    type={showPasswordText ? 'text' : 'password'}
+                    value={unlockPassword}
+                    autoFocus
+                    placeholder="输入 .env 中配置的口令…"
+                    onChange={(e) => {
+                      setUnlockPassword(e.target.value)
+                      if (verifyError) setVerifyError('')
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void handleVerifyUnlock()
+                    }}
+                    className="w-full rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-2 pr-9 text-sm text-[var(--kz-fg)] placeholder:text-[var(--kz-fg-dim)] outline-none ring-[var(--kz-accent)] focus:ring-2"
+                  />
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => setShowPasswordText((v) => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] select-none"
+                    title={showPasswordText ? '隐藏密码' : '显示密码'}
+                  >
+                    {showPasswordText ? '👁️' : '👁️‍🗨️'}
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  disabled={!unlockPassword.trim() || isVerifying}
+                  onClick={() => void handleVerifyUnlock()}
+                  className="rounded-xl bg-[var(--kz-accent)] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[var(--kz-accent-hover)] disabled:opacity-50 flex items-center justify-center gap-1.5 transition-colors whitespace-nowrap"
+                >
+                  {isVerifying ? (
+                    <>
+                      <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      <span>验证中…</span>
+                    </>
+                  ) : unlockSuccess ? (
+                    <span>✓ 验证成功</span>
+                  ) : (
+                    <span>🔓 验证并解锁</span>
+                  )}
+                </button>
+              </div>
+              {verifyError && (
+                <p className="text-xs text-rose-400 flex items-center gap-1 font-medium">
+                  <span>✖</span>
+                  <span>{verifyError}</span>
+                </p>
+              )}
+              <p className="text-[11px] text-[var(--kz-fg-dim)]">
+                💡 口令保存在当前浏览器本地中，验证成功后刷新页面无需重新输入。
+              </p>
+            </div>
           )}
-        </p>
+
+          <p className="text-xs text-[var(--kz-fg-dim)]">
+            {mediaFullProxy ? (
+              <>
+                总开关。关闭后下方所有源的「代理」不可勾选，全部直连 CDN。开启后可单独为每个源设置是否走
+                <code className="mx-0.5 text-[var(--kz-fg-muted)]">/api/media/proxy</code>
+                。只影响播放媒体，会增加服务器出站。
+              </>
+            ) : (
+              <>
+                服务器 <code className="text-[var(--kz-fg-muted)]">MEDIA_FULL_PROXY=0</code>
+                （默认）：最多代理 m3u8 列表，分片由浏览器直连 CDN。设置无法开启全量代拉；需要
+                Anime1 等源时由部署方在 .env 设 MEDIA_FULL_PROXY=1。
+              </>
+            )}
+          </p>
+        </div>
         <Toggle
           label="强制广告过滤"
           checked={Boolean(player.forceAdBlocker)}

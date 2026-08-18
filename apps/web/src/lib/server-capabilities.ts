@@ -6,6 +6,8 @@ export type ServerHealth = {
   publicProxy?: boolean
   /** false = only m3u8 proxy (default); true = full media tunnel allowed */
   mediaFullProxy?: boolean
+  /** true when server has configured PROXY_TOKEN in .env */
+  proxyTokenRequired?: boolean
 }
 
 export async function fetchServerHealth(

@@ -99,6 +99,16 @@ export function withFullProxy(proxyUrl: string): string {
   return setProxyQueryFlag(proxyUrl, 'fullProxy', '1')
 }
 
+/**
+ * Append administrator proxy authorization token to media proxy query parameters.
+ */
+export function withProxyToken(proxyUrl: string, token?: string | null): string {
+  const t = token?.trim()
+  if (!proxyUrl || !t) return proxyUrl
+  if (/[?&]token=/.test(proxyUrl) || /[?&]proxyToken=/.test(proxyUrl)) return proxyUrl
+  return setProxyQueryFlag(proxyUrl, 'token', t)
+}
+
 export function pickPlaybackSrc(opts: {
   playUrl?: string | null
   proxyUrl?: string | null
@@ -110,6 +120,8 @@ export function pickPlaybackSrc(opts: {
    * segments stay on CDN unless forceProxy/cookie).
    */
   forceAdFilter?: boolean
+  /** Administrator proxy authorization token (passed to /api/media/proxy?token=) */
+  proxyToken?: string | null
 }): {
   src: string
   mode: PlaybackSrcMode
@@ -122,6 +134,9 @@ export function pickPlaybackSrc(opts: {
   }
   if (opts.forceProxy && proxy) {
     proxy = withFullProxy(proxy)
+  }
+  if (opts.proxyToken && proxy) {
+    proxy = withProxyToken(proxy, opts.proxyToken)
   }
   const play = (opts.playUrl || '').trim()
   const needProxyForAds =
