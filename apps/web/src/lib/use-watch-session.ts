@@ -113,20 +113,27 @@ function lookupResumePosition(
 function lookupHistorySourceUrl(
   bangumiId: number,
   pluginName: string,
-  pageUrl: string,
+  pageUrl?: string,
 ): string {
   const items = useHistoryStore.getState().items
   const list = Array.isArray(items) ? items : []
-  const norm = (u: string) => u.replace(/\/+$/, '')
-  const target = norm(pageUrl)
-  const hit = list.find(
-    (i) =>
-      i.bangumiId === bangumiId &&
-      i.pluginName === pluginName &&
-      (norm(i.pageUrl) === target ||
-        (i.sourceUrl && norm(i.sourceUrl) === target)),
+  const norm = (u: string) => (u || '').replace(/\/+$/, '')
+  const target = norm(pageUrl || '')
+  if (target) {
+    const hit = list.find(
+      (i) =>
+        i.bangumiId === bangumiId &&
+        i.pluginName === pluginName &&
+        (norm(i.pageUrl) === target ||
+          (i.sourceUrl && norm(i.sourceUrl) === target)),
+    )
+    if (hit?.sourceUrl) return hit.sourceUrl.trim()
+  }
+  // Fallback when pageUrl is omitted in URL (e.g. /play/:id?plugin=anime1&ep=1 from history)
+  const hitAny = list.find(
+    (i) => i.bangumiId === bangumiId && i.pluginName === pluginName && Boolean(i.sourceUrl),
   )
-  return (hit?.sourceUrl || '').trim()
+  return (hitAny?.sourceUrl || '').trim()
 }
 
 /**
@@ -773,7 +780,10 @@ export function useWatchSession(bangumiId: number): WatchSession {
         setRoadError(msg)
         setSelection(null)
         setPendingSource(null)
-        useSourceBindingStore.getState().removeBinding(bangumiId, plugin.name)
+        const existingBinding = useSourceBindingStore.getState().getBinding(bangumiId, plugin.name)
+        if (existingBinding && !existingBinding.isManual) {
+          useSourceBindingStore.getState().removeBinding(bangumiId, plugin.name)
+        }
       } finally {
         if (mountedRef.current && chaptersGen.current === gen) {
           roadLoadingRef.current = false
@@ -1040,10 +1050,12 @@ export function useWatchSession(bangumiId: number): WatchSession {
           await pickSource(plugin, {
             name: binding.title || plugin.name,
             src: binding.sourceUrl,
-          }, { isManual: true })
+          }, { isManual: Boolean(binding.isManual) })
           return
         } catch {
-          useSourceBindingStore.getState().removeBinding(bangumiId, plugin.name)
+          if (!binding.isManual) {
+            useSourceBindingStore.getState().removeBinding(bangumiId, plugin.name)
+          }
         }
       }
 
@@ -1519,21 +1531,8 @@ export function useWatchSession(bangumiId: number): WatchSession {
       resumeOverrideRef.current = position
       setResumePosition(position)
     }
-    if (playback.mode === 'direct' && proxyUrl) {
-      // First failure on direct CDN → retry via media proxy (same playUrl)
-      setForceProxy(true)
-      setPlayerRemount((n) => n + 1)
-      return
-    }
-    // Already proxying (or no direct) — playUrl may be stale; force re-resolve once
-    const id = episode?.pageUrl || ''
-    if (!id) return
-    if (resolveFailBudgetFor.current === id) {
-      setHudMessage('视频源多次连接失败，建议点击右侧切换视频源')
-      return
-    }
-    resolveFailBudgetFor.current = id
-    void reResolveFresh()
+    // Fast-fail: directly prompt user to switch source without wasteful re-resolves on dead links
+    setHudMessage('视频源连接失败，建议点击右侧切换视频源')
   }
 
   async function reSearchCurrentSource(keyword: string) {

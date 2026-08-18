@@ -46,6 +46,29 @@ const MIGRATIONS: Migration[] = [
       `)
     },
   },
+  {
+    version: 2,
+    name: 'plugin_chapters_cache',
+    up: (db) => {
+      // Video source anime episode / chapter lists cache table
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS plugin_chapters_cache (
+          key TEXT PRIMARY KEY,
+          plugin_name TEXT NOT NULL,
+          source_url TEXT NOT NULL,
+          rule_hash TEXT NOT NULL,
+          data TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          expires_at INTEGER NOT NULL,
+          hit_count INTEGER NOT NULL DEFAULT 0,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_plugin_chapters_expires ON plugin_chapters_cache(expires_at);
+        CREATE INDEX IF NOT EXISTS idx_plugin_chapters_name_src ON plugin_chapters_cache(plugin_name, source_url);
+        CREATE INDEX IF NOT EXISTS idx_plugin_chapters_created ON plugin_chapters_cache(created_at);
+      `)
+    },
+  },
 ]
 
 /**

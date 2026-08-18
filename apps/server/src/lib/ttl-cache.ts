@@ -26,10 +26,10 @@ export const BANGUMI_CACHE_TTL = {
   subject: 6 * 60 * 60_000,
 } as const
 
-/** Plugin exec result TTLs (search/chapters long; resolve classified). */
+/** Plugin exec result TTLs (search/chapters 4h; resolve classified). */
 export const PLUGIN_CACHE_TTL = {
   search: 4 * 60 * 60_000,
-  chapters: 12 * 60 * 60_000,
+  chapters: 4 * 60 * 60_000,
   /** HLS playlists — relatively stable. */
   resolveStable: 30 * 60_000,
   /** Plain progressive mp4 without obvious signing. */

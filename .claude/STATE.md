@@ -1,5 +1,38 @@
 # Animaku 项目状态快照 (STATE.md)
 
+## [2026-08-18] 修复历史记录/异名番剧选集反查失败与消除看板假绿色
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **历史记录 sourceUrl 泛化反查修复**：在 `use-watch-session.ts` 中重构 `lookupHistorySourceUrl`，解决从观看历史进入短链（`/play/:id?plugin=name&ep=N` 无 `pageUrl` 参数）时无法读取真实 `sourceUrl` 的缺陷；精准回填上次播放绑定的 `sourceUrl`，消除对《炒翻天》等异名番剧的错误回退盲搜；
+  2. **消除视频源看板（SourceBoard）假绿色**：在 `use-source-aggregator.ts` 中废除只要当前源激活就盲目置为 `ready` 状态的逻辑，严格校验 `selection.roads.length > 0` 且无分集报错；
+  3. **受保护的手动绑定持久留存**：用户主动选定绑定的条目（`isManual: true`）在网络异常或分集波动时受保护保留，禁止被随意清除。
+- 涉及文件：apps/web/src/lib/use-watch-session.ts, apps/web/src/lib/use-source-aggregator.ts
+- 备注：全仓类型检查与打包验证全通过。
+
+## [2026-08-18] 优化选集列表 4 小时 TTL 与消除死链源无效重解析等待
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **选集 TTL 缩短至 4 小时**：服务端 `PLUGIN_CACHE_TTL.chapters` 与客户端 `ROADS_CLIENT_TTL_MS` 统一由 12 小时缩短至 4 小时（与搜索缓存完全对齐），消除连载番剧开播临界点过长时间滞后问题；
+  2. **消除死链源无效自愈等待**：优化 `useWatchSession.ts` 中的 `onMediaLoadFailed`，去除针对死链源（如 MXDM/Omofun 失效链接）无意义的转代理与二次重解析（re-resolve）等待循环，在直链失败时直接快速失败（Fast-Fail）并触发 HUD 提示用户切换右侧可用源。
+- 涉及文件：apps/server/src/lib/ttl-cache.ts, apps/web/src/lib/roads-cache.ts, apps/web/src/lib/use-watch-session.ts
+- 备注：全仓类型检查与构建打包全通过。
+
+## [2026-08-18] 视频源选集列表（Chapters）接入 SQLite 持久化与 L1+L2 双层缓存流水线
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **SQLite 数据库模式升级**：在 `apps/server/src/db/schema.ts` 中新增 migration v2，创建 `plugin_chapters_cache` 专有持久化表，配备 `key`、`plugin_name`、`source_url`、`rule_hash`、`data`、`expires_at` 等字段与高效过期/组合查询索引；
+  2. **分集持久化仓储引擎**：实现 `PluginChaptersCacheRepository`（`plugin-chapters-cache.ts`），提供 `get`、`set`、`delete`、`deleteByPlugin`、`clearExpired` 及 `getStats`；并在服务启动初始化与每小时定时任务中接入自动清理；
+  3. **L1 内存 + L2 SQLite 双层缓存流水线**：重构 `POST /api/plugin/chapters` 路由：
+     - L1 快速内存命中（< 0.1ms）直接返回 `200 (X-Cache: HIT)`；
+     - L2 SQLite 命中（< 1ms）回填 L1 内存并返回 `200 (X-Cache: HIT)`，彻底避免 Docker 重启或版本更新后分集缓存丢失导致的源站雪崩；
+     - 未命中时通过 Single-Flight 并发合并防击穿执行抓取，并将结果持久化写入 SQLite 与 L1 内存（12 小时 TTL）；
+     - 支持客户端 `refresh=1` / `Cache-Control: no-cache` 一键物理删除并穿透回源。
+- 涉及文件：apps/server/src/db/schema.ts, apps/server/src/db/repositories/plugin-chapters-cache.ts, apps/server/src/db/index.ts, apps/server/src/routes/plugin.ts
+- 备注：单测验证通过，全仓类型检查与打包构建全通过。
+
 ## [2026-08-18] 视频源换词重搜候选关键词 Chips 排版与微型字号精致化
 - 状态：已完成
 - 优先级：P2

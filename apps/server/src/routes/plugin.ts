@@ -1,5 +1,10 @@
 import { Hono } from 'hono'
-import { parsePluginRule, type PluginRule, type PluginSearchResult } from '@animaku/shared'
+import {
+  parsePluginRule,
+  type PluginRule,
+  type PluginSearchResult,
+  type PluginChapterResult,
+} from '@animaku/shared'
 import {
   searchWithRule,
   chaptersWithRule,
@@ -18,7 +23,7 @@ import {
   resolveCacheTtlMs,
   wantsCacheBypass,
 } from '../lib/ttl-cache'
-import { pluginSearchCache } from '../db'
+import { pluginSearchCache, pluginChaptersCache } from '../db'
 
 export const pluginRoutes = new Hono()
 
@@ -137,12 +142,46 @@ pluginRoutes.post('/chapters', requirePluginApiAccess, async (c) => {
   }
   const source = body.source.trim().replace(/\/+$/, '')
   const key = pluginCacheKey('chapters', rule, source)
+  const ruleHash = ruleCacheId(rule)
   const bypass = wantsCacheBypass(c)
+
+  if (bypass) {
+    cacheDelete(key)
+    pluginChaptersCache.delete(key)
+  } else {
+    // 1. L1 Fast in-memory cache hit (< 0.1ms)
+    const memHit = cacheGet<PluginChapterResult>(key)
+    if (memHit) {
+      return c.json({ data: memHit }, 200, cacheHeaders(true))
+    }
+
+    // 2. L2 Persistent SQLite cache hit (< 1ms, survives restarts & image updates)
+    const dbHit = pluginChaptersCache.get(key)
+    if (dbHit) {
+      // Warm L1 memory cache for hot repeat requests
+      cacheSet(key, dbHit, PLUGIN_CACHE_TTL.chapters, PLUGIN_MAX_ENTRIES)
+      return c.json({ data: dbHit }, 200, cacheHeaders(true))
+    }
+  }
+
   try {
+    // 3. Cache MISS: execute upstream chapter extraction with single-flight loader deduplication
     const { value, hit } = await cacheGetOrSet(
       key,
       PLUGIN_CACHE_TTL.chapters,
-      () => chaptersWithRule(rule, source),
+      async () => {
+        const result = await chaptersWithRule(rule, source)
+        // Store in SQLite database for durable persistence
+        pluginChaptersCache.set(
+          key,
+          rule.name,
+          source,
+          ruleHash,
+          result,
+          PLUGIN_CACHE_TTL.chapters,
+        )
+        return result
+      },
       { bypass, maxEntries: PLUGIN_MAX_ENTRIES },
     )
     return c.json({ data: value }, 200, cacheHeaders(hit))

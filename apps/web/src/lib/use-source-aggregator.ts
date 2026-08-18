@@ -110,7 +110,7 @@ export function useSourceAggregator({
           (selection && selection.plugin.name.toLowerCase() === p.name.toLowerCase()) ||
           (activePluginName && p.name.toLowerCase() === activePluginName.toLowerCase())
 
-        if (isCurrentActive && selection?.source) {
+        if (isCurrentActive && selection?.source && selection.roads?.length) {
           probeDoneRef.current[p.name] = true
           next[p.name] = {
             plugin: p,
@@ -129,14 +129,6 @@ export function useSourceAggregator({
               binding,
               items: [{ name: binding.title || p.name, src: binding.sourceUrl }],
               matchedItem: { name: binding.title || p.name, src: binding.sourceUrl },
-              searched: true,
-            }
-          } else if (isCurrentActive) {
-            probeDoneRef.current[p.name] = true
-            next[p.name] = {
-              plugin: p,
-              status: 'ready',
-              items: [],
               searched: true,
             }
           } else {
@@ -159,9 +151,9 @@ export function useSourceAggregator({
     })
   }, [plugins, bangumiId, selection, activePluginName])
 
-  // When selection is active, keep its status synchronized as ready
+  // When selection is active and has valid roads, keep its status synchronized as ready
   useEffect(() => {
-    if (!selection?.plugin) return
+    if (!selection?.plugin || !selection.roads?.length) return
     const name = selection.plugin.name
     probeDoneRef.current[name] = true
     setSources((prev) => ({

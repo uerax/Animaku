@@ -1,6 +1,7 @@
 import { getDatabase, closeDatabase, prepareStatement, transaction } from './connection'
 import { initSchema } from './schema'
 import { pluginSearchCache, PluginSearchCacheRepository } from './repositories/plugin-search-cache'
+import { pluginChaptersCache, PluginChaptersCacheRepository } from './repositories/plugin-chapters-cache'
 import { kvCache, KvCacheRepository } from './repositories/kv-cache'
 
 let initialized = false
@@ -19,9 +20,10 @@ export function initDatabase(): void {
   // Run initial cleanup of expired records
   try {
     const expiredSearch = pluginSearchCache.clearExpired()
+    const expiredChapters = pluginChaptersCache.clearExpired()
     const expiredKv = kvCache.clearExpired()
-    if (expiredSearch > 0 || expiredKv > 0) {
-      console.log(`[db] Initial cleanup: pruned ${expiredSearch} search and ${expiredKv} kv expired entries.`)
+    if (expiredSearch > 0 || expiredChapters > 0 || expiredKv > 0) {
+      console.log(`[db] Initial cleanup: pruned ${expiredSearch} search, ${expiredChapters} chapters, and ${expiredKv} kv expired entries.`)
     }
   } catch (err) {
     console.error('[db] Error during initial expired records cleanup:', err)
@@ -32,6 +34,7 @@ export function initDatabase(): void {
     cleanupTimer = setInterval(() => {
       try {
         pluginSearchCache.clearExpired()
+        pluginChaptersCache.clearExpired()
         kvCache.clearExpired()
       } catch (err) {
         console.error('[db] Periodic cleanup error:', err)
@@ -49,6 +52,8 @@ export {
   initSchema,
   pluginSearchCache,
   PluginSearchCacheRepository,
+  pluginChaptersCache,
+  PluginChaptersCacheRepository,
   kvCache,
   KvCacheRepository,
 }
