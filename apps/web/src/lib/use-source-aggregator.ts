@@ -65,6 +65,7 @@ export function useSourceAggregator({
   const abortControllersRef = useRef<Record<string, AbortController>>({})
   const probeDoneRef = useRef<Record<string, boolean>>({})
   const customKeywordsRef = useRef<Record<string, string>>({})
+  const activeAutoJobsRef = useRef<Set<string>>(new Set())
   const mountedRef = useRef(true)
 
   useEffect(() => {
@@ -94,6 +95,7 @@ export function useSourceAggregator({
     abortControllersRef.current = {}
     probeDoneRef.current = {}
     customKeywordsRef.current = {}
+    activeAutoJobsRef.current.clear()
     queueRef.current = []
     activeJobsRef.current = 0
     setSources({})
@@ -113,13 +115,20 @@ export function useSourceAggregator({
           (activePluginName && p.name.toLowerCase() === activePluginName.toLowerCase())
 
         if (isCurrentActive && selection?.source && selection.roads?.length) {
-          probeDoneRef.current[p.name] = true
-          next[p.name] = {
-            plugin: p,
-            status: 'ready',
-            items: [selection.source],
-            matchedItem: selection.source,
-            searched: true,
+          if (!next[p.name] || (!next[p.name].searched && next[p.name].status === 'idle')) {
+            probeDoneRef.current[p.name] = true
+            next[p.name] = {
+              plugin: p,
+              status: 'ready',
+              items: [selection.source],
+              matchedItem: selection.source,
+              searched: true,
+            }
+          } else {
+            next[p.name] = {
+              ...next[p.name],
+              plugin: p,
+            }
           }
         } else if (!next[p.name]) {
           const binding = bindingStore.getBinding(bangumiId, p.name)
@@ -154,8 +163,13 @@ export function useSourceAggregator({
   }, [plugins, bangumiId, selection, activePluginName])
 
   // When selection is active and has valid roads, keep its status synchronized as ready
+  const prevSelectionKeyRef = useRef<string | null>(null)
   useEffect(() => {
     if (!selection?.plugin || !selection.roads?.length) return
+    const key = `${selection.plugin.name}::${selection.source.src}`
+    if (prevSelectionKeyRef.current === key) return
+    prevSelectionKeyRef.current = key
+
     const name = selection.plugin.name
     probeDoneRef.current[name] = true
     setSources((prev) => ({
@@ -163,9 +177,10 @@ export function useSourceAggregator({
       [name]: {
         plugin: selection.plugin,
         status: 'ready',
-        items: [selection.source],
+        items: prev[name]?.items?.length ? prev[name].items : [selection.source],
         matchedItem: selection.source,
         searched: true,
+        keyword: prev[name]?.keyword,
       },
     }))
   }, [selection])
@@ -180,26 +195,22 @@ export function useSourceAggregator({
       const plugin = plugins.find((p) => p.name === pluginName)
       if (!plugin || probeDoneRef.current[pluginName]) continue
 
-      // Check binding again in case it was set
-      const binding = useSourceBindingStore.getState().getBinding(bangumiId, plugin.name)
-      if (binding?.sourceUrl) {
-        probeDoneRef.current[pluginName] = true
-        setSources((prev) => ({
-          ...prev,
-          [pluginName]: {
-            plugin,
-            status: 'ready',
-            binding,
-            items: [{ name: binding.title || plugin.name, src: binding.sourceUrl }],
-            matchedItem: { name: binding.title || plugin.name, src: binding.sourceUrl },
-            searched: true,
-          },
-        }))
-        continue
-      }
-
       activeJobsRef.current++
       probeDoneRef.current[pluginName] = true
+
+      const customKw = customKeywordsRef.current[pluginName]
+      const isManual = Boolean(customKw)
+      if (!isManual) {
+        activeAutoJobsRef.current.add(pluginName)
+      } else {
+        activeAutoJobsRef.current.delete(pluginName)
+      }
+
+      const kw = (
+        customKw ||
+        resolvePluginDefaultKeyword(plugin, item, defaultKeyword) ||
+        ''
+      ).trim()
 
       setSources((prev) => ({
         ...prev,
@@ -207,6 +218,7 @@ export function useSourceAggregator({
           ...(prev[pluginName] || { plugin, items: [] }),
           status: 'probing',
           searched: true,
+          keyword: kw,
         },
       }))
 
@@ -217,16 +229,10 @@ export function useSourceAggregator({
       }, PROBE_TIMEOUT_MS)
 
       ;(async () => {
-        const customKw = customKeywordsRef.current[pluginName]
-        const kw = (
-          customKw ||
-          resolvePluginDefaultKeyword(plugin, item, defaultKeyword) ||
-          ''
-        ).trim()
-
         if (!kw || /^番剧\s*\d+$/.test(kw)) {
           clearTimeout(timeoutId)
           if (mountedRef.current) {
+            activeAutoJobsRef.current.delete(pluginName)
             setSources((prev) => ({
               ...prev,
               [pluginName]: {
@@ -248,7 +254,7 @@ export function useSourceAggregator({
           const cached = bypassCache ? undefined : getCachedPluginSearch(plugin, kw)
           const res = cached
             ? { data: cached }
-            : await pluginApi.search(plugin, kw, { signal: ac.signal })
+            : await pluginApi.search(plugin, kw, { signal: ac.signal, refresh: bypassCache })
           clearTimeout(timeoutId)
 
           if (!cached) {
@@ -320,6 +326,7 @@ export function useSourceAggregator({
         } finally {
           if (mountedRef.current) {
             activeJobsRef.current--
+            activeAutoJobsRef.current.delete(pluginName)
             delete abortControllersRef.current[pluginName]
             void processQueue()
           }
@@ -361,7 +368,7 @@ export function useSourceAggregator({
 
   // Preemption: User clicks a specific source card -> jump to front of queue
   const prioritizePlugin = useCallback(
-    (pluginName: string) => {
+    (pluginName: string, isManual = true) => {
       if (abortControllersRef.current[pluginName]) {
         try {
           abortControllersRef.current[pluginName].abort()
@@ -371,6 +378,24 @@ export function useSourceAggregator({
         delete abortControllersRef.current[pluginName]
       }
       probeDoneRef.current[pluginName] = false
+
+      // Preempt background auto-job if concurrency is full and user made a manual action
+      if (isManual && activeJobsRef.current >= CONCURRENCY_LIMIT) {
+        for (const autoJobName of activeAutoJobsRef.current) {
+          if (autoJobName !== pluginName && abortControllersRef.current[autoJobName]) {
+            try {
+              abortControllersRef.current[autoJobName].abort()
+            } catch {
+              /* ignore */
+            }
+            delete abortControllersRef.current[autoJobName]
+            activeAutoJobsRef.current.delete(autoJobName)
+            probeDoneRef.current[autoJobName] = false
+            queueRef.current.push(autoJobName)
+            break
+          }
+        }
+      }
 
       // Remove from current queue and insert at head
       queueRef.current = [
@@ -384,12 +409,27 @@ export function useSourceAggregator({
 
   const reProbePlugin = useCallback(
     (pluginName: string, customKeyword?: string) => {
-      if (customKeyword?.trim()) {
-        customKeywordsRef.current[pluginName] = customKeyword.trim()
+      const kw = customKeyword?.trim()
+      if (kw) {
+        customKeywordsRef.current[pluginName] = kw
       }
-      prioritizePlugin(pluginName)
+      // Instant visual feedback: set status to 'probing' immediately
+      setSources((prev) => {
+        const p = plugins.find((item) => item.name === pluginName)
+        if (!p && !prev[pluginName]) return prev
+        return {
+          ...prev,
+          [pluginName]: {
+            ...(prev[pluginName] || { plugin: p!, items: [] }),
+            status: 'probing',
+            keyword: kw || prev[pluginName]?.keyword,
+            searched: true,
+          },
+        }
+      })
+      prioritizePlugin(pluginName, true)
     },
-    [prioritizePlugin],
+    [plugins, prioritizePlugin],
   )
 
   return {

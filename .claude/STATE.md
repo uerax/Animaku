@@ -1,5 +1,23 @@
 # Animaku 项目状态快照 (STATE.md)
 
+## [2026-08-20] 修复视频源候选词与自定义换词点击重搜失效 Bug（移除绑定拦截 + 抢占式并发 + 0ms 探活视觉反馈）
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **排查根本原因**：
+     - 在 `useSourceAggregator.ts` 的 `processQueue` 中，曾存在 `if (binding?.sourceUrl) { continue }` 逻辑；当视频源已有历史绑定或当前在播时，用户点击候选关键词或输入自定义关键词触发 `reProbePlugin`，任务出队时被该判断无条件拦截并直接跳过，导致 `pluginApi.search` 从未执行；
+     - 当后台正在进行前 6 个高权重源自动探测（`activeJobsRef >= 2`）时，用户手动点击的重搜任务被压入队列末尾且未提供状态即时反馈，导致用户感知为「点击无反应」；
+     - 展开抽屉在 `state.items.length > 0` 时未渲染 `probing` 提示，重新搜索过程中抽屉内部无加载动效。
+  2. **全面修复与重构**：
+     - **解除绑定短路拦截**：从 `processQueue` 中移除 `binding?.sourceUrl` 拦截逻辑，确保用户显式触发的重搜/探活一律穿透回源搜索并自动注入 `refresh: true` 穿透服务端缓存；
+     - **用户主动操作抢占式并发调度**：在 `prioritizePlugin` 中实现后台自动探测抢占逻辑，当并发池满（$\ge 2$）时自动中断当前低优先级的后台自动探测任务（`activeAutoJobsRef`）并让位给用户的重搜点击，实现 0 延迟即时发起请求；
+     - **0ms 即时视觉反馈与搜索中状态**：
+       - `reProbePlugin` 被触发瞬间同步置位 `status: 'probing'` 与 `keyword: kw`，并在抽屉中自动填入当前重搜词；
+       - 在 `SourceBoard.tsx` 抽屉中新增醒目的「正在使用『XX』检索…」琉璃动画横幅；
+       - 候选关键词列表联动高亮当前选中的关键词，并将按钮文案动态切换为「搜索中」，搜索框重搜按钮同步进入 loading 禁用态。
+- 涉及文件：apps/web/src/lib/use-source-aggregator.ts, apps/web/src/pages/watch/SourceBoard.tsx
+- 备注：全仓 TypeScript 类型检查与全量打包构建（`pnpm build`）全量通过。
+
 ## [2026-08-20] 视频源看板交互重构（卡片主体保持一键切源 + 点击胶囊展开候选条目与换词）
 - 状态：已完成
 - 优先级：P1

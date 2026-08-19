@@ -8,6 +8,16 @@
 
 ## 历史已解决归档 (Recently Resolved)
 
+### [2026-08-20]
+1. **修复视频源候选词与自定义换词点击重搜失效 Bug (P0)**
+   - 解决：
+     1. **排查定位**：在 `useSourceAggregator.ts` 中，`processQueue` 曾有 `if (binding?.sourceUrl) { continue }` 短路判断，当视频源已有绑定（历史或当前在播）时，用户点击候选关键词或自定义换词触发重搜，出队时被直接跳过，导致 `pluginApi.search` 从未执行；且后台 2 并发自动探活期间手动重搜任务排在队尾且缺乏即时反馈。
+     2. **系统修复**：
+        - 移除 `binding?.sourceUrl` 拦截，重搜一律触发回源搜索并自动注入 `refresh: true`；
+        - 在 `prioritizePlugin` 中实现抢占式调度，当并发满时自动中断低优先级后台自动探活（`activeAutoJobsRef`）让位给用户重搜；
+        - `reProbePlugin` 触发瞬间同步置位 `status: 'probing'` 与 `keyword: kw`，自动回填输入框，并在抽屉中展示「正在使用『XX』检索…」琉璃动画横幅，关键词按钮切换为「搜索中」。
+   - 文件：`apps/web/src/lib/use-source-aggregator.ts`, `apps/web/src/pages/watch/SourceBoard.tsx`
+
 ### [2026-08-19]
 1. **选集功能完整性升维：一键刷新 + 长番剧 50 集区间分页 + 正/倒序切换 (P0)**
    - 解决：在选集头部新增一键物理穿透刷新按钮（`onRefreshChapters`）；针对总集数 $> 40$ 的超长番剧（如《海贼王》《柯南》）新增 50 话智能区间分页胶囊（`1-50`、`51-100`...），支持在播区间高亮感知；新增正序/倒序一键切换。

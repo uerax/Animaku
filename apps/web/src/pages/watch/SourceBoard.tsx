@@ -431,8 +431,16 @@ export function SourceBoard({
                   {/* Unified Expandable Drawer */}
                   {isExpanded && (
                     <div className="border-t border-[var(--kz-border-subtle)] bg-[var(--kz-bg-soft)] p-2.5 space-y-2.5 animate-in fade-in duration-150">
-                      {/* Candidate Items List */}
-                      {state.items.length > 0 ? (
+                      {/* Probing State Banner */}
+                      {state.status === 'probing' ? (
+                        <div className="flex items-center gap-2 rounded-lg bg-[var(--kz-bg-elevated)] border border-[var(--kz-accent)]/30 px-3 py-2 text-[11.5px] text-[var(--kz-accent)]">
+                          <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[var(--kz-accent)] border-t-transparent flex-shrink-0" />
+                          <span className="font-medium truncate">
+                            正在使用「{state.keyword || '关键词'}」检索 {plugin.name}…
+                          </span>
+                        </div>
+                      ) : state.items.length > 0 ? (
+                        /* Candidate Items List */
                         <div className="space-y-1.5">
                           <div className="flex items-center justify-between px-0.5 text-[10.5px] font-medium">
                             <span
@@ -494,12 +502,7 @@ export function SourceBoard({
                       ) : (
                         /* Empty or Error state notice */
                         <div className="px-0.5 text-[11px] text-[var(--kz-fg-muted)]">
-                          {state.status === 'probing' ? (
-                            <span className="flex items-center gap-1.5 text-[var(--kz-accent)]">
-                              <span className="inline-block h-2 w-2 animate-spin rounded-full border border-[var(--kz-accent)] border-t-transparent flex-shrink-0" />
-                              正在检索该源，请稍候…
-                            </span>
-                          ) : state.status === 'empty' ? (
+                          {state.status === 'empty' ? (
                             <span className="text-[var(--kz-fg-dim)]">
                               源站未收录此番剧，可尝试下方候选词或自定义关键词重搜：
                             </span>
@@ -525,26 +528,54 @@ export function SourceBoard({
                             </span>
                           </div>
                           <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
-                            {keywordOptions.slice(0, 8).map((kw, idx) => (
-                              <button
-                                key={`${kw}:${idx}`}
-                                type="button"
-                                onClick={() => {
-                                  hideHoverTip()
-                                  reProbePlugin(plugin.name, kw)
-                                }}
-                                onMouseEnter={(e) => showHoverTip(kw, e)}
-                                onMouseLeave={hideHoverTip}
-                                className="flex w-full items-center justify-between rounded-lg bg-[var(--kz-bg-elevated)] hover:bg-[var(--kz-bg-hover)] border border-[var(--kz-border-subtle)] hover:border-[var(--kz-accent)] px-2.5 py-1 text-left transition-colors cursor-pointer group/kw gap-2"
-                              >
-                                <span className="flex-1 min-w-0 truncate text-[11px] font-medium text-[var(--kz-fg-muted)] group-hover/kw:text-[var(--kz-accent)]">
-                                  {kw}
-                                </span>
-                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded text-[var(--kz-fg-muted)] group-hover/kw:text-[var(--kz-accent)] group-hover/kw:border-[var(--kz-accent)] bg-[var(--kz-bg-soft)] border border-[var(--kz-border-subtle)] flex-shrink-0 select-none transition-colors">
-                                  重搜
-                                </span>
-                              </button>
-                            ))}
+                            {keywordOptions.slice(0, 8).map((kw, idx) => {
+                              const isCurrentKw = state.keyword === kw
+                              const isProbingThis =
+                                state.status === 'probing' && state.keyword === kw
+                              return (
+                                <button
+                                  key={`${kw}:${idx}`}
+                                  type="button"
+                                  onClick={() => {
+                                    hideHoverTip()
+                                    setCardKwInputs((prev) => ({
+                                      ...prev,
+                                      [plugin.name]: kw,
+                                    }))
+                                    reProbePlugin(plugin.name, kw)
+                                  }}
+                                  onMouseEnter={(e) => showHoverTip(kw, e)}
+                                  onMouseLeave={hideHoverTip}
+                                  className={clsx(
+                                    'flex w-full items-center justify-between rounded-lg border px-2.5 py-1 text-left transition-colors cursor-pointer group/kw gap-2',
+                                    isCurrentKw
+                                      ? 'bg-[var(--kz-accent-soft)] border-[var(--kz-accent)] text-[var(--kz-accent)]'
+                                      : 'bg-[var(--kz-bg-elevated)] hover:bg-[var(--kz-bg-hover)] border-[var(--kz-border-subtle)] hover:border-[var(--kz-accent)]',
+                                  )}
+                                >
+                                  <span
+                                    className={clsx(
+                                      'flex-1 min-w-0 truncate text-[11px] font-medium',
+                                      isCurrentKw
+                                        ? 'text-[var(--kz-accent)]'
+                                        : 'text-[var(--kz-fg-muted)] group-hover/kw:text-[var(--kz-accent)]',
+                                    )}
+                                  >
+                                    {kw}
+                                  </span>
+                                  <span
+                                    className={clsx(
+                                      'text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0 select-none transition-colors border',
+                                      isCurrentKw
+                                        ? 'bg-[var(--kz-accent)] text-white border-[var(--kz-accent)]'
+                                        : 'text-[var(--kz-fg-muted)] group-hover/kw:text-[var(--kz-accent)] group-hover/kw:border-[var(--kz-accent)] bg-[var(--kz-bg-soft)] border-[var(--kz-border-subtle)]',
+                                    )}
+                                  >
+                                    {isProbingThis ? '搜索中' : '重搜'}
+                                  </span>
+                                </button>
+                              )
+                            })}
                           </div>
                         </div>
                       )}
@@ -567,10 +598,13 @@ export function SourceBoard({
                         />
                         <button
                           type="submit"
-                          disabled={!(cardKwInputs[plugin.name] || '').trim()}
+                          disabled={
+                            state.status === 'probing' ||
+                            !(cardKwInputs[plugin.name] || '').trim()
+                          }
                           className="rounded-md bg-[var(--kz-accent)] px-2.5 py-1 text-[11px] font-medium text-white hover:bg-[var(--kz-accent-hover)] disabled:opacity-40 transition-all cursor-pointer select-none"
                         >
-                          重搜
+                          {state.status === 'probing' ? '搜索中…' : '重搜'}
                         </button>
                       </form>
                     </div>
