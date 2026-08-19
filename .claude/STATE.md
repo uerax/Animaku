@@ -1,5 +1,21 @@
 # Animaku 项目状态快照 (STATE.md)
 
+## [2026-08-19] 统一项目动态版本号体系（v1.1.1）并全站页面优雅展示
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **单一事实来源与自动化升级（`pnpm bump`）**：
+     - 提供 `scripts/bump-version.mjs` 与根目录 `pnpm bump <ver>` 命令（支持具体版本号或 `patch` / `minor` / `major` 语义化升级），一键原子同步更新全仓 4 个 `package.json` 与 `version.ts`；
+     - 在 `apps/web/vite.config.ts` 与 `scripts/build-server.mjs` 中接入动态版本解析流水线，在构建期/开发期自动读取根 `package.json`（支持 `VITE_APP_VERSION` / `APP_VERSION` 环境变量覆盖）并注入 `import.meta.env.VITE_APP_VERSION` 与 `process.env.APP_VERSION`；
+     - 在 `apps/server/src/config.ts` 中实现服务端动态版本读取，自动为 User-Agent 及 `/api/health` 暴露服务端实时版本号；
+     - 在 `packages/shared/src/version.ts` 导出默认兜底版本常量 `APP_VERSION = 'v1.1.1'`；
+  2. **页面优雅展示与左上角导航栏保持纯净**：
+     - **SiteFooter（页脚）**：在产品名称后紧跟精致琉璃徽标胶囊展示 `v1.1.1`；
+     - **SettingsPage（设置页）**：在「服务状态」核心面板首行呈现客户端与服务端实时版本号；
+     - **Layout（顶部导航）**：左上角导航栏保持纯净视觉，不添加版本标签干扰。
+- 涉及文件：package.json, apps/web/package.json, apps/server/package.json, packages/shared/package.json, packages/shared/src/version.ts, packages/shared/src/index.ts, scripts/bump-version.mjs, apps/web/vite.config.ts, scripts/build-server.mjs, apps/server/src/config.ts, apps/server/src/index.ts, apps/web/src/lib/server-capabilities.ts, apps/web/src/lib/site-branding.ts, apps/web/src/components/SiteFooter.tsx, apps/web/src/components/Layout.tsx, apps/web/src/pages/SettingsPage.tsx, apps/web/src/vite-env.d.ts, .env.example, README.md
+- 备注：全仓类型检查与前端/服务端构建打包验证全通过。
+
 ## [2026-08-19] 修复 Safari 播放丢帧与弹幕抽搐（时钟单调保护 + GPU 图层隔离 + 上下文优化）
 - 状态：已完成
 - 优先级：P0

@@ -80,6 +80,11 @@ export function SiteFooter() {
           <span className="font-medium tracking-tight text-[var(--kz-fg)]">
             {b.productName}
           </span>
+          {b.version ? (
+            <span className="rounded-md border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-1.5 py-0.5 text-[11px] font-mono text-[var(--kz-fg-dim)] leading-none">
+              {b.version}
+            </span>
+          ) : null}
           <span className="text-[var(--kz-border)]" aria-hidden>
             ·
           </span>

@@ -5,6 +5,8 @@
  * Set in repo-root `.env` or `apps/web/.env` — must be prefixed with VITE_.
  */
 interface ImportMetaEnv {
+  /** Application version (e.g. v1.1.1); injected by vite.config.ts from package.json or env */
+  readonly VITE_APP_VERSION?: string
   /** Source repo URL or `owner/repo` (default: uerax/Animaku) */
   readonly VITE_GITHUB_URL?: string
   /** Button label (default: GitHub) */

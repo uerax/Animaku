@@ -1,12 +1,24 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { readFileSync, existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 /** Monorepo root (…/animaku) — where `.env` / `.env.example` live */
 const repoRoot = path.resolve(__dirname, '../..')
+
+function resolvePackageVersion(): string {
+  try {
+    const pkgPath = path.resolve(repoRoot, 'package.json')
+    if (existsSync(pkgPath)) {
+      const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
+      if (pkg.version) return `v${pkg.version}`
+    }
+  } catch {}
+  return 'v1.1.1'
+}
 
 function envInt(
   raw: string | undefined,
@@ -67,6 +79,9 @@ export default defineConfig(({ mode }) => {
       },
     ],
     define: {
+      'import.meta.env.VITE_APP_VERSION': JSON.stringify(
+        get('VITE_APP_VERSION') || resolvePackageVersion(),
+      ),
       'import.meta.env.VITE_BANGUMI_IMAGE_HOST': JSON.stringify(bangumiImageHost),
     },
     resolve: {

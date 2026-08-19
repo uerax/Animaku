@@ -6,12 +6,26 @@
  * (esbuild is a server package devDependency)
  */
 import { createRequire } from 'node:module'
+import { readFileSync, existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(__dirname, '..')
 const serverRoot = path.join(root, 'apps/server')
+
+function resolvePackageVersion() {
+  try {
+    const pkgPath = path.resolve(root, 'package.json')
+    if (existsSync(pkgPath)) {
+      const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
+      if (pkg.version) return `v${pkg.version}`
+    }
+  } catch {}
+  return 'v1.1.1'
+}
+
+const appVersion = process.env.APP_VERSION || resolvePackageVersion()
 
 // Resolve esbuild from apps/server/node_modules (pnpm workspace layout)
 const require = createRequire(path.join(serverRoot, 'package.json'))
@@ -27,6 +41,9 @@ await esbuild.build({
   packages: 'bundle',
   minify: true,
   legalComments: 'none',
+  define: {
+    'process.env.APP_VERSION': JSON.stringify(appVersion),
+  },
   // CJS deps (cheerio etc.) call require("buffer"/…) at runtime. ESM output has no
   // require unless we inject createRequire; without this Node throws:
   //   Dynamic require of "buffer" is not supported

@@ -1,6 +1,7 @@
 /** Subset of GET /api/health used for settings + source gating. */
 export type ServerHealth = {
   ok?: boolean
+  version?: string
   danmakuConfigured?: boolean
   danmakuUsingFallback?: boolean
   publicProxy?: boolean

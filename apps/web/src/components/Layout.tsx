@@ -185,6 +185,7 @@ function SearchIcon() {
 }
 
 export function Layout() {
+  const b = getSiteBranding()
   const navigate = useNavigate()
   const location = useLocation()
   const [params] = useSearchParams()
@@ -277,10 +278,10 @@ export function Layout() {
             />
             <span className="hidden flex-col leading-tight sm:flex">
               <span className="text-[15px] font-bold tracking-tight">
-                Animaku
+                {b.productName}
               </span>
               <span className="text-[10px] font-normal text-[var(--kz-fg-muted)]">
-                在线弹幕播放
+                {b.tagline}
               </span>
             </span>
           </NavLink>

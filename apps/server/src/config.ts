@@ -60,9 +60,32 @@ function resolveDataDir(): string {
   return resolve(process.cwd(), 'data')
 }
 
+function resolveAppVersion(): string {
+  if (process.env.APP_VERSION?.trim()) return process.env.APP_VERSION.trim()
+  const candidatePaths = [
+    resolve(process.cwd(), 'package.json'),
+    resolve(process.cwd(), '../../package.json'),
+    resolve(import.meta.dirname, '../../../package.json'),
+    resolve(import.meta.dirname, '../../package.json'),
+  ]
+  for (const p of candidatePaths) {
+    if (existsSync(p)) {
+      try {
+        const pkg = JSON.parse(readFileSync(p, 'utf8'))
+        if (pkg.version) return `v${pkg.version}`
+      } catch {}
+    }
+  }
+  return 'v1.1.1'
+}
+
 const dataDir = resolveDataDir()
+const appVersion = resolveAppVersion()
+const cleanVersion = appVersion.replace(/^v/, '')
 
 export const config = {
+  /** Application semantic version (e.g. v1.1.1) */
+  version: appVersion,
   /** Directory for persistent state (SQLite db, cache, etc.) */
   dataDir,
   /** Full path to primary SQLite database file */
@@ -111,9 +134,9 @@ export const config = {
    */
   bangumiUserAgent:
     process.env.BANGUMI_USER_AGENT ||
-    'uerax/Animaku/0.1.0 (https://github.com/uerax/Animaku)',
+    `uerax/Animaku/${cleanVersion} (https://github.com/uerax/Animaku)`,
   /** Product UA for APIs that expect an app identity (e.g. DanDanPlay) */
-  productUserAgent: process.env.PRODUCT_USER_AGENT || 'Animaku/0.1.0',
+  productUserAgent: process.env.PRODUCT_USER_AGENT || `Animaku/${cleanVersion}`,
   defaultUserAgent:
     process.env.DEFAULT_USER_AGENT ||
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',

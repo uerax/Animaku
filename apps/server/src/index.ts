@@ -151,6 +151,7 @@ app.use(
 app.get('/api/health', (c) =>
   c.json({
     ok: true,
+    version: config.version,
     // Server always has a danmaku credential path (env or agefans fallback)
     danmakuConfigured: true,
     danmakuUsingFallback: !(

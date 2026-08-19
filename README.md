@@ -158,6 +158,7 @@ pnpm dev
 pnpm dev:web       # 仅前端
 pnpm dev:server    # 仅后端
 pnpm typecheck     # 全仓 tsc
+pnpm bump <ver>    # 一键升级全仓版本（如 pnpm bump 1.1.2 或 pnpm bump patch）
 ```
 
 跳过 `pnpm install` 直接 `pnpm dev` 会报找不到 `tsx` / `node_modules missing`。  

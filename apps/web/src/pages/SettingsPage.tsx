@@ -18,6 +18,7 @@ import {
 import { useSettingsStore } from '../stores/settings'
 import { isBuiltinPlugin, usePluginStore } from '../stores/plugins'
 import { PageHeader } from '../components/ui'
+import { getSiteBranding } from '../lib/site-branding'
 import { EMPTY_ARRAY, FALLBACK_DANMAKU, FALLBACK_PLAYER } from '../lib/stable'
 
 /** Sort plugins by user-defined order, falling back to weight > alphabetical. */
@@ -49,6 +50,7 @@ function sortPluginsByOrder(
 type CatalogSort = 'lastUpdate' | 'name'
 
 export function SettingsPage() {
+  const b = getSiteBranding()
   const bangumiToken = useSettingsStore((s) => s.bangumiToken)
   const setBangumiToken = useSettingsStore((s) => s.setBangumiToken)
   const bangumiImageHost = useSettingsStore(
@@ -332,6 +334,15 @@ export function SettingsPage() {
           <h2 className="text-lg font-bold tracking-tight text-[var(--kz-fg)]">服务状态</h2>
         </div>
         <div className="text-sm text-[var(--kz-fg-muted)] space-y-1">
+          <div>
+            版本：
+            <span className="font-semibold text-[var(--kz-fg)]">
+              {b.version}
+              {health.data?.version && health.data.version !== b.version
+                ? `（服务端 ${health.data.version}）`
+                : ''}
+            </span>
+          </div>
           <div>API：<span className="font-semibold text-[var(--kz-fg)]">{health.data?.ok ? '正常' : health.isLoading ? '检测中…' : '不可用（请启动 server）'}</span></div>
           <div>
             弹幕：

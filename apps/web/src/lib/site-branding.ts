@@ -1,3 +1,5 @@
+import { DEFAULT_APP_VERSION } from '@animaku/shared'
+
 /**
  * Site footer / about branding — build-time env (VITE_*), safe defaults for this repo.
  * Deployers fill maintainer fields in `.env` without code changes.
@@ -21,6 +23,8 @@ function trimText(raw: string | undefined): string {
 const DEFAULT_GITHUB_URL = 'https://github.com/uerax/Animaku'
 
 export type SiteBranding = {
+  /** Application version (e.g. v1.1.1) */
+  version: string
   /** Project source — always preferred for “Star / Source” */
   githubUrl: string
   githubLabel: string
@@ -42,6 +46,7 @@ export type SiteBranding = {
 export function getSiteBranding(): SiteBranding {
   const env = import.meta.env
   return {
+    version: trimText(env.VITE_APP_VERSION) || DEFAULT_APP_VERSION,
     githubUrl:
       trimUrl(env.VITE_GITHUB_URL as string | undefined) || DEFAULT_GITHUB_URL,
     githubLabel: trimText(env.VITE_GITHUB_LABEL as string | undefined) || 'GitHub',
