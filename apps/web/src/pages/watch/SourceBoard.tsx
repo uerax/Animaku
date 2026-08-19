@@ -286,13 +286,13 @@ export function SourceBoard({
 
                         {state.status === 'empty' && (
                           <span className="text-[var(--kz-fg-dim)] truncate block">
-                            未收录此番剧
+                            未搜到结果
                           </span>
                         )}
 
                         {state.status === 'error' && (
                           <span className="text-rose-500 dark:text-rose-400 truncate block">
-                            {state.errorMsg || '源站超时'}
+                            {state.errorMsg || '请求失败'}
                           </span>
                         )}
 
@@ -458,11 +458,11 @@ export function SourceBoard({
                         <div className="px-0.5 text-[11px] text-[var(--kz-fg-muted)]">
                           {state.status === 'empty' ? (
                             <span className="text-[var(--kz-fg-dim)]">
-                              源站未收录此番剧，可尝试下方候选词或自定义关键词重搜：
+                              未搜到结果，尝试换词：
                             </span>
                           ) : state.status === 'error' ? (
                             <span className="text-rose-500 dark:text-rose-400">
-                              {state.errorMsg || '源站超时，请尝试换词重搜：'}
+                              {state.errorMsg ? `${state.errorMsg}，尝试换词：` : '请求失败，尝试换词：'}
                             </span>
                           ) : state.status === 'idle' ? (
                             <span className="text-[var(--kz-fg-dim)]">

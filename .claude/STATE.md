@@ -1,11 +1,28 @@
 # Animaku 项目状态快照 (STATE.md)
 
-## [2026-08-20] 视频源抽屉排版优化（精简候选条目提示文案 + 移除悬浮气泡 + 支持条目与关键词多行自适应）
+## [2026-08-20] 首页热门类型展示扩充至 3 行（18 部）与板块标题字阶视觉强化
 - 状态：已完成
 - 优先级：P2
 - 描述：
-  1. **精简候选提示文案**：
+  1. **热门类型展示扩充至 3 行（`SECTION_LIMIT = 18`）**：
+     - 在 `HomePage.tsx` 中将各分类板块展示数量由 12 部提升为 `SECTION_LIMIT = 18`；
+     - 桌面端 6 列网格正好整齐铺满 **3 整行**（$18 \div 6 = 3$），消除空缺；
+     - 同步更新 `BangumiGridSkeleton` 与 `DEFAULT_EAGER_COVERS` 为 18 条，保持骨架屏高度与内容一致，杜绝布局抖动（CLS）；
+  2. **板块标题（热门番剧/剧场版/OVA/继续观看）字阶加大加粗（900 Heavy / Black）**：
+     - 在 `index.css` 与 `HomePage.tsx` 中重构 `.kz-section-title` 与标题字阶；
+     - 移动端字号升级为 `1.625rem`（26px）、字重强制注入 `font-weight: 900 !important;`（Heavy / Black）；
+     - 桌面/平板端（`sm:` 640px+）字号升级为 `2.0rem`（32px）、字重 `font-weight: 900 !important;`、`letter-spacing: -0.04em` 与 `line-height: 1.15`；
+     - 接入 `font-black`，完全对齐参考图中大字报式极粗、极具冲击力的视觉效果。
+- 涉及文件：apps/web/src/pages/HomePage.tsx, apps/web/src/components/ui.tsx, apps/web/src/index.css
+- 备注：全仓 TypeScript 类型检查与前端打包构建全量通过。
+
+## [2026-08-20] 视频源抽屉排版优化（精简候选条目与失败提示文案 + 移除悬浮气泡 + 支持条目与关键词多行自适应）
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **精简候选与失败提示文案**：
      - 去掉「点选切换绑定」，将文案由 `搜到 N 条候选条目，点选切换绑定：` 收敛为精炼的 `搜到 N 条候选条目：`；
+     - 将卡片副标题与抽屉内的绝对化表述 `未收录此番剧` 重构为更加准确客观的 `未搜到结果`（抽屉内提示为 `未搜到结果，尝试换词：`，错误提示统一为 `{errorMsg}，尝试换词：` / `请求失败`）；
   2. **删除指针停留气泡展示**：
      - 彻底移除 `SourceBoard.tsx` 中的 `hoverTip`、`showHoverTip` / `hideHoverTip` 定时器与 DOM 悬浮气泡浮层，精简组件逻辑并释放无用 React hooks；
   3. **允许候选条目与关键词多行自动换行**：

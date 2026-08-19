@@ -113,8 +113,8 @@ export const BangumiCard = memo(function BangumiCard({
   )
 })
 
-/** Above-fold cards on common phone/desktop grids (~2–6 cols × 2 rows). */
-const DEFAULT_EAGER_COVERS = 12
+/** Above-fold cards on common phone/desktop grids (~2–6 cols × 3 rows). */
+const DEFAULT_EAGER_COVERS = 18
 
 /** Same track as live grid — skeleton must match or CLS returns. */
 const BANGUMI_GRID_CLASS =

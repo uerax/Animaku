@@ -431,13 +431,21 @@ textarea:focus-visible {
   box-shadow: none;
 }
 
-/* Section title under PageHeader — one step quieter than h1 */
+/* Section title — prominent, heavy bold & clear (streaming portal style) */
 .kz-section-title {
-  font-size: 1.125rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.3;
+  font-size: 1.625rem;
+  font-weight: 900 !important;
+  letter-spacing: -0.035em;
+  line-height: 1.15;
   color: var(--kz-fg);
+}
+
+@media (min-width: 640px) {
+  .kz-section-title {
+    font-size: 2rem;
+    font-weight: 900 !important;
+    letter-spacing: -0.04em;
+  }
 }
 
 .kz-section-meta {
