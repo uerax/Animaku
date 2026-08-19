@@ -5,6 +5,7 @@
   "version": "1.0",
   "weight": 70,
   "preferOriginalTitle": false,
+  "oldAnimePriority": true,
   "muliSources": true,
   "useWebview": false,
   "useNativePlayer": true,

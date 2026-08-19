@@ -1,5 +1,22 @@
 # Animaku 项目状态快照 (STATE.md)
 
+## [2026-08-20] 接入老番智能选源加权机制（`oldAnimePriority` 声明式规则 + 动态年份 `currentYear - 5` 判定）(v26)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **声明式老番优先规则支持（`oldAnimePriority`）**：
+     - 在 `@animaku/shared` 的 `PluginRule` 接口中新增 `oldAnimePriority?: boolean`；
+     - 在 `cycani.json` 与 `tvtfun.json` 规则中配置 `"oldAnimePriority": true`，声明其为全量经典老番优化大库源；
+  2. **动态年份计算与上下文加权排序**：
+     - 在 `bangumi.ts` 中实现动态老番判定 `isOldAnime(airDate, yearsAgo = 5)`，基于当前年份自动计算（`airYear <= currentYear - 5`），消除固定年份硬编码；
+     - 在 `comparePluginOrder` 中支持 `isOldAnime` 上下文参数：当识别到当前番剧为经典老番时，带有 `oldAnimePriority: true` 的视频源自动获得 `+12` 动态权重加成（`cycani` 70 + 12 = 82，`tvtfun` 65 + 12 = 77，自然前置于 `xifan-next` 的 75）；
+     - 当播放当期新番（$\ge \text{currentYear} - 4$）时，100% 维持标准内置源梯队（`xifan-next` 75 > `cycani` 70 > `tvtfun` 65）；
+  3. **选源决策树与客户端无感升级**：
+     - 在 `use-watch-session.ts` 的 `findDefaultSourcePlugin` 与 `orderSearchRows` 中接入 `isOld` 计算与排序分流；
+     - 在 `stores/plugins.ts` 中递增 `PLUGIN_DEFAULTS_VERSION`（`25 -> 26`），确保老用户客户端无感自动平滑升级。
+- 涉及文件：packages/shared/src/plugin.ts, packages/shared/src/bangumi.ts, apps/web/src/data/default-plugins/cycani.json, apps/web/src/data/default-plugins/tvtfun.json, apps/web/src/stores/plugins.ts, apps/web/src/lib/use-watch-session.ts
+- 备注：全仓类型检查与打包构建全量通过。
+
 ## [2026-08-20] 修复播放器进度条热力图上方与全域点击拖动失效（统一 Pointer 事件流与 30px 大热区捕获）
 - 状态：已完成
 - 优先级：P0

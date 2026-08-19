@@ -29,7 +29,8 @@ migrateLocalStorageKey('animaku-plugins', [
 /** v23: add moonci (moonci.com) built-in with weight 65 */
 /** v24: set moonci weight to 70 & preferOriginalTitle: true; tune cycani weight to 65 */
 /** v25: tune default weights (xifan-next: 75, cycani: 70, moonci: 65, tvtfun: 65) */
-export const PLUGIN_DEFAULTS_VERSION = 25
+/** v26: add oldAnimePriority for cycani & tvtfun to prioritize classic/vintage anime (airDate <= currentYear - 5) */
+export const PLUGIN_DEFAULTS_VERSION = 26
 
 interface PluginState {
   plugins: PluginMeta[]
@@ -265,13 +266,15 @@ export const usePluginStore = create<PluginState>()(
             if (!seed) return p
             if (
               p.weight !== seed.weight ||
-              p.preferOriginalTitle !== seed.preferOriginalTitle
+              p.preferOriginalTitle !== seed.preferOriginalTitle ||
+              p.oldAnimePriority !== seed.oldAnimePriority
             ) {
               changed = true
               return {
                 ...p,
                 weight: seed.weight,
                 preferOriginalTitle: seed.preferOriginalTitle,
+                oldAnimePriority: seed.oldAnimePriority,
               }
             }
             return p

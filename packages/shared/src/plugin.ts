@@ -68,6 +68,12 @@ export interface PluginRule {
   /** Display sorting weight (higher weight = higher priority). Missing defaults to lowest weight. */
   weight?: number
   /**
+   * When true, prioritizes this plugin for vintage / classic anime (released >= 5 years ago, e.g. airDate <= currentYear - 5).
+   * In default source selection and sorting, plugins with oldAnimePriority receive +12 weight bonus
+   * when the current subject is an older anime.
+   */
+  oldAnimePriority?: boolean
+  /**
    * Title search preference:
    * When true, prefer Japanese / original title (`item.name`) over Chinese title (`item.nameCn`).
    * Defaults to false (Chinese title first).
@@ -161,17 +167,25 @@ export function catalogItemStatus(
 /**
  * Compare two plugins for display ordering:
  * 1. Higher weight first (built-in sources default to 50; third-party/imported sources default to 0).
+ *    When isOldAnime is true, plugins with oldAnimePriority receive +12 weight bonus.
  * 2. Equal weights tie-break alphabetically by plugin name (case-insensitive, stable).
  */
 export function comparePluginOrder(
-  a: { name?: string; weight?: number; source?: string },
-  b: { name?: string; weight?: number; source?: string },
+  a: { name?: string; weight?: number; source?: string; oldAnimePriority?: boolean },
+  b: { name?: string; weight?: number; source?: string; oldAnimePriority?: boolean },
+  isOldAnime = false,
 ): number {
-  const getWeight = (p: { weight?: number; source?: string }) => {
+  const getWeight = (p: { weight?: number; source?: string; oldAnimePriority?: boolean }) => {
+    let base = 0
     if (typeof p.weight === 'number' && Number.isFinite(p.weight)) {
-      return p.weight
+      base = p.weight
+    } else {
+      base = p.source === 'builtin' ? 50 : 0
     }
-    return p.source === 'builtin' ? 50 : 0
+    if (isOldAnime && p.oldAnimePriority) {
+      base += 12
+    }
+    return base
   }
   const wa = getWeight(a)
   const wb = getWeight(b)
@@ -487,6 +501,11 @@ export function parsePluginRule(raw: unknown): PluginRule {
       ? j.weight
       : undefined
 
+  const oldAnimePriority =
+    typeof j.oldAnimePriority === 'boolean'
+      ? j.oldAnimePriority
+      : undefined
+
   const preferOriginalTitle =
     typeof j.preferOriginalTitle === 'boolean'
       ? j.preferOriginalTitle
@@ -508,6 +527,7 @@ export function parsePluginRule(raw: unknown): PluginRule {
     name,
     version: String(j.version ?? ''),
     weight,
+    oldAnimePriority,
     preferOriginalTitle,
     traditionalChinese,
     stripSymbols,

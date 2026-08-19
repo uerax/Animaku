@@ -18,6 +18,7 @@ import {
   bestTitleSimilarity,
   coverOf,
   comparePluginOrder,
+  isOldAnime,
   resolvePluginDefaultKeyword,
   findMatchingEpisodeIndex,
   type BangumiItem,
@@ -140,8 +141,13 @@ function lookupHistorySourceUrl(
 /**
  * First enabled plugin based on user order, falling back to weight > alphabetical name order.
  * This is the default source auto-searched on first visit.
+ * When isOldAnime is true, plugins with oldAnimePriority receive +12 weight bonus.
  */
-function findDefaultSourcePlugin(list: PluginMeta[], order: string[]): PluginMeta | undefined {
+function findDefaultSourcePlugin(
+  list: PluginMeta[],
+  order: string[],
+  isOldAnime = false,
+): PluginMeta | undefined {
   if (!list.length) return undefined
   if (order.length) {
     // Find first plugin whose name appears in the user's order
@@ -153,13 +159,17 @@ function findDefaultSourcePlugin(list: PluginMeta[], order: string[]): PluginMet
     }
   }
   // Fallback: weight descending > alphabetical name order.
-  return [...list].sort(comparePluginOrder)[0]
+  return [...list].sort((a, b) => comparePluginOrder(a, b, isOldAnime))[0]
 }
 
 /** Sort search rows by stored order (first = top), falling back to weight > alphabetical. */
-function orderSearchRows(rows: SearchRow[], order: string[]): SearchRow[] {
+function orderSearchRows(
+  rows: SearchRow[],
+  order: string[],
+  isOldAnime = false,
+): SearchRow[] {
   if (!order.length) {
-    return [...rows].sort((a, b) => comparePluginOrder(a.plugin, b.plugin))
+    return [...rows].sort((a, b) => comparePluginOrder(a.plugin, b.plugin, isOldAnime))
   }
   const rank = new Map<string, number>()
   for (let i = 0; i < order.length; i++) {
@@ -169,7 +179,7 @@ function orderSearchRows(rows: SearchRow[], order: string[]): SearchRow[] {
     const ra = rank.get(a.plugin.name.toLowerCase()) ?? order.length
     const rb = rank.get(b.plugin.name.toLowerCase()) ?? order.length
     if (ra !== rb) return ra - rb
-    return comparePluginOrder(a.plugin, b.plugin)
+    return comparePluginOrder(a.plugin, b.plugin, isOldAnime)
   })
 }
 
@@ -308,27 +318,6 @@ export function useWatchSession(bangumiId: number): WatchSession {
   const isProxyUnlocked = !proxyTokenRequired || Boolean(proxyToken?.trim())
   const serverProxyEnabled =
     mediaFullProxy && Boolean(playerSettings.serverProxy) && isProxyUnlocked
-  const plugins = useMemo(
-    () =>
-      allPlugins.filter((p) => {
-        if (!p || p.enabled === false) return false
-        if (
-          !isFullProxySourceUsable(
-            p,
-            mediaFullProxy,
-            serverProxyEnabled,
-            isProxyUnlocked,
-          )
-        ) {
-          return false
-        }
-        return true
-      }),
-    [allPlugins, mediaFullProxy, serverProxyEnabled, isProxyUnlocked],
-  )
-  const upsertHistory = useHistoryStore((s) => s.upsert)
-  const danmakuSettings = useSettingsStore((s) => s.danmaku ?? FALLBACK_DANMAKU)
-  const setDanmaku = useSettingsStore((s) => s.setDanmaku)
 
   const subject = useQuery({
     queryKey: ['subject', bangumiId],
@@ -339,6 +328,41 @@ export function useWatchSession(bangumiId: number): WatchSession {
     gcTime: 6 * 60 * 60_000,
   })
   const item = subject.data?.data
+  const isOld = useMemo(() => isOldAnime(item?.airDate), [item?.airDate])
+
+  const plugins = useMemo(() => {
+    const list = allPlugins.filter((p) => {
+      if (!p || p.enabled === false) return false
+      if (
+        !isFullProxySourceUsable(
+          p,
+          mediaFullProxy,
+          serverProxyEnabled,
+          isProxyUnlocked,
+        )
+      ) {
+        return false
+      }
+      return true
+    })
+    if (!pluginOrder.length) {
+      return [...list].sort((a, b) => comparePluginOrder(a, b, isOld))
+    }
+    const rank = new Map<string, number>()
+    for (let i = 0; i < pluginOrder.length; i++) {
+      rank.set(pluginOrder[i].toLowerCase(), i)
+    }
+    return [...list].sort((a, b) => {
+      const ra = rank.get(a.name.toLowerCase()) ?? pluginOrder.length
+      const rb = rank.get(b.name.toLowerCase()) ?? pluginOrder.length
+      if (ra !== rb) return ra - rb
+      return comparePluginOrder(a, b, isOld)
+    })
+  }, [allPlugins, mediaFullProxy, serverProxyEnabled, isProxyUnlocked, pluginOrder, isOld])
+  const upsertHistory = useHistoryStore((s) => s.upsert)
+  const danmakuSettings = useSettingsStore((s) => s.danmaku ?? FALLBACK_DANMAKU)
+  const setDanmaku = useSettingsStore((s) => s.setDanmaku)
+
   const title = item ? item.nameCn || item.name : qTitle || `番剧 ${bangumiId}`
   const cover = item ? coverOf(item) : qCover || ''
 
@@ -355,6 +379,11 @@ export function useWatchSession(bangumiId: number): WatchSession {
   } | null>(null)
   const [keywordTargetPlugin, setKeywordTargetPlugin] =
     useState<PluginMeta | null>(null)
+  const manualTargetPluginRef = useRef(false)
+  const setManualKeywordTargetPlugin = useCallback((p: PluginMeta | null) => {
+    manualTargetPluginRef.current = p !== null
+    setKeywordTargetPlugin(p)
+  }, [])
   const [sessionKeywords, setSessionKeywords] = useState<
     Record<string, string[]>
   >({})
@@ -411,7 +440,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
   const activeTargetPlugin =
     keywordTargetPlugin ||
     selection?.plugin ||
-    findDefaultSourcePlugin(plugins, pluginOrder)
+    findDefaultSourcePlugin(plugins, pluginOrder, isOld)
   const preferOriginal = activeTargetPlugin?.preferOriginalTitle === true
 
   const keywordCandidates = useMemo(() => {
@@ -504,6 +533,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     setRoadError('')
     setPendingSource(null)
     setRoadLoading(false)
+    manualTargetPluginRef.current = false
     setKeywordTargetPlugin(null)
     setSessionKeywords({})
     setManualKeywords({})
@@ -529,16 +559,16 @@ export function useWatchSession(bangumiId: number): WatchSession {
           searched: false,
         }
       })
-      return orderSearchRows(rows, pluginOrder)
+      return orderSearchRows(rows, pluginOrder, isOld)
     })
-  }, [plugins, bangumiId, pluginOrder])
+  }, [plugins, bangumiId, pluginOrder, isOld])
 
   // Keep default keyword in state for UI once subject loads
   useEffect(() => {
     const target =
       keywordTargetPlugin ||
       selection?.plugin ||
-      findDefaultSourcePlugin(plugins, pluginOrder)
+      findDefaultSourcePlugin(plugins, pluginOrder, isOld)
     if (!target) return
     const kw = getPluginKeyword(target)
     if (kw && !searchKeyword) {
@@ -549,6 +579,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     selection?.plugin,
     plugins,
     pluginOrder,
+    isOld,
     getPluginKeyword,
     searchKeyword,
   ])
@@ -556,16 +587,18 @@ export function useWatchSession(bangumiId: number): WatchSession {
   // Pre-select the target source: query plugin if provided, otherwise first source
   useEffect(() => {
     if (!plugins.length) return
-    if (keywordTargetPlugin || selection) return
+    if (selection || manualTargetPluginRef.current) return
     const target =
       (qPlugin &&
         (plugins.find(
           (p) => p.name.toLowerCase() === qPlugin.toLowerCase(),
         ) ||
           usePluginStore.getState().getByName(qPlugin))) ||
-      findDefaultSourcePlugin(plugins, pluginOrder)
-    if (target) setKeywordTargetPlugin(target)
-  }, [plugins, pluginOrder, keywordTargetPlugin, selection, qPlugin])
+      findDefaultSourcePlugin(plugins, pluginOrder, isOld)
+    if (target && target.name.toLowerCase() !== keywordTargetPlugin?.name.toLowerCase()) {
+      setKeywordTargetPlugin(target)
+    }
+  }, [plugins, pluginOrder, isOld, keywordTargetPlugin, selection, qPlugin])
 
   const titleRefsStable = titleRefs
   const keywordCandidatesStable = keywordCandidates
@@ -943,7 +976,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
       // Auto-select first ranked hit only when title is close enough.
       // Prevents MacCMS “first card” wrong-show on weak keyword matches.
       const isDefault =
-        plugin.name.toLowerCase() === (findDefaultSourcePlugin(plugins, pluginOrder)?.name || '').toLowerCase()
+        plugin.name.toLowerCase() === (findDefaultSourcePlugin(plugins, pluginOrder, isOld)?.name || '').toLowerCase()
       const shouldAutoPick =
         Boolean(items[0]) &&
         (opts?.autoPickFirst ||
@@ -996,6 +1029,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
       pickSource,
       plugins,
       pluginOrder,
+      isOld,
     ],
   )
 
@@ -1087,7 +1121,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     }
     if (!plugins.length) return
 
-    const preferred = findDefaultSourcePlugin(plugins, pluginOrder)
+    const preferred = findDefaultSourcePlugin(plugins, pluginOrder, isOld)
     if (!preferred) return
 
     // Check persistent binding first!
@@ -1630,7 +1664,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     searchResults,
     searchKeyword,
     defaultKeyword,
-    defaultSourceName: findDefaultSourcePlugin(plugins, pluginOrder)?.name || plugins[0]?.name || '',
+    defaultSourceName: findDefaultSourcePlugin(plugins, pluginOrder, isOld)?.name || plugins[0]?.name || '',
     selection,
     episode,
     visibleRoad,
@@ -1639,7 +1673,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     roadError,
     pendingSource,
     keywordTargetPlugin,
-    setKeywordTargetPlugin,
+    setKeywordTargetPlugin: setManualKeywordTargetPlugin,
     mediaSrc,
     playbackMode: playback.mode,
     /** direct | playlist-proxy (ad hybrid) | full-proxy — for WatchMeta hint */
