@@ -1,5 +1,24 @@
 # Animaku 项目状态快照 (STATE.md)
 
+## [2026-08-20] 修复播放器进度条热力图上方与全域点击拖动失效（统一 Pointer 事件流与 30px 大热区捕获）
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **排查根本原因**：
+     - 原先进度条仅由 12px 高度的原生 `<input type="range">` 单独监听点击与拖拽；
+     - 外层 `.kz-seek-wrap` 包含 22px 的弹幕热力图波形与 OP/ED 标记，光标移至热力图波形区域或进度条上方内边距时，外层容器因配置了 `cursor: pointer` 呈现手型光标并展示浮动时间 Tooltip；
+     - 但用户点击该区域时事件被外层 `div` 拦截，未能下发给底层小尺寸 `<input>`，导致点击和拖拽操作完全无响应；
+  2. **统一全域 Pointer 事件捕获与拖拽（`PointerCapture`）**：
+     - 在 `DesktopControls.tsx` 与 `MobileControls.tsx` 中为 `.kz-seek-wrap` 接入统一的 `onPointerDown`、`onPointerMove`、`onPointerUp` 与 `onPointerCancel` 事件流；
+     - 命中指针按下（`pointerdown`）即刻触发 `setPointerCapture(pointerId)` 锁定指针，无论在热力图波形、章节标记还是轨道上点击，均毫秒级同步计算精确横向比例并执行 `onSeekRatio(ratio)`；
+     - 拖拽期间（即使光标移出播放器控制栏视窗）依托 Pointer Capture 机制依然平滑持续拖拽寻道，松开指针即刻无缝释放；
+  3. **样式与布局热区升维**：
+     - 在 `plyr-overrides.css` 中将 `.kz-seek-wrap` 优化为 30px 高度的大交互热区（`padding: 14px 0 4px; touch-action: none; user-select: none;`），将热力图波形完全囊括在容器点击热区内；
+     - 为 `<input className="kz-seek">` 注入 `pointer-events: none;`，消除原生 range shadow DOM 对鼠标点击的阻断，同时保留键盘 Tab 聚焦与方向键微调（`onChange`）无障碍支持；
+     - 精确对齐 OP/ED 标记 `.kz-seek-marker`（`bottom: 8px`，Hover `bottom: 7px`）与 Tooltip 浮层高度。
+- 涉及文件：apps/web/src/player/chrome/DesktopControls.tsx, apps/web/src/player/chrome/MobileControls.tsx, apps/web/src/player/plyr-overrides.css
+- 备注：全仓类型检查与前端生产构建打包验证全量通过。
+
 ## [2026-08-20] 调优内置视频源默认权重梯队（xifan-next: 75, cycani: 70, moonci: 65, tvtfun: 65）(v25)
 - 状态：已完成
 - 优先级：P1

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type PointerEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import type { DanmakuComment, SuperResolutionMode } from '@animaku/shared'
 import type { AspectRatioMode, PlayerControlsProps } from './types'
 import {
@@ -210,15 +210,71 @@ export function DesktopControls(props: PlayerControlsProps) {
     e.currentTarget.blur()
   }
 
-  const handleSeekPointerMove = (e: PointerEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    if (rect.width <= 0) return
-    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+  const isDraggingRef = useRef(false)
+  const seekWrapRef = useRef<HTMLDivElement>(null)
+
+  const calcSeekRatio = (clientX: number) => {
+    const el = seekWrapRef.current
+    if (!el) return 0
+    const rect = el.getBoundingClientRect()
+    if (rect.width <= 0) return 0
+    return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+  }
+
+  const handleSeekPointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return
+    e.preventDefault()
+    e.stopPropagation()
+    isDraggingRef.current = true
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId)
+    } catch {
+      /* ignore */
+    }
+    const ratio = calcSeekRatio(e.clientX)
     setHoverRatio(ratio)
+    onSeekRatio(ratio)
+  }
+
+  const handleSeekPointerMove = (e: PointerEvent<HTMLDivElement>) => {
+    const ratio = calcSeekRatio(e.clientX)
+    setHoverRatio(ratio)
+    if (isDraggingRef.current) {
+      onSeekRatio(ratio)
+    }
+  }
+
+  const handleSeekPointerUp = (e: PointerEvent<HTMLDivElement>) => {
+    if (isDraggingRef.current) {
+      isDraggingRef.current = false
+      try {
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+          e.currentTarget.releasePointerCapture(e.pointerId)
+        }
+      } catch {
+        /* ignore */
+      }
+      const el = seekWrapRef.current
+      if (el) {
+        const rect = el.getBoundingClientRect()
+        const isInside =
+          e.clientX >= rect.left &&
+          e.clientX <= rect.right &&
+          e.clientY >= rect.top &&
+          e.clientY <= rect.bottom
+        if (!isInside) {
+          setHoverRatio(null)
+        }
+      } else {
+        setHoverRatio(null)
+      }
+    }
   }
 
   const handleSeekPointerLeave = () => {
-    setHoverRatio(null)
+    if (!isDraggingRef.current) {
+      setHoverRatio(null)
+    }
   }
 
   return (
@@ -228,8 +284,12 @@ export function DesktopControls(props: PlayerControlsProps) {
       data-player-chrome
     >
       <div
+        ref={seekWrapRef}
         className="kz-seek-wrap"
+        onPointerDown={handleSeekPointerDown}
         onPointerMove={handleSeekPointerMove}
+        onPointerUp={handleSeekPointerUp}
+        onPointerCancel={handleSeekPointerUp}
         onPointerLeave={handleSeekPointerLeave}
       >
         {/* Danmaku Heatmap Wave */}
@@ -297,7 +357,6 @@ export function DesktopControls(props: PlayerControlsProps) {
           max={1000}
           value={Math.round(progress * 10)}
           onChange={(e) => onSeekRatio(Number(e.target.value) / 1000)}
-          onPointerUp={releaseSliderFocus}
           style={{ ['--kz-progress' as string]: `${progress}%` }}
           aria-label="进度"
         />

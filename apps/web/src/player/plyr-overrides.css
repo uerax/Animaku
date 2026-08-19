@@ -714,16 +714,19 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
 .kz-seek-wrap {
   position: relative;
   width: 100%;
-  margin: 0 0 0.15rem;
-  padding: 6px 0 2px;
+  margin: 0;
+  padding: 14px 0 4px;
   cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .kz-seek-heatmap {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: calc(100% - 10px);
+  bottom: 8px;
   width: 100%;
   height: 22px;
   pointer-events: none;
@@ -738,24 +741,24 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
 
 .kz-seek-marker {
   position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
+  bottom: 8px;
   height: 4px;
   border-radius: 999px;
   background: rgba(168, 85, 247, 0.75);
   box-shadow: 0 0 8px rgba(168, 85, 247, 0.6);
   pointer-events: none;
   z-index: 1;
-  transition: height 0.15s ease;
+  transition: height 0.15s ease, bottom 0.15s ease;
 }
 
 .kz-seek-wrap:hover .kz-seek-marker {
   height: 6px;
+  bottom: 7px;
 }
 
 .kz-seek-tooltip {
   position: absolute;
-  bottom: calc(100% + 12px);
+  bottom: calc(100% + 4px);
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
@@ -827,6 +830,7 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   box-sizing: border-box;
   position: relative;
   z-index: 2;
+  pointer-events: none;
 }
 
 .kz-seek-wrap:hover .kz-seek {
