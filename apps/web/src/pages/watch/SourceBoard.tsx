@@ -429,7 +429,7 @@ export function SourceBoard({
                                     onSwitchSource(plugin, it)
                                   }}
                                   className={clsx(
-                                    'flex w-full items-start justify-between rounded-lg px-2.5 py-1.5 text-left text-[11.5px] transition-colors cursor-pointer gap-2',
+                                    'flex w-full items-center justify-between rounded-lg px-2.5 py-1 text-left text-[11.5px] transition-colors cursor-pointer gap-2',
                                     isItemSelected
                                       ? 'bg-[var(--kz-accent-soft)] text-[var(--kz-accent)] border border-[var(--kz-accent)] font-medium'
                                       : 'bg-[var(--kz-bg-elevated)] text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] border border-[var(--kz-border-subtle)]',
@@ -440,7 +440,7 @@ export function SourceBoard({
                                   </span>
                                   <span
                                     className={clsx(
-                                      'text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0 select-none transition-colors mt-0.5',
+                                      'text-[9.5px] font-medium px-1.5 py-[1px] rounded flex-shrink-0 select-none transition-colors leading-tight',
                                       isItemSelected
                                         ? 'bg-[var(--kz-accent)] text-white'
                                         : 'text-[var(--kz-fg-muted)] bg-[var(--kz-bg-soft)] border border-[var(--kz-border-subtle)]',
@@ -498,7 +498,7 @@ export function SourceBoard({
                                     reProbePlugin(plugin.name, kw)
                                   }}
                                   className={clsx(
-                                    'flex w-full items-start justify-between rounded-lg border px-2.5 py-1.5 text-left transition-colors cursor-pointer group/kw gap-2',
+                                    'flex w-full items-center justify-between rounded-lg border px-2.5 py-1 text-left transition-colors cursor-pointer group/kw gap-2',
                                     isCurrentKw
                                       ? 'bg-[var(--kz-accent-soft)] border-[var(--kz-accent)] text-[var(--kz-accent)]'
                                       : 'bg-[var(--kz-bg-elevated)] hover:bg-[var(--kz-bg-hover)] border-[var(--kz-border-subtle)] hover:border-[var(--kz-accent)]',
@@ -516,7 +516,7 @@ export function SourceBoard({
                                   </span>
                                   <span
                                     className={clsx(
-                                      'text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0 select-none transition-colors border mt-0.5',
+                                      'text-[9.5px] font-medium px-1.5 py-[1px] rounded flex-shrink-0 select-none transition-colors border leading-tight',
                                       isCurrentKw
                                         ? 'bg-[var(--kz-accent)] text-white border-[var(--kz-accent)]'
                                         : 'text-[var(--kz-fg-muted)] group-hover/kw:text-[var(--kz-accent)] group-hover/kw:border-[var(--kz-accent)] bg-[var(--kz-bg-soft)] border-[var(--kz-border-subtle)]',
