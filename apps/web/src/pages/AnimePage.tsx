@@ -12,6 +12,8 @@ import clsx from 'clsx'
 
 /** Popular genre tags on Bangumi (animation). */
 const GENRE_TAGS = [
+  '剧场版',
+  'OVA',
   '恋爱',
   '热血',
   '奇幻',
@@ -244,6 +246,13 @@ export function AnimePage() {
               label={g}
             />
           ))}
+          {tag && !(GENRE_TAGS as readonly string[]).includes(tag) && (
+            <FilterChip
+              active
+              onClick={() => patchParams({ tag: null })}
+              label={tag}
+            />
+          )}
         </div>
       </section>
 

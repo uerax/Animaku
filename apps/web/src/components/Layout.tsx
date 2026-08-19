@@ -354,30 +354,62 @@ export function Layout() {
             </div>
           </nav>
 
-          {/* Desktop search — always visible field */}
+          {/* Desktop search — integrated glassmorphic capsule */}
           <form
             onSubmit={onSearch}
-            className="hidden shrink-0 items-center gap-1.5 md:flex"
+            className="hidden shrink-0 items-center md:flex"
             role="search"
           >
-            <div className="relative">
-              <span
-                className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-[var(--kz-fg-muted)]"
-                aria-hidden
+            <div
+              className={clsx(
+                'group relative flex items-center rounded-full border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] transition-[border-color,box-shadow,background-color] duration-150 ease-out shadow-sm',
+                'hover:border-[var(--kz-border-subtle)] hover:bg-[var(--kz-bg-soft)]',
+                'focus-within:border-[var(--kz-accent)] focus-within:bg-[var(--kz-bg-elevated)] focus-within:shadow-[0_0_14px_var(--kz-accent-ring)]',
+                'w-56 lg:w-64 xl:w-72',
+              )}
+            >
+              <button
+                type="submit"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[var(--kz-fg-muted)] transition-colors hover:text-[var(--kz-accent)] group-focus-within:text-[var(--kz-accent)]"
+                title="搜索"
+                aria-label="搜索"
               >
-                ⌕
-              </span>
+                <SearchIcon />
+              </button>
               <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="搜索番剧…"
                 aria-label="搜索番剧"
-                className="w-48 rounded-full border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] py-2 pl-9 pr-3.5 text-[14px] text-[var(--kz-fg)] outline-none transition-all duration-200 placeholder:text-[var(--kz-fg-muted)] focus:w-64 focus:border-[var(--kz-accent)] focus:bg-[var(--kz-bg)] focus:shadow-[0_0_12px_rgba(29,155,240,0.25)] lg:w-64 lg:focus:w-72"
+                className="kz-search-input min-w-0 flex-1 border-none bg-transparent py-1.5 pr-2 text-[13.5px] text-[var(--kz-fg)] shadow-none outline-none ring-0 placeholder:text-[var(--kz-fg-dim)] focus:border-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
               />
+              {q.trim() ? (
+                <button
+                  type="button"
+                  onClick={() => setQ('')}
+                  className="mr-2 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[var(--kz-bg-hover)] text-[var(--kz-fg-muted)] transition-colors hover:bg-[var(--kz-accent)] hover:text-white"
+                  aria-label="清空输入"
+                  title="清空"
+                >
+                  <svg
+                    width="10"
+                    height="10"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    aria-hidden
+                  >
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              ) : (
+                <span className="pointer-events-none mr-2.5 hidden select-none rounded border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--kz-fg-dim)] lg:inline-block">
+                  ↵
+                </span>
+              )}
             </div>
-            <button type="submit" className="kz-btn-primary !px-4 !py-2">
-              搜索
-            </button>
           </form>
 
           {/* Mobile: search icon only (expanded overlay is below) */}
@@ -412,17 +444,43 @@ export function Layout() {
               role="search"
               className="absolute inset-0 z-50 flex items-center gap-2 bg-[var(--kz-header-bg)] px-3 backdrop-blur-xl md:hidden"
             >
-              <input
-                ref={mobileSearchInputRef}
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="搜索番剧…"
-                aria-label="搜索番剧"
-                className="min-w-0 flex-1 rounded-full border border-[var(--kz-accent)] bg-[var(--kz-bg)] py-2 pl-3.5 pr-3 text-[15px] text-[var(--kz-fg)] outline-none placeholder:text-[var(--kz-fg-muted)]"
-              />
+              <div className="flex min-w-0 flex-1 items-center rounded-full border border-[var(--kz-accent)] bg-[var(--kz-bg)] shadow-[0_0_12px_var(--kz-accent-ring)]">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center text-[var(--kz-accent)]">
+                  <SearchIcon />
+                </span>
+                <input
+                  ref={mobileSearchInputRef}
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="搜索番剧…"
+                  aria-label="搜索番剧"
+                  className="kz-search-input min-w-0 flex-1 border-none bg-transparent py-1.5 pr-2 text-[14px] text-[var(--kz-fg)] shadow-none outline-none ring-0 placeholder:text-[var(--kz-fg-dim)] focus:border-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                />
+                {q.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => setQ('')}
+                    className="mr-2 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[var(--kz-bg-hover)] text-[var(--kz-fg-muted)] hover:bg-[var(--kz-accent)] hover:text-white"
+                    aria-label="清空输入"
+                  >
+                    <svg
+                      width="10"
+                      height="10"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      aria-hidden
+                    >
+                      <path d="M18 6L6 18M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
               <button
                 type="submit"
-                className="kz-btn-primary shrink-0 !px-3.5 !py-2 text-[14px]"
+                className="kz-btn-primary shrink-0 !rounded-full !px-3.5 !py-2 text-[13.5px] shadow-sm"
               >
                 搜索
               </button>

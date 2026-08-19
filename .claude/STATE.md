@@ -1,5 +1,75 @@
 # Animaku 项目状态快照 (STATE.md)
 
+## [2026-08-19] 消除搜索框聚焦点击卡顿（移除宽度重排拉伸 + 纯 GPU 毫秒级微光聚焦）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **排查根本原因**：原先搜索框在获得焦点时配置了 `focus-within:w-60 lg:focus-within:w-72 xl:focus-within:w-80` 动态宽度拉伸，且使用了 `transition-all`。点击瞬间触发浏览器对整个 Header 导航栏的 Flexbox 重新计算与布局重排（Layout Reflow），导致视觉抖动与卡顿感；
+  2. **固定舒适宽度与精简过渡属性**：
+     - 将搜索胶囊设定为自然舒适的固定宽度阶梯（`w-56 lg:w-64 xl:w-72`），对齐主流流媒体（Netflix/Bilibili/Cycani）顶级导航规范，消除无意义的伸缩位移；
+     - 将 `transition-all` 优化为仅过渡边框与光影（`transition-[border-color,box-shadow,background-color] duration-150 ease-out`）；
+     - 点击聚焦即刻以 0ms 纯 GPU 渲染亮起柔和微光，彻底消除卡顿与回流抖动。
+- 涉及文件：apps/web/src/components/Layout.tsx
+- 备注：全仓类型检查与前端生产打包全量通过。
+
+## [2026-08-19] 修复搜索胶囊聚焦时内部出现直角矩形边框问题（消除 input:focus-visible 全局污染）
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **排查根本原因**：`index.css` 中曾配置了全局 `input:focus-visible { border-color: var(--kz-accent); box-shadow: 0 0 0 1px var(--kz-accent); }`，当搜索框获得焦点时，浏览器命中该规则在内部原生 `<input>` 元素上渲染了 1px 直角矩形蓝框，破坏了外层圆润胶囊的视觉连贯性；
+  2. **全局聚焦规则排除与独立隔离**：
+     - 在 `index.css` 中将全局聚焦规则修改为 `input:not(.kz-search-input):focus-visible`，排除嵌入式胶囊输入框；
+     - 显式声明 `.kz-search-input` 在 `:focus` 及 `:focus-visible` 下严格保持 `border: none !important; outline: none !important; box-shadow: none !important;`；
+     - 在 `Layout.tsx` 桌面与移动端搜索输入框注入 `.kz-search-input` 并补全 `ring-0`，聚焦时仅由外层胶囊呈现完美贴合圆角的柔和微光高亮。
+- 涉及文件：apps/web/src/index.css, apps/web/src/components/Layout.tsx
+- 备注：全仓类型检查与前端生产打包全量通过。
+
+## [2026-08-19] 修复首页板块卡片排版缺漏（统一桌面 6 列与 2 整行取整对齐）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **网格列数与公倍数对齐**：将 `BANGUMI_GRID_CLASS` 桌面端统一对齐为 6 列网格（`grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-6 2xl:grid-cols-6`）；
+  2. **板块数量精准取整（12 条）**：
+     - `HomePage.tsx` 各板块展示数量调整为 `SECTION_LIMIT = 12`；
+     - 桌面端（lg/xl/2xl 6 列）：$12 \div 6 = 2$ 整行（100% 铺满 2 整行，杜绝末尾空缺）；
+     - 平板端（md 4 列）：$12 \div 4 = 3$ 整行；
+     - 小平板端（sm 3 列）：$12 \div 3 = 4$ 整行；
+     - 移动端（2 列）：$12 \div 2 = 6$ 整行；
+  3. **骨架屏与首屏预热同步**：`BangumiGridSkeleton` 同步保持 12 条骨架卡片，彻底消除布局抖动（CLS）。
+- 涉及文件：apps/web/src/components/ui.tsx, apps/web/src/pages/HomePage.tsx
+- 备注：全仓类型检查与前端生产打包全量通过。
+
+## [2026-08-19] 顶部导航搜索栏一体化琉璃胶囊美化（聚焦微光 + 快捷清空 + 键盘提示）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **一体化琉璃胶囊架构**：重构桌面端原先外置分离的独立搜索按钮，合并为现代圆润搜索胶囊（Pill Capsule），内嵌 SVG 放大镜图标，提升导航栏整体通透度与屏效；
+  2. **交互微动效与聚焦高亮**：
+     - 聚焦（Focus-within）时平滑展开宽度（`w-48 lg:w-60` $\rightarrow$ `w-60 lg:w-72 xl:w-80`），并赋予天青色柔和环境光环（`var(--kz-accent-ring)`）；
+     - 未聚焦/Hover 时提供柔和边框与背景过渡；
+  3. **快捷交互与按键提示**：
+     - 输入文本时，右侧显示微型圆角清空按钮（`×`），一键快速重置关键词；
+     - 空白待机状态下，右侧呈现精致的 `↵`（Enter）键盘回车快捷提示徽标；
+  4. **移动端搜索覆盖层对齐**：移动端全屏搜索弹层同样升级为一致的圆润琉璃胶囊质感与清空按键。
+- 涉及文件：apps/web/src/components/Layout.tsx
+- 备注：全仓类型检查与前端生产打包全量通过。
+
+## [2026-08-19] 首页精简改造与多板块（热门番剧 / 剧场版 / OVA / 继续观看）分层浏览
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **移除冗余顶部标题**：去除首页顶部的 `PageHeader`（「发现」与副标题描述），大幅提升首屏屏效与视觉极简质感；
+  2. **多板块楼层式浏览**：
+     - **继续观看**：用户有观看历史时在顶部首个展示，右侧提供「查看更多」直达 `/history`；
+     - **热门番剧**：展示当期 Bangumi 实时热度最高的连载动画（前 14 部），首屏 6 张封面预热起播，右侧「查看更多」直达 `/anime`；
+     - **剧场版**：展示热度最高的动画电影精选（前 14 部），右侧「查看更多」带筛选直达 `/anime?tag=剧场版&year=all&month=all`；
+     - **OVA / 特别篇**：展示高热度 OVA / SP / OAD 番剧（前 14 部），右侧「查看更多」带筛选直达 `/anime?tag=OVA&year=all&month=all`；
+  3. **分类页面联动优化**：
+     - 在 `AnimePage.tsx` 的类型筛选 Chips 中加入 `剧场版` 与 `OVA` 常用分类，并为非预设自定义 tag 提供动态激活标签支持；
+     - 统一所有板块右侧跳转文案为简约的「查看更多」。
+- 涉及文件：apps/web/src/pages/HomePage.tsx, apps/web/src/pages/AnimePage.tsx
+- 备注：全仓类型检查与前端生产打包全量通过。
+
 ## [2026-08-19] 统一项目动态版本号体系（v1.1.1）并全站页面优雅展示
 - 状态：已完成
 - 优先级：P1

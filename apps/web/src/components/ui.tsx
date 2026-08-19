@@ -118,7 +118,7 @@ const DEFAULT_EAGER_COVERS = 12
 
 /** Same track as live grid — skeleton must match or CLS returns. */
 const BANGUMI_GRID_CLASS =
-  'grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 sm:gap-x-5 sm:gap-y-7 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7'
+  'grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 sm:gap-x-5 sm:gap-y-7 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-6 2xl:grid-cols-6'
 
 export const BangumiGrid = memo(function BangumiGrid({
   items,

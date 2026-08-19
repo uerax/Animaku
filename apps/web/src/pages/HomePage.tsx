@@ -5,7 +5,6 @@ import {
   BangumiGrid,
   BangumiGridSkeleton,
   ErrorState,
-  PageHeader,
 } from '../components/ui'
 import { useHistoryStore } from '../stores/history'
 import { Link } from 'react-router-dom'
@@ -13,14 +12,42 @@ import { useEffect, useMemo } from 'react'
 import { EMPTY_ARRAY } from '../lib/stable'
 import { preloadVideoPlayer } from '../player/lazy'
 
+const SECTION_LIMIT = 12
+
 export function HomePage() {
   const trending = useQuery({
-    queryKey: ['trending'],
-    queryFn: ({ signal }) => bangumiApi.trending(28, 0, { signal }),
-    // Align with server bangumi trending TTL (12h); keep client shorter to revalidate via /api HIT
+    queryKey: ['trending', SECTION_LIMIT],
+    queryFn: ({ signal }) => bangumiApi.trending(SECTION_LIMIT, 0, { signal }),
     staleTime: 2 * 60 * 60_000,
     gcTime: 12 * 60 * 60_000,
   })
+
+  const movies = useQuery({
+    queryKey: ['home-movies', SECTION_LIMIT],
+    queryFn: ({ signal }) =>
+      bangumiApi.search('', {
+        tags: ['剧场版'],
+        sort: 'heat',
+        limit: SECTION_LIMIT,
+        signal,
+      }),
+    staleTime: 2 * 60 * 60_000,
+    gcTime: 12 * 60 * 60_000,
+  })
+
+  const ovas = useQuery({
+    queryKey: ['home-ovas', SECTION_LIMIT],
+    queryFn: ({ signal }) =>
+      bangumiApi.search('', {
+        tags: ['OVA'],
+        sort: 'heat',
+        limit: SECTION_LIMIT,
+        signal,
+      }),
+    staleTime: 2 * 60 * 60_000,
+    gcTime: 12 * 60 * 60_000,
+  })
+
   const items = useHistoryStore((s) =>
     Array.isArray(s.items) ? s.items : EMPTY_ARRAY,
   )
@@ -47,11 +74,6 @@ export function HomePage() {
 
   return (
     <div className="space-y-10">
-      <PageHeader
-        title="发现"
-        description="来自 Bangumi 的动画趋势，点击进入详情与选源播放"
-      />
-
       {recent.length > 0 && (
         <section>
           <div className="mb-4 flex items-center justify-between gap-2">
@@ -60,7 +82,7 @@ export function HomePage() {
               to="/history"
               className="text-[13px] font-medium text-[var(--kz-accent)] hover:underline"
             >
-              全部历史
+              查看更多
             </Link>
           </div>
           {/*
@@ -117,16 +139,64 @@ export function HomePage() {
         </section>
       )}
 
+      {/* 热门番剧 */}
       <section>
-        <div className="mb-4 flex items-end justify-between gap-2">
-          <h2 className="kz-section-title">热门趋势</h2>
-          <span className="kz-section-meta">BANGUMI</span>
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <h2 className="kz-section-title">热门番剧</h2>
+          <Link
+            to="/anime"
+            className="text-[13px] font-medium text-[var(--kz-accent)] hover:underline"
+          >
+            查看更多
+          </Link>
         </div>
         {trending.isLoading && <BangumiGridSkeleton count={12} />}
         {trending.isError && (
           <ErrorState error={trending.error} onRetry={() => trending.refetch()} />
         )}
-        {trending.data && <BangumiGrid items={trending.data?.data} />}
+        {trending.data && (
+          <BangumiGrid items={trending.data.data} eagerCount={6} />
+        )}
+      </section>
+
+      {/* 剧场版 */}
+      <section>
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <h2 className="kz-section-title">剧场版</h2>
+          <Link
+            to="/anime?tag=%E5%89%A7%E5%9C%BA%E7%89%88&year=all&month=all"
+            className="text-[13px] font-medium text-[var(--kz-accent)] hover:underline"
+          >
+            查看更多
+          </Link>
+        </div>
+        {movies.isLoading && <BangumiGridSkeleton count={12} />}
+        {movies.isError && (
+          <ErrorState error={movies.error} onRetry={() => movies.refetch()} />
+        )}
+        {movies.data && (
+          <BangumiGrid items={movies.data.data} eagerCount={0} />
+        )}
+      </section>
+
+      {/* OVA / 特别篇 */}
+      <section>
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <h2 className="kz-section-title">OVA / 特别篇</h2>
+          <Link
+            to="/anime?tag=OVA&year=all&month=all"
+            className="text-[13px] font-medium text-[var(--kz-accent)] hover:underline"
+          >
+            查看更多
+          </Link>
+        </div>
+        {ovas.isLoading && <BangumiGridSkeleton count={12} />}
+        {ovas.isError && (
+          <ErrorState error={ovas.error} onRetry={() => ovas.refetch()} />
+        )}
+        {ovas.data && (
+          <BangumiGrid items={ovas.data.data} eagerCount={0} />
+        )}
       </section>
     </div>
   )
