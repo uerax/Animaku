@@ -133,6 +133,7 @@ export class CanvasDanmaku {
   private anchorMediaTime = 0
   private anchorPerfTime = 0
   private isBuffering = false
+  private waitingTimer: number | null = null
   private lastPlaybackRate = 1
   private rvfcHandle = 0
 
@@ -176,6 +177,7 @@ export class CanvasDanmaku {
       pointerEvents: 'none',
       zIndex: '0',
       display: 'block',
+      contain: 'strict',
       willChange: 'transform',
       transform: 'translateZ(0)',
     } as CSSStyleDeclaration)
@@ -205,10 +207,11 @@ export class CanvasDanmaku {
     this.syncClock(this.media.currentTime)
 
     this.onPlay = () => {
+      this.clearWaitingTimer()
       this.isBuffering = false
       const curMediaT = this.media?.currentTime || 0
-      // If time jumped significantly (> 1.0s) while paused (seek without event), re-sync anchor
-      if (Math.abs(this.anchorMediaTime - curMediaT) > 1.0) {
+      // If time jumped significantly (> 3.0s) while paused (seek without event), re-sync anchor
+      if (Math.abs(this.anchorMediaTime - curMediaT) > 3.0) {
         this.anchorMediaTime = curMediaT
         this.seek()
       }
@@ -217,9 +220,10 @@ export class CanvasDanmaku {
       this.ensureLoop()
     }
     this.onPlaying = () => {
+      this.clearWaitingTimer()
       this.isBuffering = false
       const curMediaT = this.media?.currentTime || 0
-      if (Math.abs(this.anchorMediaTime - curMediaT) > 1.0) {
+      if (Math.abs(this.anchorMediaTime - curMediaT) > 3.0) {
         this.anchorMediaTime = curMediaT
         this.seek()
       }
@@ -228,25 +232,40 @@ export class CanvasDanmaku {
       this.ensureLoop()
     }
     this.onPause = () => {
+      this.clearWaitingTimer()
       this.isBuffering = false
       // Freeze smoothly at the exact interpolated visual time of the current frame,
       // guaranteeing zero rollback, zero forward snap, and zero lane-switching.
-      const currentInterpolated = this.mediaTime()
-      this.anchorMediaTime = currentInterpolated
-      this.anchorPerfTime = performance.now()
+      const now = performance.now()
+      const frozenTime = this.getInterpolatedTime(now)
+      this.anchorMediaTime = frozenTime
+      this.anchorPerfTime = now
       this.stopLoop()
       this.paint()
     }
     this.onWaiting = () => {
-      this.isBuffering = true
-      this.syncClock(this.media.currentTime)
+      this.clearWaitingTimer()
+      // Weak-network / buffering debounce: ignore micro PTS stutters (< 200ms)
+      // If buffering genuinely lasts > 200ms, freeze visual time cleanly
+      this.waitingTimer = window.setTimeout(() => {
+        if (this.destroyed || !this.media || this.media.paused) return
+        this.isBuffering = true
+        const now = performance.now()
+        const frozenTime = this.getInterpolatedTime(now)
+        this.anchorMediaTime = frozenTime
+        this.anchorPerfTime = now
+        this.stopLoop()
+        this.paint()
+      }, 200)
     }
     this.onSeeking = () => {
+      this.clearWaitingTimer()
       this.isBuffering = true
       this.syncClock(this.media.currentTime)
       this.seek()
     }
     this.onSeeked = () => {
+      this.clearWaitingTimer()
       this.isBuffering = false
       this.syncClock(this.media.currentTime)
       this.seek()
@@ -515,9 +534,17 @@ export class CanvasDanmaku {
     return this
   }
 
+  private clearWaitingTimer(): void {
+    if (this.waitingTimer !== null) {
+      clearTimeout(this.waitingTimer)
+      this.waitingTimer = null
+    }
+  }
+
   destroy(): void {
     if (this.destroyed) return
     this.destroyed = true
+    this.clearWaitingTimer()
     this.stopLoop()
     this.media.removeEventListener('play', this.onPlay)
     this.media.removeEventListener('playing', this.onPlaying)
@@ -546,11 +573,16 @@ export class CanvasDanmaku {
     this.lastPlaybackRate = this.effectivePlaybackRate()
   }
 
-  /** Monitor video clock drift and softly adjust anchor without visible snapping */
+  /**
+   * Continuous Moving-Average & Monotonic Clock Synchronization:
+   * 1. Monotonic clamp (drift < -0.02s): Video lags / frame drop -> clamp to predicted, zero rollback.
+   * 2. Small deadband (-0.02s <= drift <= 0.08s): Advance anchorPerfTime = now seamlessly without jerk.
+   * 3. Gentle damped catch-up (0.08s < drift <= 3.0s): First-order EMA filter (alpha = 0.05).
+   * 4. Hard Jump (> 3.0s): User seek / major stream discontinuity -> instant re-anchor & seek.
+   */
   private checkClockDrift(rawVideoTime: number): void {
     if (this.media.paused || this.isBuffering) {
-      // While paused, only re-sync and seek on true large jumps (seek > 1.5s without event)
-      if (Math.abs(rawVideoTime - this.anchorMediaTime) > 1.5) {
+      if (Math.abs(rawVideoTime - this.anchorMediaTime) > 3.0) {
         this.anchorMediaTime = rawVideoTime
         this.anchorPerfTime = performance.now()
         this.seek()
@@ -564,23 +596,42 @@ export class CanvasDanmaku {
     const predicted = this.anchorMediaTime + elapsed
     const drift = rawVideoTime - predicted
 
-    // If drift is large (> 0.6s, e.g. unnotified seek or decoder stall), hard re-anchor and seek
-    if (Math.abs(drift) > 0.6) {
+    // Large jump (> 3.0s): Large seek / stream discontinuity
+    if (Math.abs(drift) > 3.0) {
       this.anchorMediaTime = rawVideoTime
       this.anchorPerfTime = now
       this.seek()
-    } else if (drift < -0.02) {
-      // Decoder stall / frame drop causes rawVideoTime to lag behind continuous prediction:
-      // Clamp to predicted time to maintain strict monotonicity and prevent reverse rollback jitter
+      return
+    }
+
+    // Monotonic protection: if video lagged (drift < -0.02), clamp to predicted
+    if (drift < -0.02) {
       this.anchorMediaTime = predicted
       this.anchorPerfTime = now
-    } else {
-      // Continuous moving-average clock synchronization:
-      // Smoothly advance anchor toward rawVideoTime and reset elapsed to 0, eliminating long-term accumulation
-      const alpha = Math.abs(drift) > 0.15 ? 0.25 : 0.08
-      this.anchorMediaTime = predicted + drift * alpha
-      this.anchorPerfTime = now
+      return
     }
+
+    // Small drift deadband (-0.02 <= drift <= 0.08): advance smoothly without jump
+    if (drift <= 0.08) {
+      this.anchorMediaTime = predicted
+      this.anchorPerfTime = now
+      return
+    }
+
+    // Gentle damped drift (0.08 < drift <= 3.0): Exponential Moving Average (alpha = 0.05)
+    const alpha = 0.05
+    this.anchorMediaTime = predicted + drift * alpha
+    this.anchorPerfTime = now
+  }
+
+  /**
+   * Continuous interpolated media time based on wall-clock progression.
+   * Computes (anchorMediaTime + elapsed) regardless of whether media.paused is already true.
+   */
+  private getInterpolatedTime(now = performance.now()): number {
+    const rate = this.effectivePlaybackRate()
+    const elapsed = (now - this.anchorPerfTime) * 0.001 * rate
+    return Math.max(0, this.anchorMediaTime + elapsed)
   }
 
   /** High-precision smooth continuous media time (pure interpolation during active playback) */
@@ -589,10 +640,7 @@ export class CanvasDanmaku {
     if (this.media.paused || this.isBuffering) {
       return this.anchorMediaTime
     }
-    const now = performance.now()
-    const rate = this.effectivePlaybackRate()
-    const elapsed = (now - this.anchorPerfTime) * 0.001 * rate
-    return Math.max(0, this.anchorMediaTime + elapsed)
+    return this.getInterpolatedTime()
   }
 
   private ensureMeasured(p: Prepared): void {
@@ -782,32 +830,11 @@ export class CanvasDanmaku {
   ) => {
     this.rvfcHandle = 0
     if (this.destroyed || !this.visible) return
-    if (!this.media.paused && !this.isBuffering) {
-      if (Number.isFinite(metadata.mediaTime) && metadata.mediaTime >= 0) {
-        const now = performance.now()
-        const rate = this.effectivePlaybackRate()
-        const rawVideoTime = metadata.mediaTime
 
-        const elapsed = (now - this.anchorPerfTime) * 0.001 * rate
-        const predicted = this.anchorMediaTime + elapsed
-        const drift = rawVideoTime - predicted
-
-        if (Math.abs(drift) > 0.6) {
-          this.anchorMediaTime = rawVideoTime
-          this.anchorPerfTime = now
-          this.seek()
-        } else if (drift < -0.015) {
-          // Hardware frame Presentation Time is lagging behind visual interpolation (dropped frames / decoder stutter):
-          // Enforce strictly monotonic clock advance to prevent rubber-banding and jitter
-          this.anchorMediaTime = predicted
-          this.anchorPerfTime = now
-        } else {
-          // Frame-accurate presentation sync: lock anchor to the displayed video frame
-          this.anchorMediaTime = rawVideoTime
-          this.anchorPerfTime = now
-        }
-      }
+    if (!this.media.paused && !this.isBuffering && Number.isFinite(metadata.mediaTime) && metadata.mediaTime >= 0) {
+      this.checkClockDrift(metadata.mediaTime)
     }
+
     if (!this.destroyed && !this.media.paused && this.visible) {
       this.startRvfc()
     }

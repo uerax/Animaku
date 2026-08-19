@@ -1,17 +1,35 @@
 # Animaku 项目状态快照 (STATE.md)
 
-## [2026-08-19] 归档 Safari / iOS 播放与弹幕闪烁抽搐深度解耦重构方案至 BUGS.md
-- 状态：待处理
+## [2026-08-19] 修复暂停弹幕时间向后回跳与多次暂停继续突发冒出弹幕 Bug
+- 状态：已完成
 - 优先级：P0
 - 描述：
-  1. **问题复盘与底层成因分析**：排查上一版 15ms 死区被 24fps 视频 PTS 波动击穿导致微观时间倒流（Negative Delta）与 1~2px 高频回弹震颤；定位 `rVFC` 硬件帧与 `timeupdate` 双时钟竞争以及弹幕强绑定视频瞬态的耦合缺陷；
-  2. **多模型分析方案架构**：
-     - **方案 A（核心推荐）**：纯物理墙上时钟驱动（`performance.now()` 100% 匀速推进）+ 0.5s 死区容忍 + 一阶低通阻尼滤波（EMA Filter）解耦架构；
-     - **方案 B（iOS 专属优化）**：DPR 上限钳制（2.0x）、字形池显存控制与 CSS GPU 独立硬件加速图层隔离；
-     - **方案 C（备选分析）**：Web Worker + OffscreenCanvas 独立线程渲染方案评估；
-  3. **归档待评审决议项**：将方案全景与多模型评审关键问题写入 `.claude/BUGS.md`。
-- 涉及文件：.claude/BUGS.md
-- 备注：等待多模型对比分析与方案定型。
+  1. **排查根本原因**：
+     - **暂停回弹**：点击暂停时浏览器底层在分发 `pause` 事件前已将 `video.paused` 置为 `true`；原先 `onPause` 调用 `mediaTime()` 因命中 `if (video.paused)` 返回了数秒前的陈旧 `anchorMediaTime`，导致时间被拉回历史时刻；
+     - **多次暂停继续突发冒弹幕 / 换轨**：原先 `onPlay`、`onPlaying` 与 `checkClockDrift` 在暂停态下设置了过严的 `> 1.0s` 判定，当快速连续点击暂停/继续时，视频 `currentTime` 瞬间被判定为超时并粗暴触发了 `this.seek()`。`seek()` 内部会清空所有正在运行的弹幕并重置所有轨道，导致已有弹幕全部被重新排轨到最顶部第 0 轨道，引发视觉上「突然冒出一堆弹幕」与「弹幕跳行换轨」的严重 Bug；
+  2. **系统性修复与解耦**：
+     - 实现 `getInterpolatedTime(now)`，无论是否已暂停均强制基于 `now - anchorPerfTime` 计算精确当前帧时间，并在 `onPause` 中捕获冻结时间；
+     - 将常规播放与起播的 `seek()` 触发门槛提升为真正的大跨度寻道（`> 3.0s`），普通暂停/继续恢复播放绝对禁止调用 `seek()`，保持 `running` 运行队列与轨道分配 100% 连贯平滑；
+     - 统一 `timeupdate` 与 `rVFC` 的时钟同步管线至 `checkClockDrift`：死区内推进 `anchorPerfTime` 保持连续、滞后漂移单调保底（$D < -0.02$）、超前漂移 EMA 低通平滑（$D > 0.08$），杜绝时间漂移累积。
+- 涉及文件：apps/web/src/player/media/canvas-danmaku.ts, .claude/BUGS.md
+- 备注：全仓类型检查与前端生产打包全量通过。
+
+## [2026-08-19] 落地 Safari / iOS 弹幕纯物理时钟驱动与阻尼低通滤波解耦重构 (方案 1)
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **纯物理墙上时钟驱动**：在正常播放下，弹幕渲染位移 $x$ 100% 严格由 `performance.now()` 驱动（纯单调递增），消除每帧或每秒内微调 `anchorMediaTime` 带来的时间抖动；
+  2. **分级漂移治理策略（Tiered Drift Policy）**：
+     - **死区（0 ~ 0.5s）**：完全不修正（Zero Intervention），吸收所有 24fps/30fps 视频 PTS 波动、VideoToolbox 时间戳离散与解码掉帧，弹幕保持 60/120fps 满帧匀速划过；
+     - **轻微漂移（0.5s ~ 2.0s）**：采用一阶低通指数平滑滤波器（EMA，$\alpha = 0.05$）亚像素平滑校准，并对滞后漂移严格施加单调保底（Non-decreasing Clamping），彻底杜绝时间倒流与 1~2px 高频回弹抽搐；
+     - **硬跳跃（> 2.0s 或显式 Seek）**：判定为用户寻道或剧烈切流，触发重新排轨与对齐；
+  3. **时钟源收敛与隔离**：彻底废除 `timeupdate` 对播放中锚点的直接覆盖；`rVFC` 仅作为 > 2.0s 大漂移看门狗，不再介入正常帧位移计算；
+  4. **缓冲/暂停优雅定格与防抖**：
+     - 收到 `pause` 事件瞬间精确捕获当前即时视觉时间冻结；
+     - 收到 `waiting` 事件引入 200ms 防抖计时器，平滑过滤网络微抖动（<200ms 不停顿），真实弱网缓冲超过 200ms 时平滑停滞；
+  5. **iOS WebKit 渲染优化**：弹幕 Canvas 增加 `contain: strict; will-change: transform; transform: translateZ(0);`，物理 DPR 严格钳制 $\le 2.0$。
+- 涉及文件：apps/web/src/player/media/canvas-danmaku.ts, .claude/BUGS.md
+- 备注：全仓类型检查与前端生产打包全量通过。
 
 ## [2026-08-19] 消除搜索框聚焦点击卡顿（移除宽度重排拉伸 + 纯 GPU 毫秒级微光聚焦）
 - 状态：已完成
