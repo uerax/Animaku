@@ -2,7 +2,58 @@
 
 ## 📌 待处理清单 (Active TODOs)
 
-*(当前待处理清单暂无未决条目)*
+### [2026-08-19] Safari / iOS 播放卡顿与弹幕闪烁抽搐深度解耦重构 (P0)
+
+#### 1. 现状与痛点复盘 (Problem Analysis)
+- **现象**：Chrome 下视频与弹幕播放极其流畅，但在 Safari（特别是 iOS Safari / iPadOS）下存在微卡顿感，且弹幕伴随视频掉帧产生肉眼可见的**高频文字闪烁、微回弹、忽快忽慢与抽搐**。
+- **上一版改动为何未彻底解决**：
+  1. **死区阈值（15ms）被击穿导致微观「时间倒流」**：动画通常为 24fps（两帧间隔 41.6ms），Safari VideoToolbox 汇报的 PTS 存在 5ms~14ms 离散抖动。当 drift 落在 `[-0.015, 0]` 时触发了直接覆盖锚点，导致 `mediaTime` 比上一帧减小，弹幕向后回弹 1px，随后下一帧又前冲 2px，引发剧烈高频震颤。
+  2. **双时钟源竞争抢夺**：`rVFC`（硬件视频帧回调）与 `onTimeUpdate`（Safari 下 4~15Hz 粗粒度时钟）以不同频率和精度同时修改同一个 `anchorMediaTime` 锚点变量。
+  3. **架构强耦合缺陷**：弹幕运动强行绑定视频硬件帧的瞬时状态。视频在网络分片或软解时的微观 Jitter（抖动）被直接放大为弹幕运动的不均匀。
+  4. **iOS 3x Retina 显存与 CoreAnimation 合成开销**：高分屏下全屏 Canvas 物理分辨率过大（如 2556×1179），在 WebKit 中每帧与 `<video>` 进行 Metal Alpha 混合极易引发掉帧。
+
+---
+
+#### 2. 技术方案设计（供多模型综合分析与评估）
+
+##### 🎯 方案 A（核心推荐）：纯物理墙上时钟驱动 + 阻尼低通滤波解耦架构 (Wall-Clock Pacing & Decoupled Filter)
+- **核心理念**：人眼对弹幕的感知诉求是**物理空间的绝对匀速连续运动**。弹幕超前或滞后视频 100~200ms 完全不可感知，但速度突变 1 像素会立即被感知为闪烁卡顿。
+- **具体实现细节**：
+  1. **物理时钟绝对驱动**：正常播放状态下，弹幕渲染位移 $x$ **100% 严格由 `performance.now()` 驱动**（物理单调递增），完全杜绝每帧或每秒内微调 `anchorMediaTime`。
+  2. **分级漂移治理策略（Tiered Drift Policy）**：
+     - **死区（0 ~ 0.5s）**：完全不修正（Zero Intervention），吸收所有 24fps PTS 抖动、网络微延迟与解码掉帧，弹幕保持 60/120fps 满帧匀速划过；
+     - **轻微漂移（0.5s ~ 2.0s）**：使用一阶低通指数平滑滤波器（EMA Filter，$\alpha \approx 0.05$）以每帧微像素级的速度极其缓慢地靠近视频时间，禁止突发瞬移；
+     - **硬跳跃（> 2.0s 或显式 Seek）**：判定为用户寻道/切集，触发 `seek()` 清空跑道并重新排轨。
+  3. **时钟源收敛与隔离**：
+     - 彻底废除 `timeupdate` 对播放中弹幕时钟的写入权限（`timeupdate` 仅用于进度条与播放历史）；
+     - `rVFC` 仅作为视频是否真正卡死（Stall）的看门狗（Watchdog），不再直接覆写渲染锚点。
+  4. **缓冲/暂停优雅定格**：
+     - 收到 `pause` 事件时，捕获当前视觉即时时间精确冻结；
+     - 收到 `waiting` 事件且超过 200ms 时，执行线性阻尼平滑减速至停滞，避免生硬刹车。
+
+##### 🎯 方案 B：iOS WebKit 渲染轻量化与显存优化 (iOS Canvas GPU Optimization Pipeline)
+- **具体实现细节**：
+  1. **DPR 上限钳制**：在移动端/iOS 下，将 Canvas 的物理 `devicePixelRatio` 严格钳制为最大 `2.0`（即使硬件为 3.0x），像素渲染面积减少 55%，显著降低 Metal 合成负载；
+  2. **离屏字形位图池生命周期控制**：限制 `MAX_GLYPH_CACHE`，避免频繁 `createElement('canvas')` 触发 iOS WebKit 的激进显存回收与 GC 停顿；
+  3. **CSS 独立图层约束**：确保弹幕 Canvas 具备 `contain: strict; will-change: transform; transform: translateZ(0);`，杜绝触发布局重排与图层重构。
+
+##### 🎯 方案 C（备选分析）：Web Worker + OffscreenCanvas 独立线程渲染
+- **思路**：将弹幕位移计算与 Canvas 绘制全部移入 Worker 线程，主线程只传递 `play/pause/seek` 指令。
+- **风险评估项**：需评估 iOS Safari 老版本对 `canvas.transferControlToOffscreen()` 的支持度，以及 Worker 线程在 iOS 低电量模式下的节流策略。
+
+---
+
+#### 3. 供模型评审的关键决策问题 (Questions for Multi-Model Analysis)
+1. 在方案 A 中，将微观漂移容忍死区设定为 `0.5s` 是否足以消除 99% 的视频 Jitter 且不破坏弹幕与视频剧情的对齐感知？
+2. 在 Safari 原生 HLS（AVPlayer 黑盒）模式下，如何最优雅地判定视频进入了真实的 Weak-Network Rebuffering（缓冲等待）而不是普通的 PTS 丢帧？
+3. 是否需要彻底移除 `requestVideoFrameCallback`（rVFC）在弹幕位移计算中的角色，仅依赖纯 `requestAnimationFrame` + `performance.now()`？
+
+---
+
+- **涉及文件**：
+  - `apps/web/src/player/media/canvas-danmaku.ts`
+  - `apps/web/src/player/VideoPlayer.tsx`
+  - `apps/web/src/player/media/danmaku-utils.ts`
 
 ---
 
