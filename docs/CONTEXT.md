@@ -128,7 +128,7 @@ Browser (WEB_DEV_PORT，默认 5173)
 
 - `X-Cache: HIT|MISS`；`?refresh=1` 或 `Cache-Control: no-cache` 绕过  
 - 规则冒烟测试强制 `refresh: true`，避免假绿  
-- 播放：直连失败 → 改走 proxy；仍失败 → 强制 re-resolve 一次（每集预算）  
+- 播放：播放失败直接提示用户切换可用视频源（不自动切换代理，快速失败）  
 - `maxEntries` 插件侧约 400；进程重启清空  
 
 ---
@@ -218,9 +218,9 @@ Browser (WEB_DEV_PORT，默认 5173)
 - **嵌套 m3u8：** 顶层常是 master（无 DISCONTINUITY）；rewrite 子列表 URI 时必须**继续带上** `adFilter=1`，否则只滤 master（空操作）而 `mixed.m3u8` 广告仍在（MXdm 即此结构）。
 - 开关：规则 JSON `adBlocker`（设置页「广告过滤」）；全局 `player.forceAdBlocker`（强制，忽略规则关）。默认内置仅 **MXdm** 开，Anime1 / otage / xifan 关。
 - 开启时 **播放列表**必须走代理（直连原始 m3u8 会跳过过滤）。**混合 rewrite：** 无 `cookie` 且无 `fullProxy=1` 时，嵌套 `.m3u8` 仍代理，`.ts`/分片保持 CDN 绝对地址（浏览器直拉，省服务器出站）。`#EXT-X-KEY` 等 URI= 属性仍代理。
-- 有 `cookie=`、或客户端 `forceMediaProxy` / 直连失败降级写入的 `fullProxy=1`：恢复「全 URI 改写进代理」。
+- 有 `cookie=`、或客户端「服务器代理」开启写入的 `fullProxy=1`：恢复「全 URI 改写进代理」。
 - 无 DISCONTINUITY 的片源过滤无效；iframe 降级无效。
-- **媒体走服务器代理** `player.forceMediaProxy`（设置页）：默认关；勾选后入口 proxy 带 `fullProxy=1`，分片也经本机。搜索/分集/解析本就走 API，此项只影响播放媒体。直连失败时页面仍会临时 `forceProxy` 一次。
+- **服务器代理** `player.serverProxy`（设置页）：默认关；勾选后入口 proxy 带 `fullProxy=1`，分片也经本机。搜索/分集/解析本就走 API，此项只影响播放媒体。直连模式失败后不自动回退代理。
 
 ### 校验 API 规则时
 

@@ -1,13 +1,14 @@
 /**
  * Choose video src: prefer direct CDN URL to save server bandwidth,
- * fall back to media proxy when CORS / hotlink blocks direct play.
+ * use media proxy when per-source proxy / settings serverProxy is enabled,
+ * or when proxy auth / ad-filter requires server handling.
  *
  * Always use proxy *entry* when:
  * - no playUrl
  * - proxy carries cookie= (auth-gated progressive sources)
  * - proxy carries adFilter= / forceAdFilter (playlist must be server-filtered;
  *   hybrid rewrite then leaves .ts on CDN unless fullProxy/cookie)
- * - forceProxy (session: after direct-play failure, or settings forceMediaProxy)
+ * - forceProxy (settings serverProxy / per-source proxy enabled)
  *
  * forceProxy also sets fullProxy=1 so m3u8 rewrite still tunnels every segment
  * (not only nested playlists).
@@ -112,7 +113,7 @@ export function withProxyToken(proxyUrl: string, token?: string | null): string 
 export function pickPlaybackSrc(opts: {
   playUrl?: string | null
   proxyUrl?: string | null
-  /** User/system forced proxy after direct failed — also fullProxy segments */
+  /** Master/per-source forced proxy (serverProxy / per-source proxy enabled) — also fullProxy segments */
   forceProxy?: boolean
   /**
    * Global force HLS ad-filter (PlayerSettings.forceAdBlocker).

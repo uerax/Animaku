@@ -359,7 +359,6 @@ export function useWatchSession(bangumiId: number): WatchSession {
   /** Per-source manual keyword overrides when user explicitly types or selects a keyword */
   const [manualKeywords, setManualKeywords] = useState<Record<string, string>>({})
   const [playerRemount, setPlayerRemount] = useState(0)
-  const [forceProxy, setForceProxy] = useState(false)
   /** Continue-play seek target — state (not ref) so first media mount sees it. */
   const [resumePosition, setResumePosition] = useState(0)
 
@@ -373,8 +372,6 @@ export function useWatchSession(bangumiId: number): WatchSession {
   const chaptersAbort = useRef<AbortController | null>(null)
   /** Next resolve queryFn uses refresh=1 once (auth expiry / hard media fail). */
   const resolveRefreshOnce = useRef(false)
-  /** pageUrl we already forced a fresh resolve for after media fail — avoid loops. */
-  const resolveFailBudgetFor = useRef<string | null>(null)
   const [hudMessage, setHudMessage] = useState<string | null>(null)
   useEffect(() => {
     if (!hudMessage) return
@@ -1399,11 +1396,6 @@ export function useWatchSession(bangumiId: number): WatchSession {
     setResumePosition(pos)
   }, [selection, episode, bangumiId])
 
-  useEffect(() => {
-    setForceProxy(false)
-    resolveFailBudgetFor.current = null
-  }, [episode?.pageUrl, selection?.plugin.name])
-
   function pickEpisode(epIndex: number, roadIndex = visibleRoad) {
     if (!selection) return
     const road = selection.roads[roadIndex]
@@ -1504,17 +1496,16 @@ export function useWatchSession(bangumiId: number): WatchSession {
         isProxyUnlocked,
       )
     : false
-  const sessionForceProxy = mediaFullProxy && forceProxy
   const playback = useMemo(
     () =>
       pickPlaybackSrc({
         playUrl,
         proxyUrl,
-        forceProxy: preferMediaProxy || sessionForceProxy,
+        forceProxy: preferMediaProxy,
         forceAdFilter,
         proxyToken,
       }),
-    [playUrl, proxyUrl, preferMediaProxy, sessionForceProxy, forceAdFilter, proxyToken],
+    [playUrl, proxyUrl, preferMediaProxy, forceAdFilter, proxyToken],
   )
   const mediaSrc = episode ? playback.src : ''
   const effectiveResume =

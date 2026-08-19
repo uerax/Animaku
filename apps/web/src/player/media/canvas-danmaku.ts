@@ -176,14 +176,21 @@ export class CanvasDanmaku {
       pointerEvents: 'none',
       zIndex: '0',
       display: 'block',
+      willChange: 'transform',
+      transform: 'translateZ(0)',
     } as CSSStyleDeclaration)
     this.canvas = canvas
 
+    const isSafari =
+      typeof navigator !== 'undefined' &&
+      /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+
     const ctx =
-      canvas.getContext('2d', {
-        alpha: true,
-        desynchronized: true,
-      } as CanvasRenderingContext2DSettings) ||
+      (!isSafari &&
+        canvas.getContext('2d', {
+          alpha: true,
+          desynchronized: true,
+        } as CanvasRenderingContext2DSettings)) ||
       canvas.getContext('2d', { alpha: true })
     if (!ctx) throw new Error('CanvasDanmaku: 2d context unavailable')
     this.ctx = ctx
@@ -562,6 +569,11 @@ export class CanvasDanmaku {
       this.anchorMediaTime = rawVideoTime
       this.anchorPerfTime = now
       this.seek()
+    } else if (drift < -0.02) {
+      // Decoder stall / frame drop causes rawVideoTime to lag behind continuous prediction:
+      // Clamp to predicted time to maintain strict monotonicity and prevent reverse rollback jitter
+      this.anchorMediaTime = predicted
+      this.anchorPerfTime = now
     } else {
       // Continuous moving-average clock synchronization:
       // Smoothly advance anchor toward rawVideoTime and reset elapsed to 0, eliminating long-term accumulation
@@ -784,6 +796,11 @@ export class CanvasDanmaku {
           this.anchorMediaTime = rawVideoTime
           this.anchorPerfTime = now
           this.seek()
+        } else if (drift < -0.015) {
+          // Hardware frame Presentation Time is lagging behind visual interpolation (dropped frames / decoder stutter):
+          // Enforce strictly monotonic clock advance to prevent rubber-banding and jitter
+          this.anchorMediaTime = predicted
+          this.anchorPerfTime = now
         } else {
           // Frame-accurate presentation sync: lock anchor to the displayed video frame
           this.anchorMediaTime = rawVideoTime

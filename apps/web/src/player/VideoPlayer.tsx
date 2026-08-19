@@ -763,17 +763,12 @@ export function VideoPlayer({
           const reason = video.error?.code
             ? `video_error_${video.error.code}`
             : 'video_load_failed'
-          // Direct CDN (CORS / hotlink) → parent may switch to proxy
-          if (!activeSrc.includes('/api/media/proxy')) {
-            setMediaError('直链失败，尝试代理…')
-            reportLoadFailed(reason)
-            return
-          }
           setMediaError(
             video.error?.code
-              ? `视频错误 code=${video.error.code}（请重新选集）`
-              : '视频加载失败，请重新选集',
+              ? `视频错误 code=${video.error.code}（建议切换视频源）`
+              : '视频加载失败，建议切换视频源',
           )
+          reportLoadFailed(reason)
         },
         { once: true },
       )
@@ -906,19 +901,12 @@ export function VideoPlayer({
                 return
               }
               console.error('[player] hls fatal', data.type, data.details)
-              // Direct CDN often fails CORS; let parent fall back to proxy
-              const direct = !activeSrc.includes('/api/media/proxy')
-              if (direct && data.type === HlsCtor.ErrorTypes.NETWORK_ERROR) {
+              if (data.type === HlsCtor.ErrorTypes.NETWORK_ERROR) {
                 setLoading(false)
                 setBufferingUi(false)
-                setMediaError('直链失败，尝试代理…')
+                setMediaError(`网络连接错误 ${data.details || ''}，建议切换视频源`)
                 reportLoadFailed(String(data.details || 'hls_network'))
                 return
-              }
-              if (data.type === HlsCtor.ErrorTypes.NETWORK_ERROR) {
-                setMediaError(`网络错误 ${data.details || ''}，重试…`)
-                setBufferingUi(true)
-                hls.startLoad()
               } else if (data.type === HlsCtor.ErrorTypes.MEDIA_ERROR) {
                 setMediaError(`解码错误 ${data.details || ''}，恢复…`)
                 hls.recoverMediaError()
@@ -926,7 +914,7 @@ export function VideoPlayer({
                 setLoading(false)
                 setBufferingUi(false)
                 setMediaError(`播放失败: ${data.details || data.type}`)
-                if (direct) reportLoadFailed(String(data.details || data.type))
+                reportLoadFailed(String(data.details || data.type))
               }
             })
             return
@@ -939,10 +927,8 @@ export function VideoPlayer({
               () => {
                 if (!alive()) return
                 setLoading(false)
-                setMediaError('原生 HLS 加载失败')
-                if (!src.includes('/api/media/proxy')) {
-                  reportLoadFailed('native_hls')
-                }
+                setMediaError('原生 HLS 加载失败，建议切换视频源')
+                reportLoadFailed('native_hls')
               },
               { once: true },
             )

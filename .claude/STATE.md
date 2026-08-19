@@ -1,5 +1,30 @@
 # Animaku 项目状态快照 (STATE.md)
 
+## [2026-08-19] 修复 Safari 播放丢帧与弹幕抽搐（时钟单调保护 + GPU 图层隔离 + 上下文优化）
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **弹幕时钟单调性防御与防丢帧回弹**：在 `canvas-danmaku.ts` 的 `onVideoFrame`（rVFC 硬件回调）与 `checkClockDrift` 中实现严格的单向单调递增保护（Monotonic Clamp）。当 Safari 因高码率突变发生硬件解码卡顿、掉帧导致视频呈现时间（`metadata.mediaTime`）滞后于弹幕预测时间时，严格禁止向后回拉时间戳（`anchorMediaTime`），彻底杜绝弹幕左右横跳抽搐（Rubber-banding）；
+  2. **消除 Safari WebKit `desynchronized: true` 图层冲突**：在 Safari 下安全规避 `desynchronized` 上下文模式，解决覆盖在 `<video>` 上方的 Canvas 破坏 VideoToolbox / Metal 硬件视频图层垂直同步导致的额外掉帧；非 Safari 浏览器 100% 维持原有逻辑；
+  3. **弹幕 Canvas 独立 GPU 硬件合成图层**：为弹幕 Canvas 注入 `willChange: 'transform'` 与 `transform: 'translateZ(0)'` 开启独立硬件合成图层，消除与视频图层的合成争抢，最大程度缓解 1.25x 倍速突发高码率镜头下的丢帧卡顿。
+- 涉及文件：apps/web/src/player/media/canvas-danmaku.ts
+- 备注：全仓类型检查与前端生产打包全量通过。
+
+## [2026-08-19] 移除播放失败切换服务器代理功能（快速失败与切源指引）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **彻底移除失败切换代理逻辑**：从 `use-watch-session.ts` 中移除残留的 `forceProxy` 状态、`sessionForceProxy` 以及相关重置 effect，直链播放失败后严禁自动尝试中继服务器代理；
+  2. **优化播放器错误反馈**：
+     - 在 `VideoPlayer.tsx` 中移除针对直链媒体失败时设置的 `直链失败，尝试代理…` 中间态文案；
+     - MP4/Progressive 媒体加载失败直接呈现 `视频加载失败，建议切换视频源`；
+     - Hls.js fatal 网络错误（`NETWORK_ERROR`）直接结束缓冲并显示 `网络连接错误，建议切换视频源`；
+     - Safari 原生 HLS 加载失败直接显示 `原生 HLS 加载失败，建议切换视频源`；
+  3. **保持快速失败与 HUD 引导**：底层触发 `reportLoadFailed` 统一调用 `onMediaLoadFailed` 唤起内联 HUD 提示用户点击右侧切换可用视频源；
+  4. **同步更新文档与类型注释**：更新 `playback-src.ts`、`README.md` 与 `docs/CONTEXT.md` 中关于代理机制的描述。
+- 涉及文件：apps/web/src/lib/use-watch-session.ts, apps/web/src/player/VideoPlayer.tsx, apps/web/src/lib/playback-src.ts, docs/CONTEXT.md, README.md
+- 备注：全仓类型检查与打包构建全部通过。
+
 ## [2026-08-19] 移除桌面端双击全屏功能与消除单击播放/暂停延迟（0ms 即时响应）
 - 状态：已完成
 - 优先级：P1
