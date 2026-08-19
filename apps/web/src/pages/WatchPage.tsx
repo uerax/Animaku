@@ -334,6 +334,7 @@ export function WatchPage() {
       onToggleList={() => startTransition(() => setEpsListExpanded((v) => !v))}
       onSelectRoad={(ri) => startTransition(() => w.setVisibleRoad(ri))}
       onPickEpisode={(ep, rd) => startTransition(() => w.pickEpisode(ep, rd))}
+      onRefreshChapters={() => startTransition(() => void w.refreshChapters())}
     />
   )
 

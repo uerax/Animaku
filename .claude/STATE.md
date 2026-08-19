@@ -1,5 +1,50 @@
 # Animaku 项目状态快照 (STATE.md)
 
+## [2026-08-19] 选集体验全面升维（一键强制刷新 + 超长番剧 50 集智能区间分页 + 正/倒序切换）
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **一键强制刷新选集（`onRefreshChapters`）**：
+     - 在选集栏标题右侧新增精致旋转刷新按钮（`🔄`），在加载中展示 `animate-spin` 动效；
+     - 点击瞬间物理清空客户端 `sessionStorage` 与服务端 SQLite 缓存，并携带 `?refresh=1` / `Cache-Control: no-cache` 穿透回源拉取最新分集，保留在播集数并下发琉璃 HUD 提示；
+  2. **超长番剧 50 集智能区间分页（如《海贼王》《柯南》）**：
+     - 当总集数 $> 40$ 时，自动启用区间分段（`1-50`、`51-100`、`101-150`...），消除渲染数百上千 DOM 卡片导致的滚动卡顿与布局冗长；
+     - 包含当前在播集数的区间胶囊自动高亮并带「在播」状态圆点，自动滚动居中对齐当前播放区间；
+     - 各分集卡片严格映射原始 `actualIndex`，确保点击即刻精确起播对应剧集；
+  3. **正序 / 倒序一键切换（`⇅ 正序/倒序`）**：
+     - 在选集头部支持一键切换 `正序` 与 `倒序`，方便追长篇连载番剧的用户一键直达最新话（如 1100+ 倒序排在前列）；
+  4. **全端双模态样式适配**：
+     - `index.css` 补齐 `.kz-bili-sec-btn`、`.kz-bili-range-tabs`、`.kz-bili-range-tab`、`.kz-bili-range-live`，全面对齐日夜间玻璃态设计系统。
+- 涉及文件：apps/web/src/pages/watch/MobileEpsSection.tsx, apps/web/src/pages/WatchPage.tsx, apps/web/src/lib/use-watch-session.ts, apps/web/src/index.css
+- 备注：全仓类型检查与前端构建打包验证全量通过。
+
+## [2026-08-19] 优化视频源选集缓存 TTL 收敛至 30 分钟会话级防刷护盾
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **排查与业务定位**：原先视频源选集（Chapters / Roads）在服务端与客户端配置了 4 小时硬编码缓存；该时长过长阻碍了连载新番及时更新与源站资源补档/换源自愈；
+  2. **会话级防刷护盾收敛**：
+     - 将服务端 `PLUGIN_CACHE_TTL.chapters` 与客户端 `ROADS_CLIENT_TTL_MS` 统一由 4 小时大幅收敛至 **30 分钟**（覆盖常规 1~2 集连播防抖需求）；
+     - 既保护源站免受高频并发冲击，又能在源站更新资源时以极短窗口自然愈合。
+- 涉及文件：apps/server/src/lib/ttl-cache.ts, apps/web/src/lib/roads-cache.ts
+- 备注：全仓类型检查全通过。
+
+## [2026-08-19] 修复 xifan-next 虚假 HLS (404) 导致无法播放与签名直链缓存击穿自愈
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **排查根本原因**：
+     - 当解析 `xifan-next` 新上传或未完成切片的番剧（如《尼古喵喵》`subject/622206`）时，Supabase Edge Function `issue-web-playback`（`action: 'hls'`）在 R2 存储桶尚未生成 `master.m3u8` 切片时仍盲目返回 `200 OK` 及带有签名的切片链接；
+     - 客户端播放器尝试拉取该 HLS 链接直接遭遇 Cloudflare R2 `404 Object not found` 报错；
+     - 原先 `resolveXifanNext` 只要收到 HLS 分支 `ok: true` 便优先采用，导致健康可用的 Fallback 官方 MP4 直链（206 Partial Content 原画）被忽略；
+     - 且该 404 链接因带有 `.m3u8` 后缀被 `ttl-cache` 错误赋予了长达 30 分钟的缓存（`resolveStable`），导致用户即使在源站更新或重试后仍持续命中 404 缓存死链；
+  2. **系统性修复与自愈机制**：
+     - **HLS 实效轻量探测与自动降级**：在 `apps/server/src/lib/xifan-next.ts` 中对 `issue-hls-playback` 下发链接增加 2s 超时 `Range: bytes=0-100` 轻量探测。若返回 200/206 则正常使用 HLS 自适应多码率流；若探测为 404 / 异常则秒级自动回退至已获取的 Fallback MP4 直链（对齐 xifan-next 官方客户端 `fallbackFromHls` 策略）；
+     - **签名/临时 Token 缓存粒度收敛**：在 `apps/server/src/lib/ttl-cache.ts` 中调整规则匹配优先级，将包含 `issue-hls-playback`、`pt=`、`token=`、`sign=` 等带动态临时凭证的切片链接收敛为短时缓存（`resolveSigned` 60s），避免失效凭证长期污染；
+     - **播放加载失败自动穿透缓存**：在 `use-watch-session.ts` 的 `onMediaLoadFailed` 中置位 `resolveRefreshOnce.current = true`，确保播放失败后二次重试或选集时自动穿透缓存拉取最新直链。
+- 涉及文件：apps/server/src/lib/xifan-next.ts, apps/server/src/lib/ttl-cache.ts, apps/web/src/lib/use-watch-session.ts
+- 备注：单测验证通过，全仓类型检查与前端/服务端构建打包全量通过。
+
 ## [2026-08-19] 修复暂停弹幕时间向后回跳与多次暂停继续突发冒出弹幕 Bug
 - 状态：已完成
 - 优先级：P0

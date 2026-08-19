@@ -26,10 +26,10 @@ export const BANGUMI_CACHE_TTL = {
   subject: 6 * 60 * 60_000,
 } as const
 
-/** Plugin exec result TTLs (search/chapters 4h; resolve classified). */
+/** Plugin exec result TTLs (search 4h; chapters 30m session shield; resolve classified). */
 export const PLUGIN_CACHE_TTL = {
   search: 4 * 60 * 60_000,
-  chapters: 4 * 60 * 60_000,
+  chapters: 30 * 60_000,
   /** HLS playlists — relatively stable. */
   resolveStable: 30 * 60_000,
   /** Plain progressive mp4 without obvious signing. */
@@ -213,14 +213,14 @@ export function resolveCacheTtlMs(result: {
   const play = result.playUrl || ''
   const proxy = result.proxyUrl || ''
   if (/[?&]cookie=/.test(proxy)) return PLUGIN_CACHE_TTL.resolveCookie
-  // Prefer HLS even with query strings (often longer-lived than signed mp4)
-  if (/\.m3u8(\?|$)/i.test(play)) return PLUGIN_CACHE_TTL.resolveStable
   if (
     /groupvideo\.photo\.qq\.com|dis_k=|dis_t=/i.test(play) ||
-    /[?&](?:sign|signature|auth_key|expires|expire|token|t\d+)=/i.test(play)
+    /issue-hls-playback/i.test(play) ||
+    /[?&](?:sign|signature|auth_key|expires|expire|token|pt|t\d+)=/i.test(play)
   ) {
     return PLUGIN_CACHE_TTL.resolveSigned
   }
+  if (/\.m3u8(\?|$)/i.test(play)) return PLUGIN_CACHE_TTL.resolveStable
   if (/\.mp4(\?|$)/i.test(play)) return PLUGIN_CACHE_TTL.resolveFragile
   return PLUGIN_CACHE_TTL.resolveFragile
 }

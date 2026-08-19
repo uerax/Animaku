@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 
 export type MobileEpsRoad = {
@@ -7,13 +7,29 @@ export type MobileEpsRoad = {
   data: string[]
 }
 
+const RANGE_SIZE = 50
+
+type EpisodeItem = {
+  actualIndex: number // 0-based index in road.data
+  title: string
+}
+
+type RangeBucket = {
+  rangeIndex: number
+  startEp: number // 1-based (e.g. 1)
+  endEp: number // 1-based (e.g. 50)
+  label: string // "1-50"
+  items: EpisodeItem[]
+}
+
 /**
  * Bilibili 正片侧栏风格选集（桌面 rail + 移动共用）:
- *  选集 (n/N)                 全 N 话 ⌄
+ *  选集 (n/N)   [🔄] [⇅ 正/倒序]              全 N 话 ⌄
  *  [线路 soft pills]
+ *  [多集区间分页 pills (如 1-50, 51-100...)]
  *  [横向圆角集卡 | 全量网格]
  *
- * 集卡形状：横向圆角矩形（非 bilibili 数字方格），保证「第01集」可读。
+ * 集卡形状：横向圆角矩形，保证「第01集」可读。
  * 行为钩子保留：listExpanded / data-ep-index；展开与折叠横条均为约 4 列。
  */
 export function MobileEpsSection({
@@ -30,6 +46,7 @@ export function MobileEpsSection({
   onToggleList,
   onSelectRoad,
   onPickEpisode,
+  onRefreshChapters,
 }: {
   roads: MobileEpsRoad[]
   activeRoadIndex: number
@@ -45,12 +62,95 @@ export function MobileEpsSection({
   onToggleList: () => void
   onSelectRoad: (index: number) => void
   onPickEpisode: (epIndex: number, roadIndex: number) => void
+  onRefreshChapters?: () => void
 }) {
   const activeRoad = roads[activeRoadIndex]
   const showRoads = roads.length > 0
+  const [isDescOrder, setIsDescOrder] = useState(false)
+  const [selectedRangeIndex, setSelectedRangeIndex] = useState(0)
+
   const stripRef = useRef<HTMLDivElement>(null)
   const roadsRef = useRef<HTMLDivElement>(null)
+  const rangeTabsRef = useRef<HTMLDivElement>(null)
 
+  const rawCount = activeRoad?.identifier?.length ?? epCount
+
+  // Build range buckets for long anime (> 40 eps)
+  const isMultiRange = rawCount > 40
+  const rangeBuckets = useMemo(() => {
+    if (!activeRoad || rawCount <= 0) return []
+    const total = activeRoad.identifier.length
+    const buckets: RangeBucket[] = []
+    const numBuckets = Math.ceil(total / RANGE_SIZE)
+
+    for (let b = 0; b < numBuckets; b++) {
+      const startIdx = b * RANGE_SIZE
+      const endIdx = Math.min(total, (b + 1) * RANGE_SIZE)
+      const items: EpisodeItem[] = []
+      for (let i = startIdx; i < endIdx; i++) {
+        items.push({
+          actualIndex: i,
+          title: activeRoad.identifier[i]?.trim() || String(i + 1),
+        })
+      }
+      buckets.push({
+        rangeIndex: b,
+        startEp: startIdx + 1,
+        endEp: endIdx,
+        label: `${startIdx + 1}-${endIdx}`,
+        items,
+      })
+    }
+    return buckets
+  }, [activeRoad, rawCount])
+
+  // Auto-align selected range to playingEpisode when playing on this road
+  useEffect(() => {
+    if (!isMultiRange || !playingEpisode || playingEpisode < 1) return
+    if (playingRoad !== activeRoadIndex) return
+    const targetBucketIdx = Math.floor((playingEpisode - 1) / RANGE_SIZE)
+    if (targetBucketIdx >= 0 && targetBucketIdx < rangeBuckets.length) {
+      setSelectedRangeIndex(targetBucketIdx)
+    }
+  }, [isMultiRange, playingEpisode, playingRoad, activeRoadIndex, rangeBuckets.length])
+
+  // Scroll active range tab into view
+  useEffect(() => {
+    if (!isMultiRange) return
+    const root = rangeTabsRef.current
+    if (!root) return
+    const activeTab = root.querySelector<HTMLElement>(
+      `[data-range-index="${selectedRangeIndex}"]`,
+    )
+    activeTab?.scrollIntoView({
+      behavior: 'smooth',
+      inline: 'center',
+      block: 'nearest',
+    })
+  }, [isMultiRange, selectedRangeIndex])
+
+  // Displayed range buckets (ordered asc/desc)
+  const displayedBuckets = useMemo(() => {
+    if (!isDescOrder) return rangeBuckets
+    return [...rangeBuckets].reverse()
+  }, [rangeBuckets, isDescOrder])
+
+  // Current visible episode items
+  const visibleEpisodes = useMemo(() => {
+    if (!activeRoad) return []
+    if (!isMultiRange) {
+      const items: EpisodeItem[] = activeRoad.identifier.map((name, i) => ({
+        actualIndex: i,
+        title: name?.trim() || String(i + 1),
+      }))
+      return isDescOrder ? items.reverse() : items
+    }
+    const bucket = rangeBuckets.find((b) => b.rangeIndex === selectedRangeIndex) || rangeBuckets[0]
+    if (!bucket) return []
+    return isDescOrder ? [...bucket.items].reverse() : bucket.items
+  }, [activeRoad, isMultiRange, rangeBuckets, selectedRangeIndex, isDescOrder])
+
+  // Scroll playing card into view in horizontal strip
   useEffect(() => {
     if (listExpanded) return
     if (playingRoad !== activeRoadIndex) return
@@ -65,7 +165,7 @@ export function MobileEpsSection({
       inline: 'center',
       block: 'nearest',
     })
-  }, [listExpanded, playingRoad, playingEpisode, activeRoadIndex, activeRoad])
+  }, [listExpanded, playingRoad, playingEpisode, activeRoadIndex, visibleEpisodes])
 
   // Keep active road pill in view when many lines overflow horizontally
   useEffect(() => {
@@ -82,10 +182,10 @@ export function MobileEpsSection({
   }, [activeRoadIndex, roads.length])
 
   const countLabel =
-    epCount > 0
+    rawCount > 0
       ? playingEpisode && playingEpisode > 0
-        ? `(${playingEpisode}/${epCount})`
-        : `(${epCount})`
+        ? `(${playingEpisode}/${rawCount})`
+        : `(${rawCount})`
       : ''
 
   return (
@@ -97,29 +197,69 @@ export function MobileEpsSection({
             <span className="kz-bili-sec-count">{countLabel}</span>
           ) : null}
         </h2>
-        <button
-          type="button"
-          onClick={onToggleList}
-          className="kz-bili-sec-more"
-          aria-expanded={listExpanded}
-        >
-          {epCount > 0 ? `全${epCount}话` : '全部'}
-          <svg
-            className="kz-bili-chevron"
-            data-open={listExpanded ? 'true' : 'false'}
-            viewBox="0 0 16 16"
-            fill="none"
-            aria-hidden
+
+        <div className="flex items-center gap-1.5 ml-auto">
+          {hasSelection && onRefreshChapters && (
+            <button
+              type="button"
+              onClick={onRefreshChapters}
+              disabled={roadLoading}
+              className="kz-bili-sec-btn"
+              title="刷新选集列表"
+              aria-label="刷新选集列表"
+            >
+              <svg
+                className={clsx('w-3.5 h-3.5', roadLoading && 'animate-spin text-[var(--kz-accent)]')}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+              </svg>
+            </button>
+          )}
+
+          {rawCount > 1 && (
+            <button
+              type="button"
+              onClick={() => setIsDescOrder((v) => !v)}
+              className={clsx('kz-bili-sec-btn', isDescOrder && 'text-[var(--kz-accent)] font-semibold')}
+              title={isDescOrder ? '当前倒序，点击切换为正序' : '当前正序，点击切换为倒序'}
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M7 3v18M3 7l4-4 4 4M17 21V3M13 17l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span>{isDescOrder ? '倒序' : '正序'}</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={onToggleList}
+            className="kz-bili-sec-more"
+            aria-expanded={listExpanded}
           >
-            <path
-              d="M4 6.2L8 10.2L12 6.2"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
+            {rawCount > 0 ? (listExpanded ? '收起' : `全${rawCount}话`) : '全部'}
+            <svg
+              className="kz-bili-chevron"
+              data-open={listExpanded ? 'true' : 'false'}
+              viewBox="0 0 16 16"
+              fill="none"
+              aria-hidden
+            >
+              <path
+                d="M4 6.2L8 10.2L12 6.2"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {showRoads && (
@@ -150,6 +290,47 @@ export function MobileEpsSection({
                 <span className="kz-bili-road-label">{label}</span>
                 {playingHere && !active ? (
                   <span className="kz-bili-road-live">在播</span>
+                ) : null}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Long anime (> 40 eps) range tabs (1-50, 51-100...) */}
+      {hasSelection && isMultiRange && displayedBuckets.length > 1 && (
+        <div
+          ref={rangeTabsRef}
+          className="kz-bili-range-tabs"
+          role="tablist"
+          aria-label="剧集区间"
+        >
+          {displayedBuckets.map((bucket) => {
+            const active = bucket.rangeIndex === selectedRangeIndex
+            const containsPlaying =
+              playingRoad === activeRoadIndex &&
+              Boolean(
+                playingEpisode &&
+                  playingEpisode >= bucket.startEp &&
+                  playingEpisode <= bucket.endEp,
+              )
+            return (
+              <button
+                key={`range-${bucket.rangeIndex}`}
+                type="button"
+                role="tab"
+                data-range-index={bucket.rangeIndex}
+                aria-selected={active}
+                onClick={() => setSelectedRangeIndex(bucket.rangeIndex)}
+                className={clsx(
+                  'kz-bili-range-tab',
+                  active && 'kz-bili-range-tab--active',
+                )}
+                title={`查看第 ${bucket.label} 集`}
+              >
+                <span>{bucket.label}</span>
+                {containsPlaying && !active ? (
+                  <span className="kz-bili-range-live" title="在播集数所在区间" />
                 ) : null}
               </button>
             )
@@ -188,18 +369,18 @@ export function MobileEpsSection({
                 : 'kz-bili-ep-strip',
             )}
           >
-            {activeRoad.identifier.map((name, epIndex) => {
+            {visibleEpisodes.map((item) => {
+              const epIndex = item.actualIndex
               const playing =
                 playingRoad === activeRoadIndex &&
                 playingEpisode === epIndex + 1
-              const label = name?.trim() || String(epIndex + 1)
               return (
                 <button
-                  key={activeRoad.data[epIndex] + name + epIndex}
+                  key={activeRoad.data[epIndex] + item.title + epIndex}
                   type="button"
                   data-ep-index={epIndex}
                   onClick={() => onPickEpisode(epIndex, activeRoadIndex)}
-                  title={label}
+                  title={item.title}
                   className={clsx(
                     'kz-watch-ep-card kz-bili-ep',
                     playing && 'kz-bili-ep--playing',
@@ -212,7 +393,7 @@ export function MobileEpsSection({
                       <i />
                     </span>
                   ) : null}
-                  <span className="kz-bili-ep-text">{label}</span>
+                  <span className="kz-bili-ep-text">{item.title}</span>
                 </button>
               )
             })}

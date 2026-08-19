@@ -9,7 +9,18 @@
 ## 历史已解决归档 (Recently Resolved)
 
 ### [2026-08-19]
-1. **修复暂停弹幕时间向后回跳/回弹 Bug (P0)**
+1. **选集功能完整性升维：一键刷新 + 长番剧 50 集区间分页 + 正/倒序切换 (P0)**
+   - 解决：在选集头部新增一键物理穿透刷新按钮（`onRefreshChapters`）；针对总集数 $> 40$ 的超长番剧（如《海贼王》《柯南》）新增 50 话智能区间分页胶囊（`1-50`、`51-100`...），支持在播区间高亮感知；新增正序/倒序一键切换。
+   - 文件：`apps/web/src/pages/watch/MobileEpsSection.tsx`, `apps/web/src/pages/WatchPage.tsx`, `apps/web/src/lib/use-watch-session.ts`, `apps/web/src/index.css`
+2. **修复 xifan-next 虚假 HLS (404) 导致无法播放与签名直链缓存污染 Bug (P0)**
+   - 解决：
+     1. **排查定位**：xifan-next 对未转码/新发布的番剧（如《尼古喵喵》`subject/622206`），Supabase Edge Function 仍返回带有 `issue-hls-playback` 的链接，但 Cloudflare R2 存储实际返回 `404 Object not found`；原先代码优先信任 HLS，导致忽略了健康可播的 Fallback MP4 直链；且 404 链接被按 `.m3u8` 缓存了 30 分钟。
+     2. **系统修复**：
+        - 在 `xifan-next.ts` 中引入 2s 轻量探测，HLS 返回 404 时自动秒级回退至 Fallback MP4（对齐官方客户端 `fallbackFromHls` 策略）；
+        - 在 `ttl-cache.ts` 中优先匹配 `issue-hls-playback` 与 `pt=`/`sign=` 临时签名 Token，将其缓存期收敛至 60s（`resolveSigned`）；
+        - 在 `use-watch-session.ts` 中于 `onMediaLoadFailed` 置位 `resolveRefreshOnce`，使播放失败后重试自动穿透并刷新缓存。
+   - 文件：`apps/server/src/lib/xifan-next.ts`, `apps/server/src/lib/ttl-cache.ts`, `apps/web/src/lib/use-watch-session.ts`
+2. **修复暂停弹幕时间向后回跳/回弹 Bug (P0)**
    - 解决：排查定位在 `onPause` 执行时，由于浏览器内核已先行将 `video.paused` 标为 `true`，`onPause` 内调用 `this.mediaTime()` 命中 `if (this.media.paused) return this.anchorMediaTime` 提前返回了陈旧锚点（几秒前的基准时间），导致 `anchorMediaTime` 被错误覆盖回历史时间，引发弹幕向后大幅回跳；重构新增 `getInterpolatedTime(now)`，无论暂停与否均基于当前 `now` 精确计算瞬态实际运行时间戳，并在 `onPause` 与 `onWaiting` 中精准定格当前画面，暂停后弹幕 0 像素位移绝对静止。
    - 文件：`apps/web/src/player/media/canvas-danmaku.ts`
 2. **Safari / iOS 播放卡顿与弹幕闪烁抽搐深度解耦重构 (P0 - 方案 1)**

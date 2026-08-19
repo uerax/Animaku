@@ -41,6 +41,7 @@ import {
 import {
   findRoadsForPlay,
   writeRoadsForSource,
+  invalidateRoadsCache,
 } from './roads-cache'
 import {
   fetchServerHealth,
@@ -244,6 +245,7 @@ export type WatchSession = {
   onMediaAuthExpired: (position: number) => Promise<void>
   onMediaLoadFailed: (args: { position: number }) => void
   refetchResolve: () => void
+  refreshChapters: () => Promise<void>
   hudMessage: string | null
   clearHudMessage: () => void
   pageUrl: string
@@ -1522,6 +1524,8 @@ export function useWatchSession(bangumiId: number): WatchSession {
       resumeOverrideRef.current = position
       setResumePosition(position)
     }
+    // Mark next resolve to bypass cache and fetch fresh stream
+    resolveRefreshOnce.current = true
     // Fast-fail: directly prompt user to switch source without wasteful re-resolves on dead links
     setHudMessage('视频源连接失败，建议点击右侧切换视频源')
   }
@@ -1539,6 +1543,49 @@ export function useWatchSession(bangumiId: number): WatchSession {
       refresh: true,
       isManual: true,
     })
+  }
+
+  async function refreshChapters() {
+    const sel = selectionRef.current
+    if (!sel?.source?.src || !sel?.plugin) return
+    const { plugin, source } = sel
+    invalidateRoadsCache(bangumiId, plugin.name, source.src)
+    roadLoadingRef.current = true
+    setRoadLoading(true)
+    setRoadError('')
+    setHudMessage(`正在刷新 ${plugin.name} 选集…`)
+    try {
+      const res = await pluginApi.chapters(plugin, source.src, { refresh: true })
+      const roads = res.data?.roads || []
+      if (roads.length && roads[0]?.data?.length) {
+        writeRoadsForSource(bangumiId, plugin.name, source.src, roads)
+        setSelection((prev) => (prev ? { ...prev, roads } : null))
+        // Align currently active episode url if still in bounds
+        if (episodeRef.current) {
+          const curEp = episodeRef.current
+          const road = roads[curEp.road] || roads[0]
+          const targetEpIdx = curEp.episode - 1
+          if (road?.data[targetEpIdx]) {
+            setEpisode({
+              pageUrl: road.data[targetEpIdx],
+              episode: curEp.episode,
+              road: curEp.road,
+            })
+          }
+        }
+        setHudMessage(`已刷新 ${plugin.name} 选集列表`)
+      } else {
+        setRoadError(
+          res.data?.diagnostics?.slice(0, 2).join('；') || '刷新后未解析到有效分集',
+        )
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '刷新选集失败'
+      setRoadError(msg)
+    } finally {
+      roadLoadingRef.current = false
+      setRoadLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -1623,6 +1670,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
       resolveRefreshOnce.current = true
       void resolve.refetch()
     },
+    refreshChapters,
     hudMessage,
     clearHudMessage,
     pageUrl: episode?.pageUrl || qPageUrl,

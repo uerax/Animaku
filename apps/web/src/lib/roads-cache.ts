@@ -1,7 +1,7 @@
 import type { Road } from '@animaku/shared'
 
-/** Align with server PLUGIN_CACHE_TTL.chapters (4h). */
-export const ROADS_CLIENT_TTL_MS = 4 * 60 * 60_000
+/** Align with server PLUGIN_CACHE_TTL.chapters (30m session shield). */
+export const ROADS_CLIENT_TTL_MS = 30 * 60_000
 
 /** sessionStorage payload for episode lists (per bangumi + plugin). */
 export type RoadsCachePayload = {

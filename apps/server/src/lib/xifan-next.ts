@@ -574,12 +574,35 @@ export async function resolveXifanNext(
   ])
 
   if (hlsRes.status === 'fulfilled' && hlsRes.value?.ok && hlsRes.value?.url) {
-    playUrl = hlsRes.value.url
-    playbackAction = 'hls'
-  } else if (fbRes.status === 'fulfilled' && fbRes.value?.ok && fbRes.value?.url) {
+    const candidateHlsUrl = hlsRes.value.url
+    // Probe if the Cloudflare R2 m3u8 playlist actually exists (avoid 404 fake HLS)
+    try {
+      const probeRes = await fetchPublic(
+        candidateHlsUrl,
+        {
+          headers: {
+            Range: 'bytes=0-100',
+            'User-Agent': config.defaultUserAgent,
+          },
+        },
+        { timeoutMs: 2_000 },
+      )
+      if (probeRes.ok || probeRes.status === 206) {
+        playUrl = candidateHlsUrl
+        playbackAction = 'hls'
+      }
+    } catch {
+      /* HLS probe timed out or failed; will fallback below */
+    }
+  }
+
+  if (!playUrl && fbRes.status === 'fulfilled' && fbRes.value?.ok && fbRes.value?.url) {
     playUrl = fbRes.value.url
     playbackAction = fbRes.value.action || 'fallback'
-  } else {
+  } else if (!playUrl && hlsRes.status === 'fulfilled' && hlsRes.value?.ok && hlsRes.value?.url) {
+    playUrl = hlsRes.value.url
+    playbackAction = 'hls'
+  } else if (!playUrl) {
     const errorMsg =
       (fbRes.status === 'fulfilled' ? fbRes.value?.error : null) ||
       (hlsRes.status === 'fulfilled' ? hlsRes.value?.error : null) ||

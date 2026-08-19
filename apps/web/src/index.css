@@ -598,8 +598,7 @@ textarea:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 0.15rem;
-  margin-left: auto;
-  padding: 0.15rem 0.2rem;
+  padding: 0.15rem 0.35rem;
   border: none;
   background: transparent;
   font-size: 0.75rem;
@@ -615,6 +614,44 @@ textarea:focus-visible {
 .kz-bili-sec-more:hover {
   color: var(--kz-fg);
   background: var(--kz-bg-soft);
+}
+
+.kz-bili-sec-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 0.725rem;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--kz-fg-muted);
+  cursor: pointer;
+  user-select: none;
+  transition:
+    color 0.12s ease,
+    background 0.12s ease,
+    border-color 0.12s ease,
+    transform 0.12s ease;
+}
+
+.kz-bili-sec-btn:hover:not(:disabled) {
+  color: var(--kz-fg);
+  background: var(--kz-bg-soft);
+  border-color: var(--kz-border);
+}
+
+.kz-bili-sec-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.kz-bili-sec-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .kz-bili-chevron {
@@ -1085,6 +1122,71 @@ html[data-theme='dark'] .kz-source-pill--pick {
   font-size: 0.625rem;
   font-weight: 500;
   color: var(--kz-accent);
+}
+
+/* Long anime episode range tabs (1-50, 51-100...) */
+.kz-bili-range-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.35rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 0.75rem 0.35rem;
+  box-sizing: border-box;
+  scrollbar-width: thin;
+}
+
+.kz-bili-range-tabs::-webkit-scrollbar {
+  height: 3px;
+}
+
+.kz-bili-range-tabs::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background: var(--kz-scroll-thumb, color-mix(in srgb, var(--kz-fg) 18%, transparent));
+}
+
+.kz-bili-range-tab {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--kz-border) 80%, transparent);
+  padding: 0.2rem 0.55rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--kz-fg-muted);
+  background: var(--kz-bg-soft);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.kz-bili-range-tab:hover {
+  color: var(--kz-fg);
+  border-color: var(--kz-border);
+  background: var(--kz-bg-hover);
+}
+
+.kz-bili-range-tab--active {
+  color: var(--kz-accent);
+  background: var(--kz-accent-soft);
+  border-color: var(--kz-accent);
+  font-weight: 600;
+}
+
+.kz-bili-range-live {
+  display: inline-block;
+  width: 0.35rem;
+  height: 0.35rem;
+  border-radius: 9999px;
+  background: var(--kz-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--kz-accent) 25%, transparent);
 }
 
 /* Episode body */
