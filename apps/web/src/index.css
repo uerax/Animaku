@@ -913,7 +913,12 @@ textarea:focus-visible {
   border-color: var(--kz-accent);
   background: var(--kz-accent-soft);
   color: var(--kz-accent);
-  cursor: default;
+  cursor: pointer;
+}
+
+.kz-source-pill--active:hover {
+  background: var(--kz-accent);
+  color: #ffffff;
 }
 
 .kz-source-pill--ready {
@@ -945,15 +950,23 @@ html[data-theme='dark'] .kz-source-pill--pick {
 }
 
 .kz-source-pill--retry {
-  border-color: var(--kz-border);
-  background: var(--kz-bg-soft);
-  color: var(--kz-fg-muted);
+  border-color: rgba(244, 63, 94, 0.35);
+  background: rgba(244, 63, 94, 0.1);
+  color: #e11d48;
+}
+
+html[data-theme='dark'] .kz-source-pill--retry {
+  color: #fb7185;
 }
 
 .kz-source-pill--retry:hover {
-  border-color: var(--kz-border);
-  background: var(--kz-bg-hover);
-  color: var(--kz-fg);
+  border-color: rgba(244, 63, 94, 0.55);
+  background: rgba(244, 63, 94, 0.2);
+  color: #e11d48;
+}
+
+html[data-theme='dark'] .kz-source-pill--retry:hover {
+  color: #fda4af;
 }
 
 .kz-source-pill--idle {
@@ -973,6 +986,15 @@ html[data-theme='dark'] .kz-source-pill--pick {
   background: var(--kz-accent-soft);
   color: var(--kz-accent);
   cursor: default;
+}
+
+.no-scrollbar {
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE 10+ */
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important; /* Chrome, Safari, Opera */
 }
 
 .kz-bili-hits {
