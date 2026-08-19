@@ -3,7 +3,7 @@
   "type": "anime",
   "name": "tvtfun",
   "version": "1.0",
-  "weight": 70,
+  "weight": 65,
   "preferOriginalTitle": false,
   "muliSources": true,
   "useWebview": false,

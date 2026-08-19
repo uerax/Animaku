@@ -1,5 +1,21 @@
 # Animaku 项目状态快照 (STATE.md)
 
+## [2026-08-20] 调优内置视频源默认权重梯队（xifan-next: 75, cycani: 70, moonci: 65, tvtfun: 65）(v25)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **首屏选集加载关键路径（Critical Path）体验调优**：
+     - 用户进入播放页的首要体验在于集数列表的呈现速度；`xifan-next` 与 `cycani` 拥有 200~400ms 的极速毫秒级检索能力，能在进页面 700ms 内瞬间刷出完整选集列表，彻底消除首屏转圈等待感；
+  2. **内置源权重与默认排序更新**：
+     - `xifan-next.json`: 权重提升至 `75`（首选默认源，日文原名优先，Supabase 毫秒级检索）；
+     - `cycani.json`: 权重提升至 `70`（次选默认源，Go API 极速出选集，1080P Cloudflare 原画 MP4 直链与全量大库）；
+     - `moonci.json`: 权重调优为 `65`（12,000+ 部全量大库，切集 340ms 极速，日文原名优先）；
+     - `tvtfun.json`: 权重调优为 `65`（1080P MP4 原画备用源）；
+  3. **客户端版本热升级**：
+     - 在 `apps/web/src/stores/plugins.ts` 中递增 `PLUGIN_DEFAULTS_VERSION`（`24 -> 25`），确保老用户客户端无感自动平滑升级为最新权重顺序。
+- 涉及文件：apps/web/src/data/default-plugins/xifan-next.json, apps/web/src/data/default-plugins/cycani.json, apps/web/src/data/default-plugins/moonci.json, apps/web/src/data/default-plugins/tvtfun.json, apps/web/src/data/default-plugins/index.ts, apps/web/src/stores/plugins.ts
+- 备注：全仓类型检查 `pnpm typecheck` 全部通过。
+
 ## [2026-08-20] 优化多视频源自动探测限制为前 6 个高权重源并支持按需即时探活
 - 状态：已完成
 - 优先级：P1

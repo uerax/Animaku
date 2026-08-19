@@ -28,7 +28,8 @@ migrateLocalStorageKey('animaku-plugins', [
 /** v22: add tvtfun (tvtfun.net) built-in with weight 70 */
 /** v23: add moonci (moonci.com) built-in with weight 65 */
 /** v24: set moonci weight to 70 & preferOriginalTitle: true; tune cycani weight to 65 */
-export const PLUGIN_DEFAULTS_VERSION = 24
+/** v25: tune default weights (xifan-next: 75, cycani: 70, moonci: 65, tvtfun: 65) */
+export const PLUGIN_DEFAULTS_VERSION = 25
 
 interface PluginState {
   plugins: PluginMeta[]
