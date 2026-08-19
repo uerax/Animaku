@@ -290,7 +290,9 @@ export function SourceBoard({
                         )}
 
                         {state.status === 'idle' && (
-                          <span className="text-[var(--kz-fg-dim)] truncate block">等待探测</span>
+                          <span className="text-[var(--kz-fg-dim)] truncate block">
+                            待探活 (点击探测)
+                          </span>
                         )}
                       </div>
                     </div>
@@ -345,6 +347,17 @@ export function SourceBoard({
                           className="kz-source-pill kz-source-pill--retry"
                         >
                           换词
+                        </button>
+                      ) : state.status === 'idle' ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            prioritizePlugin(plugin.name)
+                          }}
+                          className="kz-source-pill kz-source-pill--idle"
+                        >
+                          探活
                         </button>
                       ) : null}
                     </div>

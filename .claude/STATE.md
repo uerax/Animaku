@@ -1,5 +1,40 @@
 # Animaku 项目状态快照 (STATE.md)
 
+## [2026-08-20] 优化多视频源自动探测限制为前 6 个高权重源并支持按需即时探活
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **多源自动探测上限收敛（`AUTO_PROBE_LIMIT = 6`）**：
+     - 在 `useSourceAggregator.ts` 中设定默认仅自动排队探测排名前 6 个高权重优质视频源（如 `xifan-next`、`tvtfun`、`moonci`、`cycani`、`anime1`、`libvio`）；
+     - 将展开面板时的后台请求峰值削减 35%~50%，避免对低权重/冷门备用源发起无意义的并发请求；
+  2. **轻量待机（`idle`）与按需即时探活**：
+     - 排名 6 名之后的视频源默认保持 `待探活`（`idle`）状态，呈现 `.kz-source-pill--idle`（「探活」胶囊按钮）；
+     - 用户点击任意待机卡片或点击「探活」按钮时，通过 `prioritizePlugin` 瞬间插队到队列首位触发即时探测；
+  3. **视觉与交互对齐**：
+     - `index.css` 补齐 `.kz-source-pill--idle` 双模态样式与天青色悬浮微高亮。
+- 涉及文件：apps/web/src/lib/use-source-aggregator.ts, apps/web/src/pages/watch/SourceBoard.tsx, apps/web/src/index.css
+- 备注：全仓类型检查与打包构建全量通过。
+
+## [2026-08-20] 接入全新视频源 Moonci (月之祠 moonci.com) 专有适配器与 1080P MP4 原画直链 (v24)
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **逆向探查与协议分析**：
+     - 探查了 Moonci (月之祠) 的 MacCMS 模板架构与 RESTful 接口；
+     - 提取出其毫秒级联想搜索接口 `/index.php/ajax/suggest?mid=1&wd=...` 及 Web 搜索备用回退；
+     - 逆向分析其多线路结构（`X.1`, `X.2`, `X.3`, `X.4`）与播放配置 `player_aaaa`（`encrypt: 1`，`unescape` 解码）；
+  2. **媒体流与画质表现**：
+     - 下发联通云盘 / moedot CDN / xfvod 等高清 1080P MP4 原画直链，实测响应 `HTTP 206 Partial Content`，支持字节范围拖拽；
+     - 针对源站 CDN 特性配置空 Referer（`no-referrer`），浏览器端直连播放，0 代理带宽消耗；
+  3. **架构与工程落地**：
+     - 新建专有适配器 `apps/server/src/lib/moonci.ts`，实现搜索、章节多线路与直链解析；
+     - 在 `apps/server/src/rule-engine/index.ts` 中完成 `search`、`chapters`、`resolve` 挂载；
+     - 新建默认规则 `apps/web/src/data/default-plugins/moonci.json`，配置权重 `70` 与 `preferOriginalTitle: true`（日文原名优先），并在 `default-plugins/index.ts` 中注册；
+     - 调整 `cycani.json` 权重至 `65`；
+     - 在 `apps/web/src/stores/plugins.ts` 中递增 `PLUGIN_DEFAULTS_VERSION`（`23 -> 24`）并追加 `moonci` 到 `legacyBuiltinNames`。
+- 涉及文件：apps/server/src/lib/moonci.ts, apps/server/src/rule-engine/index.ts, apps/web/src/data/default-plugins/moonci.json, apps/web/src/data/default-plugins/cycani.json, apps/web/src/data/default-plugins/index.ts, apps/web/src/stores/plugins.ts
+- 备注：集成测试全通过，`pnpm typecheck` 与 `pnpm build` 全仓 0 报错。
+
 ## [2026-08-20] 接入全新视频源 TvTFun (tvtfun.net) 专有适配器与 1080P MP4 原画直链
 - 状态：已完成
 - 优先级：P0

@@ -26,7 +26,9 @@ migrateLocalStorageKey('animaku-plugins', [
 /** v20: add cycani (cycani.org) built-in */
 /** v21: retire otage from default built-ins, set cycani weight to 70 */
 /** v22: add tvtfun (tvtfun.net) built-in with weight 70 */
-export const PLUGIN_DEFAULTS_VERSION = 22
+/** v23: add moonci (moonci.com) built-in with weight 65 */
+/** v24: set moonci weight to 70 & preferOriginalTitle: true; tune cycani weight to 65 */
+export const PLUGIN_DEFAULTS_VERSION = 24
 
 interface PluginState {
   plugins: PluginMeta[]
@@ -314,6 +316,7 @@ export const usePluginStore = create<PluginState>()(
             'libvio',
             'cycani',
             'tvtfun',
+            'moonci',
           ].map((s) => s.toLowerCase()),
         )
         const onlyLegacyBuiltins = plugins.every(

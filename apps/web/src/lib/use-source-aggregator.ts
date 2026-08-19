@@ -45,6 +45,8 @@ export interface UseSourceAggregatorOptions {
 
 const CONCURRENCY_LIMIT = 2
 const PROBE_TIMEOUT_MS = 5000
+/** Limit automatic background probing to top N priority sources when board opens */
+export const AUTO_PROBE_LIMIT = 6
 
 export function useSourceAggregator({
   bangumiId,
@@ -350,7 +352,9 @@ export function useSourceAggregator({
         return 0
       })
 
-      queueRef.current = Array.from(new Set([...queueRef.current, ...ordered]))
+      // Auto-probe top N sources by priority (AUTO_PROBE_LIMIT = 6); rest remain idle until on-demand click
+      const autoProbed = ordered.slice(0, AUTO_PROBE_LIMIT)
+      queueRef.current = Array.from(new Set([...queueRef.current, ...autoProbed]))
       void processQueue()
     }
   }, [isOpen, plugins, pluginOrder, bangumiId, activePluginName, processQueue])

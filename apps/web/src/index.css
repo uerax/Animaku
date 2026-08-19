@@ -956,6 +956,18 @@ html[data-theme='dark'] .kz-source-pill--pick {
   color: var(--kz-fg);
 }
 
+.kz-source-pill--idle {
+  border-color: var(--kz-border-subtle);
+  background: var(--kz-bg-soft);
+  color: var(--kz-fg-muted);
+}
+
+.kz-source-pill--idle:hover {
+  border-color: var(--kz-accent);
+  background: var(--kz-accent-soft);
+  color: var(--kz-accent);
+}
+
 .kz-source-pill--probing {
   border-color: var(--kz-accent);
   background: var(--kz-accent-soft);
