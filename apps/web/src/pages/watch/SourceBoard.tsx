@@ -1,10 +1,6 @@
 import {
   useState,
-  useRef,
-  useCallback,
-  useEffect,
   type FormEvent,
-  type MouseEvent,
   startTransition,
 } from 'react'
 import { Link } from 'react-router-dom'
@@ -54,45 +50,6 @@ export function SourceBoard({
 }: SourceBoardProps) {
   const [expandedPlugin, setExpandedPlugin] = useState<string | null>(null)
   const [cardKwInputs, setCardKwInputs] = useState<Record<string, string>>({})
-  const [hoverTip, setHoverTip] = useState<{
-    text: string
-    x: number
-    y: number
-    isNearTop: boolean
-  } | null>(null)
-  const hoverTimerRef = useRef<number | null>(null)
-
-  const showHoverTip = useCallback(
-    (text: string, e: MouseEvent<HTMLElement>) => {
-      if (hoverTimerRef.current) {
-        window.clearTimeout(hoverTimerRef.current)
-      }
-      const rect = e.currentTarget.getBoundingClientRect()
-      hoverTimerRef.current = window.setTimeout(() => {
-        const isNearTop = rect.top < 45
-        const y = isNearTop ? rect.bottom + 6 : rect.top - 6
-        const x = Math.max(12, Math.min(window.innerWidth - 300, rect.left))
-        setHoverTip({ text, x, y, isNearTop })
-      }, 120)
-    },
-    [],
-  )
-
-  const hideHoverTip = useCallback(() => {
-    if (hoverTimerRef.current) {
-      window.clearTimeout(hoverTimerRef.current)
-      hoverTimerRef.current = null
-    }
-    setHoverTip(null)
-  }, [])
-
-  useEffect(() => {
-    return () => {
-      if (hoverTimerRef.current) {
-        window.clearTimeout(hoverTimerRef.current)
-      }
-    }
-  }, [])
 
   const { sources, prioritizePlugin, reProbePlugin } = useSourceAggregator({
     bangumiId,
@@ -452,7 +409,7 @@ export function SourceBoard({
                             >
                               {state.status === 'needs_pick'
                                 ? '请点选匹配的番剧条目以绑定：'
-                                : `搜到 ${state.items.length} 条候选条目，点选切换绑定：`}
+                                : `搜到 ${state.items.length} 条候选条目：`}
                             </span>
                             {state.keyword && (
                               <span className="text-[9.5px] text-[var(--kz-fg-dim)] truncate max-w-[140px]">
@@ -460,7 +417,7 @@ export function SourceBoard({
                               </span>
                             )}
                           </div>
-                          <div className="max-h-44 overflow-y-auto space-y-1 pr-1">
+                          <div className="max-h-52 overflow-y-auto space-y-1 pr-1">
                             {state.items.map((it, idx) => {
                               const isItemSelected =
                                 isActive && selection?.source.src === it.src
@@ -469,24 +426,21 @@ export function SourceBoard({
                                   key={`${it.src}:${idx}`}
                                   type="button"
                                   onClick={() => {
-                                    hideHoverTip()
                                     onSwitchSource(plugin, it)
                                   }}
-                                  onMouseEnter={(e) => showHoverTip(it.name, e)}
-                                  onMouseLeave={hideHoverTip}
                                   className={clsx(
-                                    'flex w-full items-center justify-between rounded-lg px-2.5 py-1 text-left text-[11.5px] transition-colors cursor-pointer gap-2',
+                                    'flex w-full items-start justify-between rounded-lg px-2.5 py-1.5 text-left text-[11.5px] transition-colors cursor-pointer gap-2',
                                     isItemSelected
                                       ? 'bg-[var(--kz-accent-soft)] text-[var(--kz-accent)] border border-[var(--kz-accent)] font-medium'
                                       : 'bg-[var(--kz-bg-elevated)] text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] border border-[var(--kz-border-subtle)]',
                                   )}
                                 >
-                                  <span className="flex-1 min-w-0 truncate text-[11.5px]">
+                                  <span className="flex-1 min-w-0 text-[11.5px] leading-snug break-words">
                                     {it.name}
                                   </span>
                                   <span
                                     className={clsx(
-                                      'text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0 select-none transition-colors',
+                                      'text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0 select-none transition-colors mt-0.5',
                                       isItemSelected
                                         ? 'bg-[var(--kz-accent)] text-white'
                                         : 'text-[var(--kz-fg-muted)] bg-[var(--kz-bg-soft)] border border-[var(--kz-border-subtle)]',
@@ -527,7 +481,7 @@ export function SourceBoard({
                               共 {Math.min(keywordOptions.length, 8)} 个
                             </span>
                           </div>
-                          <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
+                          <div className="max-h-44 overflow-y-auto space-y-1 pr-1">
                             {keywordOptions.slice(0, 8).map((kw, idx) => {
                               const isCurrentKw = state.keyword === kw
                               const isProbingThis =
@@ -537,17 +491,14 @@ export function SourceBoard({
                                   key={`${kw}:${idx}`}
                                   type="button"
                                   onClick={() => {
-                                    hideHoverTip()
                                     setCardKwInputs((prev) => ({
                                       ...prev,
                                       [plugin.name]: kw,
                                     }))
                                     reProbePlugin(plugin.name, kw)
                                   }}
-                                  onMouseEnter={(e) => showHoverTip(kw, e)}
-                                  onMouseLeave={hideHoverTip}
                                   className={clsx(
-                                    'flex w-full items-center justify-between rounded-lg border px-2.5 py-1 text-left transition-colors cursor-pointer group/kw gap-2',
+                                    'flex w-full items-start justify-between rounded-lg border px-2.5 py-1.5 text-left transition-colors cursor-pointer group/kw gap-2',
                                     isCurrentKw
                                       ? 'bg-[var(--kz-accent-soft)] border-[var(--kz-accent)] text-[var(--kz-accent)]'
                                       : 'bg-[var(--kz-bg-elevated)] hover:bg-[var(--kz-bg-hover)] border-[var(--kz-border-subtle)] hover:border-[var(--kz-accent)]',
@@ -555,7 +506,7 @@ export function SourceBoard({
                                 >
                                   <span
                                     className={clsx(
-                                      'flex-1 min-w-0 truncate text-[11px] font-medium',
+                                      'flex-1 min-w-0 text-[11px] font-medium leading-snug break-words',
                                       isCurrentKw
                                         ? 'text-[var(--kz-accent)]'
                                         : 'text-[var(--kz-fg-muted)] group-hover/kw:text-[var(--kz-accent)]',
@@ -565,7 +516,7 @@ export function SourceBoard({
                                   </span>
                                   <span
                                     className={clsx(
-                                      'text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0 select-none transition-colors border',
+                                      'text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0 select-none transition-colors border mt-0.5',
                                       isCurrentKw
                                         ? 'bg-[var(--kz-accent)] text-white border-[var(--kz-accent)]'
                                         : 'text-[var(--kz-fg-muted)] group-hover/kw:text-[var(--kz-accent)] group-hover/kw:border-[var(--kz-accent)] bg-[var(--kz-bg-soft)] border-[var(--kz-border-subtle)]',
@@ -613,20 +564,6 @@ export function SourceBoard({
               )
             })}
           </div>
-        </div>
-      )}
-
-      {/* Fast 120ms Glassmorphic Hover Tooltip */}
-      {hoverTip && (
-        <div
-          className="fixed z-[100] pointer-events-none max-w-[280px] sm:max-w-xs rounded-lg border border-pink-500/30 dark:border-pink-400/30 bg-[var(--kz-bg-elevated)]/95 backdrop-blur-md px-2.5 py-1.5 text-[11px] font-medium leading-snug text-pink-600 dark:text-pink-300 shadow-lg animate-in fade-in duration-100 select-none break-all"
-          style={{
-            top: hoverTip.y,
-            left: hoverTip.x,
-            transform: hoverTip.isNearTop ? 'none' : 'translateY(-100%)',
-          }}
-        >
-          {hoverTip.text}
         </div>
       )}
     </section>
