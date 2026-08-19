@@ -879,6 +879,22 @@ export async function searchWithRule(
     }
   }
 
+  // tvtfun — dedicated adapter (RESTful JSON API + Cookie Session Token)
+  {
+    const { isTvTFunRule, searchTvTFun } = await import('../lib/tvtfun')
+    if (isTvTFunRule(rule)) {
+      try {
+        return await searchTvTFun(rule, keyword)
+      } catch (e) {
+        return {
+          pluginName: rule.name,
+          items: [],
+          diagnostics: [e instanceof Error ? e.message : String(e)],
+        }
+      }
+    }
+  }
+
   // Omofun / 211dm — search gate + hash detail URLs (chapters/resolve stay generic)
   {
     const { isOmofunRule, searchOmofun } = await import('../lib/omofun')
@@ -1122,6 +1138,22 @@ export async function chaptersWithRule(
     if (isXifanNextRule(rule)) {
       try {
         return await chaptersXifanNext(rule, source)
+      } catch (e) {
+        return {
+          pluginName: rule.name,
+          roads: [],
+          diagnostics: [e instanceof Error ? e.message : String(e)],
+        }
+      }
+    }
+  }
+
+  // tvtfun — dedicated adapter (RESTful JSON API + Multi-Source Extraction)
+  {
+    const { isTvTFunRule, chaptersTvTFun } = await import('../lib/tvtfun')
+    if (isTvTFunRule(rule)) {
+      try {
+        return await chaptersTvTFun(rule, source)
       } catch (e) {
         return {
           pluginName: rule.name,
@@ -1526,6 +1558,14 @@ export async function resolvePlay(
     const { isXifanNextRule, resolveXifanNext } = await import('../lib/xifan-next')
     if (isXifanNextRule(rule)) {
       return await resolveXifanNext(rule, pageUrl)
+    }
+  }
+
+  // tvtfun: dedicated adapter (tvt-pt Cookie & X-Play-Ctx Resolver)
+  {
+    const { isTvTFunRule, resolveTvTFun } = await import('../lib/tvtfun')
+    if (isTvTFunRule(rule)) {
+      return await resolveTvTFun(rule, pageUrl)
     }
   }
 

@@ -1,5 +1,24 @@
 # Animaku 项目状态快照 (STATE.md)
 
+## [2026-08-20] 接入全新视频源 TvTFun (tvtfun.net) 专有适配器与 1080P MP4 原画直链
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **逆向探查与协议分析**：
+     - 排查了 tvtfun 前端 Next.js RSC 内置的 F12 防调试重定向组件（`disable-devtool` 跳转百度）；
+     - 逆向分析出其标准 RESTful JSON 后端架构，包括搜索接口 `/api/videos/search?q=...`、分集接口 `/api/videos/:id` 以及播放发流接口 `/api/videos/resolve-play-url`；
+     - 突破了其 `tvt-pt`（6小时 HMAC 时间戳 Cookie）与 `X-Play-Ctx`（手势上下文）鉴权，并实现了 403 自动重新抓取凭证无感自愈机制；
+  2. **媒体流与画质表现**：
+     - 下发火山引擎 BytePlus CDN / TopBuzz CDN / Akamai 高清 1080P MP4 原画直链，实测响应 `HTTP 206 Partial Content`，支持字节范围拖拽；
+     - 兼容 Animaku 的 `no-referrer` 直连策略，浏览器端 0 代理消耗直接播放；
+  3. **架构与工程落地**：
+     - 新建专有适配器 `apps/server/src/lib/tvtfun.ts`；
+     - 在 `apps/server/src/rule-engine/index.ts` 中完成 `search`、`chapters`、`resolve` 挂载；
+     - 新建默认规则 `apps/web/src/data/default-plugins/tvtfun.json`，配置权重 `70`，并在 `default-plugins/index.ts` 中注册；
+     - 在 `apps/web/src/stores/plugins.ts` 中递增 `PLUGIN_DEFAULTS_VERSION`（`21 -> 22`）并追加 `tvtfun` 到 `legacyBuiltinNames`。
+- 涉及文件：apps/server/src/lib/tvtfun.ts, apps/server/src/rule-engine/index.ts, apps/web/src/data/default-plugins/tvtfun.json, apps/web/src/data/default-plugins/index.ts, apps/web/src/stores/plugins.ts
+- 备注：集成测试全通过，`pnpm typecheck` 与 `pnpm build` 全仓 0 报错。
+
 ## [2026-08-19] 选集体验全面升维（一键强制刷新 + 超长番剧 50 集智能区间分页 + 正/倒序切换）
 - 状态：已完成
 - 优先级：P0

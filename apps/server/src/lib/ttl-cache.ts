@@ -216,7 +216,7 @@ export function resolveCacheTtlMs(result: {
   if (
     /groupvideo\.photo\.qq\.com|dis_k=|dis_t=/i.test(play) ||
     /issue-hls-playback/i.test(play) ||
-    /[?&](?:sign|signature|auth_key|expires|expire|token|pt|t\d+)=/i.test(play)
+    /[?&](?:sign|signature|auth_key|expires|expire|token|pt|verify|t\d+)=/i.test(play)
   ) {
     return PLUGIN_CACHE_TTL.resolveSigned
   }

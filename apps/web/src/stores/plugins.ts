@@ -25,7 +25,8 @@ migrateLocalStorageKey('animaku-plugins', [
 /** v19: add preferOriginalTitle support (xifan-next, libvio, omofun prefer Japanese title) */
 /** v20: add cycani (cycani.org) built-in */
 /** v21: retire otage from default built-ins, set cycani weight to 70 */
-export const PLUGIN_DEFAULTS_VERSION = 21
+/** v22: add tvtfun (tvtfun.net) built-in with weight 70 */
+export const PLUGIN_DEFAULTS_VERSION = 22
 
 interface PluginState {
   plugins: PluginMeta[]
@@ -312,6 +313,7 @@ export const usePluginStore = create<PluginState>()(
             'omofun',
             'libvio',
             'cycani',
+            'tvtfun',
           ].map((s) => s.toLowerCase()),
         )
         const onlyLegacyBuiltins = plugins.every(
