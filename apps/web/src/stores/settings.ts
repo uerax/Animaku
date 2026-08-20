@@ -7,7 +7,6 @@ import {
   type DanmakuSettings,
   type PlayerSettings,
   setBangumiImageHost as setBangumiImageHostShared,
-  setBangumiApiHost as setBangumiApiHostShared,
 } from '@animaku/shared'
 import { createDebouncedStorage } from '../lib/debounced-storage'
 import { migrateLocalStorageKey } from '../lib/storage'
@@ -15,10 +14,6 @@ import {
   DEFAULT_BANGUMI_IMAGE_HOST,
   resolveBangumiImageHost,
 } from '../lib/bangumi-image-host'
-import {
-  DEFAULT_BANGUMI_API_HOST,
-  resolveBangumiApiHost,
-} from '../lib/bangumi-api-host'
 
 /** Debounce settings disk writes (volume scrub / slider spam). */
 const SETTINGS_PERSIST_DEBOUNCE_MS = 800
@@ -34,15 +29,12 @@ interface SettingsState {
   /** 管理员服务器代理授权口令（用于解锁媒体流代理出站） */
   proxyToken: string
   theme: AppTheme
-  /** Bangumi API 接口源 host（默认取 .env 的 VITE_BANGUMI_API_HOST） */
-  bangumiApiHost: string
-  /** 封面图片源 host（默认取 .env 的 VITE_BANGUMI_IMAGE_HOST） */
+  /** 封面图片源 host（默认取 .env 的 BANGUMI_IMAGE / VITE_BANGUMI_IMAGE_HOST） */
   bangumiImageHost: string
   danmaku: DanmakuSettings
   player: PlayerSettings
   setBangumiToken: (token: string) => void
   setProxyToken: (token: string) => void
-  setBangumiApiHost: (host: string) => void
   setBangumiImageHost: (host: string) => void
   setTheme: (theme: AppTheme) => void
   toggleTheme: () => void
@@ -115,17 +107,11 @@ export const useSettingsStore = create<SettingsState>()(
       bangumiToken: '',
       proxyToken: '',
       theme: 'light',
-      bangumiApiHost: DEFAULT_BANGUMI_API_HOST,
       bangumiImageHost: DEFAULT_BANGUMI_IMAGE_HOST,
       danmaku: { ...defaultDanmakuSettings },
       player: { ...defaultPlayerSettings },
       setBangumiToken: (bangumiToken) => set({ bangumiToken }),
       setProxyToken: (proxyToken) => set({ proxyToken }),
-      setBangumiApiHost: (raw) => {
-        const bangumiApiHost = resolveBangumiApiHost(raw)
-        setBangumiApiHostShared(bangumiApiHost)
-        set({ bangumiApiHost })
-      },
       setBangumiImageHost: (raw) => {
         const bangumiImageHost = resolveBangumiImageHost(raw)
         // shared 状态先更新，再 set 触发重渲染 → 新 URL 立即生效
@@ -183,7 +169,6 @@ export const useSettingsStore = create<SettingsState>()(
         bangumiToken: s.bangumiToken,
         proxyToken: s.proxyToken,
         theme: s.theme,
-        bangumiApiHost: s.bangumiApiHost,
         bangumiImageHost: s.bangumiImageHost,
         danmaku: s.danmaku,
         player: s.player,
@@ -202,7 +187,6 @@ export const useSettingsStore = create<SettingsState>()(
               : current.proxyToken,
           theme:
             p.theme === 'light' || p.theme === 'dark' ? p.theme : current.theme,
-          bangumiApiHost: resolveBangumiApiHost(p.bangumiApiHost),
           bangumiImageHost: resolveBangumiImageHost(p.bangumiImageHost),
           danmaku: {
             ...defaultDanmakuSettings,
@@ -216,7 +200,6 @@ export const useSettingsStore = create<SettingsState>()(
       onRehydrateStorage: () => (state) => {
         if (state?.theme) applyDocumentTheme(state.theme)
         // 水合后同步 shared 模块状态（此前用的是 .env 默认）
-        setBangumiApiHostShared(resolveBangumiApiHost(state?.bangumiApiHost))
         setBangumiImageHostShared(resolveBangumiImageHost(state?.bangumiImageHost))
       },
     },
