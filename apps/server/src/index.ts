@@ -30,15 +30,25 @@ function formatLogTimestamp(d: Date = new Date()): string {
 
 /** Extracts client IP from reverse proxy headers or socket */
 function getClientIp(req: { header: (name: string) => string | undefined }): string {
+  // 1. Cloudflare CDN (最权威且经过边缘验证的真实客户端 IP)
+  const cfIp = req.header('cf-connecting-ip')
+  if (cfIp?.trim()) return cfIp.trim()
+
+  // 2. Cloudflare Enterprise / Akamai / 常见 CDN 真实 IP 请求头
+  const trueClientIp = req.header('true-client-ip')
+  if (trueClientIp?.trim()) return trueClientIp.trim()
+
+  // 3. X-Real-IP (常用于单层反向代理)
+  const xReal = req.header('x-real-ip')
+  if (xReal?.trim()) return xReal.trim()
+
+  // 4. X-Forwarded-For (逗号分隔的代理链路，取最左侧原始客户端 IP)
   const xff = req.header('x-forwarded-for')
   if (xff) {
     const first = xff.split(',')[0]?.trim()
     if (first) return first
   }
-  const xReal = req.header('x-real-ip')
-  if (xReal) return xReal.trim()
-  const cfIp = req.header('cf-connecting-ip')
-  if (cfIp) return cfIp.trim()
+
   return '127.0.0.1'
 }
 

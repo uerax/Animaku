@@ -67,6 +67,13 @@ services:
       - path: .env
         required: false
     restart: unless-stopped
+    # Logging controller & log rotation persistence
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "${LOG_MAX_SIZE:-5m}"
+        max-file: "${LOG_MAX_FILE:-10}"
+        compress: "true"
     healthcheck:
       test:
         [

@@ -4,6 +4,32 @@
 
 ---
 
+## [2026-08-21] Docker Compose 接入日志控制器与轮转持久化配置 (LOG_MAX_SIZE & LOG_MAX_FILE)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **Docker 日志控制器配置 (`logging`)**：
+     - 在 `docker-compose.yml` 的 `animaku` 服务中接入标准 `json-file` logging driver；
+     - 配置默认单文件大小 `max-size: ${LOG_MAX_SIZE:-5m}`，默认历史归档数量 `max-file: ${LOG_MAX_FILE:-10}`，并开启 `compress: "true"` gzip 自动压缩；
+     - 限制容器日志总磁盘占用上限（约 $5\text{MB} \times 10 = 50\text{MB}$ 未压缩量，压缩后实际物理占用仅约 $5\sim 10\text{MB}$），杜绝无节制膨胀打满宿主机磁盘；
+  2. **环境变量与配置示例同步**：
+     - 在 `.env.example` 中补充 `LOG_MAX_SIZE` 与 `LOG_MAX_FILE` 配置项说明。
+- 涉及文件：docker-compose.yml, .env.example, .claude/STATE.md
+- 备注：配置通过验证。
+
+## [2026-08-21] 修复 Cloudflare CDN 接入后日志 IP 获取被 XFF/X-Real-IP 覆盖问题
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **问题排查**：
+     - 原 `getClientIp` 函数中优先读取 `x-forwarded-for` 与 `x-real-ip`，而将 Cloudflare 的 `cf-connecting-ip` 置于末尾；
+     - 接入 Cloudflare 或经由源站反向代理（如 Nginx/Docker 网络）时，`x-forwarded-for` 或 `x-real-ip` 往往直接拿到上一级 CF 边缘节点 IP，导致 `cf-connecting-ip` 永远无法生效。
+  2. **修复落地**：
+     - 调整 `apps/server/src/index.ts` 中 `getClientIp` 的提取优先级：`cf-connecting-ip`（CF CDN） > `true-client-ip`（CF Enterprise / Akamai） > `x-real-ip` > `x-forwarded-for` > `127.0.0.1`；
+     - 优先获取 Cloudflare 权威注入的真实客户端 IP。
+- 涉及文件：apps/server/src/index.ts, .claude/STATE.md
+- 备注：`pnpm typecheck` 0 报错通过。
+
 ## [2026-08-21] Bangumi API 接口与图片源变量全量接管与免翻反代支持 (BANGUMI_API & BANGUMI_IMAGE)
 - 状态：已完成
 - 优先级：P0
