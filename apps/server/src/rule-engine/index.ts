@@ -895,6 +895,22 @@ export async function searchWithRule(
     }
   }
 
+  // moonci — dedicated adapter (Ajax Suggest JSON API + Web Search Fallback)
+  {
+    const { isMoonciRule, searchMoonci } = await import('../lib/moonci')
+    if (isMoonciRule(rule)) {
+      try {
+        return await searchMoonci(rule, keyword)
+      } catch (e) {
+        return {
+          pluginName: rule.name,
+          items: [],
+          diagnostics: [e instanceof Error ? e.message : String(e)],
+        }
+      }
+    }
+  }
+
   // Omofun / 211dm — search gate + hash detail URLs (chapters/resolve stay generic)
   {
     const { isOmofunRule, searchOmofun } = await import('../lib/omofun')
@@ -1154,6 +1170,22 @@ export async function chaptersWithRule(
     if (isTvTFunRule(rule)) {
       try {
         return await chaptersTvTFun(rule, source)
+      } catch (e) {
+        return {
+          pluginName: rule.name,
+          roads: [],
+          diagnostics: [e instanceof Error ? e.message : String(e)],
+        }
+      }
+    }
+  }
+
+  // moonci — dedicated adapter (Multi-road Tabs & Playlists Extraction)
+  {
+    const { isMoonciRule, chaptersMoonci } = await import('../lib/moonci')
+    if (isMoonciRule(rule)) {
+      try {
+        return await chaptersMoonci(rule, source)
       } catch (e) {
         return {
           pluginName: rule.name,
@@ -1566,6 +1598,14 @@ export async function resolvePlay(
     const { isTvTFunRule, resolveTvTFun } = await import('../lib/tvtfun')
     if (isTvTFunRule(rule)) {
       return await resolveTvTFun(rule, pageUrl)
+    }
+  }
+
+  // moonci: dedicated adapter (player_aaaa & Unicom MP4 Resolver)
+  {
+    const { isMoonciRule, resolveMoonci } = await import('../lib/moonci')
+    if (isMoonciRule(rule)) {
+      return await resolveMoonci(rule, pageUrl)
     }
   }
 

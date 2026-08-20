@@ -225,11 +225,56 @@ export function MobileControls(props: PlayerControlsProps) {
   const vol = player.volume ?? 0.7
   const volPct = Math.round(Math.min(1, Math.max(0, vol)) * 100)
 
-  const barRef = useRef<HTMLDivElement>(null)
-
   const releaseSliderFocus = (e: PointerEvent<HTMLInputElement>) => {
     e.currentTarget.blur()
   }
+
+  const isDraggingRef = useRef(false)
+  const seekWrapRef = useRef<HTMLDivElement>(null)
+
+  const calcSeekRatio = (clientX: number) => {
+    const el = seekWrapRef.current
+    if (!el) return 0
+    const rect = el.getBoundingClientRect()
+    if (rect.width <= 0) return 0
+    return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+  }
+
+  const handleSeekPointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return
+    e.preventDefault()
+    e.stopPropagation()
+    isDraggingRef.current = true
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId)
+    } catch {
+      /* ignore */
+    }
+    const ratio = calcSeekRatio(e.clientX)
+    onSeekRatio(ratio)
+  }
+
+  const handleSeekPointerMove = (e: PointerEvent<HTMLDivElement>) => {
+    if (isDraggingRef.current) {
+      const ratio = calcSeekRatio(e.clientX)
+      onSeekRatio(ratio)
+    }
+  }
+
+  const handleSeekPointerUp = (e: PointerEvent<HTMLDivElement>) => {
+    if (isDraggingRef.current) {
+      isDraggingRef.current = false
+      try {
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+          e.currentTarget.releasePointerCapture(e.pointerId)
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  const barRef = useRef<HTMLDivElement>(null)
   const srBtnRef = useRef<HTMLButtonElement>(null)
   const volBtnRef = useRef<HTMLButtonElement>(null)
   const settingsBtnRef = useRef<HTMLButtonElement>(null)
@@ -377,7 +422,14 @@ export function MobileControls(props: PlayerControlsProps) {
         onMouseDown={stop}
         data-player-chrome
       >
-        <div className="kz-seek-wrap">
+        <div
+          ref={seekWrapRef}
+          className="kz-seek-wrap"
+          onPointerDown={handleSeekPointerDown}
+          onPointerMove={handleSeekPointerMove}
+          onPointerUp={handleSeekPointerUp}
+          onPointerCancel={handleSeekPointerUp}
+        >
           {/* Danmaku Heatmap Wave */}
           {heatmapPath && (
             <svg
@@ -425,7 +477,6 @@ export function MobileControls(props: PlayerControlsProps) {
             max={1000}
             value={Math.round(progress * 10)}
             onChange={(e) => onSeekRatio(Number(e.target.value) / 1000)}
-            onPointerUp={releaseSliderFocus}
             style={{ ['--kz-progress' as string]: `${progress}%` }}
             aria-label="进度"
           />

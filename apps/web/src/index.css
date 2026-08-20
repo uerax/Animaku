@@ -431,13 +431,21 @@ textarea:focus-visible {
   box-shadow: none;
 }
 
-/* Section title under PageHeader — one step quieter than h1 */
+/* Section title — prominent, heavy bold & clear (streaming portal style) */
 .kz-section-title {
-  font-size: 1.125rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.3;
+  font-size: 1.625rem;
+  font-weight: 900 !important;
+  letter-spacing: -0.035em;
+  line-height: 1.15;
   color: var(--kz-fg);
+}
+
+@media (min-width: 640px) {
+  .kz-section-title {
+    font-size: 2rem;
+    font-weight: 900 !important;
+    letter-spacing: -0.04em;
+  }
 }
 
 .kz-section-meta {
@@ -913,7 +921,12 @@ textarea:focus-visible {
   border-color: var(--kz-accent);
   background: var(--kz-accent-soft);
   color: var(--kz-accent);
-  cursor: default;
+  cursor: pointer;
+}
+
+.kz-source-pill--active:hover {
+  background: var(--kz-accent);
+  color: #ffffff;
 }
 
 .kz-source-pill--ready {
@@ -945,15 +958,35 @@ html[data-theme='dark'] .kz-source-pill--pick {
 }
 
 .kz-source-pill--retry {
-  border-color: var(--kz-border);
+  border-color: rgba(244, 63, 94, 0.35);
+  background: rgba(244, 63, 94, 0.1);
+  color: #e11d48;
+}
+
+html[data-theme='dark'] .kz-source-pill--retry {
+  color: #fb7185;
+}
+
+.kz-source-pill--retry:hover {
+  border-color: rgba(244, 63, 94, 0.55);
+  background: rgba(244, 63, 94, 0.2);
+  color: #e11d48;
+}
+
+html[data-theme='dark'] .kz-source-pill--retry:hover {
+  color: #fda4af;
+}
+
+.kz-source-pill--idle {
+  border-color: var(--kz-border-subtle);
   background: var(--kz-bg-soft);
   color: var(--kz-fg-muted);
 }
 
-.kz-source-pill--retry:hover {
-  border-color: var(--kz-border);
-  background: var(--kz-bg-hover);
-  color: var(--kz-fg);
+.kz-source-pill--idle:hover {
+  border-color: var(--kz-accent);
+  background: var(--kz-accent-soft);
+  color: var(--kz-accent);
 }
 
 .kz-source-pill--probing {
@@ -961,6 +994,15 @@ html[data-theme='dark'] .kz-source-pill--pick {
   background: var(--kz-accent-soft);
   color: var(--kz-accent);
   cursor: default;
+}
+
+.no-scrollbar {
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE 10+ */
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important; /* Chrome, Safari, Opera */
 }
 
 .kz-bili-hits {

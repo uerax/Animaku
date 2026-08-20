@@ -397,3 +397,18 @@ export function coverOf(
     ''
   return preferResizedCover(raw, 400)
 }
+
+/**
+ * Check whether a subject is considered a classic/vintage anime (老番).
+ * Dynamic cutoff is released >= 5 years ago (current year - 5).
+ */
+export function isOldAnime(airDate?: string, yearsAgo = 5): boolean {
+  if (!airDate) return false
+  const match = String(airDate).trim().match(/^(\d{4})/)
+  if (!match) return false
+  const year = parseInt(match[1], 10)
+  const currentYear = new Date().getFullYear()
+  const cutoffYear = currentYear - yearsAgo
+  return Number.isFinite(year) && year > 0 && year <= cutoffYear
+}
+

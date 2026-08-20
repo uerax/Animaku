@@ -1,0 +1,22 @@
+{
+  "api": "1",
+  "type": "anime",
+  "name": "moonci",
+  "version": "1.0",
+  "weight": 65,
+  "preferOriginalTitle": true,
+  "muliSources": true,
+  "useWebview": false,
+  "useNativePlayer": true,
+  "usePost": false,
+  "useLegacyParser": false,
+  "adBlocker": false,
+  "baseURL": "https://www.moonci.com/",
+  "searchURL": "https://www.moonci.com/search/-------------.html?wd=@keyword",
+  "searchList": "//ul[contains(@class, 'hl-one-list')]/li",
+  "searchName": ".//div[contains(@class, 'hl-item-title')]/a",
+  "searchResult": ".//div[contains(@class, 'hl-item-title')]/a",
+  "chapterRoads": "//ul[contains(@class, 'hl-plays-list')]",
+  "chapterResult": ".//li/a",
+  "referer": ""
+}

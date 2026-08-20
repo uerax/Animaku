@@ -12,7 +12,7 @@ import { useEffect, useMemo } from 'react'
 import { EMPTY_ARRAY } from '../lib/stable'
 import { preloadVideoPlayer } from '../player/lazy'
 
-const SECTION_LIMIT = 12
+const SECTION_LIMIT = 18
 
 export function HomePage() {
   const trending = useQuery({
@@ -73,14 +73,14 @@ export function HomePage() {
   }, [])
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-12 sm:space-y-14">
       {recent.length > 0 && (
         <section>
-          <div className="mb-4 flex items-center justify-between gap-2">
-            <h2 className="kz-section-title">继续观看</h2>
+          <div className="mb-4 sm:mb-5 flex items-center justify-between gap-3">
+            <h2 className="kz-section-title font-black">继续观看</h2>
             <Link
               to="/history"
-              className="text-[13px] font-medium text-[var(--kz-accent)] hover:underline"
+              className="text-[13px] font-semibold text-[var(--kz-accent)] hover:underline"
             >
               查看更多
             </Link>
@@ -141,16 +141,16 @@ export function HomePage() {
 
       {/* 热门番剧 */}
       <section>
-        <div className="mb-4 flex items-center justify-between gap-2">
-          <h2 className="kz-section-title">热门番剧</h2>
+        <div className="mb-4 sm:mb-5 flex items-center justify-between gap-3">
+          <h2 className="kz-section-title font-black">热门番剧</h2>
           <Link
             to="/anime"
-            className="text-[13px] font-medium text-[var(--kz-accent)] hover:underline"
+            className="text-[13px] font-semibold text-[var(--kz-accent)] hover:underline"
           >
             查看更多
           </Link>
         </div>
-        {trending.isLoading && <BangumiGridSkeleton count={12} />}
+        {trending.isLoading && <BangumiGridSkeleton count={SECTION_LIMIT} />}
         {trending.isError && (
           <ErrorState error={trending.error} onRetry={() => trending.refetch()} />
         )}
@@ -161,16 +161,16 @@ export function HomePage() {
 
       {/* 剧场版 */}
       <section>
-        <div className="mb-4 flex items-center justify-between gap-2">
-          <h2 className="kz-section-title">剧场版</h2>
+        <div className="mb-4 sm:mb-5 flex items-center justify-between gap-3">
+          <h2 className="kz-section-title font-black">剧场版</h2>
           <Link
             to="/anime?tag=%E5%89%A7%E5%9C%BA%E7%89%88&year=all&month=all"
-            className="text-[13px] font-medium text-[var(--kz-accent)] hover:underline"
+            className="text-[13px] font-semibold text-[var(--kz-accent)] hover:underline"
           >
             查看更多
           </Link>
         </div>
-        {movies.isLoading && <BangumiGridSkeleton count={12} />}
+        {movies.isLoading && <BangumiGridSkeleton count={SECTION_LIMIT} />}
         {movies.isError && (
           <ErrorState error={movies.error} onRetry={() => movies.refetch()} />
         )}
@@ -181,16 +181,16 @@ export function HomePage() {
 
       {/* OVA / 特别篇 */}
       <section>
-        <div className="mb-4 flex items-center justify-between gap-2">
-          <h2 className="kz-section-title">OVA / 特别篇</h2>
+        <div className="mb-4 sm:mb-5 flex items-center justify-between gap-3">
+          <h2 className="kz-section-title font-black">OVA / 特别篇</h2>
           <Link
             to="/anime?tag=OVA&year=all&month=all"
-            className="text-[13px] font-medium text-[var(--kz-accent)] hover:underline"
+            className="text-[13px] font-semibold text-[var(--kz-accent)] hover:underline"
           >
             查看更多
           </Link>
         </div>
-        {ovas.isLoading && <BangumiGridSkeleton count={12} />}
+        {ovas.isLoading && <BangumiGridSkeleton count={SECTION_LIMIT} />}
         {ovas.isError && (
           <ErrorState error={ovas.error} onRetry={() => ovas.refetch()} />
         )}

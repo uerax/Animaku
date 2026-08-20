@@ -1,4 +1,8 @@
-import { useState, type FormEvent, startTransition } from 'react'
+import {
+  useState,
+  type FormEvent,
+  startTransition,
+} from 'react'
 import { Link } from 'react-router-dom'
 import clsx from 'clsx'
 import type { BangumiItem, PluginMeta, SearchItem } from '@animaku/shared'
@@ -183,6 +187,9 @@ export function SourceBoard({
                   <div
                     onClick={() => {
                       prioritizePlugin(plugin.name)
+                      if (isActive) {
+                        return
+                      }
                       if (state.status === 'ready' && state.matchedItem) {
                         onSwitchSource(plugin, state.matchedItem)
                       } else if (state.status === 'needs_pick') {
@@ -279,18 +286,20 @@ export function SourceBoard({
 
                         {state.status === 'empty' && (
                           <span className="text-[var(--kz-fg-dim)] truncate block">
-                            未收录此番剧
+                            未搜到结果
                           </span>
                         )}
 
                         {state.status === 'error' && (
                           <span className="text-rose-500 dark:text-rose-400 truncate block">
-                            {state.errorMsg || '源站超时'}
+                            {state.errorMsg || '请求失败'}
                           </span>
                         )}
 
                         {state.status === 'idle' && (
-                          <span className="text-[var(--kz-fg-dim)] truncate block">等待探测</span>
+                          <span className="text-[var(--kz-fg-dim)] truncate block">
+                            待探活 (点击探测)
+                          </span>
                         )}
                       </div>
                     </div>
@@ -302,21 +311,30 @@ export function SourceBoard({
                           探活中
                         </span>
                       ) : isActive ? (
-                        <span className="kz-source-pill kz-source-pill--active">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setExpandedPlugin((cur) =>
+                              cur === plugin.name ? null : plugin.name,
+                            )
+                          }}
+                          className="kz-source-pill kz-source-pill--active cursor-pointer"
+                          title="点击展开当前源条目与换词"
+                        >
                           当前
-                        </span>
+                        </button>
                       ) : state.status === 'ready' ? (
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation()
-                            if (state.matchedItem) {
-                              onSwitchSource(plugin, state.matchedItem)
-                            } else {
-                              onSwitchSource(plugin)
-                            }
+                            setExpandedPlugin((cur) =>
+                              cur === plugin.name ? null : plugin.name,
+                            )
                           }}
-                          className="kz-source-pill kz-source-pill--ready"
+                          className="kz-source-pill kz-source-pill--ready cursor-pointer"
+                          title="点击展开条目列表与换词"
                         >
                           切换
                         </button>
@@ -330,6 +348,7 @@ export function SourceBoard({
                             )
                           }}
                           className="kz-source-pill kz-source-pill--pick"
+                          title="点击点选匹配条目"
                         >
                           选条目
                         </button>
@@ -343,22 +362,62 @@ export function SourceBoard({
                             )
                           }}
                           className="kz-source-pill kz-source-pill--retry"
+                          title="点击换词重搜"
                         >
                           换词
+                        </button>
+                      ) : state.status === 'idle' ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            prioritizePlugin(plugin.name)
+                            setExpandedPlugin((cur) =>
+                              cur === plugin.name ? null : plugin.name,
+                            )
+                          }}
+                          className="kz-source-pill kz-source-pill--idle"
+                          title="点击探活此源"
+                        >
+                          探活
                         </button>
                       ) : null}
                     </div>
                   </div>
 
-                  {/* Expandable Hits Section for needs_pick */}
-                  {isExpanded && state.status === 'needs_pick' && (
+                  {/* Unified Expandable Drawer */}
+                  {isExpanded && (
                     <div className="border-t border-[var(--kz-border-subtle)] bg-[var(--kz-bg-soft)] p-2.5 space-y-2.5 animate-in fade-in duration-150">
-                      {state.items.length > 0 && (
+                      {/* Probing State Banner */}
+                      {state.status === 'probing' ? (
+                        <div className="flex items-center gap-2 rounded-lg bg-[var(--kz-bg-elevated)] border border-[var(--kz-accent)]/30 px-3 py-2 text-[11.5px] text-[var(--kz-accent)]">
+                          <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[var(--kz-accent)] border-t-transparent flex-shrink-0" />
+                          <span className="font-medium truncate">
+                            正在使用「{state.keyword || '关键词'}」检索 {plugin.name}…
+                          </span>
+                        </div>
+                      ) : state.items.length > 0 ? (
+                        /* Candidate Items List */
                         <div className="space-y-1.5">
-                          <div className="px-0.5 text-[10.5px] font-medium text-amber-600 dark:text-amber-300">
-                            请点选匹配的番剧条目以绑定：
+                          <div className="flex items-center justify-between px-0.5 text-[10.5px] font-medium">
+                            <span
+                              className={clsx(
+                                state.status === 'needs_pick'
+                                  ? 'text-amber-600 dark:text-amber-300'
+                                  : 'text-[var(--kz-fg-muted)]',
+                              )}
+                            >
+                              {state.status === 'needs_pick'
+                                ? '请点选匹配的番剧条目以绑定：'
+                                : `搜到 ${state.items.length} 条候选条目：`}
+                            </span>
+                            {state.keyword && (
+                              <span className="text-[9.5px] text-[var(--kz-fg-dim)] truncate max-w-[140px]">
+                                词: {state.keyword}
+                              </span>
+                            )}
                           </div>
-                          <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
+                          <div className="max-h-52 overflow-y-auto space-y-1 pr-1">
                             {state.items.map((it, idx) => {
                               const isItemSelected =
                                 isActive && selection?.source.src === it.src
@@ -370,17 +429,100 @@ export function SourceBoard({
                                     onSwitchSource(plugin, it)
                                   }}
                                   className={clsx(
-                                    'flex w-full items-center justify-between rounded-lg px-2.5 py-1 text-left text-[11.5px] transition-colors cursor-pointer',
+                                    'flex w-full items-center justify-between rounded-lg px-2.5 py-1 text-left text-[11.5px] transition-colors cursor-pointer gap-2',
                                     isItemSelected
                                       ? 'bg-[var(--kz-accent-soft)] text-[var(--kz-accent)] border border-[var(--kz-accent)] font-medium'
                                       : 'bg-[var(--kz-bg-elevated)] text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] border border-[var(--kz-border-subtle)]',
                                   )}
                                 >
-                                  <span className="truncate flex-1 pr-2">
+                                  <span className="flex-1 min-w-0 text-[11.5px] leading-snug break-words">
                                     {it.name}
                                   </span>
-                                  <span className="text-[9.5px] text-[var(--kz-fg-muted)] flex-shrink-0">
-                                    {isItemSelected ? '当前选用' : '点击选用'}
+                                  <span
+                                    className={clsx(
+                                      'text-[9.5px] font-medium px-1.5 py-[1px] rounded flex-shrink-0 select-none transition-colors leading-tight',
+                                      isItemSelected
+                                        ? 'bg-[var(--kz-accent)] text-white'
+                                        : 'text-[var(--kz-fg-muted)] bg-[var(--kz-bg-soft)] border border-[var(--kz-border-subtle)]',
+                                    )}
+                                  >
+                                    {isItemSelected ? '在播' : '选用'}
+                                  </span>
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        /* Empty or Error state notice */
+                        <div className="px-0.5 text-[11px] text-[var(--kz-fg-muted)]">
+                          {state.status === 'empty' ? (
+                            <span className="text-[var(--kz-fg-dim)]">
+                              未搜到结果，尝试换词：
+                            </span>
+                          ) : state.status === 'error' ? (
+                            <span className="text-rose-500 dark:text-rose-400">
+                              {state.errorMsg ? `${state.errorMsg}，尝试换词：` : '请求失败，尝试换词：'}
+                            </span>
+                          ) : state.status === 'idle' ? (
+                            <span className="text-[var(--kz-fg-dim)]">
+                              尚未探活，点击上方「探活」或下方关键词发起检索：
+                            </span>
+                          ) : null}
+                        </div>
+                      )}
+
+                      {/* Candidate keyword rows */}
+                      {keywordOptions.length > 0 && (
+                        <div className="space-y-1.5 pt-1 border-t border-[var(--kz-border-subtle)]">
+                          <div className="flex items-center justify-between text-[10.5px] font-medium text-[var(--kz-fg-muted)] px-0.5">
+                            <span>候选关键词：</span>
+                            <span className="text-[9.5px] text-[var(--kz-fg-dim)]">
+                              共 {Math.min(keywordOptions.length, 8)} 个
+                            </span>
+                          </div>
+                          <div className="max-h-44 overflow-y-auto space-y-1 pr-1">
+                            {keywordOptions.slice(0, 8).map((kw, idx) => {
+                              const isCurrentKw = state.keyword === kw
+                              const isProbingThis =
+                                state.status === 'probing' && state.keyword === kw
+                              return (
+                                <button
+                                  key={`${kw}:${idx}`}
+                                  type="button"
+                                  onClick={() => {
+                                    setCardKwInputs((prev) => ({
+                                      ...prev,
+                                      [plugin.name]: kw,
+                                    }))
+                                    reProbePlugin(plugin.name, kw)
+                                  }}
+                                  className={clsx(
+                                    'flex w-full items-center justify-between rounded-lg border px-2.5 py-1 text-left transition-colors cursor-pointer group/kw gap-2',
+                                    isCurrentKw
+                                      ? 'bg-[var(--kz-accent-soft)] border-[var(--kz-accent)] text-[var(--kz-accent)]'
+                                      : 'bg-[var(--kz-bg-elevated)] hover:bg-[var(--kz-bg-hover)] border-[var(--kz-border-subtle)] hover:border-[var(--kz-accent)]',
+                                  )}
+                                >
+                                  <span
+                                    className={clsx(
+                                      'flex-1 min-w-0 text-[11px] font-medium leading-snug break-words',
+                                      isCurrentKw
+                                        ? 'text-[var(--kz-accent)]'
+                                        : 'text-[var(--kz-fg-muted)] group-hover/kw:text-[var(--kz-accent)]',
+                                    )}
+                                  >
+                                    {kw}
+                                  </span>
+                                  <span
+                                    className={clsx(
+                                      'text-[9.5px] font-medium px-1.5 py-[1px] rounded flex-shrink-0 select-none transition-colors border leading-tight',
+                                      isCurrentKw
+                                        ? 'bg-[var(--kz-accent)] text-white border-[var(--kz-accent)]'
+                                        : 'text-[var(--kz-fg-muted)] group-hover/kw:text-[var(--kz-accent)] group-hover/kw:border-[var(--kz-accent)] bg-[var(--kz-bg-soft)] border-[var(--kz-border-subtle)]',
+                                    )}
+                                  >
+                                    {isProbingThis ? '搜索中' : '重搜'}
                                   </span>
                                 </button>
                               )
@@ -389,86 +531,10 @@ export function SourceBoard({
                         </div>
                       )}
 
-                      {/* Candidate keyword chips if candidate items don't match */}
-                      {keywordOptions.length > 0 && (
-                        <div className="space-y-1.5 pt-1 border-t border-[var(--kz-border-subtle)]">
-                          <div className="text-[10.5px] font-medium text-[var(--kz-fg-muted)]">
-                            点选候选关键词重新探活：
-                          </div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {keywordOptions.slice(0, 8).map((kw) => (
-                              <button
-                                key={kw}
-                                type="button"
-                                onClick={() => {
-                                  reProbePlugin(plugin.name, kw)
-                                }}
-                                title={`以「${kw}」重新检索 ${plugin.name}`}
-                                className="rounded-md bg-[var(--kz-bg-elevated)] px-2 py-0.5 text-[10.5px] font-medium leading-tight text-[var(--kz-fg-muted)] hover:text-[var(--kz-accent)] border border-[var(--kz-border-subtle)] hover:border-[var(--kz-accent)] hover:bg-[var(--kz-accent-soft)] transition-all duration-150 cursor-pointer select-none"
-                              >
-                                {kw}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Also allow custom search if candidate items are not correct */}
+                      {/* Custom keyword search input */}
                       <form
                         onSubmit={(e) => handleCardKeywordSubmit(plugin.name, e)}
                         className="flex gap-1.5 pt-1 border-t border-[var(--kz-border-subtle)]"
-                      >
-                        <input
-                          value={cardKwInputs[plugin.name] || ''}
-                          onChange={(e) =>
-                            setCardKwInputs((prev) => ({
-                              ...prev,
-                              [plugin.name]: e.target.value,
-                            }))
-                          }
-                          placeholder={`换词重搜 ${plugin.name}…`}
-                          className="min-w-0 flex-1 rounded-md bg-[var(--kz-bg-elevated)] px-2.5 py-1 text-[11px] text-[var(--kz-fg)] border border-[var(--kz-border-subtle)] placeholder:text-[var(--kz-fg-dim)] outline-none focus:border-[var(--kz-accent)] focus:ring-1 focus:ring-[var(--kz-accent)] transition-all"
-                        />
-                        <button
-                          type="submit"
-                          disabled={!(cardKwInputs[plugin.name] || '').trim()}
-                          className="rounded-md bg-[var(--kz-accent)] px-2.5 py-1 text-[11px] font-medium text-white hover:bg-[var(--kz-accent-hover)] disabled:opacity-40 transition-all cursor-pointer select-none"
-                        >
-                          重搜
-                        </button>
-                      </form>
-                    </div>
-                  )}
-
-                  {/* Expandable Keyword Search/Retry for error or empty states */}
-                  {isExpanded && (state.status === 'error' || state.status === 'empty') && (
-                    <div className="border-t border-[var(--kz-border-subtle)] bg-[var(--kz-bg-soft)] p-2.5 space-y-2.5 animate-in fade-in duration-150">
-                      {keywordOptions.length > 0 && (
-                        <div className="space-y-1.5">
-                          <div className="text-[10.5px] font-medium text-[var(--kz-fg-muted)]">
-                            点选候选关键词重新探活：
-                          </div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {keywordOptions.slice(0, 8).map((kw) => (
-                              <button
-                                key={kw}
-                                type="button"
-                                onClick={() => {
-                                  reProbePlugin(plugin.name, kw)
-                                }}
-                                title={`以「${kw}」重新检索 ${plugin.name}`}
-                                className="rounded-md bg-[var(--kz-bg-elevated)] px-2 py-0.5 text-[10.5px] font-medium leading-tight text-[var(--kz-fg-muted)] hover:text-[var(--kz-accent)] border border-[var(--kz-border-subtle)] hover:border-[var(--kz-accent)] hover:bg-[var(--kz-accent-soft)] transition-all duration-150 cursor-pointer select-none"
-                              >
-                                {kw}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      <form
-                        onSubmit={(e) => handleCardKeywordSubmit(plugin.name, e)}
-                        className="flex gap-1.5"
                       >
                         <input
                           value={cardKwInputs[plugin.name] || ''}
@@ -483,10 +549,13 @@ export function SourceBoard({
                         />
                         <button
                           type="submit"
-                          disabled={!(cardKwInputs[plugin.name] || '').trim()}
+                          disabled={
+                            state.status === 'probing' ||
+                            !(cardKwInputs[plugin.name] || '').trim()
+                          }
                           className="rounded-md bg-[var(--kz-accent)] px-2.5 py-1 text-[11px] font-medium text-white hover:bg-[var(--kz-accent-hover)] disabled:opacity-40 transition-all cursor-pointer select-none"
                         >
-                          重搜
+                          {state.status === 'probing' ? '搜索中…' : '重搜'}
                         </button>
                       </form>
                     </div>
