@@ -18,7 +18,7 @@
   <p>
     A modern self-hosted anime streaming web client: out-of-the-box high quality 1080P original stream sources,
     powered by <a href="https://bangumi.tv/">Bangumi</a> broadcast calendar & metadata,
-    <b>Bilibili-grade proprietary high-precision danmaku engine</b>, <b>WebGPU Anime4K real-time upscaling</b>,
+    <b>flagship proprietary high-precision danmaku engine</b>, <b>WebGPU Anime4K real-time upscaling</b>,
     <b>smart OP/ED skip</b>, and <b>Stats for Nerds HUD</b>.<br />
     Compatible with <a href="https://github.com/Predidit/KazumiRules">KazumiRules</a>, supporting multi-source concurrent search and rule store.
     Ultra-fast SQLite multi-tier persistent caching, pure local data storage, and light/dark dual-theme glassmorphism. Actively in development (～￣▽￣)～
@@ -41,8 +41,8 @@
 | Dimension | Description |
 |------|------|
 | **Metadata & Calendar** | Bangumi weekly schedule / global search / details / staff & episodes; optional Token sync |
-| **Multi-Source Playback** | Built-in TvTFun / Cycani / xifan-next 1080P streams; compatible with KazumiRules ecosystem |
-| **Bilibili-Grade Danmaku** | DanDanPlay + Bilibili dual-library aggregation; physical clock + tiered drift filter + rVFC frame sync + heatmap |
+| **Multi-Source Playback** | Built-in high quality 1080P streams; compatible with KazumiRules ecosystem |
+| **High-Precision Danmaku** | DanDanPlay + multi-source danmaku aggregation; physical clock + tiered drift filter + rVFC frame sync + heatmap |
 | **Upscaling & Video Tech** | WebGPU real-time Anime4K upscaling (720p/1080p→4K), `bangumi-oped` smart OP/ED skip, M3U8 ad filter |
 | **Streaming UX** | 3-color status source board, 50-episode pagination tabs, forward/reverse sort, one-click refresh, Stats for Nerds |
 | **Speed & Local Privacy** | SQLite L1/L2 multi-tier persistent caching & Single-Flight concurrency; history/settings/rules stored 100% locally |
@@ -62,8 +62,8 @@
   - **0ms Instant Response & Aspect Ratio**: Zero click latency for instant play/pause; press `W` to cycle through 16:9 (default), 4:3 (retro), Cover, and Fill.
   - **Web Fullscreen & Fullscreen**: Press `Shift+W` for Web Fullscreen (maximized viewport with page controls) and `F` for Native Fullscreen.
 
-- 💬 **Bilibili-Grade Proprietary Danmaku Engine**
-  - **Multi-Platform Aggregation**: Matches DanDanPlay + Bilibili libraries, supports custom keywords, episode binding, and local XML import.
+- 💬 **Flagship Proprietary Danmaku Engine**
+  - **Multi-Platform Aggregation**: Matches DanDanPlay and multi-source danmaku libraries, supports custom keywords, episode binding, and local XML import.
   - **Pure Physical Clock + Tiered Drift Governance**: Displacements 100% driven by monotonic `performance.now()`, combined with Zero deadzone and EMA low-pass filter to eliminate jitter and rubber-banding.
   - **rVFC Hardware Frame Sync**: Synchronizes frame presentation via `requestVideoFrameCallback`; equipped with 1:1 Retina offscreen glyph bitmap cache pool.
   - **3-State Danmaku Cycle & Denoising**: Toggle between "Full → Lite (xN deduplication) → Off" with hotkey `D`; drops excessive density to prevent screen overcrowding.
@@ -71,7 +71,7 @@
   - **Seekbar Danmaku Heatmap**: Dynamically renders high-energy density wave graphs on the progress bar.
 
 - 🔍 **Multi-Source Aggregation & Smart Streaming**
-  - **Built-in 1080P Direct Sources**: Ships with TvTFun, Cycani, xifan-next 1080P MP4 direct streams with 0 server proxy bandwidth consumption.
+  - **Built-in 1080P Direct Sources**: Ships with high quality 1080P MP4 direct streams with 0 server proxy bandwidth consumption.
   - **3-Color Glowing Status Board**: 🟢 Ready (pulsing green) / 🟡 Multi-match (amber accordion) / 🔴 Timeout or not found; 2-worker on-demand streaming probing pool.
   - **Episode Experience Upgrades**: One-click force refresh (`onRefreshChapters`); 50-episode smart range tabs for long anime; forward/reverse sort.
   - **Episode Normalization & Resume Inheritance**: Automatically aligns episode numbers and resumes playback second when switching between sources.
@@ -193,7 +193,7 @@ pnpm bump <ver>    # one-click semantic version bump across monorepo (e.g. pnpm 
 | `,` / `.` / `/` | Danmaku delay 0.5s / advance 0.5s / reset offset |
 | `P` / `N` | Previous / next episode |
 | Right Click | Open player context menu (Stats for Nerds, Screenshot, Mirror, PiP, Speed, Anime4K) |
-| Drag & Drop | Drag local videos (MP4/MKV/WebM) to play; drag `.xml` to import bilibili danmaku |
+| Drag & Drop | Drag local videos (MP4/MKV/WebM) to play; drag `.xml` to import external/pakku danmaku |
 
 ### Mobile Touch Gestures
 
@@ -237,7 +237,7 @@ A: Anime4K runs on browser **WebGPU**. If GPU load is high, select the **Efficie
 
 #### Q: Why can some sources be found but not played?
 
-A: Web client has no native WebView interception and relies on static extraction. If a source fails, simply switch to another high-quality built-in source (e.g. TvTFun, Cycani, xifan-next).
+A: Web client has no native WebView interception and relies on static extraction. If a source fails, simply switch to another available built-in or custom source.
 
 #### Q: Public URL opens but cannot search / play?
 
