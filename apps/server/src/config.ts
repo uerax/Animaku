@@ -1,5 +1,10 @@
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
+import {
+  toBangumiApiUrl,
+  resolveBangumiApiPreset,
+  resolveBangumiImagePreset,
+} from '@animaku/shared'
 
 function loadEnvFile(filePath: string) {
   if (!existsSync(filePath)) return
@@ -140,8 +145,31 @@ export const config = {
   defaultUserAgent:
     process.env.DEFAULT_USER_AGENT ||
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-  bangumiApi: 'https://api.bgm.tv',
-  bangumiNextApi: 'https://next.bgm.tv',
+  /**
+   * Bangumi API URL (e.g. https://bgmapi.anibt.net or https://api.bgm.tv).
+   * Configured via BANGUMI_API, BANGUMI_API_HOST, or VITE_BANGUMI_API_HOST (supports 'official' | 'mirror' | custom host).
+   * Defaults to proxy https://bgmapi.anibt.net for CN-friendly out-of-the-box experience.
+   */
+  bangumiApi: toBangumiApiUrl(
+    process.env.BANGUMI_API ||
+      process.env.BANGUMI_API_HOST ||
+      process.env.VITE_BANGUMI_API_HOST,
+  ),
+  bangumiApiHost: resolveBangumiApiPreset(
+    process.env.BANGUMI_API ||
+      process.env.BANGUMI_API_HOST ||
+      process.env.VITE_BANGUMI_API_HOST,
+  ),
+  bangumiNextApi: (
+    process.env.BANGUMI_NEXT_API || 'https://next.bgm.tv'
+  )
+    .trim()
+    .replace(/\/+$/, ''),
+  bangumiImageHost: resolveBangumiImagePreset(
+    process.env.BANGUMI_IMAGE ||
+      process.env.BANGUMI_IMAGE_HOST ||
+      process.env.VITE_BANGUMI_IMAGE_HOST,
+  ),
   dandanApi: 'https://api.dandanplay.net',
   /** KazumiRules primary + gitcode mirror (same as Kazumi ApiEndpoints) */
   pluginShop:

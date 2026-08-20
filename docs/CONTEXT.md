@@ -32,7 +32,7 @@ animaku/
 
 ```
 Browser Client (Vite 5173 / Production Web)
-  ├── Bangumi 元数据  ──► /api/bangumi/*  ──► api.bgm.tv (服务端 TTL 内存缓存)
+  ├── Bangumi 元数据  ──► /api/bangumi/*  ──► 反代 bgmapi.anibt.net / 官方 api.bgm.tv (服务端 TTL 内存缓存)
   ├── 弹幕聚合与匹配  ──► /api/danmaku/*  ──► api.dandanplay.net + Bilibili
   ├── 规则搜索与分集  ──► /api/plugin/*   ──► L1 内存 + L2 SQLite 持久化 ──► 源站
   └── 媒体直连 / 代理 ──► /api/media/*    ──► 优先 CDN 直连，M3U8 去广告混合代理
@@ -117,6 +117,8 @@ Browser Client (Vite 5173 / Production Web)
 | `PUBLIC_PROXY` | `1` | **默认开启**：允许客户端使用媒体代理与插件 API。仅内网私有部署可设为 `0` |
 | `PROXY_TOKEN` | 空 | 代理鉴权密码；`PUBLIC_PROXY=0` 时通过 `X-Animaku-Proxy-Token` 或设置页解锁 |
 | `MEDIA_FULL_PROXY` | `0` | **默认关闭**：媒体代理仅允许 M3U8 列表（切片直连 CDN）；禁止 VPS 转发全量二进制大文件 |
+| `VITE_BANGUMI_API_HOST` / `BANGUMI_API_HOST` | `bgmapi.anibt.net` | Bangumi API 接口源（默认反代免翻；可选 `api.bgm.tv` 官方直连） |
+| `VITE_BANGUMI_IMAGE_HOST` / `BANGUMI_IMAGE_HOST` | `bgmimg.anibt.net` | Bangumi 封面图片源（默认反代免翻；可选 `lain.bgm.tv` 官方直连） |
 
 - **SSRF 防御**：服务端所有发往第三方的请求必须使用 `fetchPublic`，严格拦截私有网段与内网 Host。
 - **权限不可提权**：客户端设置项保存在本地，服务器始终依据环境变量强制执行安全策略。

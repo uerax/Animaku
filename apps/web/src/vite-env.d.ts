@@ -32,6 +32,10 @@ interface ImportMetaEnv {
    */
   readonly VITE_SITE_URL?: string
   /**
+   * Bangumi API 接口源 host；由 vite.config.ts 注入，设置页可覆盖。
+   */
+  readonly VITE_BANGUMI_API_HOST?: string
+  /**
    * Bangumi 封面图片源 host；由 vite.config.ts 注入，设置页可覆盖。
    */
   readonly VITE_BANGUMI_IMAGE_HOST?: string

@@ -3,6 +3,8 @@ import {
   parseBangumiItem,
   fromBangumiCollectionType,
   toBangumiCollectionType,
+  toBangumiApiUrl,
+  resolveBangumiApiPreset,
   type BangumiItem,
   type BangumiEpisode,
   type BangumiCollectionEntry,
@@ -39,8 +41,32 @@ function cacheHeaders(hit: boolean): Record<string, string> {
   return { 'X-Cache': hit ? 'HIT' : 'MISS' }
 }
 
+function resolveBangumiApi(c: {
+  req: {
+    header: (n: string) => string | undefined
+    query: (n: string) => string | undefined
+  }
+}): { apiUrl: string; apiHost: string } {
+  const headerHost =
+    c.req.header('X-Bangumi-Api-Host') || c.req.query('api_host')
+  if (headerHost) {
+    const host = resolveBangumiApiPreset(headerHost)
+    if (host) {
+      return {
+        apiUrl: toBangumiApiUrl(host),
+        apiHost: host,
+      }
+    }
+  }
+  return {
+    apiUrl: config.bangumiApi,
+    apiHost: config.bangumiApiHost,
+  }
+}
+
 bangumiRoutes.get('/calendar', async (c) => {
-  const key = 'bangumi:calendar'
+  const { apiUrl, apiHost } = resolveBangumiApi(c)
+  const key = `bangumi:${apiHost}:calendar`
   const bypass = wantsCacheBypass(c)
   if (bypass) cacheDelete(key)
   else {
@@ -48,37 +74,93 @@ bangumiRoutes.get('/calendar', async (c) => {
     if (hit) return c.json(hit, 200, cacheHeaders(true))
   }
 
-  const res = await bangumiFetch(`${config.bangumiNextApi}/p1/calendar`)
-  if (!res.ok) {
-    return c.json({ error: 'upstream', message: await res.text() }, 502)
+  // Determine candidate URLs based on target host
+  const tryUrls: string[] = []
+  if (apiHost.includes('api.bgm.tv')) {
+    tryUrls.push(`${config.bangumiNextApi}/p1/calendar`, `${apiUrl}/calendar`)
+  } else {
+    tryUrls.push(`${apiUrl}/calendar`, `${config.bangumiNextApi}/p1/calendar`)
   }
-  const json = (await res.json()) as Record<string, unknown>
-  // shape: { "1": [{ subject: {...} }, ...], ... }
+
+  let res: Response | null = null
+  let lastError = 'upstream'
+  for (const u of tryUrls) {
+    try {
+      const r = await bangumiFetch(u)
+      if (r.ok) {
+        res = r
+        break
+      } else {
+        lastError = await r.text()
+      }
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err)
+    }
+  }
+
+  if (!res || !res.ok) {
+    return c.json({ error: 'upstream', message: lastError }, 502)
+  }
+
+  const json = (await res.json()) as unknown
   const days: BangumiItem[][] = []
-  for (let i = 1; i <= 7; i++) {
-    const list = (json[String(i)] as unknown[]) || []
-    const items: BangumiItem[] = []
-    for (const entry of list) {
-      try {
-        const e = entry as Record<string, unknown>
-        const subject = (e.subject as Record<string, unknown>) || e
-        items.push(slimItem(parseBangumiItem(subject)))
-      } catch {
-        /* skip */
+
+  if (Array.isArray(json)) {
+    // Array shape: [{ weekday: { id: 1, ... }, items: [{...}] }, ...]
+    const byWeekday = new Map<number, unknown[]>()
+    for (const dayEntry of json) {
+      if (dayEntry && typeof dayEntry === 'object') {
+        const d = dayEntry as { weekday?: { id?: number }; items?: unknown[] }
+        const id = Number(d.weekday?.id ?? 0)
+        if (id >= 1 && id <= 7 && Array.isArray(d.items)) {
+          byWeekday.set(id, d.items)
+        }
       }
     }
-    days.push(items)
+    for (let i = 1; i <= 7; i++) {
+      const list = byWeekday.get(i) || []
+      const items: BangumiItem[] = []
+      for (const entry of list) {
+        try {
+          const e = entry as Record<string, unknown>
+          const subject = (e.subject as Record<string, unknown>) || e
+          items.push(slimItem(parseBangumiItem(subject)))
+        } catch {
+          /* skip */
+        }
+      }
+      days.push(items)
+    }
+  } else if (json && typeof json === 'object') {
+    // Object shape: { "1": [{ subject: {...} }, ...], ... }
+    const record = json as Record<string, unknown>
+    for (let i = 1; i <= 7; i++) {
+      const list = (record[String(i)] as unknown[]) || []
+      const items: BangumiItem[] = []
+      for (const entry of list) {
+        try {
+          const e = entry as Record<string, unknown>
+          const subject = (e.subject as Record<string, unknown>) || e
+          items.push(slimItem(parseBangumiItem(subject)))
+        } catch {
+          /* skip */
+        }
+      }
+      days.push(items)
+    }
   }
+
   const payload = { data: days }
   cacheSet(key, payload, BANGUMI_CACHE_TTL.calendar)
   return c.json(payload, 200, cacheHeaders(false))
 })
 
 bangumiRoutes.get('/trending', async (c) => {
+  const { apiUrl, apiHost } = resolveBangumiApi(c)
   const limit = c.req.query('limit') || '24'
   const offset = c.req.query('offset') || '0'
   const type = c.req.query('type') || '2'
-  const key = `bangumi:trending:${type}:${limit}:${offset}`
+  const key = `bangumi:${apiHost}:trending:${type}:${limit}:${offset}`
   const bypass = wantsCacheBypass(c)
   if (bypass) cacheDelete(key)
   else {
@@ -86,25 +168,80 @@ bangumiRoutes.get('/trending', async (c) => {
     if (hit) return c.json(hit, 200, cacheHeaders(true))
   }
 
-  const url = new URL(`${config.bangumiNextApi}/p1/trending/subjects`)
-  url.searchParams.set('type', type)
-  url.searchParams.set('limit', limit)
-  url.searchParams.set('offset', offset)
-  const res = await bangumiFetch(url.toString())
-  if (!res.ok) {
-    return c.json({ error: 'upstream', message: await res.text() }, 502)
+  let items: BangumiItem[] = []
+  let success = false
+  let lastError = 'upstream'
+
+  // Attempt 1: p1/trending/subjects (next.bgm.tv / mirror)
+  try {
+    const trendingBase = apiHost.includes('api.bgm.tv')
+      ? config.bangumiNextApi
+      : apiUrl
+    const url = new URL(`${trendingBase}/p1/trending/subjects`)
+    url.searchParams.set('type', type)
+    url.searchParams.set('limit', limit)
+    url.searchParams.set('offset', offset)
+    const res = await bangumiFetch(url.toString())
+    if (res.ok) {
+      const json = (await res.json()) as { data?: unknown[] }
+      if (Array.isArray(json.data)) {
+        for (const entry of json.data) {
+          try {
+            const e = entry as Record<string, unknown>
+            const subject = (e.subject as Record<string, unknown>) || e
+            items.push(slimItem(parseBangumiItem(subject)))
+          } catch {
+            /* skip */
+          }
+        }
+        success = true
+      }
+    } else {
+      lastError = await res.text()
+    }
+  } catch (err) {
+    lastError = err instanceof Error ? err.message : String(err)
   }
-  const json = (await res.json()) as { data?: unknown[] }
-  const items: BangumiItem[] = []
-  for (const entry of json.data || []) {
+
+  // Attempt 2: Fallback to /v0/search/subjects sorted by heat
+  if (!success) {
     try {
-      const e = entry as Record<string, unknown>
-      const subject = (e.subject as Record<string, unknown>) || e
-      items.push(slimItem(parseBangumiItem(subject)))
-    } catch {
-      /* skip */
+      const searchUrl = `${apiUrl}/v0/search/subjects?limit=${limit}&offset=${offset}`
+      const res = await bangumiFetch(searchUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sort: 'heat',
+          filter: {
+            type: [Number(type) || 2],
+            nsfw: false,
+            rank: ['>=0', '<=99999'],
+          },
+        }),
+      })
+      if (res.ok) {
+        const json = (await res.json()) as { data?: unknown[] }
+        items = []
+        for (const entry of json.data || []) {
+          try {
+            items.push(slimItem(parseBangumiItem(entry as Record<string, unknown>)))
+          } catch {
+            /* skip */
+          }
+        }
+        success = true
+      } else {
+        lastError = await res.text()
+      }
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err)
     }
   }
+
+  if (!success) {
+    return c.json({ error: 'upstream', message: lastError }, 502)
+  }
+
   const payload = { data: items }
   cacheSet(key, payload, BANGUMI_CACHE_TTL.trending)
   return c.json(payload, 200, cacheHeaders(false))
@@ -133,6 +270,7 @@ type SearchPayload = {
 
 /** Stable cache key from normalized search inputs (public lists only). */
 function browseCacheKey(parts: {
+  apiHost: string
   keyword: string
   sort: string
   tags: string[]
@@ -142,10 +280,11 @@ function browseCacheKey(parts: {
 }): string {
   const tags = [...parts.tags].sort().join(',')
   const air = [...parts.airDate].sort().join(',')
-  return `bangumi:browse:${parts.keyword}\0${parts.sort}\0${tags}\0${air}\0${parts.limit}\0${parts.offset}`
+  return `bangumi:${parts.apiHost}:browse:${parts.keyword}\0${parts.sort}\0${tags}\0${air}\0${parts.limit}\0${parts.offset}`
 }
 
 bangumiRoutes.post('/search', async (c) => {
+  const { apiUrl, apiHost } = resolveBangumiApi(c)
   const body = await c.req.json<{
     keyword?: string
     limit?: number
@@ -189,6 +328,7 @@ bangumiRoutes.post('/search', async (c) => {
   const keyword = body.keyword || ''
   const resultSort = sortByDate ? 'date' : upstreamSort
   const key = browseCacheKey({
+    apiHost,
     keyword,
     sort: resultSort,
     tags,
@@ -222,7 +362,7 @@ bangumiRoutes.post('/search', async (c) => {
     sort: upstreamSort,
     filter,
   }
-  const url = `${config.bangumiApi}/v0/search/subjects?limit=${limit}&offset=${offset}`
+  const url = `${apiUrl}/v0/search/subjects?limit=${limit}&offset=${offset}`
   const res = await bangumiFetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -263,8 +403,9 @@ bangumiRoutes.post('/search', async (c) => {
 })
 
 bangumiRoutes.get('/subjects/:id', async (c) => {
+  const { apiUrl, apiHost } = resolveBangumiApi(c)
   const id = c.req.param('id')
-  const key = `bangumi:subject:${id}`
+  const key = `bangumi:${apiHost}:subject:${id}`
   const bypass = wantsCacheBypass(c)
   if (bypass) cacheDelete(key)
   else {
@@ -272,7 +413,7 @@ bangumiRoutes.get('/subjects/:id', async (c) => {
     if (hit) return c.json(hit, 200, cacheHeaders(true))
   }
 
-  const res = await bangumiFetch(`${config.bangumiApi}/v0/subjects/${id}`)
+  const res = await bangumiFetch(`${apiUrl}/v0/subjects/${id}`)
   if (!res.ok) {
     return c.json(
       { error: 'upstream', message: await res.text() },
@@ -287,8 +428,9 @@ bangumiRoutes.get('/subjects/:id', async (c) => {
 })
 
 bangumiRoutes.get('/subjects/:id/episodes', async (c) => {
+  const { apiUrl } = resolveBangumiApi(c)
   const id = c.req.param('id')
-  const url = new URL(`${config.bangumiApi}/v0/episodes`)
+  const url = new URL(`${apiUrl}/v0/episodes`)
   url.searchParams.set('subject_id', id)
   url.searchParams.set('limit', c.req.query('limit') || '100')
   url.searchParams.set('offset', c.req.query('offset') || '0')
@@ -311,9 +453,10 @@ bangumiRoutes.get('/subjects/:id/episodes', async (c) => {
 })
 
 bangumiRoutes.get('/me', async (c) => {
+  const { apiUrl } = resolveBangumiApi(c)
   const token = tokenFrom(c)
   if (!token) return c.json({ error: 'unauthorized', message: '缺少 Access Token' }, 401)
-  const res = await bangumiFetch(`${config.bangumiApi}/v0/me`, { token })
+  const res = await bangumiFetch(`${apiUrl}/v0/me`, { token })
   if (!res.ok) {
     return c.json({ error: 'upstream', message: await res.text() }, res.status as 401)
   }
@@ -328,9 +471,10 @@ bangumiRoutes.get('/me', async (c) => {
 })
 
 bangumiRoutes.get('/collections', async (c) => {
+  const { apiUrl } = resolveBangumiApi(c)
   const token = tokenFrom(c)
   if (!token) return c.json({ error: 'unauthorized', message: '缺少 Access Token' }, 401)
-  const meRes = await bangumiFetch(`${config.bangumiApi}/v0/me`, { token })
+  const meRes = await bangumiFetch(`${apiUrl}/v0/me`, { token })
   if (!meRes.ok) {
     return c.json({ error: 'upstream', message: await meRes.text() }, 401)
   }
@@ -342,7 +486,7 @@ bangumiRoutes.get('/collections', async (c) => {
   const offset = Number(c.req.query('offset') || 0)
   const type = c.req.query('type') // bangumi collection type filter optional
   const url = new URL(
-    `${config.bangumiApi}/v0/users/${encodeURIComponent(username)}/collections`,
+    `${apiUrl}/v0/users/${encodeURIComponent(username)}/collections`,
   )
   url.searchParams.set('subject_type', '2')
   url.searchParams.set('limit', String(limit))
@@ -370,6 +514,7 @@ bangumiRoutes.get('/collections', async (c) => {
 })
 
 bangumiRoutes.put('/collections/:subjectId', async (c) => {
+  const { apiUrl } = resolveBangumiApi(c)
   const token = tokenFrom(c)
   if (!token) return c.json({ error: 'unauthorized', message: '缺少 Access Token' }, 401)
   const subjectId = c.req.param('subjectId')
@@ -379,7 +524,7 @@ bangumiRoutes.put('/collections/:subjectId', async (c) => {
     return c.json({ error: 'bad_request', message: '无效收藏类型' }, 400)
   }
   const res = await bangumiFetch(
-    `${config.bangumiApi}/v0/users/-/collections/${subjectId}`,
+    `${apiUrl}/v0/users/-/collections/${subjectId}`,
     {
       method: 'POST',
       token,
@@ -391,7 +536,7 @@ bangumiRoutes.put('/collections/:subjectId', async (c) => {
   if (!res.ok && res.status !== 204) {
     // try PATCH for update
     const res2 = await bangumiFetch(
-      `${config.bangumiApi}/v0/users/-/collections/${subjectId}`,
+      `${apiUrl}/v0/users/-/collections/${subjectId}`,
       {
         method: 'PATCH',
         token,
@@ -410,11 +555,12 @@ bangumiRoutes.put('/collections/:subjectId', async (c) => {
 })
 
 bangumiRoutes.get('/collections/:subjectId', async (c) => {
+  const { apiUrl } = resolveBangumiApi(c)
   const token = tokenFrom(c)
   if (!token) return c.json({ error: 'unauthorized', message: '缺少 Access Token' }, 401)
   const subjectId = c.req.param('subjectId')
   const res = await bangumiFetch(
-    `${config.bangumiApi}/v0/users/-/collections/${subjectId}`,
+    `${apiUrl}/v0/users/-/collections/${subjectId}`,
     { token },
   )
   if (res.status === 404) {

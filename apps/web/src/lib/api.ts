@@ -21,11 +21,16 @@ export async function api<T>(
   if (init.token) {
     headers.set('Authorization', `Bearer ${init.token}`)
   }
-  // Inject administrator proxy token if available in local settings
+  // Inject administrator proxy token and Bangumi API host if available in local settings
   try {
-    const proxyToken = useSettingsStore.getState().proxyToken?.trim()
+    const settings = useSettingsStore.getState()
+    const proxyToken = settings.proxyToken?.trim()
     if (proxyToken && !headers.has('X-Animaku-Proxy-Token')) {
       headers.set('X-Animaku-Proxy-Token', proxyToken)
+    }
+    const bangumiApiHost = settings.bangumiApiHost?.trim()
+    if (bangumiApiHost && !headers.has('X-Bangumi-Api-Host')) {
+      headers.set('X-Bangumi-Api-Host', bangumiApiHost)
     }
   } catch {
     /* ignore store access error */

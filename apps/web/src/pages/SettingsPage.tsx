@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { PluginCatalogItem, PluginMeta } from '@animaku/shared'
-import { catalogItemStatus, comparePluginOrder, PLAYER_SPEEDS } from '@animaku/shared'
+import {
+  catalogItemStatus,
+  comparePluginOrder,
+  PLAYER_SPEEDS,
+  bangumiOAuthUrl,
+} from '@animaku/shared'
 import { bangumiApi } from '../lib/bangumi'
 import { pluginApi } from '../lib/plugin-api'
 import { validatePluginLocal } from '../lib/plugin-validate'
@@ -11,6 +16,10 @@ import {
   mediaFullProxyEnabled,
   type ServerHealth,
 } from '../lib/server-capabilities'
+import {
+  BANGUMI_API_HOST_OPTIONS,
+  DEFAULT_BANGUMI_API_HOST,
+} from '../lib/bangumi-api-host'
 import {
   BANGUMI_IMAGE_HOST_OPTIONS,
   DEFAULT_BANGUMI_IMAGE_HOST,
@@ -53,6 +62,10 @@ export function SettingsPage() {
   const b = getSiteBranding()
   const bangumiToken = useSettingsStore((s) => s.bangumiToken)
   const setBangumiToken = useSettingsStore((s) => s.setBangumiToken)
+  const bangumiApiHost = useSettingsStore(
+    (s) => s.bangumiApiHost || DEFAULT_BANGUMI_API_HOST,
+  )
+  const setBangumiApiHost = useSettingsStore((s) => s.setBangumiApiHost)
   const bangumiImageHost = useSettingsStore(
     (s) => s.bangumiImageHost || DEFAULT_BANGUMI_IMAGE_HOST,
   )
@@ -383,12 +396,70 @@ export function SettingsPage() {
         </p>
       </section>
 
+      <section className="space-y-4 rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-6 shadow-sm transition-all duration-200 hover:border-[var(--kz-accent-ring)]">
+        <div>
+          <h2 className="text-lg font-bold tracking-tight text-[var(--kz-fg)]">Bangumi 接口与数据源</h2>
+          <p className="mt-1 text-sm text-[var(--kz-fg-muted)]">
+            Bangumi 番剧元数据、日历与封面图的访问源。国内直连受限时推荐使用反代镜像。
+            默认值由 <code className="text-[var(--kz-fg-muted)]">.env</code> 的 <code className="text-[var(--kz-fg-muted)]">VITE_BANGUMI_API_HOST</code> 与 <code className="text-[var(--kz-fg-muted)]">VITE_BANGUMI_IMAGE_HOST</code> 决定，此处选择仅保存在本机浏览器。
+          </p>
+        </div>
+
+        <div className="space-y-3 divide-y divide-[var(--kz-border)]/60">
+          <label className="flex flex-wrap items-center justify-between gap-3 pt-2 text-sm text-[var(--kz-fg)]">
+            <div>
+              <div className="font-medium">API 接口源</div>
+              <div className="text-xs text-[var(--kz-fg-muted)]">
+                番剧搜索、详情、分集与收藏同步等接口请求
+              </div>
+            </div>
+            <select
+              value={bangumiApiHost}
+              onChange={(e) => setBangumiApiHost(e.target.value)}
+              className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1.5 text-sm outline-none focus:border-[var(--kz-accent)]"
+            >
+              {BANGUMI_API_HOST_OPTIONS.map((o) => (
+                <option key={o.host} value={o.host}>
+                  {o.label}
+                  {o.host === DEFAULT_BANGUMI_API_HOST ? ' · 默认' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex flex-wrap items-center justify-between gap-3 pt-3 text-sm text-[var(--kz-fg)]">
+            <div>
+              <div className="font-medium">封面图片源</div>
+              <div className="text-xs text-[var(--kz-fg-muted)]">
+                番剧海报封面与人物角色图加载
+              </div>
+            </div>
+            <select
+              value={bangumiImageHost}
+              onChange={(e) => setBangumiImageHost(e.target.value)}
+              className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1.5 text-sm outline-none focus:border-[var(--kz-accent)]"
+            >
+              {BANGUMI_IMAGE_HOST_OPTIONS.map((o) => (
+                <option key={o.host} value={o.host}>
+                  {o.label}
+                  {o.host === DEFAULT_BANGUMI_IMAGE_HOST ? ' · 默认' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <p className="text-xs text-[var(--kz-fg-dim)]">
+          切换后即时生效；新域名的图片按需重新下载并建立浏览器本地缓存。
+        </p>
+      </section>
+
       <section className="space-y-3 rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-6 shadow-sm transition-all duration-200 hover:border-[var(--kz-accent-ring)]">
         <h2 className="text-lg font-bold tracking-tight text-[var(--kz-fg)]">Bangumi Access Token</h2>
         <p className="text-sm text-[var(--kz-fg-muted)]">
           用于同步追番收藏。在{' '}
           <a
-            href="https://next.bgm.tv/demo/access-token"
+            href={bangumiOAuthUrl(bangumiApiHost)}
             target="_blank"
             rel="noreferrer"
             className="kz-link"
@@ -424,33 +495,6 @@ export function SettingsPage() {
             </span>
           )}
         </div>
-      </section>
-
-      <section className="space-y-3 rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-5">
-        <h2 className="text-lg font-bold tracking-tight text-[var(--kz-fg)]">封面图片源</h2>
-        <p className="text-sm text-[var(--kz-fg-muted)]">
-          封面/人物图的来源。默认值由{' '}
-          <code className="text-[var(--kz-fg-muted)]">.env</code> 的{' '}
-          <code className="text-[var(--kz-fg-muted)]">VITE_BANGUMI_IMAGE_HOST</code> 决定，此处选择仅存本机。
-        </p>
-        <label className="flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--kz-fg)]">
-          <span>图片源</span>
-          <select
-            value={bangumiImageHost}
-            onChange={(e) => setBangumiImageHost(e.target.value)}
-            className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2 py-1.5 text-sm"
-          >
-            {BANGUMI_IMAGE_HOST_OPTIONS.map((o) => (
-              <option key={o.host} value={o.host}>
-                {o.label}
-                {o.host === DEFAULT_BANGUMI_IMAGE_HOST ? ' · 默认' : ''}
-              </option>
-            ))}
-          </select>
-        </label>
-        <p className="text-xs text-[var(--kz-fg-dim)]">
-          切换后立即生效；新域名的图需重新下载（浏览器缓存按域名隔离）。
-        </p>
       </section>
 
       <section className="space-y-3 rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-5">

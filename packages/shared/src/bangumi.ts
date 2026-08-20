@@ -363,7 +363,7 @@ export function preferResizedCover(
   if (/\/r\/\d+\//.test(src)) return bangumiImageUrl(src)
   // Known Bangumi image sources share the same `/pic/` layout.
   const resized = src.replace(
-    /^(https?:\/\/(?:lain\.)?bgm\.tv|https?:\/\/bgmimg\.anibt\.net)\/pic\//i,
+    /^(https?:\/\/(?:lain\.)?bgm\.tv|https?:\/\/bgmimg\.anibt\.net|https?:\/\/bgmmi\.anibt\.net)\/pic\//i,
     `$1/r/${maxEdge}/pic/`,
   )
   // Host swap last so the resize path is applied regardless of stored host.

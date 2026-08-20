@@ -1,6 +1,7 @@
 export * from './plugin'
 export * from './episode'
 export * from './bangumi'
+export * from './bangumi-endpoint'
 export * from './bangumi-image'
 export * from './danmaku'
 export * from './history'

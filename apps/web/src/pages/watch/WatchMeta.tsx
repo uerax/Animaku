@@ -3,6 +3,7 @@ import {
   CollectType,
   CollectTypeLabel,
   airProgressLabel,
+  bangumiSubjectUrl,
   coverOf,
   estimateAirProgress,
   type BangumiItem,
@@ -66,7 +67,7 @@ function MetaCover({
   if (item.id > 0) {
     return (
       <a
-        href={`https://bgm.tv/subject/${item.id}`}
+        href={bangumiSubjectUrl(item.id)}
         target="_blank"
         rel="noopener noreferrer"
         title={`在 Bangumi 查看「${item.nameCn || item.name}」页面`}

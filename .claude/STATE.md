@@ -4,6 +4,31 @@
 
 ---
 
+## [2026-08-21] Bangumi API 接口与图片源变量全量接管与免翻反代支持 (BANGUMI_API & BANGUMI_IMAGE)
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **极简语义化配置 (`BANGUMI_API` & `BANGUMI_IMAGE`)**：
+     - 在 `.env` 中提供 `BANGUMI_API=official|mirror` 和 `BANGUMI_IMAGE=official|mirror` 两个极简环境变量；
+     - 自动映射 `official` -> `api.bgm.tv` / `lain.bgm.tv`，`mirror` -> `bgmapi.anibt.net` / `bgmimg.anibt.net`，同时也兼容直接填写自定义域名，彻底消除区分前端 Vite 与后端变量的心智负担；
+  2. **跨包统一端点管理 (`@animaku/shared`)**：
+     - 新增 `bangumi-endpoint.ts`，定义并集中管理 Bangumi 官方源与镜像反代源（API: `https://api.bgm.tv` <-> `https://bgmapi.anibt.net`，图片: `lain.bgm.tv` <-> `bgmimg.anibt.net`，站点: `https://bgm.tv` <-> `https://bgmmi.anibt.net`）；
+     - 提供 `resolveBangumiApiPreset`、`resolveBangumiImagePreset`、`toBangumiApiUrl`、`bangumiSubjectUrl`、`bangumiOAuthUrl` 等标准化解析方法；
+  3. **服务端双源无缝适配与智能容灾 (`apps/server`)**：
+     - `config.ts` 接入 `BANGUMI_API` / `BANGUMI_IMAGE` 环境变量，默认使用免翻代理 `bgmapi.anibt.net` / `bgmimg.anibt.net`；
+     - `routes/bangumi.ts` 支持客户端 `X-Bangumi-Api-Host` 请求头动态覆盖上游；
+     - `/calendar` 智能兼容 `next.bgm.tv` 的 `{ "1": [...] }` 对象结构与 `api.bgm.tv` / 反代的 `[{ weekday: { id: 1 }, items: [...] }]` 数组结构，自动双向回退容灾；
+     - `/trending` 遇 404/故障时自动回退至 `/v0/search/subjects` 热门排序检索；
+  4. **前端全局受控、环境注入与设置页自由切换 (`apps/web`)**：
+     - `vite.config.ts` 自动解析 `BANGUMI_API` 与 `BANGUMI_IMAGE` 并注入编译期常量及 preconnect 指令；
+     - `stores/settings.ts` 接入 `bangumiApiHost` 状态并持久化至 `localStorage`；
+     - `lib/api.ts` 自动为 `/api/bangumi/*` 下发 `X-Bangumi-Api-Host` 请求头；
+     - `SettingsPage.tsx` 新增「Bangumi 接口与数据源」配置面板，支持 API 接口源与图片源一键在「反代 (推荐 · 针对国内免翻)」与「官方 (直连 · 需翻墙)」之间无缝切换，Token 生成链接与条目跳转链接动态对齐镜像。
+  5. **Docker 与文档体系同步**：
+     - 同步更新 `.env.example`、`docker-compose.yml`、`Dockerfile` 与 `docs/CONTEXT.md`。
+- 涉及文件：packages/shared/src/bangumi-endpoint.ts, packages/shared/src/bangumi-image.ts, packages/shared/src/bangumi.ts, packages/shared/src/index.ts, apps/server/src/config.ts, apps/server/src/routes/bangumi.ts, apps/web/src/lib/bangumi-api-host.ts, apps/web/src/lib/bangumi-image-host.ts, apps/web/src/lib/api.ts, apps/web/src/stores/settings.ts, apps/web/src/pages/SettingsPage.tsx, apps/web/src/pages/watch/WatchMeta.tsx, apps/web/src/vite-env.d.ts, apps/web/vite.config.ts, .env.example, docker-compose.yml, Dockerfile, docs/CONTEXT.md, .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck` 与全量构建 `pnpm build` 0 报错通过。
+
 ## [2026-08-20] 项目全量文档体系整理、精简重构与 README 同步升级
 - 状态：已完成
 - 优先级：P1

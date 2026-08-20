@@ -14,6 +14,9 @@ services:
       dockerfile: Dockerfile
       args:
         # Build-time only (Vite). Runtime .env changes will not update the footer / client SEO origin.
+        BANGUMI_API: ${BANGUMI_API:-mirror}
+        BANGUMI_IMAGE: ${BANGUMI_IMAGE:-mirror}
+        VITE_BANGUMI_API_HOST: ${VITE_BANGUMI_API_HOST:-}
         VITE_BANGUMI_IMAGE_HOST: ${VITE_BANGUMI_IMAGE_HOST:-}
         VITE_SITE_URL: ${VITE_SITE_URL:-}
         VITE_GITHUB_URL: ${VITE_GITHUB_URL:-}
@@ -49,6 +52,10 @@ services:
       # Public origin for /robots.txt Sitemap + /sitemap.xml (runtime)
       SITE_URL: ${SITE_URL:-}
       # Optional overrides; empty → use server built-in defaults (proper Bangumi UA, etc.)
+      BANGUMI_API: ${BANGUMI_API:-mirror}
+      BANGUMI_IMAGE: ${BANGUMI_IMAGE:-mirror}
+      BANGUMI_API_HOST: ${BANGUMI_API_HOST:-}
+      BANGUMI_IMAGE_HOST: ${BANGUMI_IMAGE_HOST:-}
       DANDAN_APP_ID: ${DANDAN_APP_ID:-}
       DANDAN_APP_SECRET: ${DANDAN_APP_SECRET:-}
       BANGUMI_USER_AGENT: ${BANGUMI_USER_AGENT:-}

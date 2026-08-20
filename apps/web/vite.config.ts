@@ -45,14 +45,43 @@ export default defineConfig(({ mode }) => {
     get('WEB_HMR_HOST') ||
     (webHost === '0.0.0.0' || webHost === '::' ? '127.0.0.1' : webHost)
 
-  // Bangumi 封面图片源；默认使用镜像，设置页可切换。
+  // Bangumi API 接口源与封面图片源（支持 official | mirror | 自定义域名）
   // 走 define 而不是 import.meta.env，这样 repo-root/.env 里的值也能生效（envDir 只认 apps/web）。
-  const bangumiImageHost =
-    (get('VITE_BANGUMI_IMAGE_HOST') || '')
-      .trim()
-      .replace(/^https?:\/\//i, '')
-      .replace(/\/.*$/, '')
-      .toLowerCase() || 'bgmimg.anibt.net'
+  function resolveApiHostPreset(raw?: string): string {
+    const v = (raw || '').trim().toLowerCase()
+    if (!v || v === 'mirror' || v === 'proxy' || v === '1' || v.includes('bgmapi')) {
+      return 'bgmapi.anibt.net'
+    }
+    if (v === 'official' || v === 'direct' || v === '0' || v.includes('bgm.tv')) {
+      return 'api.bgm.tv'
+    }
+    return v.replace(/^https?:\/\//i, '').replace(/\/.*$/, '') || 'bgmapi.anibt.net'
+  }
+
+  function resolveImageHostPreset(raw?: string): string {
+    const v = (raw || '').trim().toLowerCase()
+    if (!v || v === 'mirror' || v === 'proxy' || v === '1' || v.includes('bgmimg')) {
+      return 'bgmimg.anibt.net'
+    }
+    if (
+      v === 'official' ||
+      v === 'direct' ||
+      v === '0' ||
+      v.includes('lain') ||
+      v.includes('bgm.tv')
+    ) {
+      return 'lain.bgm.tv'
+    }
+    return v.replace(/^https?:\/\//i, '').replace(/\/.*$/, '') || 'bgmimg.anibt.net'
+  }
+
+  const bangumiApiHost = resolveApiHostPreset(
+    get('BANGUMI_API') || get('VITE_BANGUMI_API_HOST') || get('BANGUMI_API_HOST'),
+  )
+
+  const bangumiImageHost = resolveImageHostPreset(
+    get('BANGUMI_IMAGE') || get('VITE_BANGUMI_IMAGE_HOST') || get('BANGUMI_IMAGE_HOST'),
+  )
 
   const apiPort = envInt(get('PORT'), 8787)
   // Proxy connects to the API process; 0.0.0.0 is not a valid client target
@@ -82,6 +111,7 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.VITE_APP_VERSION': JSON.stringify(
         get('VITE_APP_VERSION') || resolvePackageVersion(),
       ),
+      'import.meta.env.VITE_BANGUMI_API_HOST': JSON.stringify(bangumiApiHost),
       'import.meta.env.VITE_BANGUMI_IMAGE_HOST': JSON.stringify(bangumiImageHost),
     },
     resolve: {
