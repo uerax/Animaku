@@ -16,11 +16,11 @@
   </p>
 
   <p>
-    浏览器里的现代化番剧应用：基于自定义规则选源播放，集成
-    <a href="https://bangumi.tv/">Bangumi</a> 每日放送与元数据、
-    <b>B站级自研高精弹幕</b>、<b>WebGPU Anime4K 实时画质超分</b> 与 <b>智能跳过 OP/ED</b>。<br />
-    兼容 <a href="https://github.com/Predidit/KazumiRules">KazumiRules</a> 规则生态，支持多源搜索与规则商店。
-    本地历史 / 追番进度，暗场琉璃质感。绝赞开发中 (～￣▽￣)～
+    现代化自托管番剧流媒体客户端：开箱内置优质 1080P 原画直链视频源，集成
+    <a href="https://bangumi.tv/">Bangumi</a> 每日放送与维基元数据、
+    <b>B 站级自研高精弹幕引擎</b>、<b>WebGPU Anime4K 实时画质超分</b>、<b>智能跳过片头片尾</b> 与 <b>详细统计面板</b>。<br />
+    兼容 <a href="https://github.com/Predidit/KazumiRules">KazumiRules</a> 规则生态，支持多源并发检索、一键换源换线与规则商店。
+    SQLite 极速双层持久化缓存，纯粹本地数据存储，日夜双模态琉璃质感。绝赞开发中 (～￣▽￣)～
   </p>
 
   <p>
@@ -35,15 +35,16 @@
 
 ## 这是什么
 
-**Animaku** 是 **React 19 SPA + 本地轻量 Hono API** 的现代化自托管二次元番剧客户端。
+**Animaku** 是基于 **React 19 SPA + 本地轻量 Hono API** 构建的现代化自托管二次元番剧客户端。
 
 | 核心维度 | 能力说明 |
 |------|------|
-| **每日放送与维基** | Bangumi 周更时间表 / 全局搜索 / 番剧详情 / 演职员与分集；支持 Token 同步追番进度 |
-| **多源聚合播放** | 兼容 Kazumi 规则（XPath / API）；多规则并发搜索与多线路快速切换 |
-| **B站级高精弹幕** | 弹弹play + B站双库聚合；本地 XML 导入；高精时钟微秒插值、防追尾与高能热力图 |
-| **画质与智能播放** | WebGPU 实时 Anime4K 超分（720p/1080p→4K）、`bangumi-oped` 智能片头片尾跳过、M3U8 智能去广告 |
-| **纯粹本地数据** | 历史、设置、收藏与规则 JSON 均存储于浏览器本地；服务端零落库，隐私纯净 |
+| **每日放送与维基** | Bangumi 周更日程 / 全局搜索 / 番剧详情 / 演职员与分集；支持 Token 追番同步 |
+| **多源聚合播放** | 内置 TvTFun / 次元城 Cycani / 稀饭 xifan-next 优质 1080P 直链；兼容 KazumiRules 规则生态 |
+| **B 站级高精弹幕** | 弹弹play + B站双库聚合与 XML 导入；纯物理时钟驱动 + 分级滤波 + rVFC 硬件同步 + 高能热力图 |
+| **画质与极速播放** | WebGPU 实时 Anime4K 超分（720p/1080p→4K）、`bangumi-oped` 智能片头片尾跳过、M3U8 智能去广告 |
+| **流媒体交互体验** | 3 色流媒体视频源看板、长番剧 50 话智能分页、正/倒序切换、一键强制刷新、右键详细统计 (Stats for Nerds) |
+| **极速与本地安全** | SQLite L1/L2 双层持久化缓存与 Single-Flight 并发防击穿；历史/设置/收藏/规则纯本地存储，服务端零落库 |
 
 ## 支持环境
 
@@ -56,32 +57,38 @@
 - 🎬 **旗舰级播放与画质引擎**
   - **Anime4K WebGPU 实时超分**：利用客户端 GPU 算力实现实时 2× 纹理重建与线条抗锯齿，低清老番秒变 4K 极清。
   - **智能跳过片头片尾**：集成 `bangumi-oped` 社区时间戳库，在时间轴精准标注 OP/ED 发光标记并支持一键无感跳过。
-  - **多画幅比例自由裁切**：快捷键 `W` 一键切换 16:9（默认）、4:3（经典怀旧）、Cover（铺满画面）、Fill（拉伸）。
-  - **全格式与拖拽秒播**：支持 HLS (m3u8)、MP4 等在线流媒体，支持直接拖拽本地视频文件入播放器即开即播。
+  - **播放器右键菜单与 Stats for Nerds**：对标主流流媒体，提供实时分辨率、丢帧率 (FPS)、缓冲区、分片下载速率等详细排错统计；支持原画截图、画面镜像翻转、画中画 (PiP)。
+  - **0ms 极速响应与多画幅自由裁切**：消除单击延迟，即点即播；快捷键 `W` 一键切换 16:9（默认）、4:3（怀旧）、Cover（铺满）、Fill（拉伸）。
+  - **网页全屏与系统全屏**：支持 `Shift+W` 网页全屏（视窗最大化且保留页面交互）与 `F` 原生系统全屏。
 
-- 💬 **B站级自研弹幕生态系统**
+- 💬 **B 站级自研高精弹幕生态系统**
   - **多平台弹幕聚合**：弹弹play + Bilibili 双库匹配，支持自定义关键词、分 P 关联与本地 XML 弹幕导入。
-  - **微秒级时钟插值**：基于 `performance.now()` 外推，120Hz/144Hz 满帧亚像素丝滑位移，彻底消除原生低频阶梯抖动。
-  - **防追尾与分层渲染**：内置进出场防追尾碰撞分配器，采用原子化分层渲染（滚动 < 底部字幕 < 顶部固定）。
-  - **倍速时间轴自适应**：弹幕驻留时长恒定 7.5s 物理标准，无论 0.5x 还是 2.0x 倍速播放，弹幕始终保持舒适阅读节奏。
-  - **高能波形热力图**：进度条上方动态渲染全集弹幕密度热力波形，高能名场面与剧情转折一目了然。
+  - **纯物理时钟驱动 + 分级漂移治理**：位移严格由 `performance.now()` 单调推进，配合 Zero 死区与 EMA 低通滤波器，杜绝时间抖动与 1~2px 横跳回弹。
+  - **rVFC 硬件级帧呈现同步**：支持 `requestVideoFrameCallback`，画面与弹幕像素级绝对同步；配备 1:1 Retina 离屏字形位图缓存池。
+  - **三态循环弹幕与智能降噪**：「全量 → 精简 (xN 去重聚合) → 关闭」三态一键切换（快捷键 `D`），同屏过载密度丢弃防遮挡。
+  - **恒定 7.5s 屏幕穿越时长**：弹幕飞行时长对齐 B 站标准，切倍速时动态连续相位重定，保持真实阅读节奏舒适自然。
+  - **Seekbar 高能弹幕热力图**：进度条动态绘制蓝光渐变热力波形，高能名场面与剧情转折一目了然。
 
-- 🔍 **多源聚合与智能去广告**
-  - **自定义规则引擎**：兼容 Kazumi 规则（XPath/API），支持多源并发检索、一键换源换线与规则商店。
-  - **M3U8 智能去广告**：内置多维度切片加权打分模型，自动精准识别并切除跨域插播广告切片。
-  - **直连与代理双模**：优先浏览器直连 CDN 极速起播，支持针对指定规则源或全局开启服务器代理，兼顾高吞吐与播放稳定性。
+- 🔍 **多源聚合与智能播放体验**
+  - **内置高画质直链源**：开箱内置 TvTFun、次元城 Cycani、稀饭 xifan-next 等 1080P MP4 原画直链源，首屏毫秒级秒开，0 服务端代理带宽消耗。
+  - **3 色动态微光流媒体看板**：🟢 极速就绪（呼吸绿光） / 🟡 待选条目（琥珀黄展开） / 🔴 异常熔断（低噪灰显）；2 并发轻量池按需流式探测。
+  - **选集体验升维**：一键强制刷新选集（`onRefreshChapters`，穿透服务端与客户端缓存）；超长番剧 50 话智能区间分页胶囊；正/倒序一键直达。
+  - **跨源集数对齐与秒级进度继承**：跨源切源时自动解析集数编号并同步当前播放秒数，告别手动重寻。
+  - **M3U8 智能去广告**：内置多维度切片加权打分模型，自动精准识别并切除跨域插播广告切片；混合模式免密直连源站 CDN。
+  - **SQLite L1+L2 双层持久化缓存**：服务端基于 SQLite 实现搜索与分集持久化缓存与 Single-Flight 并发防击穿，重启服务缓存零丢失。
 
 - 📅 **番剧情报与追番管理**
+  - **首页多板块楼层式浏览**：继续观看、热门番剧、剧场版、OVA/特别篇，12 条公倍数自适应网格，杜绝布局抖动与空缺。
   - **每日放送时间表**：实时聚合 Bangumi 周更放送日程，新番播出时间与更新状态一手掌握。
   - **番剧维基与收藏**：官方评分、演职员角色阵容与分集剧情，支持「想看 / 在看 / 看过 / 搁置」四态追番管理。
 
 - 🎨 **极致现代设计与多端交互**
-  - **Dark Glassmorphism 琉璃美学**：深度磨砂玻璃质感设计语言，播放器所有面板与弹窗白天/夜间双模态自适应。
-  - **全端手势与快捷键**：移动端支持双击播放/暂停、长按 2.0x 极速快进（松手平滑恢复）、滑动 Seek 实时时间差 HUD；桌面端支持全套键盘快捷键。
+  - **日夜双模态琉璃美学**：默认清新质感白天模式（Warm Slate），夜间模式接入 ColorsWall 经典深炭灰与天青蓝琉璃设计系统。
+  - **移动端触控手势**：双击播放/暂停、长按 2.0x 极速快进（松手平滑恢复）、滑动 Seek 实时时间差 HUD。
 
 ## 快速开始
 
-多数用户 **只装 Docker 即可**；下面的 pnpm 仅用于本机生产或二次开发。
+多数用户 **只需安装 Docker 即可**；下面的 pnpm 仅用于本机生产或二次开发。
 
 ### Docker 一键部署（推荐）
 
@@ -89,7 +96,7 @@
 git clone https://github.com/uerax/Animaku.git animaku
 cd animaku
 
-cp .env.example .env    # 按需改 PORT、PUBLIC_PROXY 等
+cp .env.example .env    # 按需调整 PORT、PUBLIC_PROXY 等
 docker compose up -d --build
 ```
 
@@ -104,13 +111,14 @@ docker compose down
 ```bash
 # 不用 compose
 docker build -t animaku .
-docker run --rm -p 8787:8787 --env-file .env -e PORT=8787 -e PUBLIC_PROXY=1 animaku
+docker run --rm -p 8787:8787 --env-file .env -e PORT=8787 -e PUBLIC_PROXY=1 -v ./data:/app/data animaku
 ```
 
 - 健康检查：`GET /api/health`
 - 镜像内 `WEB_DIST=public`；进程以非 root（`node`）运行
-- `PUBLIC_PROXY` **默认开启**（公网可直接选源/代理）；仅内网可设 `0` 收紧
-- 页脚 `VITE_*` 为构建期变量：改完需 `docker compose up -d --build` 才生效
+- 数据持久化：SQLite 数据库保存在 `./data` 目录
+- `PUBLIC_PROXY` **默认开启**（公网可直接选源/播放）；仅内网可设 `0` 收紧
+- 页脚 `VITE_*` 为构建期变量：修改后需 `docker compose up -d --build` 生效
 
 ### 本机 Node 生产（无 Docker）
 
@@ -125,7 +133,7 @@ pnpm start:prod
 ```
 
 浏览器打开 **http://localhost:$PORT**（默认 `8787`）。  
-`WEB_DIST` 可指定静态目录（相对进程 cwd）；本机可省略，会探测 `public` / `apps/web/dist` 等。
+`WEB_DIST` 可指定静态目录（相对进程 cwd）；本机可省略，会自动探测 `public` / `apps/web/dist`。
 
 ### 本地开发（pnpm）
 
@@ -140,7 +148,7 @@ npm install -g pnpm@9.15.0
 # 或：corepack enable && corepack prepare pnpm@9.15.0 --activate
 ```
 
-请在 **仓库根目录** 使用 pnpm，不要用 npm / yarn 直接装依赖。
+请在 **仓库根目录** 使用 pnpm，不要用 npm / yarn 直接安装依赖。
 
 ```bash
 pnpm install
@@ -157,34 +165,35 @@ pnpm dev
 ```bash
 pnpm dev:web       # 仅前端
 pnpm dev:server    # 仅后端
-pnpm typecheck     # 全仓 tsc
+pnpm typecheck     # 全仓 tsc 类型检查
 pnpm bump <ver>    # 一键升级全仓版本（如 pnpm bump 1.1.2 或 pnpm bump patch）
 ```
 
-跳过 `pnpm install` 直接 `pnpm dev` 会报找不到 `tsx` / `node_modules missing`。  
-日常改代码请用 `pnpm dev`，不要用生产 `start`。
+日常修改代码请使用 `pnpm dev`。
 
 ## 使用指南
 
 1. **访问站点**：Docker / 本机生产打开 `http://localhost:$PORT` · 本地开发打开 `http://localhost:$WEB_DEV_PORT`
 2. **追番配置**：进入 **设置 → Bangumi Token**（可选，用于同步 Bangumi 收藏与追番列表）
-3. **规则管理**：默认内置主流规则源；支持从 **规则仓库** 在线安装或导入自定义 JSON 规则
-4. **选源播放**：详情页点击规则源即可一键搜索分集（优先直连源站 CDN，亦可在设置中开启服务器代理）
-5. **弹幕与设置**：控制栏提供专属「弹幕设置与搜索」图标（`[弹+⚙️]`）与「弹幕开关」图标（`[弹/斜杠]`）
+3. **规则管理**：开箱内置优质主流规则源；支持从 **规则仓库** 在线安装或导入自定义 JSON 规则
+4. **选源播放**：详情页点击规则源即可一键搜索分集（优先直连 1080P 原画 CDN，亦可在设置中开启服务器代理）
+5. **弹幕与设置**：控制栏提供专属「弹幕设置与搜索」图标（`[弹+⚙️]`）与「弹幕三态切换」图标（`[弹/斜杠]`）
 
 ### 播放控制快捷键
 
 | 快捷键 | 作用 |
 |----|------|
-| `Space` / `K` | 播放 / 暂停 |
+| `Space` / `K` | 播放 / 暂停（0ms 瞬时响应） |
 | `←` / `→` | 快退 5s / 快进 5s |
 | `↑` / `↓` | 音量调节 ±5% |
 | `F` | 播放器全屏 / 退出全屏 |
+| `Shift + W` | 网页全屏（Web Fullscreen）切换 |
 | `W` | 画面比例切换（16:9 默认 / 4:3 怀旧 / 铺满 Cover / 拉伸 Fill） |
-| `D` | 弹幕开关切换 |
-| `Alt+M` | 呼出弹幕设置与搜索面板 |
+| `D` | 弹幕三态循环切换（全量 → 精简 → 关闭） |
+| `Alt + M` | 呼出弹幕设置与搜索面板 |
 | `,` / `.` / `/` | 弹幕滞后 0.5s / 超前 0.5s / 偏移复位 |
 | `P` / `N` | 切换 上一集 / 下一集 |
+| 鼠标右键 | 呼出播放器右键悬浮菜单（详细统计信息 / 截图 / 镜像 / 画中画 / 倍速 / 超分） |
 | 拖入本地文件 | 拖拽视频文件（MP4/MKV/WebM）直接播放；拖入 `.xml` 导入 B 站/pakku 弹幕 |
 
 ### 移动端触控手势
@@ -197,18 +206,18 @@ pnpm bump <ver>    # 一键升级全仓版本（如 pnpm bump 1.1.2 或 pnpm bum
 
 完整注释见 [.env.example](.env.example)。服务端从仓库根与 `apps/server` 加载；Vite 读同一份根 `.env`。
 
-### 常用
+### 常用变量
 
 | 变量 | 默认 | 说明 |
 |------|------|------|
 | `PORT` / `HOST` | `8787` / `0.0.0.0` | API / 生产单进程监听 |
-| `WEB_DEV_PORT` / `WEB_HOST` | `5173` / 代码默认 `127.0.0.1` | **仅本地 Vite**；Docker 生产不用 |
-| `DANDAN_APP_ID` / `DANDAN_APP_SECRET` | 空 | 空则用内置 legacy 客户端密钥，开箱可弹幕 |
-| `BANGUMI_USER_AGENT` / `PRODUCT_USER_AGENT` | `animaku/0.1` | 上游 UA |
+| `WEB_DEV_PORT` / `WEB_HOST` | `5173` / `127.0.0.1` | **仅本地 Vite 开发**；Docker 生产不用 |
+| `DANDAN_APP_ID` / `DANDAN_APP_SECRET` | 空 | 留空使用内置 legacy 客户端密钥，开箱即用弹幕 |
+| `BANGUMI_USER_AGENT` / `PRODUCT_USER_AGENT` | 自动生成 | 上游 API 规范 UA |
 
-### 页脚 / 项目宣传（可选，Vite `VITE_*`）
+### 页脚 / 项目定制（可选，Vite `VITE_*`）
 
-非观看页底部展示 GitHub 与可选维护者信息；改后需重新 `pnpm build` / 重启 `pnpm dev`。
+非观看页底部展示 GitHub 与维护者信息；修改后需重新构建。
 
 | 变量 | 说明 |
 |------|------|
@@ -217,30 +226,13 @@ pnpm bump <ver>    # 一键升级全仓版本（如 pnpm bump 1.1.2 或 pnpm bum
 | `VITE_HOMEPAGE_URL` / `VITE_CONTACT_EMAIL` | 额外主页、联系邮箱 |
 | `VITE_SITE_TAGLINE` / `VITE_FOOTER_NOTE` | 标语与附加说明 |
 
-完整列表见 [.env.example](.env.example)。
+### 公网与安全访问
 
-### SEO（可选）
-
-SPA 默认带 `index.html` meta、客户端按路由改 title/description/OG、以及 `/robots.txt` + `/sitemap.xml`。
-
-| 变量 | 说明 |
-|------|------|
-| `SITE_URL` | 运行时公网 origin（无尾斜杠），写入 sitemap / robots 的 `Sitemap:` |
-| `VITE_SITE_URL` | 构建期写入客户端，供 canonical / `og:url`（Docker 需 rebuild） |
-
-未设置时：服务端用请求 `Host`（含 `X-Forwarded-*`）；客户端用 `window.location.origin`。  
-私有页（设置 / 历史 / 追番 / 搜索 / `/play/*`）`noindex`；番剧详情索引在 `/subject/:id`。
-
-### 公网 / 代理访问（重要）
-
-| 变量 | 说明 |
-|------|------|
-| `PUBLIC_PROXY` | **默认 `1`**：任意客户端可用媒体代理 + 规则 search/chapters/resolve。设 `0` 则仅本机/局域网（或 `PROXY_TOKEN`） |
-| `PROXY_TOKEN` | 可选；在 `PUBLIC_PROXY=0` 时可用请求头 `X-Animaku-Proxy-Token` 或 `?proxyToken=` 放行 |
-| `CORS_ORIGINS` | 额外允许的浏览器 Origin（逗号分隔）；localhost 始终可用 |
-
-**默认已适合 VPS 公网部署。** 开启后他人也可借你的服务器出口拉流，请知悉带宽风险（仍有内网 SSRF 拦截）。  
-仅本机 / 局域网、不希望端口暴露后被公网当出口用时：设 `PUBLIC_PROXY=0`。
+| 变量 | 默认 | 说明 |
+|------|------|------|
+| `PUBLIC_PROXY` | `1` | **默认开启**：允许客户端使用媒体代理与规则搜索/解析。设 `0` 则仅限本机/局域网 |
+| `PROXY_TOKEN` | 空 | 可选代理密码；在设置页解锁或携带 `X-Animaku-Proxy-Token` 请求头放行 |
+| `CORS_ORIGINS` | 空 | 额外允许的浏览器 Origin（逗号分隔）；localhost 始终可用 |
 
 ## Q&A
 
@@ -249,44 +241,40 @@ SPA 默认带 `index.html` meta、客户端按路由改 title/description/OG、�
 
 #### Q: 为什么少数番剧里有广告？
 
-A: 本项目不插入广告。片源侧广告可能来自 m3u8 分段；可在规则或设置里开启 **广告过滤**（内置多维加权打分模型智能识别，不是通用广告拦截）。无广告特征或 iframe 降级时过滤无效。
+A: 本项目不插入任何广告。片源侧广告可能来自 m3u8 分段；可在规则或设置里开启 **广告过滤**（内置多维加权打分模型智能识别）。若源站未带 DISCONTINUITY 标签或降级为 iframe 嵌入则无法过滤。
 
 #### Q: 为什么启用超分辨率后播放卡顿？
 
-A: Anime4K 走浏览器 **WebGPU**，对 GPU 算力有一定要求。如果显卡负载较高，建议选择 **效率档** 而非质量档，或对低分辨率源使用；不支持 WebGPU 时请关闭超分。
+A: Anime4K 走浏览器 **WebGPU**，对 GPU 算力有一定要求。如果显卡负载较高，建议在右键菜单或设置中选择 **效率档**，或对低分辨率源使用；若设备不支持 WebGPU 请关闭超分。
 
 #### Q: 为什么有的源能搜到却播不了？
 
-A: Web 端没 WebView 拦截能力，只能静态抽链。大量 `resolve` 失败多半是源站反爬限制，可切换其他规则 / 线路，或接受 iframe 降级（弹幕与部分播放增强不可用）。
+A: Web 端无原生 WebView 拦截能力，依靠服务端静态抽链。若源站增加复杂反爬或验证码，建议点击右侧切换其他可用源（如 TvTFun、cycani、xifan-next）。
 
-#### Q: 公网能开页面但不能选源 / 播放？
+#### Q: 公网能打开页面但不能选源 / 播放？
 
-A: 检查 `.env` / 环境变量是否把 `PUBLIC_PROXY` 设成了 `0`。默认应为 `1`；若刻意收紧，可改回 `1` 或配置 `PROXY_TOKEN`。
+A: 检查 `.env` 中是否将 `PUBLIC_PROXY` 误设为了 `0`。默认应为 `1`；若设定了 `PROXY_TOKEN`，请在设置页中输入密码解锁。
 
 #### Q: 弹幕显示「未配置」？
 
-A: 本地可留空 `DANDAN_*` 使用内置密钥。仍失败时查 `/api/danmaku/status` 与服务端日志；生产环境建议申请[弹弹开放平台](https://www.dandanplay.com/)密钥。
-
-#### Q: 有声无画？
-
-A: 多为布局 / 合成问题（例如父级 `overflow` + 圆角与硬解视频叠加）。详见 [docs/CONTEXT.md](docs/CONTEXT.md)。
+A: 本地可留空 `DANDAN_*` 使用内置密钥。若仍失败可检查 `/api/danmaku/status` 与服务端日志；生产环境建议申请[弹弹开放平台](https://www.dandanplay.com/)密钥。
 
 </details>
 
 <details>
-<summary>规则与部署 Q&A</summary>
+<summary>运维与开发 Q&A</summary>
 
 #### Q: Docker 首页 404？
 
-A: 确认镜像构建包含前端 SPA；`WEB_DIST=public`，并确认 `GET /api/health` 正常。
+A: 确认镜像构建包含前端 SPA；`WEB_DIST=public`，并确认 `GET /api/health` 响应正常。
+
+#### Q: 数据如何持久化备份？
+
+A: 服务端 SQLite 缓存数据库保存在容器 `/app/data`。使用 Docker 部署时请挂载 `-v ./data:/app/data`。
 
 #### Q: `pnpm: command not found` / `node_modules missing`？
 
-A: 仅本机 Node / 开发需要 pnpm。安装 pnpm 9.15.0 并保证在 **仓库根** 执行 `pnpm install`。只想部署时用上面的 Docker 即可。不要只开 `dev:web` 却期望 `/api` 可用。
-
-#### Q: 自定义规则能搜不能看？
-
-A: 部分站反爬 / 验证码 / 防盗链会导致静态解析失败。可换线路，或依赖 iframe 降级提高兼容（体验弱于直链播放）。
+A: 仅本机 Node / 开发需要 pnpm。请安装 pnpm 9.15.0 并在 **仓库根目录** 执行 `pnpm install`。只想部署请直接使用 Docker。
 
 </details>
 
@@ -300,9 +288,9 @@ A: 部分站反爬 / 验证码 / 防盗链会导致静态解析失败。可换�
 
 ## 隐私
 
-- 不收集用户遥测；无内置分析 SDK。  
-- Bangumi Token、规则 JSON、历史与设置仅保存在 **浏览器本地**（`localStorage` 等）。  
-- 服务端代理请求会按规则访问第三方站点与媒体 CDN；`PUBLIC_PROXY` 默认开启，请注意出口流量与访问控制（可设 `0` 限制为局域网）。
+- 不收集任何用户遥测；无内置分析 SDK。  
+- Bangumi Token、规则 JSON、观看历史与设置仅保存在 **浏览器本地**（`localStorage`）。  
+- 服务端代理请求会按规则访问第三方站点与媒体 CDN；`PUBLIC_PROXY` 默认开启，请注意出口流量与访问控制。
 
 ## 致谢
 

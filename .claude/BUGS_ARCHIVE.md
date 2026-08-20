@@ -1,7 +1,75 @@
-# Bug / 优化清单归档 (2026-07-26 及以前)
+# Bug / 优化清单归档 (2026-08-19 及以前)
+
+## [2026-08-19]
+1. **选集功能完整性升维：一键刷新 + 长番剧 50 集区间分页 + 正/倒序切换 (P0)**
+   - 解决：在选集头部新增一键物理穿透刷新按钮（`onRefreshChapters`）；针对总集数 $> 40$ 的超长番剧（如《海贼王》《柯南》）新增 50 话智能区间分页胶囊（`1-50`、`51-100`...），支持在播区间高亮感知；新增正序/倒序一键切换。
+   - 文件：`apps/web/src/pages/watch/MobileEpsSection.tsx`, `apps/web/src/pages/WatchPage.tsx`, `apps/web/src/lib/use-watch-session.ts`, `apps/web/src/index.css`
+2. **修复 xifan-next 虚假 HLS (404) 导致无法播放与签名直链缓存污染 Bug (P0)**
+   - 解决：
+     - 在 `xifan-next.ts` 中引入 2s 轻量探测，HLS 返回 404 时自动秒级回退至 Fallback MP4 直链；
+     - 在 `ttl-cache.ts` 中优先匹配 `issue-hls-playback` 与 `pt=`/`sign=` 临时签名 Token，将其缓存期收敛至 60s（`resolveSigned`）；
+     - 在 `use-watch-session.ts` 中于 `onMediaLoadFailed` 置位 `resolveRefreshOnce`，使播放失败后重试自动穿透并刷新缓存。
+   - 文件：`apps/server/src/lib/xifan-next.ts`, `apps/server/src/lib/ttl-cache.ts`, `apps/web/src/lib/use-watch-session.ts`
+3. **修复暂停弹幕时间向后回跳/回弹 Bug (P0)**
+   - 解决：实现 `getInterpolatedTime(now)`，无论暂停与否均基于当前 `now` 精确计算瞬态实际运行时间戳，并在 `onPause` 与 `onWaiting` 中精准定格当前画面，暂停后弹幕 0 像素位移绝对静止。
+   - 文件：`apps/web/src/player/media/canvas-danmaku.ts`
+4. **Safari / iOS 播放卡顿与弹幕闪烁抽搐深度解耦重构 (P0 - 方案 1)**
+   - 解决：
+     - 纯物理墙上时钟驱动：正常播放下弹幕位移 100% 由 `performance.now()` 单调推进；
+     - 分级漂移治理策略：死区（0 ~ 0.5s）完全不修正，轻微漂移（0.5s ~ 2.0s）EMA 低通平滑滤波 + 单调保底，硬跳跃（> 2.0s 或 Seek）重新排轨；
+     - 缓冲/暂停优雅定格，`waiting` 增加 200ms 防抖，过滤网络微抖动；
+     - Canvas 注入 `contain: strict; will-change: transform; transform: translateZ(0);`，DPR 严格钳制 $\le 2.0$。
+   - 文件：`apps/web/src/player/media/canvas-danmaku.ts`
+
+## [2026-08-18]
+1. **视频源展开卡片候选关键词 Chips 排版与字号精致化 (P2)**
+   - 解决：优化 `SourceBoard.tsx` 中视频源卡片展开换词时的候选关键词 Chips；字号精炼至 10.5px 微型排版，优化内边距、圆角与柔和边框，提供悬浮天青高亮微动效。
+   - 文件：`apps/web/src/pages/watch/SourceBoard.tsx`
+2. **全站双模态色彩系统美化与默认白天模式（Light Mode）改造 (P1)**
+   - 解决：新用户访问及无缓存时默认启用白天模式；重构 Warm Slate / Paper 灰白分层与柔和阴影体系；夜间模式中和 Deep Charcoal 深灰避免死黑。
+   - 文件：`apps/web/index.html`, `apps/web/src/stores/settings.ts`, `apps/web/src/index.css`
+3. **切换视频源 HUD 提示位置重构与播放器内联锚定 (P1)**
+   - 解决：将 `WatchHudToast` 从网页顶部固定浮层改造为挂载于播放器画面容器内部的轻量浮层（Player HUD Overlay），支持常规窗口、网页全屏与系统全屏始终伴随画面居中提示。
+   - 文件：`apps/web/src/player/types.ts`, `apps/web/src/player/VideoPlayer.tsx`, `apps/web/src/pages/watch/WatchHudToast.tsx`, `apps/web/src/pages/WatchPage.tsx`
+4. **服务端日志输出结构化与健康检查心跳静默过滤 (P1)**
+   - 解决：过滤 Docker/K8s 正常的 `/api/health` 心跳轮询日志（非 200 打印）；实现结构化日志中间件输出 `[YYYY-MM-DD HH:mm:ss] [IP] METHOD PATH -> STATUS (Xms)`；对媒体拉流错误提供 `[MEDIA_FAIL]` 归因标识。
+   - 文件：`apps/server/src/index.ts`
+5. **修复播放页强依赖代理源（Anime1/LIBVIO）鉴权状态不同步问题 (P0)**
+   - 解决：`useWatchSession.ts` 接入 `isProxyUnlocked` 门禁，未解锁或未授权时严禁激活全量代理源，与设置页保持 100% 状态一致。
+   - 文件：`apps/web/src/lib/plugin-capabilities.ts`, `apps/web/src/lib/use-watch-session.ts`
+6. **混合模式 M3U8 去广告文本解析与 PROXY_TOKEN 媒体流鉴权解耦 (P0)**
+   - 解决：纯 M3U8 文本去广告重写（TS 切片直连源站 CDN，耗流 < 10KB）免密放行；全量代理与二进制 TS/M4S/MP4 维持严格鉴权。
+   - 文件：`apps/server/src/routes/media.ts`, `apps/server/src/lib/access.ts`
+7. **视频源待选（needs_pick）手动点选后未记录到缓存 Bug (P0)**
+   - 解决：引入 `isManual: true`，用户主动点选 100% 信任持久化，不再受机器相似度 $< 0.50$ 拦截。
+   - 文件：`apps/web/src/stores/source-bindings.ts`, `apps/web/src/lib/use-watch-session.ts`
+8. **续播功能正常解析但显示「续播：未解析到分集」红字报错 Bug (P0)**
+   - 解决：续播优先复用当前已就绪的 selection 分集；元数据就绪前不使用占位标题盲搜；仅在无选集时才渲染错误。
+   - 文件：`apps/web/src/lib/use-watch-session.ts`, `apps/web/src/pages/watch/MobileEpsSection.tsx`
+9. **服务端 PROXY_TOKEN 拦截插件搜索导致新用户全源 🔴 异常 Bug (P0)**
+   - 解决：拆分媒体流中继代理与插件搜索鉴权，允许公网访客正常搜索番剧与解析分集。
+   - 文件：`apps/server/src/lib/access.ts`, `apps/server/src/routes/plugin.ts`
+10. **桌面端 Chrome 暂停时弹幕位置后退与微抖动震颤 Bug (P0)**
+    - 解决：捕获暂停瞬时高精渲染时间戳作为冻结锚点，屏蔽暂停态下 PTS 微抖动。
+    - 文件：`apps/web/src/player/media/canvas-danmaku.ts`
+11. **播放器桌面端双击全屏过敏与单击暂停/继续误触全屏 Bug (P0)**
+    - 解决：引入 220ms 延时分发定时器，快速双击清除第一击单击定时器，实现双击与播放/暂停 0 干扰解耦。
+    - 文件：`apps/web/src/player/chrome/useShellPointerHandlers.ts`
+12. **视频源首屏起播、折叠时机与白天模式适配修复 (P0)**
+    - 解决：`sourcesOpen` 默认折叠（起播 0 冗余网络请求），元数据就绪后触发首源起播，SourceBoard 接入双模态 CSS Token。
+    - 文件：`apps/web/src/lib/use-watch-session.ts`, `apps/web/src/pages/watch/SourceBoard.tsx`
+
+## [2026-08-12 ~ 2026-08-16]
+- **弹幕引擎与交互**：B 站标准「开-精简-关」三态循环、同屏密度限制抛弃、LRU 离屏字形位图 1:1 Retina 对齐、Z 轴原子化渲染、恒定 7.5s 屏幕穿越时长模型与倍速自适应补偿。
+- **性能与安全**：Docker 网桥与反代鉴权绕过封堵、单 IP 并发流限制 (<=8)、起播首片预取 (`startFragPrefetch`)、服务端 `hono/compress`、前端路由动态 `lazy()` 分包、VOD 点播 180s 缓存。
+- **架构重构**：插件搜索与分集 SQLite 磁盘缓存持久化、URL 深度瘦身（移除冗余 query 改为极简短链）、稀饭 Next 多线路与 `no-referrer` 去防盗链。
+- **移动端优化**：Backdrop 透明遮罩 0ms 收起、操作面板中轴对齐与双模态自适应、消除 MobileSafari 300ms 点击延迟。
+
+---
+
+## [2026-07-26 及以前]
 
 ## [2026-07-26] iOS Safari 首页继续观看卡片超宽
-
 - 状态：已完成
 - 优先级：P1
 - 描述：继续观看视频卡片宽度超出热门趋势等其他模块
@@ -9,7 +77,6 @@
 - 备注：iOS grid min-width:auto；min-w-0 + truncate 修复
 
 ## [2026-07-26] 移动端双击无法暂停
-
 - 状态：已完成
 - 优先级：P0
 - 描述：双击舞台应 pause，实际像没暂停（或闪一下又继续播）
@@ -17,7 +84,6 @@
 - 备注：click 双击检测 + dblclick 各调一次 togglePlay；PLAY_TOGGLE_DEDUP_MS=420 去重
 
 ## [2026-07-26] 播放中瞬间闪「缓冲中…」
-
 - 状态：已完成
 - 优先级：P0
 - 描述：画面流畅时仍偶尔弹出缓冲提示并瞬间消失 → 改为仅无可播数据时中间转圈，去掉文案
@@ -25,7 +91,6 @@
 - 备注：能播静默；underrun/seek hole/首载才 spinner；HLS non-fatal 不亮 UI
 
 ## [2026-07-26] 桌面端视频源与选集共用 rail 滚动
-
 - 状态：已完成
 - 优先级：P1
 - 描述：桌面端右侧 rail 对「视频源 + 选集」整体设 max-height + overflow-y，两块高度叠加后出现外层莫名滚动条；应各自独立板块、各自限高滚动
@@ -33,7 +98,6 @@
 - 备注：去掉 rail 外层 overflow；sources/eps 各自 body 限高；eps 增加 kz-watch-eps class
 
 ## [2026-07-26] Anime1 搜索噪声：动画列表 / 季度新番
-
 - 状态：已完成
 - 优先级：P2
 - 描述：Anime1 内置源搜索结果混入「动画列表」「季度新番」等站点导航/列表页，应过滤
