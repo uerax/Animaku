@@ -1033,6 +1033,13 @@ export function VideoPlayer({
         pendingSeekTargetRef.current = null
       }
 
+      // Once frames advance or are paintable, immediately drop any lingering seek/buffering spinner
+      if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+        setSeekingUi(false)
+        hideBufferingUi()
+        isSeekingRef.current = false
+      }
+
       const floor = Math.floor(t)
       // UI progress: ~4Hz, always commit on whole-second change (scrubber label)
       if (now - lastUiProgressRef.current >= 250 || floor !== lastUiFloor) {
@@ -1181,24 +1188,17 @@ export function VideoPlayer({
     }
     const onSeeked = () => {
       pendingSeekTargetRef.current = null
-      const clearSeekUi = () => {
-        isSeekingRef.current = false
+      isSeekingRef.current = false
+      // If we have paintable data ready (or buffer ahead), drop seeking/stall spinner immediately
+      if (
+        video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA ||
+        bufferedAhead(video) > 0
+      ) {
         setSeekingUi(false)
-      }
-      // Buffered seek: drop chrome immediately. Hole: keep until canplay/playing.
-      try {
-        const t = video.currentTime
-        for (let i = 0; i < video.buffered.length; i++) {
-          if (t >= video.buffered.start(i) && t <= video.buffered.end(i) - 0.1) {
-            clearSeekUi()
-            return
-          }
-        }
-      } catch {
-        /* ignore */
+        hideBufferingUi()
+        return
       }
       setSeekingUi(true)
-      setTimeout(clearSeekUi, 1200)
     }
 
     /**
@@ -1283,6 +1283,8 @@ export function VideoPlayer({
         clearResumePoll()
         bufferGatePausedRef.current = false
         hideBufferingUi()
+        setSeekingUi(false)
+        isSeekingRef.current = false
         if (video.paused) {
           void video.play().catch(() => {
             /* autoplay / user gesture */

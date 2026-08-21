@@ -4,6 +4,21 @@
 
 ---
 
+## [2026-08-22] 消除 Safari 进度条寻道后旋转加载图标残留问题（即时清除与响应态对齐）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **排查根本原因**：
+     - 原 `onSeeked` 在判定 `buffered` 区间不完全精确时，设置了 `setSeekingUi(true)` 并附带了长达 `setTimeout(..., 1200)`（1.2 秒）的延时清除器；
+     - Safari 在寻道完成后往往直接开始推进视频帧（`timeupdate`），但不会重复抛出 `playing` 事件，导致画面明明已经正常播放，中心转圈图标却被 1200ms 的硬编码延时器卡住残留。
+  2. **全面修复方案 (`VideoPlayer.tsx`)**：
+     - **即时移除延迟清除器**：彻底移除 `onSeeked` 中 1.2 秒的 `setTimeout`，只要 `video.readyState >= HAVE_CURRENT_DATA` 或存在可用缓冲，立即同步清除 `seekingUi` 与 `bufferingUi`；
+     - **播放推进与就绪即刻消除**：在 `onTime` 帧推进和 `tryResumeFromBuffer` 唤醒逻辑中，只要检测到画面帧可绘制推进，立即清除所有残留转圈标识，实现画面出帧与转圈消失 0 延迟对齐。
+- 涉及文件：apps/web/src/player/VideoPlayer.tsx, .claude/STATE.md
+- 备注：`pnpm typecheck` 0 报错通过，`pnpm build` 全量生产构建成功。
+
+---
+
 ## [2026-08-22] 修复 Safari 点击进度条游标来回回弹跳动问题（Seek 乐观更新与防回踩锁）
 - 状态：已完成
 - 优先级：P1
