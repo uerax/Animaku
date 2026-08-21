@@ -7,6 +7,7 @@ import {
   estimateAirProgress,
 } from '@animaku/shared'
 import { preloadVideoPlayer } from '../player/lazy'
+import { preloadRoute } from '../lib/route-preload'
 
 /** Chip text color on dark cover — pairs with warm score yellow on the right. */
 function airChipClass(
@@ -47,13 +48,18 @@ export const BangumiCard = memo(function BangumiCard({
   const airLabel = airProgressLabel(item)
   const eager = imagePriority !== 'lazy'
 
+  const onCardWarmup = () => {
+    preloadRoute('subject')
+    preloadVideoPlayer()
+  }
+
   return (
     <Link
       to={`/subject/${item.id}`}
-      // Warm player chunk on intent — import only, no Hls/danmaku init
-      onMouseEnter={preloadVideoPlayer}
-      onFocus={preloadVideoPlayer}
-      onTouchStart={preloadVideoPlayer}
+      // Warm Subject route + player chunk on intent
+      onMouseEnter={onCardWarmup}
+      onFocus={onCardWarmup}
+      onTouchStart={onCardWarmup}
       className="bangumi-card group flex flex-col overflow-hidden rounded-2xl bg-transparent transition-transform duration-200 hover:-translate-y-1"
     >
       <div className="bangumi-card-cover relative aspect-[3/4] overflow-hidden rounded-2xl bg-[var(--kz-bg-soft)] shadow-[0_10px_28px_rgba(0,0,0,0.18)] ring-1 ring-[var(--kz-border)]">

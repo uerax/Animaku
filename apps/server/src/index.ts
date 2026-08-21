@@ -161,6 +161,41 @@ app.get('/sitemap.xml', (c) => {
 // Production: one process serves API + Vite build (same origin → no /api proxy needed)
 const webRoot = resolveWebRootRel()
 if (webRoot) {
+  // Static asset caching middleware:
+  // - Vite hashed chunks (/assets/*): 1 year immutable strong cache
+  // - HTML and SPA routes: no-cache so redeploys are detected immediately
+  app.use('*', async (c, next) => {
+    if (c.req.path.startsWith('/api')) return next()
+    if (c.req.path === '/robots.txt' || c.req.path === '/sitemap.xml') {
+      return next()
+    }
+
+    await next()
+
+    // Inject optimal Cache-Control headers on successful 2xx responses
+    if (c.res.status >= 200 && c.res.status < 300) {
+      if (c.req.path.startsWith('/assets/')) {
+        c.res.headers.set(
+          'Cache-Control',
+          'public, max-age=31536000, immutable',
+        )
+      } else if (
+        c.req.path === '/' ||
+        c.req.path.endsWith('.html') ||
+        !c.req.path.includes('.')
+      ) {
+        c.res.headers.set('Cache-Control', 'no-cache')
+      } else if (
+        c.req.path.endsWith('.ico') ||
+        c.req.path.endsWith('.png') ||
+        c.req.path.endsWith('.svg') ||
+        c.req.path.endsWith('.webmanifest')
+      ) {
+        c.res.headers.set('Cache-Control', 'public, max-age=86400')
+      }
+    }
+  })
+
   app.use('*', async (c, next) => {
     if (c.req.path.startsWith('/api')) return next()
     // Dynamic robots/sitemap already handled above

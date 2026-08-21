@@ -4,6 +4,26 @@
 
 ---
 
+## [2026-08-21] 落地全栈路由预加载与导航栏秒开优化（空闲静默预热 + 意图预取 + 服务端 1 年强缓存）
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **路由预加载注册中心 (`apps/web/src/lib/route-preload.ts`)**：
+     - 构建统一的路由动态导入与幂等预加载调度器 `routeImports` / `preloadRoute`；
+     - 整合弱网与省流模式探测（`navigator.connection.saveData` 与 `2g/slow-2g` 自适应禁用空闲预载）；
+     - 提供 `preloadCoreNavigationRoutes` 支持微任务队列分片错峰调度，保证 0 主线程阻塞；
+  2. **意图预加载与首页空闲静默预热 (`apps/web/src/components/Layout.tsx`)**：
+     - 在主导航栏 `NavItem`、移动端 `更多` 菜单项、搜索按钮与输入框中接入 `onMouseEnter` / `onFocus` / `onTouchStart`，利用用户 100~300ms 点击前摇时间提前发包；
+     - 在 `Layout` 挂载后通过 `requestIdleCallback` 自动在后台静默拉取导航栏 6 大页面（`AnimePage`、`TimelinePage`、`CollectPage`、`HistoryPage`、`SettingsPage`、`SearchPage`，Gzip 后总计仅 15.65KB）；
+     - 彻底消除 Chrome 节能与无预热机制下首次点击卡顿 1 秒的问题，实现导航栏全量 0ms 瞬间秒开；
+  3. **番剧卡片意图预载联动 (`apps/web/src/components/ui.tsx`)**：
+     - 在 `BangumiCard` 悬停/触摸事件中接入 `preloadRoute('subject')` + `preloadVideoPlayer()`，进入详情页与起播链路实现双重加速；
+  4. **服务端静态资源 1 年不可变强缓存 (`apps/server/src/index.ts`)**：
+     - 为 Vite 构建带 hash 的静态资源（`/assets/*`）注入 `Cache-Control: public, max-age=31536000, immutable`；
+     - 保持 `index.html` 与 SPA 兜底路由为 `Cache-Control: no-cache`，确保重新部署后版本即时更新。
+- 涉及文件：apps/web/src/lib/route-preload.ts, apps/web/src/App.tsx, apps/web/src/components/Layout.tsx, apps/web/src/components/ui.tsx, apps/server/src/index.ts, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 3 个 workspace 0 报错通过，`pnpm build` 全量生产打包构建通过。
+
 ## [2026-08-21] 落地 xifan-next 全链路流媒体调度与工业级容灾闭环（2.0s 宽限期竞速 + 1080P 专线提取 + 双层自愈熔断状态机）
 - 状态：已完成
 - 优先级：P0

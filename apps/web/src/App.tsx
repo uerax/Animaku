@@ -2,35 +2,20 @@ import { lazy, Suspense } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { LoadingState } from './components/ui'
+import { routeImports } from './lib/route-preload'
 
 // Keep HomePage in the initial chunk for instantaneous first-paint
 import { HomePage } from './pages/HomePage'
 
-// Route-level code splitting: lazy-load non-index pages on demand
-const TimelinePage = lazy(() =>
-  import('./pages/TimelinePage').then((m) => ({ default: m.TimelinePage })),
-)
-const AnimePage = lazy(() =>
-  import('./pages/AnimePage').then((m) => ({ default: m.AnimePage })),
-)
-const SearchPage = lazy(() =>
-  import('./pages/SearchPage').then((m) => ({ default: m.SearchPage })),
-)
-const CollectPage = lazy(() =>
-  import('./pages/CollectPage').then((m) => ({ default: m.CollectPage })),
-)
-const HistoryPage = lazy(() =>
-  import('./pages/HistoryPage').then((m) => ({ default: m.HistoryPage })),
-)
-const SettingsPage = lazy(() =>
-  import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })),
-)
-const SubjectPage = lazy(() =>
-  import('./pages/SubjectPage').then((m) => ({ default: m.SubjectPage })),
-)
-const PlayPage = lazy(() =>
-  import('./pages/PlayPage').then((m) => ({ default: m.PlayPage })),
-)
+// Route-level code splitting: lazy-load non-index pages using unified preload loaders
+const TimelinePage = lazy(routeImports.timeline)
+const AnimePage = lazy(routeImports.anime)
+const SearchPage = lazy(routeImports.search)
+const CollectPage = lazy(routeImports.collect)
+const HistoryPage = lazy(routeImports.history)
+const SettingsPage = lazy(routeImports.settings)
+const SubjectPage = lazy(routeImports.subject)
+const PlayPage = lazy(routeImports.play)
 
 function PageFallback() {
   return (

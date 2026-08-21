@@ -9,6 +9,7 @@ import {
 import clsx from 'clsx'
 import { useSettingsStore } from '../stores/settings'
 import { getSiteBranding } from '../lib/site-branding'
+import { preloadRoute, preloadCoreNavigationRoutes } from '../lib/route-preload'
 import { DocumentSeo } from './DocumentSeo'
 import { SiteFooter } from './SiteFooter'
 
@@ -106,11 +107,18 @@ function NavItem({
   end?: boolean
   onNavigate?: () => void
 }) {
+  const onWarmup = () => {
+    if (to !== '/') preloadRoute(to)
+  }
+
   return (
     <NavLink
       to={to}
       end={end}
       onClick={onNavigate}
+      onMouseEnter={onWarmup}
+      onFocus={onWarmup}
+      onTouchStart={onWarmup}
       className={({ isActive }) =>
         clsx(
           'relative whitespace-nowrap rounded-lg px-2 py-1 text-sm font-bold tracking-wide transition-all duration-200 sm:px-3.5 sm:py-2 sm:text-[15px]',
@@ -206,6 +214,29 @@ export function Layout() {
       setMobileSearchOpen(true)
     }
   }, [location.pathname, params])
+
+  // Idle background preloading: warm core navigation chunks (~15KB gzip)
+  // during idle time after first paint so clicks never stall on any browser.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const schedule =
+      'requestIdleCallback' in window
+        ? (window.requestIdleCallback as (cb: () => void, opts?: { timeout: number }) => number)
+        : (cb: () => void) => window.setTimeout(cb, 1500)
+    const cancel =
+      'cancelIdleCallback' in window
+        ? (window.cancelIdleCallback as (id: number) => void)
+        : (id: number) => window.clearTimeout(id)
+
+    const handle = schedule(
+      () => {
+        preloadCoreNavigationRoutes()
+      },
+      { timeout: 3000 },
+    )
+
+    return () => cancel(handle)
+  }, [])
 
   // Close overflow menu on route change
   useEffect(() => {
@@ -315,6 +346,8 @@ export function Layout() {
                 aria-expanded={menuOpen}
                 aria-haspopup="menu"
                 aria-label="更多导航"
+                onMouseEnter={() => moreLinks.forEach((l) => preloadRoute(l.to))}
+                onTouchStart={() => moreLinks.forEach((l) => preloadRoute(l.to))}
                 onClick={() => setMenuOpen((v) => !v)}
               >
                 更多
@@ -337,6 +370,8 @@ export function Layout() {
                       to={l.to}
                       role="menuitem"
                       onClick={() => setMenuOpen(false)}
+                      onMouseEnter={() => preloadRoute(l.to)}
+                      onTouchStart={() => preloadRoute(l.to)}
                       className={({ isActive }) =>
                         clsx(
                           'block px-4 py-2.5 text-[15px] font-semibold transition-colors',
@@ -370,6 +405,8 @@ export function Layout() {
             >
               <button
                 type="submit"
+                onMouseEnter={() => preloadRoute('/search')}
+                onFocus={() => preloadRoute('/search')}
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[var(--kz-fg-muted)] transition-colors hover:text-[var(--kz-accent)] group-focus-within:text-[var(--kz-accent)]"
                 title="搜索"
                 aria-label="搜索"
@@ -378,6 +415,8 @@ export function Layout() {
               </button>
               <input
                 value={q}
+                onFocus={() => preloadRoute('/search')}
+                onMouseEnter={() => preloadRoute('/search')}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="搜索番剧…"
                 aria-label="搜索番剧"
