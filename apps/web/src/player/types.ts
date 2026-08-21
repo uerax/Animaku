@@ -67,4 +67,12 @@ export interface VideoPlayerProps {
     position: number
     reason: string
   }) => void
+  /** Bangumi Subject ID for OP/ED marker assistant */
+  bangumiId?: number
+  /** Current episode number (1-based) */
+  episodeNumber?: number
+  /** Total episodes of the anime */
+  totalEpisodes?: number
+  /** Official bangumi-oped data map for reference & merging */
+  officialOpedData?: Map<number, import('../lib/bangumi-oped').BgmOpedEntry> | null
 }

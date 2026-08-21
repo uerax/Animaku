@@ -52,6 +52,11 @@ export interface PlayerControlsProps {
   onAspectRatioChange?: (mode: AspectRatioMode) => void
   onToggleAutoNext?: () => void
   onToggleOpedSkip?: () => void
+  onToggleOpedDrawer?: () => void
+  hasOpedDrawer?: boolean
+  opedDrawerOpen?: boolean
+  /** Rendered OP/ED marker panel for desktop inline popover alignment */
+  opedDrawerNode?: ReactNode
   onVolume: (vol: number) => void
   /** Desktop speaker icon: mute ↔ restore last audible volume */
   onToggleMute: () => void

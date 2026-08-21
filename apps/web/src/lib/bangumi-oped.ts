@@ -13,6 +13,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import type { SkipSegment } from '@animaku/shared'
 import { bangumiApi } from './bangumi'
+import type { EpisodeMark } from './custom-oped-store'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -185,6 +186,7 @@ export function useResolvedOpedSkip(
   _manualSkipEd: SkipSegment,
   episodeDurationSeconds?: number,
   preferBangumiOped = true,
+  localMark?: EpisodeMark,
 ): { skipOp: SkipSegment; skipEd: SkipSegment } {
   return useMemo(() => {
     // If bangumi-oped option is turned off by user, completely disable OP/ED skip
@@ -195,24 +197,34 @@ export function useResolvedOpedSkip(
       }
     }
 
-    // When bangumi-oped is ON:
-    // Only enable if valid OP/ED data for this episode is fetched from bangumi-oped repo
-    if (!data) {
-      return {
-        skipOp: { enabled: false, start: 0, duration: 0 },
-        skipEd: { enabled: false, start: 0, duration: 0 },
+    // 1. 本地打标覆盖具有最高优先级 (Full Local Override)
+    let localSkipOp: SkipSegment | null = null
+    let localSkipEd: SkipSegment | null = null
+
+    if (localMark) {
+      if (localMark.noOp) {
+        localSkipOp = { enabled: false, start: 0, duration: 0 }
+      } else if (localMark.op) {
+        localSkipOp = toSkipSegment(localMark.op)
+      }
+
+      if (localMark.noEd) {
+        localSkipEd = { enabled: false, start: 0, duration: 0 }
+      } else if (localMark.ed) {
+        localSkipEd = toSkipSegment(localMark.ed)
       }
     }
 
-    const resolved = getSkipForEpisode(data, episode)
+    // 2. 远程官方数据
+    const resolved = data ? getSkipForEpisode(data, episode) : { skipOp: null, skipEd: null }
     const validDuration =
       Number.isFinite(episodeDurationSeconds) &&
       (episodeDurationSeconds ?? 0) > 0
         ? episodeDurationSeconds!
         : 0
 
-    // OP: reject if timestamp ends too far past the episode boundary
-    let skipOp: SkipSegment | null = resolved.skipOp
+    // OP: 本地若有打标则直接使用本地，否则使用官方数据
+    let skipOp: SkipSegment | null = localSkipOp ?? resolved.skipOp
     if (
       skipOp &&
       validDuration &&
@@ -221,8 +233,9 @@ export function useResolvedOpedSkip(
     ) {
       skipOp = null
     }
-    // ED: same check
-    let skipEd: SkipSegment | null = resolved.skipEd
+
+    // ED: 本地若有打标则直接使用本地，否则使用官方数据
+    let skipEd: SkipSegment | null = localSkipEd ?? resolved.skipEd
     if (
       skipEd &&
       validDuration &&
@@ -236,7 +249,7 @@ export function useResolvedOpedSkip(
       skipOp: skipOp ?? { enabled: false, start: 0, duration: 0 },
       skipEd: skipEd ?? { enabled: false, start: 0, duration: 0 },
     }
-  }, [data, episode, episodeDurationSeconds, preferBangumiOped])
+  }, [data, episode, episodeDurationSeconds, preferBangumiOped, localMark])
 }
 
 /**

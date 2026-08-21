@@ -158,6 +158,9 @@ export function MobileControls(props: PlayerControlsProps) {
     onAspectRatioChange,
     onToggleAutoNext,
     onToggleOpedSkip,
+    onToggleOpedDrawer,
+    hasOpedDrawer,
+    opedDrawerOpen,
     onVolume,
     onTogglePlayerFs,
     onToggleWebFs,
@@ -220,7 +223,8 @@ export function MobileControls(props: PlayerControlsProps) {
     panelOpen ||
     srMenuOpen ||
     volumeMenuOpen ||
-    settingsMenuOpen
+    settingsMenuOpen ||
+    opedDrawerOpen
 
   const vol = player.volume ?? 0.7
   const volPct = Math.round(Math.min(1, Math.max(0, vol)) * 100)
@@ -349,8 +353,8 @@ export function MobileControls(props: PlayerControlsProps) {
     onToggleVolumeMenu()
   }
 
-  const safeToggleSettings = (e: SyntheticEvent) => {
-    e.stopPropagation()
+  const safeToggleSettings = (e?: SyntheticEvent) => {
+    e?.stopPropagation()
     if (Date.now() - lastDismissAtRef.current < 300) return
     onToggleSettingsMenu?.()
   }
@@ -789,6 +793,22 @@ export function MobileControls(props: PlayerControlsProps) {
                     <div className="kz-switch-thumb" />
                   </div>
                 </button>
+
+                {hasOpedDrawer && (
+                  <button
+                    type="button"
+                    className="kz-settings-item"
+                    onClick={() => {
+                      safeToggleSettings()
+                      onToggleOpedDrawer?.()
+                    }}
+                  >
+                    <span>⏱️ OP/ED 标记助手</span>
+                    <span className="kz-settings-item-val">
+                      <IconChevronRight />
+                    </span>
+                  </button>
+                )}
               </div>
             )}
 

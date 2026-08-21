@@ -25,6 +25,14 @@ import { isBuiltinPlugin, usePluginStore } from '../stores/plugins'
 import { PageHeader } from '../components/ui'
 import { getSiteBranding } from '../lib/site-branding'
 import { EMPTY_ARRAY, FALLBACK_DANMAKU, FALLBACK_PLAYER } from '../lib/stable'
+import {
+  buildBangumiOpedContent,
+  createOpedZipBlob,
+  diffSubjectOped,
+  submitSingleSubjectToGithub,
+  useCustomOpedStore,
+} from '../lib/custom-oped-store'
+import { fetchBangumiOpedData } from '../lib/bangumi-oped'
 
 /** Sort plugins by user-defined order, falling back to weight > alphabetical. */
 function sortPluginsByOrder(
@@ -124,6 +132,23 @@ export function SettingsPage() {
   const [isShaking, setIsShaking] = useState(false)
   const [unlockSuccess, setUnlockSuccess] = useState(false)
   const unlockInputRef = useRef<HTMLInputElement>(null)
+
+  // OP/ED 标记助手本地数据
+  const opedStore = useCustomOpedStore()
+  const opedSubjects = opedStore.subjects
+  const [opedToast, setOpedToast] = useState('')
+
+  const opedSummary = useMemo(() => {
+    const subs = Object.values(opedSubjects)
+    let totalEps = 0
+    for (const s of subs) {
+      totalEps += Object.keys(s.episodes).length
+    }
+    return {
+      subjectCount: subs.length,
+      episodeCount: totalEps,
+    }
+  }, [opedSubjects])
 
   async function handleVerifyUnlock() {
     if (!unlockPassword.trim() || isVerifying) return
@@ -454,6 +479,161 @@ export function SettingsPage() {
             </span>
           )}
         </div>
+      </section>
+
+      {/* OP/ED 标记中心 */}
+      <section className="space-y-4 rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-6 shadow-sm transition-all duration-200 hover:border-[var(--kz-accent-ring)]">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-lg font-bold tracking-tight text-[var(--kz-fg)] flex items-center gap-2">
+              <span>⏱️ OP/ED 标记中心</span>
+              <span className="rounded-full bg-sky-500/15 px-2.5 py-0.5 text-xs font-semibold text-sky-400">
+                {opedSummary.subjectCount} 部番剧 · {opedSummary.episodeCount} 集已标记
+              </span>
+            </h2>
+            <p className="mt-1 text-sm text-[var(--kz-fg-muted)]">
+              播放视频时通过控制栏「OP/ED 标记助手」记录片头片尾时间戳，本地打标优先覆盖并自动跳过。数据保存在本机浏览器，可随时逐部贡献至{' '}
+              <a
+                href="https://github.com/uerax/bangumi-oped"
+                target="_blank"
+                rel="noreferrer"
+                className="kz-link"
+              >
+                uerax/bangumi-oped
+              </a>{' '}
+              开源仓库。
+            </p>
+          </div>
+        </div>
+
+        {opedSummary.subjectCount === 0 ? (
+          <div className="rounded-xl border border-dashed border-[var(--kz-border)] p-6 text-center text-sm text-[var(--kz-fg-muted)]">
+            本地暂无打标记录。在播放任意番剧时，打开右下角控制条的「⏱️ OP/ED 标记助手」即可开始极简打点。
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="max-h-60 overflow-y-auto space-y-2 rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] p-3">
+              {Object.entries(opedSubjects).map(([idStr, sub]) => {
+                const subId = Number(idStr)
+                const epsCount = Object.keys(sub.episodes).length
+
+                return (
+                  <div
+                    key={subId}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-3 text-xs"
+                  >
+                    <div>
+                      <div className="font-semibold text-[var(--kz-fg)]">
+                        {sub.subjectName || `Bangumi Subject ${subId}`}
+                        <span className="ml-2 font-mono text-[11px] text-[var(--kz-fg-dim)]">
+                          ID: {subId}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 text-[11px] text-[var(--kz-fg-muted)]">
+                        已标记 {epsCount} 集 · 默认推算 {sub.defaultDuration || 90}s
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setOpedToast(`正在拉取 Subject ${subId} 官方数据并合并…`)
+                          const officialData = await fetchBangumiOpedData(subId)
+                          const txt = buildBangumiOpedContent(officialData, sub.episodes)
+                          await navigator.clipboard.writeText(txt)
+                          setOpedToast(`已复制 Subject ${subId} 的合并全量 txt 格式（含官方底本与本地标记）`)
+                          setTimeout(() => setOpedToast(''), 3000)
+                        }}
+                        className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1 text-xs font-medium text-[var(--kz-fg)] hover:bg-[var(--kz-bg-elevated)] cursor-pointer"
+                        title="复制包含官方已有集数与本地标记的完整数据"
+                      >
+                        复制 txt
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setOpedToast(`正在拉取 Subject ${subId} 官方数据并准备 PR…`)
+                          const officialData = await fetchBangumiOpedData(subId)
+                          const txt = buildBangumiOpedContent(officialData, sub.episodes)
+                          const existsOnRemote = Boolean(officialData && officialData.size > 0)
+                          const diff = diffSubjectOped(subId, officialData, sub.episodes, sub.totalEpisodes)
+                          const res = await submitSingleSubjectToGithub(subId, txt, existsOnRemote, diff.commitMessage)
+                          if (res.method === 'edit_file_clipboard') {
+                            setOpedToast('最新全量合并数据已复制！请在 GitHub 编辑页按 Ctrl+A 全选并 Ctrl+V 粘贴覆盖')
+                          } else {
+                            setOpedToast('已打开 GitHub 新建文件 PR 页面')
+                          }
+                          setTimeout(() => setOpedToast(''), 5000)
+                        }}
+                        className="rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white shadow hover:bg-emerald-500 cursor-pointer"
+                        title="提交包含官方原本内容与本地新增修改的完整 PR"
+                      >
+                        提交 PR
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm(`确定删除《${sub.subjectName || subId}》的本地打标数据吗？`)) {
+                            opedStore.clearSubjectMarks(subId)
+                          }
+                        }}
+                        className="rounded-lg px-2 py-1 text-xs text-rose-400 hover:bg-rose-500/10 cursor-pointer"
+                        title="删除该番打标记录"
+                      >
+                        删除
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setOpedToast('正在拉取各番官方数据并打包 ZIP…')
+                    const files: { path: string; content: string }[] = []
+                    for (const [idStr, sub] of Object.entries(opedSubjects)) {
+                      const subId = Number(idStr)
+                      const official = await fetchBangumiOpedData(subId)
+                      const txt = buildBangumiOpedContent(official, sub.episodes)
+                      files.push({
+                        path: `data/${subId}/${subId}.txt`,
+                        content: txt,
+                      })
+                    }
+                    const blob = createOpedZipBlob(files)
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = `bangumi-oped-custom-${new Date().toISOString().slice(0, 10)}.zip`
+                    a.click()
+                    URL.revokeObjectURL(url)
+                    setOpedToast('已生成并下载合并全量 ZIP 包！')
+                    setTimeout(() => setOpedToast(''), 3000)
+                  }}
+                  className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-1.5 text-xs font-medium text-[var(--kz-fg)] hover:bg-[var(--kz-bg-elevated)] cursor-pointer"
+                >
+                  📦 打包下载全量 ZIP
+                </button>
+                {opedToast && <span className="text-xs text-emerald-400 font-medium">{opedToast}</span>}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm('警告：将清空本机所有番剧的本地打标数据，此操作不可恢复，确定？')) {
+                    opedStore.clearAllMarks()
+                  }
+                }}
+                className="text-xs text-rose-400 hover:underline bg-transparent border-0 cursor-pointer"
+              >
+                清空所有本地标记
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="space-y-3 rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-5">

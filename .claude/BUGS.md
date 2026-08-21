@@ -10,6 +10,15 @@
 
 > 2026-08-19 及更早的 Bug 修复历史已归档至 [.claude/BUGS_ARCHIVE.md](BUGS_ARCHIVE.md)
 
+### [2026-08-22]
+1. **落地 bangumi-oped 客户端极简「OP/ED 标记助手」与开源贡献体系 (P1)**
+   - 解决：
+     1. **本地存储与覆盖合并**：新建 `apps/web/src/lib/custom-oped-store.ts`，基于 LocalStorage 持久化用户打点数据；提供本地最高优先级的覆盖合并算法，并支持 `diffSubjectOped` 差异分析生成富语义 Commit Message 与 PR 摘要；
+     2. **播放会话层注入**：在 `use-watch-session.ts` 与 `bangumi-oped.ts` 的 `useResolvedOpedSkip` 中接入本地打标覆盖，实现标记后 0 延迟秒级自动跳过；
+     3. **抽屉面板与双端入口**：开发 `OpedMarkerDrawer.tsx` 抽屉面板（支持一键预设 +90s、二次精准定格、无 OP/ED 标记、±1s 微调、全剧矩阵总览与一键 PR/复制）；在 `DesktopControls.tsx` 与 `MobileControls.tsx` 控制栏中集成入口；
+     4. **设置页全局中心**：在 `SettingsPage.tsx` 增设「OP/ED 标记与贡献中心」，支持各番管理、全部文本复制、纯前端 0 依赖 ZIP 打包下载与 GitHub Issue 提交。
+   - 文件：`apps/web/src/lib/custom-oped-store.ts`, `apps/web/src/player/chrome/OpedMarkerDrawer.tsx`, `apps/web/src/player/chrome/icons.tsx`, `apps/web/src/player/chrome/DesktopControls.tsx`, `apps/web/src/player/chrome/MobileControls.tsx`, `apps/web/src/player/chrome/types.ts`, `apps/web/src/player/types.ts`, `apps/web/src/player/VideoPlayer.tsx`, `apps/web/src/lib/bangumi-oped.ts`, `apps/web/src/lib/use-watch-session.ts`, `apps/web/src/pages/WatchPage.tsx`, `apps/web/src/pages/SettingsPage.tsx`
+
 ### [2026-08-20]
 1. **修复视频源候选词与自定义换词点击重搜失效 Bug (P0)**
    - 解决：

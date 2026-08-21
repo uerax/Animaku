@@ -55,6 +55,7 @@ import { useSettingsStore } from '../stores/settings'
 import { useSourceBindingStore } from '../stores/source-bindings'
 import { EMPTY_ARRAY, FALLBACK_DANMAKU, FALLBACK_PLAYER } from './stable'
 import { useBangumiOpedData, useResolvedOpedSkip, useBangumiEpisodesDuration } from './bangumi-oped'
+import { useCustomOpedStore } from './custom-oped-store'
 
 export type SearchRow = {
   plugin: PluginMeta
@@ -258,6 +259,7 @@ export type WatchSession = {
   refreshChapters: () => Promise<void>
   hudMessage: string | null
   clearHudMessage: () => void
+  bgmOpedData?: Map<number, import('./bangumi-oped').BgmOpedEntry> | null
   pageUrl: string
   pluginName: string
 }
@@ -1631,6 +1633,11 @@ export function useWatchSession(bangumiId: number): WatchSession {
   const bgmOpedQuery = useBangumiOpedData(bangumiId, preferBangumiOped)
   const episodeDurationMap = useBangumiEpisodesDuration(bangumiId, preferBangumiOped)
   const currentEp = episode?.episode ?? 0
+  const localMark = useCustomOpedStore((s) =>
+    bangumiId > 0 && currentEp > 0
+      ? s.subjects[bangumiId]?.episodes[currentEp]
+      : undefined,
+  )
   const episodeDurationSeconds = useMemo(() => {
     if (!episodeDurationMap || currentEp <= 0) return undefined
     return episodeDurationMap.get(currentEp)
@@ -1642,6 +1649,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     playerSettings.skipEd,
     episodeDurationSeconds,
     preferBangumiOped,
+    localMark,
   )
   const resolvedPlayerSettings = useMemo(
     () => ({
@@ -1707,6 +1715,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     refreshChapters,
     hudMessage,
     clearHudMessage,
+    bgmOpedData: bgmOpedQuery.data,
     pageUrl: episode?.pageUrl || qPageUrl,
     pluginName: selection?.plugin.name || qPlugin,
   }

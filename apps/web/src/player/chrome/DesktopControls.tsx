@@ -12,6 +12,7 @@ import {
   IconFullscreen,
   IconFullscreenExit,
   IconNext,
+  IconOpedMarker,
   IconPause,
   IconPlay,
   IconPrev,
@@ -122,6 +123,10 @@ export function DesktopControls(props: PlayerControlsProps) {
     onAspectRatioChange,
     onToggleAutoNext,
     onToggleOpedSkip,
+    onToggleOpedDrawer,
+    hasOpedDrawer,
+    opedDrawerOpen,
+    opedDrawerNode,
     onVolume,
     onToggleMute,
     onTogglePlayerFs,
@@ -202,7 +207,8 @@ export function DesktopControls(props: PlayerControlsProps) {
     panelOpen ||
     srMenuOpen ||
     speedMenuOpen ||
-    settingsMenuOpen
+    settingsMenuOpen ||
+    opedDrawerOpen
   const vol = player.volume ?? 0.7
   const isMuted = vol <= 0.001
 
@@ -512,6 +518,23 @@ export function DesktopControls(props: PlayerControlsProps) {
             )}
           </div>
 
+          {/* OP/ED Marker Assistant */}
+          {hasOpedDrawer && (
+            <div className="kz-speed-wrap kz-oped-wrap">
+              <button
+                type="button"
+                className="kz-ctrl kz-ctrl-icon"
+                data-active={opedDrawerOpen}
+                onClick={onToggleOpedDrawer}
+                title="OP/ED 标记助手"
+                aria-label="OP/ED 标记助手"
+              >
+                <IconOpedMarker />
+              </button>
+              {opedDrawerOpen && opedDrawerNode}
+            </div>
+          )}
+
           {/* Unified Player Settings Menu */}
           <div className="kz-speed-wrap">
             <button
@@ -592,6 +615,21 @@ export function DesktopControls(props: PlayerControlsProps) {
                         <div className="kz-switch-thumb" />
                       </div>
                     </button>
+
+                    {hasOpedDrawer && (
+                      <button
+                        type="button"
+                        className="kz-settings-item"
+                        onClick={() => {
+                          onToggleOpedDrawer?.()
+                        }}
+                      >
+                        <span>⏱️ OP/ED 标记助手</span>
+                        <span className="kz-settings-item-val">
+                          <IconChevronRight />
+                        </span>
+                      </button>
+                    )}
 
                     <button
                       type="button"

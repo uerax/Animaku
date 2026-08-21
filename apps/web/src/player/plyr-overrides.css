@@ -1741,6 +1741,19 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   animation: kz-settings-popover-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* Desktop OP/ED marker panel: centered directly above OP/ED button horizontal axis */
+.kz-oped-panel--desktop {
+  position: absolute;
+  bottom: calc(100% + 8px) !important;
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%) !important;
+  transform-origin: bottom center;
+  z-index: 85;
+  max-height: min(34rem, calc(100vh - 6rem)) !important;
+  animation: kz-settings-popover-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 .kz-danmaku-panel-root > * {
   pointer-events: auto;
 }

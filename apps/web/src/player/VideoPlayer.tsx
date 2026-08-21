@@ -53,6 +53,7 @@ import { useChromeVisibility } from './chrome/useChromeVisibility'
 import { useShellPointerHandlers } from './chrome/useShellPointerHandlers'
 import { DesktopControls } from './chrome/DesktopControls'
 import { MobileControls } from './chrome/MobileControls'
+import { OpedMarkerDrawer } from './chrome/OpedMarkerDrawer'
 import { PlayerContextMenu } from './chrome/PlayerContextMenu'
 import {
   PlayerStatsOverlay,
@@ -97,6 +98,10 @@ export function VideoPlayer({
   hudMessage,
   onMediaAuthExpired,
   onMediaLoadFailed,
+  bangumiId,
+  episodeNumber,
+  totalEpisodes,
+  officialOpedData,
 }: VideoPlayerProps) {
   const shellRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -287,6 +292,7 @@ export function VideoPlayer({
   const [totalFrames, setTotalFrames] = useState(0)
   const [videoCodec, setVideoCodec] = useState('')
   const [audioCodec, setAudioCodec] = useState('')
+  const [opedDrawerOpen, setOpedDrawerOpen] = useState(false)
 
   useEffect(() => {
     if (typeof document !== 'undefined') {
@@ -505,19 +511,33 @@ export function VideoPlayer({
         setContextMenu((prev) => ({ ...prev, visible: false }))
         closed = true
       }
-      if (speedMenuOpen || srMenuOpen || volumeMenuOpen || settingsMenuOpen) {
+      if (
+        speedMenuOpen ||
+        srMenuOpen ||
+        volumeMenuOpen ||
+        settingsMenuOpen ||
+        opedDrawerOpen
+      ) {
         setSpeedMenuOpen(false)
         setSrMenuOpen(false)
         setVolumeMenuOpen(false)
         setSettingsMenuOpen(false)
+        setOpedDrawerOpen(false)
         closed = true
       }
       return closed
     },
     closePanel: () => {
-      if (!panelOpen) return false
-      setPanelOpen(false)
-      return true
+      let closed = false
+      if (panelOpen) {
+        setPanelOpen(false)
+        closed = true
+      }
+      if (opedDrawerOpen) {
+        setOpedDrawerOpen(false)
+        closed = true
+      }
+      return closed
     },
     isPlaying: () => Boolean(videoRef.current && !videoRef.current.paused),
   })
@@ -1463,6 +1483,7 @@ export function VideoPlayer({
         setSrMenuOpen(false)
         setVolumeMenuOpen(false)
         setSettingsMenuOpen(false)
+        setOpedDrawerOpen(false)
         setContextMenu((prev) => ({ ...prev, visible: false }))
         setStatsOpen(false)
         // Exit CSS web-fs + any DOM fullscreen (browser also exits DOM FS)
@@ -2022,6 +2043,13 @@ export function VideoPlayer({
     }
   }
 
+  function seekTo(targetTime: number) {
+    const v = videoRef.current
+    if (!v) return
+    const target = Math.max(0, targetTime)
+    v.currentTime = target
+  }
+
   function handleDrop(e: DragEvent) {
     e.preventDefault()
     e.stopPropagation()
@@ -2292,6 +2320,24 @@ export function VideoPlayer({
       />
     ) : null
 
+  const opedDrawerElement =
+    bangumiId && bangumiId > 0 && opedDrawerOpen ? (
+      <OpedMarkerDrawer
+        open
+        onClose={() => setOpedDrawerOpen(false)}
+        currentTime={current}
+        duration={duration}
+        bangumiId={bangumiId}
+        bangumiTitle={title}
+        episodeNumber={episodeNumber ?? 1}
+        totalEpisodes={totalEpisodes}
+        officialOpedData={officialOpedData}
+        onSeek={seekTo}
+        onToast={(msg) => flashSkipHint(msg, 2000)}
+        layout={pointerMode}
+      />
+    ) : null
+
   const controlsProps: PlayerControlsProps = {
     title,
     showBar,
@@ -2308,6 +2354,9 @@ export function VideoPlayer({
     danmakuSimplify: Boolean(danmaku.simplify),
     hasDanmakuPanel: Boolean(danmakuPanel),
     danmakuPanelNode: danmakuPanelElement,
+    hasOpedDrawer: Boolean(bangumiId && bangumiId > 0),
+    opedDrawerOpen,
+    opedDrawerNode: opedDrawerElement,
     player,
     srMode,
     srActive,
@@ -2322,6 +2371,7 @@ export function VideoPlayer({
       setSpeedMenuOpen(false)
       setSrMenuOpen(false)
       setVolumeMenuOpen(false)
+      setOpedDrawerOpen(false)
       setSettingsMenuOpen((v) => !v)
     },
     onToggleAutoNext: () => {
@@ -2333,6 +2383,14 @@ export function VideoPlayer({
       const next = player.preferBangumiOped === false ? true : false
       onPlayerChange?.({ preferBangumiOped: next })
       flashSkipHint(next ? '跳过片头片尾：已开启' : '跳过片头片尾：已关闭', 1500)
+    },
+    onToggleOpedDrawer: () => {
+      setPanelOpen(false)
+      setSpeedMenuOpen(false)
+      setSrMenuOpen(false)
+      setVolumeMenuOpen(false)
+      setSettingsMenuOpen(false)
+      setOpedDrawerOpen((v) => !v)
     },
     onTogglePlay: togglePlay,
     onPrev,
@@ -2359,6 +2417,7 @@ export function VideoPlayer({
       setSrMenuOpen(false)
       setVolumeMenuOpen(false)
       setSettingsMenuOpen(false)
+      setOpedDrawerOpen(false)
       setPanelOpen((v) => !v)
     },
     onToggleSpeedMenu: () => {
@@ -2366,6 +2425,7 @@ export function VideoPlayer({
       setSrMenuOpen(false)
       setVolumeMenuOpen(false)
       setSettingsMenuOpen(false)
+      setOpedDrawerOpen(false)
       setSpeedMenuOpen((v) => !v)
     },
     onToggleSrMenu: () => {
@@ -2373,6 +2433,7 @@ export function VideoPlayer({
       setSpeedMenuOpen(false)
       setVolumeMenuOpen(false)
       setSettingsMenuOpen(false)
+      setOpedDrawerOpen(false)
       setSrMenuOpen((v) => !v)
     },
     onToggleVolumeMenu: () => {
@@ -2380,6 +2441,7 @@ export function VideoPlayer({
       setSpeedMenuOpen(false)
       setSrMenuOpen(false)
       setSettingsMenuOpen(false)
+      setOpedDrawerOpen(false)
       setVolumeMenuOpen((v) => !v)
     },
     onPickSpeed: (s) => {
@@ -2475,6 +2537,7 @@ export function VideoPlayer({
         setVolumeMenuOpen(false)
         setSettingsMenuOpen(false)
         setPanelOpen(false)
+        setOpedDrawerOpen(false)
       }}
       onDrop={handleDrop}
       onDragOver={(e) => {
@@ -2783,6 +2846,9 @@ export function VideoPlayer({
 
       {/* Mobile danmaku sheet portal */}
       {pointerMode === 'mobile' && danmakuPanelElement}
+
+      {/* Mobile OP/ED marker sheet portal */}
+      {pointerMode === 'mobile' && opedDrawerElement}
 
       {danmakuPanel && (
         <input

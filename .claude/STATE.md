@@ -4,6 +4,86 @@
 
 ---
 
+## [2026-08-22] 修复 OP/ED 标记面板白天模式黄色文字对比度过低问题
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **排查根本原因**：
+     - 在 Light Mode（白天浅色模式）下，向导横幅使用了亮黄色 `text-amber-200`、`text-amber-300`，与浅色底对比度极低，导致文字发白无法辨认；
+     - 面板内部分状态标签和操作按钮使用了单一的浅色亮色类名（如 `text-sky-400`、`text-purple-400`、`text-amber-400`），未配置浅色暗色双模态对比度分级。
+  2. **全面修复与色彩体系升级 (`OpedMarkerDrawer.tsx`)**：
+     - **向导横幅重构**：白天浅色模式下采用高对比度深琥珀色 `text-amber-900` / `text-amber-950`（字重加粗），背景适配 `bg-amber-50`，边框 `border-amber-300`；暗色模式下保持 `dark:text-amber-200` / `dark:bg-amber-500/10`；
+     - **按键 kbd 样式**：白天模式采用 `bg-amber-200/80 text-amber-950 font-bold border-amber-300/80`，暗色模式采用 `dark:bg-black/40 dark:text-amber-300`；
+     - **横幅操作按钮**：白天模式适配 `bg-amber-100 text-amber-950 hover:bg-amber-200/90`，暗色模式适配 `dark:bg-amber-500/20 dark:text-amber-300`；
+     - **全局双模态字阶**：将蓝色/紫色/绿色/琥珀色标签统一升级为 `text-*-600 dark:text-*-400`，彻底保证白天与夜间模式下的高对比度与舒适阅读体验。
+- 涉及文件：apps/web/src/player/chrome/OpedMarkerDrawer.tsx, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 3 个 workspace 0 报错通过，`pnpm build` 全量生产打包构建通过。
+
+---
+
+## [2026-08-22] 修复桌面端 OP/ED 标记面板中轴定位与 GitHub PR 全量数据合并提交闭环
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **排查根本原因**：
+     - **面板位置与跳跃**：`.kz-oped-panel--desktop` 基础样式写为 `right: 0`，但动画 `kz-settings-popover-in` 包含 `translateX(-50%)`，导致打开瞬间面板先在左侧缩放再跳跃至右侧，且中轴无法对齐鼠标/按钮正上方；
+     - **设置页 PR 仅有新增集数**：`SettingsPage.tsx` 在生成 txt 与提交 PR 时传 `officialData` 为 `null` 且 `existsOnRemote` 硬编码为 `false`，未从 CDN 拉取官方数据进行全集数合并，直接打开了 `/new/` 页面（GitHub 原生从 URL 预填导致只展示本地打标几集，丢失官方原集数）；
+     - **播放页 PR 认知断层**：播放页生成的是完整合并全量数据并已写入剪贴板，但因目标文件在官方仓库已存在，系统打开的是 GitHub `/edit/` 编辑页。GitHub `/edit/` 路由出于安全机制不支持 URL 参数自动填入，直接展示远端已有旧内容，若用户未注意全选粘贴覆盖就会误以为未合并。
+  2. **全面修复与体验升级**：
+     - **中轴精准对齐与平滑动画 (`plyr-overrides.css`)**：将 `.kz-oped-panel--desktop` 重构为与弹幕面板一致的 `left: 50% !important; right: auto !important; transform: translateX(-50%) !important; transform-origin: bottom center;`，彻底消除跳动，中轴与按钮/鼠标位置完美重合；
+     - **设置页全量异步拉取与合并 (`SettingsPage.tsx`)**：接入 `fetchBangumiOpedData`，在单番「复制 txt」与「提交 PR」时动态拉取官方数据，通过 `buildBangumiOpedContent` 完整合并官方原集数与本地打标集数，精准判断 `existsOnRemote`；新增「📦 打包下载全量 ZIP」全番合并导出；
+     - **向导式 PR 提交与全量 txt 展开预览 (`OpedMarkerDrawer.tsx`)**：
+       - 当提交已有文件 PR 时，自动弹出醒目的琥珀色引导横幅（提示 Ctrl+A 全选并 Ctrl+V 粘贴覆盖，附带再次复制与直达链接）；
+       - 提供「▼ 查看合并后完整 txt」折叠预览框，直观展示官方原本集数与本地新增修改集数的合并结果。
+- 涉及文件：apps/web/src/player/plyr-overrides.css, apps/web/src/pages/SettingsPage.tsx, apps/web/src/player/chrome/OpedMarkerDrawer.tsx, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 3 个 workspace 0 报错通过，`pnpm build` 全量生产打包构建通过。
+
+---
+
+## [2026-08-22] 修复桌面端点击 OP/ED 标记面板无响应 Bug（补齐透传回调与双端互斥状态机）
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **排查根本原因**：
+     - `VideoPlayer.tsx` 在组装 `controlsProps` 时漏传了 `onToggleOpedDrawer` 回调函数，导致桌面端点击控制栏 OP/ED 助手图标以及设置菜单项时执行了 `undefined` 无任何响应；
+     - `DesktopControls.tsx` 与 `MobileControls.tsx` 中的控制栏常驻显示条件 `pinBar` 缺少 `opedDrawerOpen`，在悬浮面板打开时若光标离开控制栏易触发控制栏自动隐藏；
+  2. **全面修复与状态机完善**：
+     - 在 `VideoPlayer.tsx` 中补齐 `onToggleOpedDrawer`，并在打开 OP/ED 标记面板时与其它菜单（倍速、超分、音量、设置、弹幕面板）保持互斥关闭；
+     - 键盘 `Escape`、播放器外层右键菜单打开时同步联动关闭 `opedDrawerOpen`；
+     - `DesktopControls.tsx` 与 `MobileControls.tsx` 的 `pinBar` 均接入 `opedDrawerOpen`，保证面板开启期间控制栏稳定常驻；
+     - 优化设置菜单内点击 `OP/ED 标记助手` 触发逻辑，实现 0 竞态原子切换。
+- 涉及文件：apps/web/src/player/VideoPlayer.tsx, apps/web/src/player/chrome/DesktopControls.tsx, apps/web/src/player/chrome/MobileControls.tsx, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 3 个 workspace 0 报错通过，`pnpm build` 全量生产打包顺利完成。
+
+---
+
+## [2026-08-22] 落地 bangumi-oped 客户端极简「OP/ED 标记助手」与开源贡献体系（90s推算+二次定格+直接覆盖+Diff语义PR）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **本地存储与覆盖合并引擎 (`apps/web/src/lib/custom-oped-store.ts`)**：
+     - 构建 `useCustomOpedStore` 持久化存储用户打点数据（`animaku:custom-oped-marks`）；
+     - 实现 `buildBangumiOpedContent`：以官方数据为底本，本地打标具有最高优先级直接覆盖纠错，按集数升序输出标准 txt；
+     - 实现 `diffSubjectOped`：深度对比官方与本地数据，精准区分 `user-new`（本地新增）、`user-override`（本地修正）与 `official`（官方一致），自动生成富语义的 Commit Message（如 `feat(data): add OP/ED for subject 352410 (ep 3-12)`）与 PR 说明；
+     - 实现 `submitSingleSubjectToGithub`（URL 长度 <1.5KB 自动预填 Web PR，≥1.5KB 自动复制到剪贴板并打开编辑页）与 `createOpedZipBlob`（纯前端 0 依赖 ZIP 内存打包生成器）；
+  2. **播放会话层本地覆盖注入 (`apps/web/src/lib/bangumi-oped.ts` & `use-watch-session.ts`)**：
+     - 在 `useResolvedOpedSkip` 中接入 `localMark` 优先覆盖判断，实现本地打标后当前集与跨集播放 0 延迟秒级自动跳过；
+  3. **OP/ED 标记助手抽屉组件 (`apps/web/src/player/chrome/OpedMarkerDrawer.tsx`)**：
+     - 支持「⏺ 设当前时间为起点（默认 +90s）」极简打标，并在进度条上即时渲染 OP/ED 高亮色块；
+     - 接入「🎯 将当前时间设为终点」二次精准定格状态机，自适应非 90s 动画、泡面番（30s/60s/120s 快速胶囊切换）；
+     - 支持无 OP/ED (-1) 标记与 ±1s 微调；
+     - 全剧打标进度矩阵展示各集状态（🟢 新增 / 🟡 修正 / ⚪ 官方 / ⚪ 未标记），支持点击切换集数；
+     - 提供「复制本番 txt」与「提交本番 PR」一键操作；
+  4. **播放器双端与设置页全局中心集成**：
+     - 桌面端控制栏（`DesktopControls.tsx`）增加「OP/ED 标记助手」常驻按钮与设置菜单项；
+     - 移动端控制栏（`MobileControls.tsx`）在设置弹窗中集成「OP/ED 标记助手」入口；
+     - `VideoPlayer.tsx` 与 `WatchPage.tsx` 完成属性透传与抽屉挂载；
+     - 设置页（`SettingsPage.tsx`）新增「OP/ED 标记与贡献中心」卡片，支持本地数据总览、各番管理、全部数据一键复制、ZIP 打包下载与 GitHub Issue 提交。
+- 涉及文件：apps/web/src/lib/custom-oped-store.ts, apps/web/src/player/chrome/OpedMarkerDrawer.tsx, apps/web/src/player/chrome/icons.tsx, apps/web/src/player/chrome/DesktopControls.tsx, apps/web/src/player/chrome/MobileControls.tsx, apps/web/src/player/chrome/types.ts, apps/web/src/player/types.ts, apps/web/src/player/VideoPlayer.tsx, apps/web/src/lib/bangumi-oped.ts, apps/web/src/lib/use-watch-session.ts, apps/web/src/pages/WatchPage.tsx, apps/web/src/pages/SettingsPage.tsx, .claude/BUGS.md, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 3 个 workspace 0 报错通过，`pnpm build` 全量生产打包构建通过。
+
+---
+
 ## [2026-08-21] 落地全栈路由预加载与导航栏秒开优化（空闲静默预热 + 意图预取 + 服务端 1 年强缓存）
 - 状态：已完成
 - 优先级：P0

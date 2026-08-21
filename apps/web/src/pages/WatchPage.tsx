@@ -218,6 +218,10 @@ export function WatchPage() {
           onMediaLoadFailed={w.onMediaLoadFailed}
           danmakuPanel={w.dm.panel}
           hudMessage={w.hudMessage}
+          bangumiId={w.bangumiId}
+          episodeNumber={w.episode?.episode ?? 1}
+          totalEpisodes={item?.totalEpisodes || item?.eps || 12}
+          officialOpedData={w.bgmOpedData}
         />
       )}
 

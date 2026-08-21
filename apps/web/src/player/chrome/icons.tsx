@@ -324,6 +324,16 @@ export function IconSparkles({ className = 'w-4 h-4' }: { className?: string } =
   )
 }
 
+/** OP/ED Marker Assistant Icon (Flag / Timeline pin) */
+export function IconOpedMarker({ className = 'w-4 h-4' }: { className?: string } = {}) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={className}>
+      <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+      <line x1="4" y1="22" x2="4" y2="15" />
+    </svg>
+  )
+}
+
 /** Close / Cross */
 export function IconClose({ className = 'w-4 h-4' }: { className?: string } = {}) {
   return (
