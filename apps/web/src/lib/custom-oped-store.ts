@@ -806,7 +806,7 @@ export async function submitSingleSubjectToGithub(
 }
 
 /**
- * 纯前端极简无依赖 ZIP 文件生成器 (Store 模式，支持创建标准 data/{subjectId}/{subjectId}.txt)
+ * 纯前端极简无依赖 ZIP 文件生成器 (Store 模式，支持创建标准 {subjectId}/{subjectId}.txt)
  */
 export function createOpedZipBlob(
   files: { path: string; content: string }[],

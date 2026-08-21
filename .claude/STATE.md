@@ -4,13 +4,44 @@
 
 ---
 
-## [2026-08-22] 设置页新增「前往 GitHub 上传 data 文件夹」批量 PR 快捷入口
+## [2026-08-22] 修复 Safari 点击进度条游标来回回弹跳动问题（Seek 乐观更新与防回踩锁）
 - 状态：已完成
-- 优先级：P2
+- 优先级：P1
 - 描述：
-  1. **批量上传直达链接**：在设置页「📦 打包下载全量 ZIP」旁边新增「📂 前往 GitHub 上传 data 文件夹」操作按钮，直达 `https://github.com/uerax/bangumi-oped/upload/data` 页面；
-  2. **指引优化**：打包下载 ZIP 后提示用户解压直接将 `data` 文件夹拖入网页，即可一键批量生成包含所有番剧修改的 PR。
-- 涉及文件：apps/web/src/pages/SettingsPage.tsx, .claude/STATE.md
+  1. **排查根本原因**：
+     - 用户点击或松手释放进度条时，控制条 `setDragRatio(null)` 使游标显示依赖 React `current` 状态；
+     - Safari 在接收到寻道指令至实际完成寻道的几十到几百毫秒内，底层仍会发射旧时间戳的 `timeupdate` 事件，旧时间重新覆盖了 React 状态，导致进度条游标猛烈“弹回原本位置”；
+     - 直到 Safari 底层关键帧解码完成并触发 `seeked`，游标才再次跳至点击位置，造成明显的“点击 ➜ 弹回旧位置 ➜ 再次跳到新位置”三次跳动感。
+  2. **全面修复方案 (`VideoPlayer.tsx`)**：
+     - **UI 进度即时乐观更新**：在 `seekRatio` 和 `seekTo` 触发时，第一行立即调用 `setCurrent(target)` 乐观同步 UI 进度，确保松手瞬间游标纹丝不动；
+     - **Seek 保护锁（`pendingSeekTargetRef`）**：在寻道中途（`seekLockExpiryRef` 时间窗口内），若底层的 `video.currentTime` 仍然与目标时间差距过大（属于未完成的旧残余事件），主动拦截 `onTime` 对 `current` 的反向覆写，直到底层真正完成寻道或触发 `onSeeked` / `onCanPlay` 时平滑恢复同步，彻底消除回弹跳动。
+- 涉及文件：apps/web/src/player/VideoPlayer.tsx, .claude/STATE.md
+- 备注：`pnpm typecheck` 0 报错通过，`pnpm build` 全量生产构建成功。
+
+---
+
+## [2026-08-22] 优化 Safari / iOS 进度条拖拽与寻道机制（对齐 B站/YouTube 交互体验）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **排查根本原因**：
+     - 原控制条在拖动进度条（`PointerMove`）期间，每一个移动像素都会高频触发 `onSeekRatio` 直接对 `<video>` 元素的 `currentTime` 赋值（60~120Hz）；
+     - macOS/iOS Safari 底层依赖系统级 `AVPlayer`，高频 Seek 导致底层向 CDN 密集发起无用的历史分片请求（且无法被 JS 中断），引发严重的 HTTP 管道阻塞和硬件解码器流水线频繁重置，表现为画面假播旧内容 ➜ 缓冲区耗尽卡死 ➜ 转圈等待极长时间。
+  2. **全面修复方案 (`DesktopControls.tsx`, `MobileControls.tsx`, `VideoPlayer.tsx`)**：
+     - **UI 游标与底层 Seek 解耦**：在桌面端与移动端控制条中引入 `dragRatio` 状态，拖拽移动期间仅以 120fps 更新 UI 游标、悬浮时间气泡与进度填充条，绝不触发底层 Seek；仅在用户松手（`PointerUp`）瞬间触发唯一一次精确 Seek；
+     - **Safari 原生 `fastSeek` 硬件加速**：在 `VideoPlayer.tsx` 中封装 `applySeek`，优先调用 Safari / WebKit 独占的 `fastSeek` API 直接跳至最近关键帧（Keyframe），免去帧间逐帧计算，大幅提升寻道响应速度。
+- 涉及文件：apps/web/src/player/chrome/DesktopControls.tsx, apps/web/src/player/chrome/MobileControls.tsx, apps/web/src/player/VideoPlayer.tsx, .claude/STATE.md
+- 备注：`pnpm typecheck` 0 报错通过，`pnpm build` 全量生产构建成功。
+
+---
+
+## [2026-08-22] 修复 ZIP 包内部路径结构与优化 GitHub 批量上传 PR 指引
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **修正 ZIP 内部路径**：移除多余的 `data/` 前缀，生成严格对齐远端 `data` 分支根目录的 `{subjectId}/{subjectId}.txt` 结构；
+  2. **指引优化**：按钮与 Toast 提示调整为引导用户解压后进入目录全选里面的数字文件夹拖入 GitHub，彻底杜绝多层目录导致的空 Commit。
+- 涉及文件：apps/web/src/pages/SettingsPage.tsx, apps/web/src/lib/custom-oped-store.ts, .claude/STATE.md
 - 备注：`pnpm typecheck` 全仓 3 个 workspace 0 报错通过。
 
 ---

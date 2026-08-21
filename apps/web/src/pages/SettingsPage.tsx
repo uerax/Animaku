@@ -599,7 +599,7 @@ export function SettingsPage() {
                       const remote = await fetchBangumiOpedDetail(subId)
                       const txt = buildBangumiOpedContent(remote.data, sub.episodes)
                       files.push({
-                        path: `data/${subId}/${subId}.txt`,
+                        path: `${subId}/${subId}.txt`,
                         content: txt,
                       })
                     }
@@ -610,7 +610,7 @@ export function SettingsPage() {
                     a.download = `bangumi-oped-custom-${new Date().toISOString().slice(0, 10)}.zip`
                     a.click()
                     URL.revokeObjectURL(url)
-                    setOpedToast('已生成并下载合并全量 ZIP 包！解压后直接将 data 文件夹拖入 GitHub 上传页即可')
+                    setOpedToast('已生成并下载合并全量 ZIP 包！解压后进入目录全选里面的文件夹拖入 GitHub 即可')
                     setTimeout(() => setOpedToast(''), 6000)
                   }}
                   className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-1.5 text-xs font-medium text-[var(--kz-fg)] hover:bg-[var(--kz-bg-elevated)] cursor-pointer"
@@ -623,9 +623,9 @@ export function SettingsPage() {
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-1.5 rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-xs font-semibold text-sky-600 dark:text-sky-400 hover:bg-sky-500/20 transition-colors"
-                  title="解压 ZIP 后，直接将 data 文件夹拖入该页面即可一键创建包含所有修改的 Pull Request"
+                  title="解压 ZIP 后，进入解压目录全选里面的数字文件夹（如 352410）直接拖入该页面即可一键提交 Pull Request"
                 >
-                  <span>📂 前往 GitHub 上传 data 文件夹</span>
+                  <span>📂 前往 GitHub 批量上传</span>
                   <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 16 16" fill="none">
                     <path
                       d="M6 3.5H3.5C2.67 3.5 2 4.17 2 5V12.5C2 13.33 2.67 14 3.5 14H11C11.83 14 12.5 13.33 12.5 12.5V10M9.5 2H14M14 2V6.5M14 2L6.5 9.5"
