@@ -151,6 +151,9 @@ export function VideoPlayer({
   const onMediaAuthExpiredRef = useRef(onMediaAuthExpired)
   const onMediaLoadFailedRef = useRef(onMediaLoadFailed)
   const loadFailedOnceRef = useRef(false)
+  const mediaErrorWindowCountRef = useRef(0)
+  const lastMediaErrorTimeRef = useRef(0)
+  const sessionMediaErrorTotalRef = useRef(0)
   const initialTimeRef = useRef(initialTime)
   const authRetryRef = useRef(false)
   const [localVideo, setLocalVideo] = useState<{ url: string; name: string } | null>(null)
@@ -533,6 +536,9 @@ export function VideoPlayer({
     skipBusyRef.current = false
     authRetryRef.current = false
     loadFailedOnceRef.current = false
+    mediaErrorWindowCountRef.current = 0
+    lastMediaErrorTimeRef.current = 0
+    sessionMediaErrorTotalRef.current = 0
     userPausedRef.current = false
     bufferGatePausedRef.current = false
     ignoreVolumePersistRef.current = false
@@ -839,7 +845,7 @@ export function VideoPlayer({
               enableWorker: true,
               // Prefetch first media fragment immediately upon parsing playlist
               startFragPrefetch: true,
-              // Leaner defaults: less RAM / pre-fetch via proxy; still enough for weak links
+              // Deep buffer configuration to absorb cross-border network jitter
               maxBufferLength: 30,
               maxMaxBufferLength: 60,
               maxBufferHole: 0.5,
@@ -848,6 +854,12 @@ export function VideoPlayer({
               maxBufferSize: 60 * 1000 * 1000,
               fragLoadingTimeOut: 20_000,
               manifestLoadingTimeOut: 15_000,
+              fragLoadingRetryDelay: 500,
+              fragLoadingMaxRetry: 4,
+              fragLoadingMaxRetryTimeout: 8_000,
+              levelLoadingRetryDelay: 500,
+              levelLoadingMaxRetry: 4,
+              levelLoadingMaxRetryTimeout: 8_000,
             })
             hlsRef.current = hls
             hls.loadSource(activeSrc)
@@ -908,8 +920,43 @@ export function VideoPlayer({
                 reportLoadFailed(String(data.details || 'hls_network'))
                 return
               } else if (data.type === HlsCtor.ErrorTypes.MEDIA_ERROR) {
-                setMediaError(`解码错误 ${data.details || ''}，恢复…`)
-                hls.recoverMediaError()
+                const now = Date.now()
+                // 30s sliding window decay: reset local counter if previous error was >30s ago
+                if (now - lastMediaErrorTimeRef.current > 30_000) {
+                  mediaErrorWindowCountRef.current = 0
+                }
+                lastMediaErrorTimeRef.current = now
+                mediaErrorWindowCountRef.current++
+                sessionMediaErrorTotalRef.current++
+
+                // Error rate density with 2-minute cold-start protection baseline
+                const playedSeconds = video.currentTime || 0
+                const effectiveMinutes = Math.max(playedSeconds / 60, 2)
+                const errorRatePerMinute =
+                  sessionMediaErrorTotalRef.current / effectiveMinutes
+
+                // If error rate exceeds density threshold, terminate and suggest switching source
+                if (errorRatePerMinute > 1.0) {
+                  setLoading(false)
+                  setBufferingUi(false)
+                  setMediaError('该视频源稳定性较差，建议切换视频源')
+                  reportLoadFailed('hls_media_frequent_errors')
+                  return
+                }
+
+                if (mediaErrorWindowCountRef.current === 1) {
+                  setMediaError('解码异常，正在尝试恢复…')
+                  hls.recoverMediaError()
+                } else if (mediaErrorWindowCountRef.current === 2) {
+                  setMediaError('解码异常，置换音频解码器并恢复…')
+                  hls.swapAudioCodec()
+                  hls.recoverMediaError()
+                } else {
+                  setLoading(false)
+                  setBufferingUi(false)
+                  setMediaError('媒体解码不可恢复，建议切换视频源')
+                  reportLoadFailed('hls_media_unrecoverable')
+                }
               } else {
                 setLoading(false)
                 setBufferingUi(false)

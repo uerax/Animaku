@@ -4,20 +4,25 @@
 
 ---
 
-## [2026-08-21] 优化 xifan-next 锁定 1080P 最高画质与国内网盘直链优先策略（MP4 直链首选 + HLS 动态 1080P 专线提取 + 彻底杜绝低清降级）
+## [2026-08-21] 落地 xifan-next 全链路流媒体调度与工业级容灾闭环（2.0s 宽限期竞速 + 1080P 专线提取 + 双层自愈熔断状态机）
 - 状态：已完成
 - 优先级：P0
 - 描述：
-  1. **问题排查与根本原因分析**：
-     - `xifan-next` 源站近期为播放器接入了多档清晰度切换（1080P/720P/480P）的 HLS 切片流；
-     - 原 `resolveXifanNext` 解析逻辑中无条件优先选取了 `hls` 响应；而 `xifan-next` 的 HLS 切片流（`next.xfvod.pro`）部署在海外 Cloudflare 边缘节点，且客户端 `Hls.js` 默认 `abrEwmaDefaultEstimate: 500_000`（500 kbps）过低，导致播放器在海外弱网下起播直接降级为 480P 模糊切片流并频繁卡顿；
-     - 而 `action: 'fallback'` 返回的是国内联通云盘 / Moedot 国内节点原画无损 1080P MP4 直链（`apn.moedot.net` 302 重定向至 `pan.wo.cn`，单集 400MB+），极速秒开、字节范围拖拽流畅且 0 模糊。
-  2. **国内网盘优先 + 1080P 专线提取闭环架构 (`apps/server/src/lib/xifan-next.ts`)**：
-     - **第 1 优先级（国内网盘/高速直链）**：无条件优先提取 `action: 'fallback'` 返回的国内联通沃云 / Moedot 原画 1080P MP4 直链，享受国内毫秒级直连与 0 压缩画质；
-     - **第 2 优先级（HLS 1080P 专线提取）**：若遇仅支持 HLS 的番剧或 fallback 失效时，接入 `extractHighestResolutionHls` 解析器，自动从 master m3u8 中通过正则提取 `RESOLUTION=1920x1080`（`media-1/stream.m3u8`）单流播放地址，**强制剔除 720P/480P 低清档位**，无论未来网络如何波动均绝不向低清妥协；
-     - 补全 `apn.moedot.net` 防盗链判定与 Referer 置换规则，避免跨域报错；
-  3. **播放器 Hls.js 起播默认带宽估算调优 (`apps/web/src/player/VideoPlayer.tsx`)**：
-     - 将 `abrEwmaDefaultEstimate` 由过低的 `500_000`（500 kbps）调优为 `5_000_000`（5 Mbps），确保播放 HLS 流时默认以 1080P/720P 高清档位起播。
+  1. **服务端 2.0s 优先级宽限期竞速调度 (`apps/server/src/lib/xifan-next.ts`)**：
+     - 并发请求 Supabase 的 `fallback`（国内联通沃云 1080P MP4）与 `hls`（海外切片流）；
+     - `fallback` 享有 2.0s 优先等待窗口，返回成功即秒发国内 1080P 原画直链（`pan.wo.cn` / `apn.moedot.net`）；
+     - 若 `fallback` 失败或超过 2.0s（慢请求），且 `hls` 已就绪，立即放行 HLS，彻底消除尾部等待延迟；
+     - 接入 `extractHighestResolutionHls` 解析器，按 `RESOLUTION=1920x1080` 动态提取最高清晰度单流，坚决剔除 480P/720P 低清档位，锁定 1080P 最高画质。
+  2. **客户端传输层抗抖动配置 (`apps/web/src/player/VideoPlayer.tsx`)**：
+     - 接入 `maxBufferLength: 30`（最大 60s）与 `maxBufferSize: 60MB` 深度预缓冲，硬扛跨海丢包断流；
+     - 接入 `fragLoadingRetryDelay: 500`（0.5s 起始指数退避）+ `fragLoadingMaxRetry: 4` + `fragLoadingMaxRetryTimeout: 8000`（单次延迟封顶 Cap）。
+  3. **媒体层双层自愈与熔断状态机**：
+     - 区分 `NETWORK_ERROR`（网络故障/重试耗尽直接报 fatal）与 `MEDIA_ERROR`（解码卡死）；
+     - **30s 局部滑动窗口**：第 1 级 `recoverMediaError` $\to$ 第 2 级 `swapAudioCodec + recoverMediaError` $\to$ 连续 3 次失败升级为不可逆错误；超过 30s 平稳播放局部计数归零；
+     - **错误密度熔断与冷启动保护**：引入 2 分钟最小采样下限 `effectiveMinutes = Math.max(playedDuration / 60, 2)`，彻底消除开播前 10s 首包抖动导致的失真误判；密度超标主动判定劣质源；
+     - **生命周期彻底隔离**：切集/切源时计数与计时器显式清零，杜绝跨剧集状态污染。
+  4. **业务层终端闭环**：
+     - 单次防抖上报（`loadFailedOnceRef`），联动 SourceBoard 侧边栏与 Toast 一键切换备用源。
 - 涉及文件：apps/server/src/lib/xifan-next.ts, apps/web/src/player/VideoPlayer.tsx, .claude/STATE.md
 - 备注：`pnpm typecheck` 全仓 3 个 workspace 0 报错通过，`pnpm build` 全量生产打包构建验证通过。
 

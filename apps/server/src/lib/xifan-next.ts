@@ -601,49 +601,60 @@ export async function resolveXifanNext(
     fbBody.source = sourceCode
   }
 
-  // Concurrently request HLS and fallback using Singapore region (ap-southeast-1)
-  // for sub-300ms ultra-fast resolution
-  const [hlsRes, fbRes] = await Promise.allSettled([
-    fetchSupabaseJson<PlaybackResponse>(
-      '/functions/v1/issue-web-playback',
-      {
-        method: 'POST',
-        body: {
-          action: 'hls',
-          episode_id: episodeId,
-        },
-        timeoutMs: 4_000,
+  // Concurrently dispatch requests to Supabase (ap-southeast-1 region)
+  const hlsPromise = fetchSupabaseJson<PlaybackResponse>(
+    '/functions/v1/issue-web-playback',
+    {
+      method: 'POST',
+      body: {
+        action: 'hls',
+        episode_id: episodeId,
       },
-    ),
-    fetchSupabaseJson<PlaybackResponse>(
-      '/functions/v1/issue-web-playback',
-      {
-        method: 'POST',
-        body: fbBody,
-        timeoutMs: 6_000,
-      },
-    ),
+      timeoutMs: 4_000,
+    },
+  ).catch((e) => ({ ok: false as const, error: (e as Error).message }))
+
+  const fbPromise = fetchSupabaseJson<PlaybackResponse>(
+    '/functions/v1/issue-web-playback',
+    {
+      method: 'POST',
+      body: fbBody,
+      timeoutMs: 4_000,
+    },
+  ).catch((e) => ({ ok: false as const, error: (e as Error).message }))
+
+  // Priority-aware race with 2.0s grace window:
+  // 1. If domestic 1080P MP4 (fallback) succeeds within 2000ms, immediately pick it
+  const fbEarlyResult = await Promise.race([
+    fbPromise,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), 2_000)),
   ])
 
-  // 1. Highest Priority: Domestic cloud drive / high-speed 1080P MP4 direct stream (pan.wo.cn / moedot)
-  if (fbRes.status === 'fulfilled' && fbRes.value?.ok && fbRes.value?.url) {
-    playUrl = fbRes.value.url
-    playbackAction = fbRes.value.action || 'fallback'
-  } else if (hlsRes.status === 'fulfilled' && hlsRes.value?.ok && hlsRes.value?.url) {
-    // 2. Secondary Priority: Lock and extract 1080P stream from HLS master playlist (refuse 480P/720P)
-    const masterHlsUrl = hlsRes.value.url
-    const highResHlsUrl = await extractHighestResolutionHls(masterHlsUrl)
-    playUrl = highResHlsUrl
-    playbackAction = 'hls-1080p'
-  }
-
-  if (!playUrl) {
-    const errorMsg =
-      (fbRes.status === 'fulfilled' ? fbRes.value?.error : null) ||
-      (hlsRes.status === 'fulfilled' ? hlsRes.value?.error : null) ||
-      (fbRes.status === 'rejected' ? (fbRes.reason as Error)?.message : null) ||
-      '未能生成有效播放直链'
-    throw new Error(`稀饭Next解析失败: ${errorMsg}`)
+  if (fbEarlyResult && 'ok' in fbEarlyResult && fbEarlyResult.ok && fbEarlyResult.url) {
+    playUrl = fbEarlyResult.url
+    playbackAction = fbEarlyResult.action || 'fallback'
+  } else {
+    // 2. If fallback timed out or failed, check HLS immediately without blocking
+    const hlsResult = await hlsPromise
+    if (hlsResult && 'ok' in hlsResult && hlsResult.ok && hlsResult.url) {
+      const masterHlsUrl = hlsResult.url
+      const highResHlsUrl = await extractHighestResolutionHls(masterHlsUrl)
+      playUrl = highResHlsUrl
+      playbackAction = 'hls-1080p'
+    } else {
+      // 3. HLS not available or failed; await remaining fallback as last resort
+      const fbLateResult = await fbPromise
+      if (fbLateResult && 'ok' in fbLateResult && fbLateResult.ok && fbLateResult.url) {
+        playUrl = fbLateResult.url
+        playbackAction = fbLateResult.action || 'fallback'
+      } else {
+        const errorMsg =
+          ('error' in fbLateResult && fbLateResult.error ? fbLateResult.error : null) ||
+          ('error' in hlsResult && hlsResult.error ? hlsResult.error : null) ||
+          '未能生成有效播放直链'
+        throw new Error(`稀饭Next解析失败: ${errorMsg}`)
+      }
+    }
   }
 
   // pan.wo.cn rejects cross-origin referers with 400 Bad Request; use pan.wo.cn or empty
