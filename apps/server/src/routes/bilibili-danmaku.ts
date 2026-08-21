@@ -3,14 +3,16 @@ import { gunzipSync } from 'node:zlib'
 import { parseDanmakuXml, extractBvid } from '@animaku/shared'
 import { config } from '../config'
 import { setDanmakuCdnHeaders } from '../lib/cdn-cache-headers'
-import { wantsCacheBypass } from '../lib/ttl-cache'
+import { cacheGetOrSet, wantsCacheBypass } from '../lib/ttl-cache'
 
 /**
  * Bilibili danmaku proxy (BV → cid → XML comments).
  * Browser cannot call api.bilibili.com directly (CORS); server fetches and parses.
- * No origin memory cache — use CDN Cache-Control (30m) when behind Cloudflare.
+ * In-process 15m TTL cache + CDN Cache-Control.
  */
 export const bilibiliDanmakuRoutes = new Hono()
+
+const BILI_CACHE_TTL = 15 * 60_000
 
 const UA = config.defaultUserAgent
 
@@ -90,102 +92,97 @@ bilibiliDanmakuRoutes.get('/bilibili', async (c) => {
   const bypass = wantsCacheBypass(c)
 
   try {
-    const viewRes = await bilibiliFetch(
-      `https://api.bilibili.com/x/web-interface/view?bvid=${encodeURIComponent(bvid)}`,
+    const { value: result, hit } = await cacheGetOrSet(
+      `bili:danmaku:${bvid}:${page}`,
+      BILI_CACHE_TTL,
+      async () => {
+        const viewRes = await bilibiliFetch(
+          `https://api.bilibili.com/x/web-interface/view?bvid=${encodeURIComponent(bvid)}`,
+        )
+        if (!viewRes.ok) {
+          const t = await viewRes.text()
+          throw new Error(`B站视频信息 ${viewRes.status}: ${t.slice(0, 120)}`)
+        }
+        const viewJson = (await viewRes.json()) as {
+          code?: number
+          message?: string
+          data?: {
+            title?: string
+            cid?: number
+            pages?: Array<{ cid: number; page: number; part?: string }>
+          }
+        }
+        if (viewJson.code !== 0 || !viewJson.data) {
+          throw new Error(viewJson.message || `B站返回 code=${viewJson.code}`)
+        }
+
+        const pages = viewJson.data.pages || []
+        const pageInfo =
+          pages.find((p) => p.page === page) || pages[page - 1] || pages[0]
+        const cid = pageInfo?.cid ?? viewJson.data.cid
+        if (!cid) {
+          throw new Error('未找到分 P / cid')
+        }
+
+        // Classic XML endpoint (often gzip). Fallback to list.so.
+        let xml = ''
+        const xmlUrls = [
+          `https://comment.bilibili.com/${cid}.xml`,
+          `https://api.bilibili.com/x/v1/dm/list.so?oid=${cid}`,
+        ]
+        let lastErr = ''
+        for (const u of xmlUrls) {
+          try {
+            const res = await bilibiliFetch(u)
+            if (!res.ok) {
+              lastErr = `${u} → ${res.status}`
+              continue
+            }
+            const buf = Buffer.from(await readArrayBufferLimited(res, MAX_DANMAKU_BYTES))
+            // gzip magic
+            if (buf.length >= 2 && buf[0] === 0x1f && buf[1] === 0x8b) {
+              xml = gunzipSync(buf).toString('utf8')
+            } else {
+              xml = buf.toString('utf8')
+            }
+            if (xml.includes('<d ')) break
+            lastErr = `${u} → empty danmaku`
+            xml = ''
+          } catch (e) {
+            lastErr = e instanceof Error ? e.message : String(e)
+          }
+        }
+
+        if (!xml) {
+          throw new Error(`拉取弹幕失败：${lastErr || '未知'}`)
+        }
+
+        const comments = parseDanmakuXml(xml)
+        return {
+          comments,
+          meta: {
+            bvid,
+            cid,
+            page,
+            title: viewJson.data.title || '',
+            part: pageInfo?.part || '',
+            pages: pages.map((p) => ({
+              page: p.page,
+              cid: p.cid,
+              part: p.part || `P${p.page}`,
+            })),
+          },
+        }
+      },
+      { bypass, keyPrefix: 'bili:' },
     )
-    if (!viewRes.ok) {
-      const t = await viewRes.text()
-      return c.json(
-        {
-          error: 'upstream',
-          message: `B站视频信息 ${viewRes.status}: ${t.slice(0, 120)}`,
-        },
-        502,
-      )
-    }
-    const viewJson = (await viewRes.json()) as {
-      code?: number
-      message?: string
-      data?: {
-        title?: string
-        cid?: number
-        pages?: Array<{ cid: number; page: number; part?: string }>
-      }
-    }
-    if (viewJson.code !== 0 || !viewJson.data) {
-      return c.json(
-        {
-          error: 'upstream',
-          message: viewJson.message || `B站返回 code=${viewJson.code}`,
-        },
-        502,
-      )
-    }
 
-    const pages = viewJson.data.pages || []
-    const pageInfo =
-      pages.find((p) => p.page === page) || pages[page - 1] || pages[0]
-    const cid = pageInfo?.cid ?? viewJson.data.cid
-    if (!cid) {
-      return c.json({ error: 'upstream', message: '未找到分 P / cid' }, 502)
-    }
-
-    // Classic XML endpoint (often gzip). Fallback to list.so.
-    let xml = ''
-    const xmlUrls = [
-      `https://comment.bilibili.com/${cid}.xml`,
-      `https://api.bilibili.com/x/v1/dm/list.so?oid=${cid}`,
-    ]
-    let lastErr = ''
-    for (const u of xmlUrls) {
-      try {
-        const res = await bilibiliFetch(u)
-        if (!res.ok) {
-          lastErr = `${u} → ${res.status}`
-          continue
-        }
-        const buf = Buffer.from(await readArrayBufferLimited(res, MAX_DANMAKU_BYTES))
-        // gzip magic
-        if (buf.length >= 2 && buf[0] === 0x1f && buf[1] === 0x8b) {
-          xml = gunzipSync(buf).toString('utf8')
-        } else {
-          xml = buf.toString('utf8')
-        }
-        if (xml.includes('<d ')) break
-        lastErr = `${u} → empty danmaku`
-        xml = ''
-      } catch (e) {
-        lastErr = e instanceof Error ? e.message : String(e)
-      }
-    }
-
-    if (!xml) {
-      return c.json(
-        {
-          error: 'upstream',
-          message: `拉取弹幕失败：${lastErr || '未知'}`,
-        },
-        502,
-      )
-    }
-
-    const comments = parseDanmakuXml(xml)
+    c.header('X-Cache', hit ? 'HIT' : 'MISS')
     setDanmakuCdnHeaders(c, bypass)
     return c.json({
-      data: comments,
-      count: comments.length,
-      meta: {
-        bvid,
-        cid,
-        page,
-        title: viewJson.data.title || '',
-        part: pageInfo?.part || '',
-        pages: pages.map((p) => ({
-          page: p.page,
-          cid: p.cid,
-          part: p.part || `P${p.page}`,
-        })),
-      },
+      data: result.comments,
+      count: result.comments.length,
+      meta: result.meta,
     })
   } catch (e) {
     return c.json(

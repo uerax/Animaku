@@ -29,23 +29,23 @@ export const danmakuApi = {
     }),
   search: (keyword: string, opts?: SignalOpt) =>
     api<{ data: DanmakuAnime[] }>(
-      `/api/danmaku/search?keyword=${encodeURIComponent(keyword)}`,
-      { signal: opts?.signal },
+      `/api/danmaku/search?keyword=${encodeURIComponent(keyword)}${opts?.refresh ? '&refresh=1' : ''}`,
+      withRefreshHeaders({ signal: opts?.signal }, opts?.refresh),
     ),
   bangumi: (id: number | string, opts?: SignalOpt) =>
     api<{ data: { bangumiId: number; episodes: DanmakuEpisode[] } }>(
-      `/api/danmaku/bangumi/${id}`,
-      { signal: opts?.signal },
+      `/api/danmaku/bangumi/${id}${opts?.refresh ? '?refresh=1' : ''}`,
+      withRefreshHeaders({ signal: opts?.signal }, opts?.refresh),
     ),
   bangumiByBgm: (bgmId: number | string, opts?: SignalOpt) =>
     api<{ data: { bangumiId: number; episodes: DanmakuEpisode[] } }>(
-      `/api/danmaku/bangumi/bgmtv/${bgmId}`,
-      { signal: opts?.signal },
+      `/api/danmaku/bangumi/bgmtv/${bgmId}${opts?.refresh ? '?refresh=1' : ''}`,
+      withRefreshHeaders({ signal: opts?.signal }, opts?.refresh),
     ),
   comments: (episodeId: number | string, opts?: SignalOpt) =>
     api<{ data: DanmakuComment[]; count: number }>(
-      `/api/danmaku/comment/${episodeId}?withRelated=true&chConvert=1`,
-      { signal: opts?.signal },
+      `/api/danmaku/comment/${episodeId}?withRelated=true&chConvert=1${opts?.refresh ? '&refresh=1' : ''}`,
+      withRefreshHeaders({ signal: opts?.signal }, opts?.refresh),
     ),
   /** BV 号 / 链接 → 解析弹幕（服务端代理 B 站） */
   bilibili: (bvid: string, page = 1, opts?: SignalOpt) =>
@@ -61,8 +61,8 @@ export const danmakuApi = {
         pages: Array<{ page: number; cid: number; part: string }>
       }
     }>(
-      `/api/danmaku/bilibili?bvid=${encodeURIComponent(bvid)}&p=${page}`,
-      { signal: opts?.signal },
+      `/api/danmaku/bilibili?bvid=${encodeURIComponent(bvid)}&p=${page}${opts?.refresh ? '&refresh=1' : ''}`,
+      withRefreshHeaders({ signal: opts?.signal }, opts?.refresh),
     ),
 }
 

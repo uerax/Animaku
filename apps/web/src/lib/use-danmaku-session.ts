@@ -10,6 +10,7 @@ import {
 import {
   bestTitleSimilarity,
   extractBvid,
+  matchDanmakuEpisode,
   parseDanmakuXml,
   titleSimilarity,
   type DanmakuAnime,
@@ -72,6 +73,12 @@ export type DanmakuSession = {
   statusLine: string
 }
 
+type SubjectMeta = {
+  bangumiId: number
+  animeId: number
+  episodes: DanmakuEpisode[]
+}
+
 /**
  * Shared danmaku panel + auto-match used by PlayPage and SubjectPage.
  * Keeps pools / search / BV / XML / generation cancel in one place.
@@ -106,6 +113,12 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
   const titleRefsRef = useRef(titleRefs)
   titleRefsRef.current = titleRefs
 
+  /** Cached subject resolution metadata (bangumiId -> animeId + episodes) to avoid re-fetch on episode switch */
+  const subjectMetaRef = useRef<SubjectMeta | null>(null)
+  const currentBangumiKeyRef = useRef<string>('')
+  /** Client-side episode comments in-memory cache to make back-and-forth episode switching instant */
+  const commentsCacheRef = useRef<Map<number, { data: DanmakuComment[]; count: number }>>(new Map())
+
   // Keep keyword in sync when title changes (new subject / deep link)
   useEffect(() => {
     setKeyword(initialKeyword ?? title)
@@ -121,6 +134,9 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
   }, [])
 
   const resetPools = useCallback(() => {
+    subjectMetaRef.current = null
+    currentBangumiKeyRef.current = ''
+    commentsCacheRef.current.clear()
     setPools(emptyDanmakuPools())
     setStatus('')
     setAnimes([])
@@ -131,7 +147,23 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
 
   const loadCommentsByEpisodeId = useCallback(
     async (epId: number, signal?: AbortSignal) => {
+      const cached = commentsCacheRef.current.get(epId)
+      if (cached) {
+        setPools((p) =>
+          writePool(p, 'dandan', cached.data, 'replace', `ep ${epId}`),
+        )
+        setEpisodeId(epId)
+        setStatus(`弹弹 · 已加载 ${cached.count} 条（其它源保留）`)
+        return cached
+      }
+
       const comments = await danmakuApi.comments(epId, { signal })
+      if (commentsCacheRef.current.size > 100) {
+        const firstKey = commentsCacheRef.current.keys().next().value
+        if (firstKey !== undefined) commentsCacheRef.current.delete(firstKey)
+      }
+      commentsCacheRef.current.set(epId, comments)
+
       setPools((p) =>
         writePool(p, 'dandan', comments.data, 'replace', `ep ${epId}`),
       )
@@ -163,76 +195,139 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
     autoMatchAbort.current = ac
     const { signal } = ac
 
+    const subjectKey = `${bangumiId}:${matchKey ?? ''}`
+    const isSameSubject = currentBangumiKeyRef.current === subjectKey && subjectMetaRef.current !== null
+
     async function loadDanmaku() {
       setStatus('匹配弹幕…')
-      // keep previous pools until dandan arrives (avoid empty flash)
-      setAnimes([])
-      setEpisodes([])
-      setAnimeId('')
-      setEpisodeId('')
+
       try {
-        const searchTitle = titleRef.current
-        const [mappedResult, searchResult] = await Promise.allSettled([
-          danmakuApi.bangumiByBgm(bangumiId, { signal }),
-          danmakuApi.search(searchTitle, { signal }),
-        ])
+        let meta = subjectMetaRef.current
 
-        if (signal.aborted || gen !== autoMatchGen.current) return
+        // 1. If subject changed, resolve anime & episodes metadata
+        if (!isSameSubject || !meta) {
+          currentBangumiKeyRef.current = subjectKey
+          subjectMetaRef.current = null
+          commentsCacheRef.current.clear()
+          setAnimes([])
+          setEpisodes([])
+          setAnimeId('')
+          setEpisodeId('')
 
-        let matchedEpisodeId = 0
-        let matchedAnimeId = 0
+          let resolvedEpisodes: DanmakuEpisode[] = []
+          let resolvedAnimeId = 0
 
-        if (mappedResult.status === 'fulfilled') {
-          const mapped = mappedResult.value
-          if (mapped.data.episodes.length) {
-            const ep =
-              mapped.data.episodes[Math.max(0, episode - 1)] ||
-              mapped.data.episodes[0]
-            matchedEpisodeId = ep.episodeId
-            matchedAnimeId = mapped.data.bangumiId
-            setEpisodes(mapped.data.episodes)
-            setAnimeId(matchedAnimeId || '')
+          // Step 1: Try BGM ID mapping directly (fast & accurate)
+          try {
+            const mapped = await danmakuApi.bangumiByBgm(bangumiId, { signal })
+            if (mapped.data?.episodes?.length) {
+              resolvedEpisodes = mapped.data.episodes
+              resolvedAnimeId = mapped.data.bangumiId || 0
+            }
+          } catch {
+            /* Fallback to search */
           }
-        }
 
-        if (searchResult.status === 'fulfilled') {
-          setAnimes(searchResult.value.data)
-        }
+          if (signal.aborted || gen !== autoMatchGen.current) return
 
-        if (!matchedEpisodeId && searchResult.status === 'fulfilled') {
-          let bestId = 0
-          let bestScore = 0
-          for (const a of searchResult.value.data) {
-            if (a.animeId >= 100000 || a.animeId < 2) continue
-            const score = scoreAnimeLive(a.animeTitle)
-            if (score > bestScore) {
-              bestScore = score
-              bestId = a.animeId
+          // Step 2: If BGM ID missed, fallback to title search & similarity match
+          if (!resolvedEpisodes.length) {
+            const searchTitle = titleRef.current
+            try {
+              const searchResult = await danmakuApi.search(searchTitle, { signal })
+              if (searchResult.data?.length) {
+                setAnimes(searchResult.data)
+                let bestId = 0
+                let bestScore = 0
+                for (const a of searchResult.data) {
+                  if (a.animeId >= 100000 || a.animeId < 2) continue
+                  const score = scoreAnimeLive(a.animeTitle)
+                  if (score > bestScore) {
+                    bestScore = score
+                    bestId = a.animeId
+                  }
+                }
+                if (bestId && bestScore >= 0.3) {
+                  resolvedAnimeId = bestId
+                  const info = await danmakuApi.bangumi(bestId, { signal })
+                  if (info.data?.episodes?.length) {
+                    resolvedEpisodes = info.data.episodes
+                  }
+                }
+              }
+            } catch {
+              /* Ignore */
             }
           }
-          if (bestId && bestScore >= 0.3) {
-            matchedAnimeId = bestId
-            const info = await danmakuApi.bangumi(bestId, { signal })
-            if (signal.aborted || gen !== autoMatchGen.current) return
-            setEpisodes(info.data.episodes)
-            setAnimeId(bestId)
-            const ep =
-              info.data.episodes[Math.max(0, episode - 1)] ||
-              info.data.episodes[0]
-            if (ep) matchedEpisodeId = ep.episodeId
-            else
-              matchedEpisodeId = Number(
-                `${bestId}${String(episode).padStart(4, '0')}`,
-              )
+
+          if (signal.aborted || gen !== autoMatchGen.current) return
+
+          if (resolvedEpisodes.length || resolvedAnimeId) {
+            meta = {
+              bangumiId,
+              animeId: resolvedAnimeId,
+              episodes: resolvedEpisodes,
+            }
+            subjectMetaRef.current = meta
+            setEpisodes(resolvedEpisodes)
+            setAnimeId(resolvedAnimeId || '')
           }
         }
 
         if (signal.aborted || gen !== autoMatchGen.current) return
+
+        // 2. Pick target episode
+        if (!meta || (!meta.episodes.length && !meta.animeId)) {
+          setStatus('未匹配到弹幕，点「设置」手动搜索或导入')
+          return
+        }
+
+        let matchedEp = matchDanmakuEpisode(meta.episodes, episode)
+
+        // 3. Fallback: If target episode is missing from cached episodes (e.g. newly aired episode within 12h cache TTL),
+        // automatically trigger a bypass-cache refresh from dandan upstream.
+        if (!matchedEp && (episode > meta.episodes.length || !meta.episodes.some((e) => matchDanmakuEpisode([e], episode)))) {
+          try {
+            let refreshedEpisodes: DanmakuEpisode[] = []
+            if (bangumiId) {
+              const res = await danmakuApi.bangumiByBgm(bangumiId, { refresh: true, signal })
+              if (res.data?.episodes?.length) {
+                refreshedEpisodes = res.data.episodes
+                meta.animeId = res.data.bangumiId || meta.animeId
+              }
+            } else if (meta.animeId) {
+              const res = await danmakuApi.bangumi(meta.animeId, { refresh: true, signal })
+              if (res.data?.episodes?.length) {
+                refreshedEpisodes = res.data.episodes
+              }
+            }
+            if (refreshedEpisodes.length) {
+              meta.episodes = refreshedEpisodes
+              subjectMetaRef.current = meta
+              setEpisodes(refreshedEpisodes)
+              matchedEp = matchDanmakuEpisode(refreshedEpisodes, episode)
+            }
+          } catch {
+            /* Keep previous matched attempt */
+          }
+        }
+
+        if (signal.aborted || gen !== autoMatchGen.current) return
+
+        let matchedEpisodeId = matchedEp?.episodeId || 0
+
+        // Fallback for custom animeId without structured episodes
+        if (!matchedEpisodeId && meta.animeId) {
+          matchedEpisodeId = Number(
+            `${meta.animeId}${String(episode).padStart(4, '0')}`,
+          )
+        }
 
         if (!matchedEpisodeId) {
           setStatus('未匹配到弹幕，点「设置」手动搜索或导入')
           return
         }
+
         await loadCommentsByEpisodeId(matchedEpisodeId, signal)
         if (signal.aborted || gen !== autoMatchGen.current) return
       } catch (e) {
@@ -271,16 +366,21 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
       setStatus('正在搜索剧集…')
       try {
         const info = await danmakuApi.bangumi(id)
-        setEpisodes(info.data.episodes)
+        const eps = info.data.episodes || []
+        setEpisodes(eps)
+        subjectMetaRef.current = {
+          bangumiId: 0,
+          animeId: id,
+          episodes: eps,
+        }
         const name =
           (list || animes).find((a) => a.animeId === id)?.animeTitle || ''
         setStatus(
           name
-            ? `${name} · ${info.data.episodes.length} 集`
-            : `找到 ${info.data.episodes.length} 集`,
+            ? `${name} · ${eps.length} 集`
+            : `找到 ${eps.length} 集`,
         )
-        const ep =
-          info.data.episodes[Math.max(0, episode - 1)] || info.data.episodes[0]
+        const ep = matchDanmakuEpisode(eps, episode) || eps[0]
         if (ep) await handleEpisodeChange(ep.episodeId)
       } catch (e) {
         setStatus(e instanceof Error ? e.message : '剧集加载失败')

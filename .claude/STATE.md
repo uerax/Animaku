@@ -4,6 +4,26 @@
 
 ---
 
+## [2026-08-21] 弹幕接入链路重构与多级缓存优化（切集复用 + BGM优先降级 + 正则防偏移 + 未命中自动穿透刷新）
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **切集元数据复用与客户端弹幕缓存 (`apps/web/src/lib/use-danmaku-session.ts`)**：
+     - 将番剧元数据解析与分集弹幕拉取彻底解耦；同番剧切集时直接复用内存中已有的 `episodes` 分集列表，彻底消除切换集数时对 `bangumiByBgm` 与 `search` 的重复请求；
+     - 引入客户端单集弹幕轻量内存缓存（`commentsCacheRef`），同一番剧多集往返切换实现 0 网络请求毫秒级秒开；
+  2. **BGM ID 精确匹配优先与失败降级**：
+     - 废除无条件并发发起 `search` 的 Over-fetching 模式，优先请求 BGM 官方映射；
+     - 仅当 BGM 未收录或分集为空时，才优雅降级请求 `search` 并按标题相似度加权匹配，削减 50% 以上对弹弹 API 的无效消耗；
+  3. **智能集数正则匹配 (`packages/shared/src/danmaku.ts`)**：
+     - 导出 `matchDanmakuEpisode` 函数，优先使用正则提取 `episodeTitle` 中的集数（如 `第01话`、`EP01`、`01.`），无法提取时安全回退数组下标，彻底杜绝含 PV/OVA/SP 番剧的集数错位问题；
+  4. **新番连载更新感知与自动穿透自愈 (`refresh: true`)**：
+     - 针对分集缓存期间新番更新的场景，当客户端检测到目标集数超出当前分集列表或未匹配到时，自动发起带 `refresh: true` 的穿透刷新请求，强制从弹弹官方拉取最新分集并更新缓存；
+     - 同步增强 `danmakuApi` 各方法支持 `refresh` 透传；
+  5. **服务端 Single-flight 内存 TTL 缓存 (`apps/server/src/routes/danmaku.ts` & `bilibili-danmaku.ts`)**：
+     - 接入 `cacheGetOrSet`：番剧分集元数据缓存 12 小时、搜索缓存 2 小时、弹幕评论缓存 15 分钟、B 站弹幕代理缓存 15 分钟，支持 `refresh=1` / `no-cache` 绕过，杜绝自建部署下的并发击穿风险。
+- 涉及文件：packages/shared/src/danmaku.ts, apps/server/src/routes/danmaku.ts, apps/server/src/routes/bilibili-danmaku.ts, apps/web/src/lib/plugin-api.ts, apps/web/src/lib/use-danmaku-session.ts, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 3 个 workspace 0 报错通过，`pnpm build` 全量生产打包顺利完成。
+
 ## [2026-08-21] 首页 SEO 与 Meta 标签全量升级（丰富标题与业务描述 + data-nosnippet 防报错乱抓 + noscript 首屏静态预埋）
 - 状态：已完成
 - 优先级：P1
