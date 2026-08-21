@@ -11,6 +11,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { BgmOpedEntry } from '../../lib/bangumi-oped'
+import { fetchBangumiOpedDetail } from '../../lib/bangumi-oped'
 import {
   buildBangumiOpedContent,
   diffSubjectOped,
@@ -248,8 +249,13 @@ function OpedPanelContent({
   const handleCopyTxt = async () => {
     const id = Number(bangumiId)
     if (!id) return
+    let effectiveOfficial = officialOpedData
+    if (!effectiveOfficial) {
+      const remote = await fetchBangumiOpedDetail(id)
+      effectiveOfficial = remote.data
+    }
     const liveEpisodes = useCustomOpedStore.getState().subjects[id]?.episodes
-    const txt = buildBangumiOpedContent(officialOpedData, liveEpisodes)
+    const txt = buildBangumiOpedContent(effectiveOfficial, liveEpisodes)
     try {
       await navigator.clipboard.writeText(txt)
       setCopied(true)
@@ -265,15 +271,17 @@ function OpedPanelContent({
     const id = Number(bangumiId)
     if (!id) return
     setSubmitting(true)
-    const liveEpisodes = useCustomOpedStore.getState().subjects[id]?.episodes
-    const txt = buildBangumiOpedContent(officialOpedData, liveEpisodes)
-    const existsOnRemote = Boolean(officialOpedData && officialOpedData.size > 0)
-    const liveDiff = diffSubjectOped(id, officialOpedData, liveEpisodes, displayTotalEpisodes)
     try {
+      // 动态拉取最新的远端数据与状态，精准识别文件是否存在（含空占位文件）
+      const remote = await fetchBangumiOpedDetail(id)
+      const effectiveOfficial = remote.data.size > 0 ? remote.data : officialOpedData
+      const liveEpisodes = useCustomOpedStore.getState().subjects[id]?.episodes
+      const txt = buildBangumiOpedContent(effectiveOfficial, liveEpisodes)
+      const liveDiff = diffSubjectOped(id, effectiveOfficial, liveEpisodes, displayTotalEpisodes)
       const res = await submitSingleSubjectToGithub(
         id,
         txt,
-        existsOnRemote,
+        remote.exists,
         liveDiff.commitMessage,
       )
       if (res.method === 'edit_file_clipboard') {

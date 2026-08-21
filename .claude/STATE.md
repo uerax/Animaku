@@ -4,6 +4,22 @@
 
 ---
 
+## [2026-08-22] 修复 bangumi-oped 空占位文件导致 GitHub PR 报「同名文件已存在无法提交」问题
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **排查根本原因**：
+     - `uerax/bangumi-oped` 远端仓库中部分番剧（如存在目录或占位）预先建立了 0 字节或空内容的占位文件；
+     - 原 `fetchBangumiOpedData` 在遇到内容为空或解析后条目为 0 时直接返回了 `null`，导致前端将 `existsOnRemote` 误判为 `false`；
+     - `existsOnRemote: false` 触发了 GitHub `/new/` 新建文件路由并尝试提交，导致 GitHub 接口报错：`A file with the same name already exists. Please choose a different name and try again.`。
+  2. **全面修复方案 (`bangumi-oped.ts`, `OpedMarkerDrawer.tsx`, `SettingsPage.tsx`)**：
+     - **区分远端文件存在性与有效条目 (`fetchBangumiOpedDetail`)**：新增 `fetchBangumiOpedDetail` 方法，严格根据 HTTP 状态码（200 OK 为 `exists: true`，404 为 `exists: false`）精准识别远端是否已存在该文件，即使远端是空占位文件也能准确判定；
+     - **标记助手与设置页提交链路对齐**：在「OP/ED 标记助手」与「设置页」提交 PR 和复制 txt 时，统一调用 `fetchBangumiOpedDetail` 获取权威的存在性判定；对于已存在占位文件的番剧正确打开 `/edit/` 编辑路由并复制最新合并全量内容，彻底消除 GitHub 冲突报错。
+- 涉及文件：apps/web/src/lib/bangumi-oped.ts, apps/web/src/player/chrome/OpedMarkerDrawer.tsx, apps/web/src/pages/SettingsPage.tsx, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 3 个 workspace 0 报错通过，`pnpm build` 全量生产打包构建通过。
+
+---
+
 ## [2026-08-22] 优化 OP/ED 标记面板集数选择下拉交互（解决 Mac 原生 select 遮挡选择条问题）
 - 状态：已完成
 - 优先级：P2

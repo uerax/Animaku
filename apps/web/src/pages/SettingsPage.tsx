@@ -32,7 +32,7 @@ import {
   submitSingleSubjectToGithub,
   useCustomOpedStore,
 } from '../lib/custom-oped-store'
-import { fetchBangumiOpedData } from '../lib/bangumi-oped'
+import { fetchBangumiOpedDetail } from '../lib/bangumi-oped'
 
 /** Sort plugins by user-defined order, falling back to weight > alphabetical. */
 function sortPluginsByOrder(
@@ -538,8 +538,8 @@ export function SettingsPage() {
                         type="button"
                         onClick={async () => {
                           setOpedToast(`正在拉取 Subject ${subId} 官方数据并合并…`)
-                          const officialData = await fetchBangumiOpedData(subId)
-                          const txt = buildBangumiOpedContent(officialData, sub.episodes)
+                          const remote = await fetchBangumiOpedDetail(subId)
+                          const txt = buildBangumiOpedContent(remote.data, sub.episodes)
                           await navigator.clipboard.writeText(txt)
                           setOpedToast(`已复制 Subject ${subId} 的合并全量 txt 格式（含官方底本与本地标记）`)
                           setTimeout(() => setOpedToast(''), 3000)
@@ -553,11 +553,10 @@ export function SettingsPage() {
                         type="button"
                         onClick={async () => {
                           setOpedToast(`正在拉取 Subject ${subId} 官方数据并准备 PR…`)
-                          const officialData = await fetchBangumiOpedData(subId)
-                          const txt = buildBangumiOpedContent(officialData, sub.episodes)
-                          const existsOnRemote = Boolean(officialData && officialData.size > 0)
-                          const diff = diffSubjectOped(subId, officialData, sub.episodes, sub.totalEpisodes)
-                          const res = await submitSingleSubjectToGithub(subId, txt, existsOnRemote, diff.commitMessage)
+                          const remote = await fetchBangumiOpedDetail(subId)
+                          const txt = buildBangumiOpedContent(remote.data, sub.episodes)
+                          const diff = diffSubjectOped(subId, remote.data, sub.episodes, sub.totalEpisodes)
+                          const res = await submitSingleSubjectToGithub(subId, txt, remote.exists, diff.commitMessage)
                           if (res.method === 'edit_file_clipboard') {
                             setOpedToast('最新全量合并数据已复制！请在 GitHub 编辑页按 Ctrl+A 全选并 Ctrl+V 粘贴覆盖')
                           } else {
@@ -597,8 +596,8 @@ export function SettingsPage() {
                     const files: { path: string; content: string }[] = []
                     for (const [idStr, sub] of Object.entries(opedSubjects)) {
                       const subId = Number(idStr)
-                      const official = await fetchBangumiOpedData(subId)
-                      const txt = buildBangumiOpedContent(official, sub.episodes)
+                      const remote = await fetchBangumiOpedDetail(subId)
+                      const txt = buildBangumiOpedContent(remote.data, sub.episodes)
                       files.push({
                         path: `data/${subId}/${subId}.txt`,
                         content: txt,
