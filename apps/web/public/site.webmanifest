@@ -1,7 +1,7 @@
 {
   "name": "Animaku",
   "short_name": "Animaku",
-  "description": "浏览器端番剧客户端：Bangumi 元数据、规则选源、弹幕与本地追番",
+  "description": "Animaku 动漫 - 免费在线追番 ｜ 高清动画播放与弹幕客户端",
   "lang": "zh-CN",
   "start_url": "/",
   "scope": "/",

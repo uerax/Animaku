@@ -211,7 +211,10 @@ export function ErrorState({
 }) {
   const msg = error instanceof Error ? error.message : '出错了'
   return (
-    <div className="kz-surface kz-surface-danger px-4 py-10 text-center">
+    <div
+      className="kz-surface kz-surface-danger px-4 py-10 text-center"
+      data-nosnippet
+    >
       <div className="mx-auto max-w-xl text-left text-sm leading-relaxed break-words whitespace-pre-wrap text-[var(--kz-danger)]">
         {msg}
       </div>

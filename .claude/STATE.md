@@ -4,6 +4,21 @@
 
 ---
 
+## [2026-08-21] 首页 SEO 与 Meta 标签全量升级（丰富标题与业务描述 + data-nosnippet 防报错乱抓 + noscript 首屏静态预埋）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **首页 Title 与 Meta Description 关键词体系升级**：
+     - 将首页标题与默认描述由干瘪的 `发现 · Animaku` 升级为用户指定的丰富业务文案：
+       - **Title**：`Animaku 动漫 - 免费在线追番 ｜ 高清动画播放与弹幕客户端`；
+       - **Description**：`Animaku 提供海量日漫番剧、剧场版动画在线观看，支持高性能自研弹幕播放、1080P 高清画质、画质超分、OP / ED智能跳过、Bangumi 每日更新时间表与追番历史，打造轻快稳定的二次元追番体验。`；
+     - 同步更新 `index.html` 静态首屏、`apps/web/src/lib/seo.ts` 动态路由配置、Open Graph (`og:title`/`og:description`)、Twitter Card 与 `site.webmanifest`；
+  2. **Google 专属防乱抓与首屏预埋 (`data-nosnippet` & `<noscript>`)**：
+     - 在 `apps/web/src/components/ui.tsx` 的 `ErrorState` 组件容器上注入 Google 官方 `data-nosnippet` 属性，强制禁止搜索引擎爬虫抓取接口异常/重试文字作为搜索结果摘要；
+     - 在 `index.html` 的 `<div id="root">` 内部注入 `<noscript>` 高质量语义化静态文本（包含 `<h1>` 与 `<p>` 描述），彻底杜绝 SPA 网络延迟/超时导致爬虫抓取空白或报错的问题。
+- 涉及文件：apps/web/index.html, apps/web/src/lib/seo.ts, apps/web/src/components/ui.tsx, apps/web/public/site.webmanifest, .claude/STATE.md
+- 备注：`pnpm typecheck` 与全量生产打包 `pnpm build` 0 报错通过。
+
 ## [2026-08-21] 服务端请求日志体系增强（轻量设备/OS提取 + 业务参数/缓存状态感知 + Pretty/JSON 双模输出）
 - 状态：已完成
 - 优先级：P1

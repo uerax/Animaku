@@ -9,7 +9,7 @@
 export const SITE_NAME = 'Animaku'
 
 export const DEFAULT_DESCRIPTION =
-  'Animaku — 浏览器端番剧客户端：Bangumi 元数据、规则选源播放、弹幕与本地追番历史。自托管，兼容 KazumiRules。'
+  'Animaku 提供海量日漫番剧、剧场版动画在线观看，支持高性能自研弹幕播放、1080P 高清画质、画质超分、OP / ED智能跳过、Bangumi 每日更新时间表与追番历史，打造轻快稳定的二次元追番体验。'
 
 /** Max length for meta description (search engines typically show ~150–160). */
 const DESC_MAX = 160
@@ -35,9 +35,8 @@ export const STATIC_ROUTE_SEO: Record<
   Omit<PageSeo, 'path' | 'image' | 'jsonLd'>
 > = {
   '/': {
-    title: '发现',
-    description:
-      '浏览 Bangumi 动画趋势，继续观看本地历史，进入详情后用自定义规则选源播放。',
+    title: 'Animaku 动漫 - 免费在线追番 ｜ 高清动画播放与弹幕客户端',
+    description: DEFAULT_DESCRIPTION,
   },
   '/anime': {
     title: '番剧目录',
