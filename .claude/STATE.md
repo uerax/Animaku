@@ -4,6 +4,73 @@
 
 ---
 
+## [2026-08-22] 优化 OP/ED 标记面板集数选择下拉交互（解决 Mac 原生 select 遮挡选择条问题）
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **自定义下方弹出集数下拉框**：
+     - 将原生 `<select>` 替换为自研轻量级浮层下拉组件，菜单严格固定于选择条正下方（`top-[calc(100%+4px)]`），彻底解决 macOS 原生 `<select>` 弹出浮层居中覆盖选择条的问题；
+     - 集成外部点击自动收起（`click` / `pointerdown` 监听）、当前选中项高亮及「当前播放」集数徽标标注；
+     - 限制最大高度 `max-h-48` 并支持内部纵向顺畅滚动，适配大集数番剧。
+- 涉及文件：apps/web/src/player/chrome/OpedMarkerDrawer.tsx, .claude/STATE.md
+- 备注：`pnpm typecheck` 与 `pnpm build` 全量通过。
+
+---
+
+## [2026-08-22] 压缩 OP/ED 标记面板整体高度 1/5（精简尺寸适配）
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **桌面端悬浮卡片 (`DesktopCard` & `plyr-overrides.css`)**：最大高度从 `34rem` 压缩 20% 至 `27rem`（`min(27rem, calc(100dvh - 6rem))`）；
+  2. **移动端模态卡片 (`MobileSheet`)**：视口高度从 `82dvh` / `38rem` 压缩 20% 至 `66dvh` / `30rem`；
+  3. **剧集列表矩阵微调**：集数列表容器高度同步由 `max-h-44`（11rem）调优至 `max-h-36`（9rem），保持整体比例协调且不遮挡主画面。
+- 涉及文件：apps/web/src/player/chrome/OpedMarkerDrawer.tsx, apps/web/src/player/plyr-overrides.css, .claude/STATE.md
+- 备注：`pnpm typecheck` 与 `pnpm build` 全量通过。
+
+---
+
+## [2026-08-22] 极致精简 OP/ED 标记面板底部（移除所有提示框与 txt 预览，保留纯粹双按钮）
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **移除所有冗余提示与预览**：彻底移除底部的提交提示框、向导弹窗以及「查看合并后完整 txt」折叠项；
+  2. **极简精致双操作按钮**：保留紧凑尺寸的「复制全量」与「提交 PR」双按钮（`py-1 px-2 text-[10.5px]`），使标记面板底部轻量、无多余元素。
+- 涉及文件：apps/web/src/player/chrome/OpedMarkerDrawer.tsx, .claude/STATE.md
+- 备注：`pnpm typecheck` 与 `pnpm build` 全量通过。
+
+---
+
+## [2026-08-22] 修复首页热门番剧退化为全历史老番问题（恢复当季热门趋势源与当季容灾降级）
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **排查根本原因**：
+     - 在接入默认国内免翻反代镜像（`BANGUMI_API=mirror`，`bgmapi.anibt.net`）后，`routes/bangumi.ts` 中的 `/trending` 使用了 `apiHost.includes('api.bgm.tv') ? config.bangumiNextApi : apiUrl`；
+     - 导致请求打到了不支持 `/p1/` 路由的反代镜像 `bgmapi.anibt.net/p1/trending/subjects` 并返回 404；
+     - 404 触发了 Attempt 2 容灾降级，而原有 Attempt 2 直接调用了 `/v0/search/subjects` 且未限制开播时间范围（`sort: 'heat'`），导致把《命运石之门(2011)》、《孤独摇滚(2022)》、《芙莉莲(2023)》等全站历史总收藏最高的老番返回给首页作为“热门番剧”。
+  2. **全面修复方案 (`apps/server/src/routes/bangumi.ts`)**：
+     - **实时趋势源对齐**：`/trending` 首选（Attempt 1）固定请求独有趋势接口 `config.bangumiNextApi`（`https://next.bgm.tv/p1/trending/subjects`），不论主 API 为官方还是反代；
+     - **当季容灾降级**：当 `next.bgm.tv` 异常时，Attempt 2 自动计算当前季度起始开播日期 `air_date: ['>=YYYY-MM-01']` 进行当季热度检索，确保无论主链路还是降级链路，返回的均是当季正在热播更新的番剧。
+- 涉及文件：apps/server/src/routes/bangumi.ts, .claude/STATE.md
+- 备注：`pnpm typecheck` 0 报错通过，`pnpm build` 全量生产构建成功。
+
+---
+
+## [2026-08-22] 优化 OP/ED 标记面板底部操作区布局与常驻极简 PR 提示
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **按钮文案精炼与尺寸紧凑化**：
+     - 将复制按钮文案精简为「复制全量 / 已复制」，提交按钮文案精简为「提交 PR / 跳转中...」；
+     - 将双按钮内边距和字体缩小至 `py-1.5 px-2 text-[11.5px]`，图标调整至 `h-3.5 w-3.5`，提高面板精致度与纵向空间利用率。
+  2. **常驻极简提交提示**：
+     - 去除原依赖点击的条件向导弹窗和冗余的「再次复制全量数据」、「重新打开 GitHub 编辑页」两个按钮与关闭叉号；
+     - 将提交说明精简为常驻提示框放置于操作按钮下方，直观告知用户自动复制与覆盖粘贴提交逻辑。
+- 涉及文件：apps/web/src/player/chrome/OpedMarkerDrawer.tsx, .claude/STATE.md
+- 备注：`pnpm typecheck` 0 报错通过，`pnpm build` 全量生产构建成功。
+
+---
+
 ## [2026-08-22] 修复 OP/ED 标记面板白天模式黄色文字对比度过低问题
 - 状态：已完成
 - 优先级：P1
