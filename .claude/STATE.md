@@ -4,6 +4,25 @@
 
 ---
 
+## [2026-08-21] 服务端请求日志体系增强（轻量设备/OS提取 + 业务参数/缓存状态感知 + Pretty/JSON 双模输出）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **User-Agent 与客户端设备轻量解析 (`apps/server/src/lib/logger.ts`)**：
+     - 实现 0 外部依赖、带 LRU 缓存的毫秒级 UA 设备解析器 `parseClientDevice`；
+     - 自动识别桌面/手机/平板/爬虫类别，并在 Pretty 控制台模式下简化展示核心系统标签（如 `[Win11]`、`[Win10]`、`[iPhone]`、`[Android]`、`[macOS]`、`[iPad]`、`[Linux]`、`[Bot]`）；
+     - 支持 Cloudflare `cf-ipcountry` 国家代码提取，在 Pretty 模式下作为独立标签（如 `[IP] [CN]`）渲染，在未接入 CF 或本地直连时自动安全隐去，保证 0 格式污染；
+  2. **业务语义参数与缓存状态安全提取**：
+     - 智能从请求 Query/JSON Body 中提取关键业务参数（搜索词 `kw`、视频源 `plugin`、集数 `ep`、条目 `bgmId`、年份 `year`、排序 `sort` 等），并自动脱敏过滤 token/password 等敏感凭证；
+     - 自动感知响应头 `X-Cache`，输出 `[HIT:L1]`、`[HIT:L2]`、`[MISS]`、`[BYPASS]` 缓存状态；
+     - 包含慢请求高亮（`SLOW: >1000ms`）、响应大小（`KB/MB`）以及 4xx/5xx 错误摘要信息；
+  3. **Pretty / JSON 双模自适应与环境配置**：
+     - 新增 `LOG_FORMAT=pretty|json` 配置（默认为 `pretty`），兼顾终端彩色单行肉眼排错体验与 Loki/ELK 结构化采集；
+     - 同步更新 `config.ts`、`docker-compose.yml` 与 `.env.example`；
+     - 保持健康检查与媒体分片流量的自动静默过滤。
+- 涉及文件：apps/server/src/lib/logger.ts, apps/server/src/index.ts, apps/server/src/config.ts, docker-compose.yml, .env.example, .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck` 与全量打包构建 `pnpm build` 0 报错通过。
+
 ## [2026-08-21] Docker Compose 接入日志控制器与轮转持久化配置 (LOG_MAX_SIZE & LOG_MAX_FILE)
 - 状态：已完成
 - 优先级：P2

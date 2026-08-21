@@ -63,6 +63,7 @@ services:
       DEFAULT_USER_AGENT: ${DEFAULT_USER_AGENT:-}
       PLUGIN_SHOP: ${PLUGIN_SHOP:-}
       PLUGIN_SHOP_MIRROR: ${PLUGIN_SHOP_MIRROR:-}
+      LOG_FORMAT: ${LOG_FORMAT:-pretty}
     env_file:
       - path: .env
         required: false

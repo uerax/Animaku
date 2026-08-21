@@ -8,6 +8,7 @@ import { serveStatic } from '@hono/node-server/serve-static'
 import { config } from './config'
 import { initDatabase, closeDatabase } from './db'
 import { corsOriginDecision } from './lib/access'
+import { accessLogger } from './lib/logger'
 import { bangumiRoutes } from './routes/bangumi'
 import { danmakuRoutes } from './routes/danmaku'
 import { bilibiliDanmakuRoutes } from './routes/bilibili-danmaku'
@@ -15,42 +16,6 @@ import { pluginRoutes } from './routes/plugin'
 import { pluginCatalogRoutes } from './routes/plugin-catalog'
 import { mediaRoutes } from './routes/media'
 import { buildRobotsTxt, buildSitemapXml, resolvePublicOrigin } from './lib/seo-static'
-
-/** Formats local date-time to [YYYY-MM-DD HH:mm:ss] */
-function formatLogTimestamp(d: Date = new Date()): string {
-  const pad = (n: number) => n.toString().padStart(2, '0')
-  const Y = d.getFullYear()
-  const M = pad(d.getMonth() + 1)
-  const D = pad(d.getDate())
-  const h = pad(d.getHours())
-  const m = pad(d.getMinutes())
-  const s = pad(d.getSeconds())
-  return `${Y}-${M}-${D} ${h}:${m}:${s}`
-}
-
-/** Extracts client IP from reverse proxy headers or socket */
-function getClientIp(req: { header: (name: string) => string | undefined }): string {
-  // 1. Cloudflare CDN (最权威且经过边缘验证的真实客户端 IP)
-  const cfIp = req.header('cf-connecting-ip')
-  if (cfIp?.trim()) return cfIp.trim()
-
-  // 2. Cloudflare Enterprise / Akamai / 常见 CDN 真实 IP 请求头
-  const trueClientIp = req.header('true-client-ip')
-  if (trueClientIp?.trim()) return trueClientIp.trim()
-
-  // 3. X-Real-IP (常用于单层反向代理)
-  const xReal = req.header('x-real-ip')
-  if (xReal?.trim()) return xReal.trim()
-
-  // 4. X-Forwarded-For (逗号分隔的代理链路，取最左侧原始客户端 IP)
-  const xff = req.header('x-forwarded-for')
-  if (xff) {
-    const first = xff.split(',')[0]?.trim()
-    if (first) return first
-  }
-
-  return '127.0.0.1'
-}
 
 /**
  * Resolve SPA build output. @hono/node-server serveStatic only accepts
@@ -95,43 +60,8 @@ function resolveWebRootRel(): string | null {
 
 const app = new Hono()
 
-// Structured access logger:
-// 1. Silently skip successful /api/health heartbeats (Docker/K8s polling)
-// 2. Silently skip successful /api/media/proxy requests (HLS TS/M4S segments)
-// 3. Output standard format: [YYYY-MM-DD HH:mm:ss] [IP] METHOD PATH -> STATUS (Xms)
-app.use('*', async (c, next) => {
-  const start = Date.now()
-  const path = c.req.path
-  const method = c.req.method
-  const ip = getClientIp(c.req)
-  const isMediaProxy = path.startsWith('/api/media/proxy')
-  const isHealthCheck = path === '/api/health' || path === '/api/health/'
-
-  try {
-    await next()
-  } finally {
-    const elapsed = Date.now() - start
-    const status = c.res ? c.res.status : 500
-
-    // Silent health check on success (filter Docker/K8s heartbeats)
-    if (isHealthCheck && status === 200) {
-      return
-    }
-
-    // Silent media proxy segment traffic on success (<400)
-    if (isMediaProxy && status < 400) {
-      return
-    }
-
-    const timeStr = formatLogTimestamp()
-    const tag = isMediaProxy && status >= 400 ? ' [MEDIA_FAIL]' : ''
-    const urlPath = status >= 400 && c.req.url.includes('?')
-      ? `${path}?${c.req.url.split('?')[1]}`
-      : path
-
-    console.log(`[${timeStr}] [${ip}]${tag} ${method} ${urlPath} -> ${status} (${elapsed}ms)`)
-  }
-})
+// Structured access logger (Pretty single-line with simplified device/OS tag & JSONL support)
+app.use('*', accessLogger())
 
 // Compress API payloads (Danmaku XML/JSON, Bangumi metadata) and SPA static assets.
 // Skip binary video streams in media proxy to save CPU.

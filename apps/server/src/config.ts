@@ -185,4 +185,8 @@ export const config = {
   siteUrl: (process.env.SITE_URL || process.env.PUBLIC_SITE_URL || '')
     .trim()
     .replace(/\/+$/, ''),
+  /**
+   * Server access log output format: 'pretty' (default human-friendly) | 'json' (structured JSONL for ELK/Loki)
+   */
+  logFormat: (process.env.LOG_FORMAT || 'pretty').trim().toLowerCase() === 'json' ? ('json' as const) : ('pretty' as const),
 }
