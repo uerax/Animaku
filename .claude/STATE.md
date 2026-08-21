@@ -4,6 +4,23 @@
 
 ---
 
+## [2026-08-21] 优化 xifan-next 锁定 1080P 最高画质与国内网盘直链优先策略（MP4 直链首选 + HLS 动态 1080P 专线提取 + 彻底杜绝低清降级）
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **问题排查与根本原因分析**：
+     - `xifan-next` 源站近期为播放器接入了多档清晰度切换（1080P/720P/480P）的 HLS 切片流；
+     - 原 `resolveXifanNext` 解析逻辑中无条件优先选取了 `hls` 响应；而 `xifan-next` 的 HLS 切片流（`next.xfvod.pro`）部署在海外 Cloudflare 边缘节点，且客户端 `Hls.js` 默认 `abrEwmaDefaultEstimate: 500_000`（500 kbps）过低，导致播放器在海外弱网下起播直接降级为 480P 模糊切片流并频繁卡顿；
+     - 而 `action: 'fallback'` 返回的是国内联通云盘 / Moedot 国内节点原画无损 1080P MP4 直链（`apn.moedot.net` 302 重定向至 `pan.wo.cn`，单集 400MB+），极速秒开、字节范围拖拽流畅且 0 模糊。
+  2. **国内网盘优先 + 1080P 专线提取闭环架构 (`apps/server/src/lib/xifan-next.ts`)**：
+     - **第 1 优先级（国内网盘/高速直链）**：无条件优先提取 `action: 'fallback'` 返回的国内联通沃云 / Moedot 原画 1080P MP4 直链，享受国内毫秒级直连与 0 压缩画质；
+     - **第 2 优先级（HLS 1080P 专线提取）**：若遇仅支持 HLS 的番剧或 fallback 失效时，接入 `extractHighestResolutionHls` 解析器，自动从 master m3u8 中通过正则提取 `RESOLUTION=1920x1080`（`media-1/stream.m3u8`）单流播放地址，**强制剔除 720P/480P 低清档位**，无论未来网络如何波动均绝不向低清妥协；
+     - 补全 `apn.moedot.net` 防盗链判定与 Referer 置换规则，避免跨域报错；
+  3. **播放器 Hls.js 起播默认带宽估算调优 (`apps/web/src/player/VideoPlayer.tsx`)**：
+     - 将 `abrEwmaDefaultEstimate` 由过低的 `500_000`（500 kbps）调优为 `5_000_000`（5 Mbps），确保播放 HLS 流时默认以 1080P/720P 高清档位起播。
+- 涉及文件：apps/server/src/lib/xifan-next.ts, apps/web/src/player/VideoPlayer.tsx, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 3 个 workspace 0 报错通过，`pnpm build` 全量生产打包构建验证通过。
+
 ## [2026-08-21] 弹幕接入链路重构与多级缓存优化（切集复用 + BGM优先降级 + 正则防偏移 + 未命中自动穿透刷新）
 - 状态：已完成
 - 优先级：P0

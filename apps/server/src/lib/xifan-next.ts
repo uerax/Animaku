@@ -529,6 +529,58 @@ function extractEpisodeIdAndSource(pageUrl: string): {
   return { episodeId, sourceCode }
 }
 
+/**
+ * Extract highest available resolution/bitrate (e.g. 1080P -> 720P -> max available) sub-playlist URL from master m3u8.
+ * This locks playback to the best available rendition and prevents player ABR from automatically degrading to 480P/360P.
+ */
+async function extractHighestResolutionHls(masterUrl: string): Promise<string> {
+  try {
+    const res = await fetchPublic(
+      masterUrl,
+      {
+        headers: {
+          'User-Agent': config.defaultUserAgent,
+        },
+      },
+      { timeoutMs: 3_000 },
+    )
+    if (!res.ok) return masterUrl
+    const m3u8Text = await res.text()
+    if (!m3u8Text.includes('#EXT-X-STREAM-INF')) return masterUrl
+
+    const lines = m3u8Text.split('\n')
+    let highestUrl = ''
+    let maxScore = 0
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      if (line.startsWith('#EXT-X-STREAM-INF')) {
+        let score = 0
+        const resMatch = line.match(/RESOLUTION=(\d+)x(\d+)/i)
+        if (resMatch) {
+          score = Number(resMatch[1]) * Number(resMatch[2])
+        } else {
+          const bwMatch = line.match(/BANDWIDTH=(\d+)/i)
+          if (bwMatch) {
+            score = Number(bwMatch[1])
+          }
+        }
+        const nextUrl = lines[i + 1]?.trim()
+        if (score > maxScore && nextUrl && !nextUrl.startsWith('#')) {
+          maxScore = score
+          highestUrl = nextUrl.startsWith('http')
+            ? nextUrl
+            : new URL(nextUrl, masterUrl).href
+        }
+      }
+    }
+
+    return highestUrl || masterUrl
+  } catch {
+    return masterUrl
+  }
+}
+
 export async function resolveXifanNext(
   rule: PluginRule,
   pageUrl: string,
@@ -573,36 +625,19 @@ export async function resolveXifanNext(
     ),
   ])
 
-  if (hlsRes.status === 'fulfilled' && hlsRes.value?.ok && hlsRes.value?.url) {
-    const candidateHlsUrl = hlsRes.value.url
-    // Probe if the Cloudflare R2 m3u8 playlist actually exists (avoid 404 fake HLS)
-    try {
-      const probeRes = await fetchPublic(
-        candidateHlsUrl,
-        {
-          headers: {
-            Range: 'bytes=0-100',
-            'User-Agent': config.defaultUserAgent,
-          },
-        },
-        { timeoutMs: 2_000 },
-      )
-      if (probeRes.ok || probeRes.status === 206) {
-        playUrl = candidateHlsUrl
-        playbackAction = 'hls'
-      }
-    } catch {
-      /* HLS probe timed out or failed; will fallback below */
-    }
-  }
-
-  if (!playUrl && fbRes.status === 'fulfilled' && fbRes.value?.ok && fbRes.value?.url) {
+  // 1. Highest Priority: Domestic cloud drive / high-speed 1080P MP4 direct stream (pan.wo.cn / moedot)
+  if (fbRes.status === 'fulfilled' && fbRes.value?.ok && fbRes.value?.url) {
     playUrl = fbRes.value.url
     playbackAction = fbRes.value.action || 'fallback'
-  } else if (!playUrl && hlsRes.status === 'fulfilled' && hlsRes.value?.ok && hlsRes.value?.url) {
-    playUrl = hlsRes.value.url
-    playbackAction = 'hls'
-  } else if (!playUrl) {
+  } else if (hlsRes.status === 'fulfilled' && hlsRes.value?.ok && hlsRes.value?.url) {
+    // 2. Secondary Priority: Lock and extract 1080P stream from HLS master playlist (refuse 480P/720P)
+    const masterHlsUrl = hlsRes.value.url
+    const highResHlsUrl = await extractHighestResolutionHls(masterHlsUrl)
+    playUrl = highResHlsUrl
+    playbackAction = 'hls-1080p'
+  }
+
+  if (!playUrl) {
     const errorMsg =
       (fbRes.status === 'fulfilled' ? fbRes.value?.error : null) ||
       (hlsRes.status === 'fulfilled' ? hlsRes.value?.error : null) ||
@@ -612,7 +647,10 @@ export async function resolveXifanNext(
   }
 
   // pan.wo.cn rejects cross-origin referers with 400 Bad Request; use pan.wo.cn or empty
-  const isWoPan = playUrl.includes('pan.wo.cn') || playUrl.includes('moedot.net')
+  const isWoPan =
+    playUrl.includes('pan.wo.cn') ||
+    playUrl.includes('moedot.net') ||
+    playUrl.includes('apn.moedot.net')
   const referer = isWoPan ? 'https://pan.wo.cn/' : 'https://next.xifanacg.com/'
   const proxyUrl = `/api/media/proxy?url=${encodeURIComponent(playUrl)}&referer=${encodeURIComponent(referer)}`
 
@@ -625,9 +663,9 @@ export async function resolveXifanNext(
       Referer: referer,
     },
     diagnostics: [
-      playbackAction === 'hls'
-        ? `成功解析 HLS 自适应多码率切片流: ${playUrl}`
-        : `成功解析直链 (${playbackAction}): ${playUrl}`,
+      playbackAction.startsWith('hls')
+        ? `成功解析 HLS 1080P 专线切片流: ${playUrl}`
+        : `成功解析 1080P 国内原画直链 (${playbackAction}): ${playUrl}`,
     ],
   }
 }

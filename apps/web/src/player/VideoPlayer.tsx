@@ -844,8 +844,8 @@ export function VideoPlayer({
               maxMaxBufferLength: 60,
               maxBufferHole: 0.5,
               startLevel: -1,
-              abrEwmaDefaultEstimate: 500_000,
-              maxBufferSize: 40 * 1000 * 1000,
+              abrEwmaDefaultEstimate: 5_000_000,
+              maxBufferSize: 60 * 1000 * 1000,
               fragLoadingTimeOut: 20_000,
               manifestLoadingTimeOut: 15_000,
             })
