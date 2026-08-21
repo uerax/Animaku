@@ -4,6 +4,17 @@
 
 ---
 
+## [2026-08-22] 设置页新增「前往 GitHub 上传 data 文件夹」批量 PR 快捷入口
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **批量上传直达链接**：在设置页「📦 打包下载全量 ZIP」旁边新增「📂 前往 GitHub 上传 data 文件夹」操作按钮，直达 `https://github.com/uerax/bangumi-oped/upload/data` 页面；
+  2. **指引优化**：打包下载 ZIP 后提示用户解压直接将 `data` 文件夹拖入网页，即可一键批量生成包含所有番剧修改的 PR。
+- 涉及文件：apps/web/src/pages/SettingsPage.tsx, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 3 个 workspace 0 报错通过。
+
+---
+
 ## [2026-08-22] 修复 bangumi-oped 空占位文件导致 GitHub PR 报「同名文件已存在无法提交」问题
 - 状态：已完成
 - 优先级：P0

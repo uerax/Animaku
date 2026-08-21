@@ -610,13 +610,32 @@ export function SettingsPage() {
                     a.download = `bangumi-oped-custom-${new Date().toISOString().slice(0, 10)}.zip`
                     a.click()
                     URL.revokeObjectURL(url)
-                    setOpedToast('已生成并下载合并全量 ZIP 包！')
-                    setTimeout(() => setOpedToast(''), 3000)
+                    setOpedToast('已生成并下载合并全量 ZIP 包！解压后直接将 data 文件夹拖入 GitHub 上传页即可')
+                    setTimeout(() => setOpedToast(''), 6000)
                   }}
                   className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-1.5 text-xs font-medium text-[var(--kz-fg)] hover:bg-[var(--kz-bg-elevated)] cursor-pointer"
+                  title="打包下载包含官方已有集数与本地标记的全量 txt 数据包"
                 >
                   📦 打包下载全量 ZIP
                 </button>
+                <a
+                  href="https://github.com/uerax/bangumi-oped/upload/data"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-xs font-semibold text-sky-600 dark:text-sky-400 hover:bg-sky-500/20 transition-colors"
+                  title="解压 ZIP 后，直接将 data 文件夹拖入该页面即可一键创建包含所有修改的 Pull Request"
+                >
+                  <span>📂 前往 GitHub 上传 data 文件夹</span>
+                  <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 16 16" fill="none">
+                    <path
+                      d="M6 3.5H3.5C2.67 3.5 2 4.17 2 5V12.5C2 13.33 2.67 14 3.5 14H11C11.83 14 12.5 13.33 12.5 12.5V10M9.5 2H14M14 2V6.5M14 2L6.5 9.5"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </a>
                 {opedToast && <span className="text-xs text-emerald-400 font-medium">{opedToast}</span>}
               </div>
               <button
