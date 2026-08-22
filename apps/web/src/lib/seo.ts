@@ -166,6 +166,10 @@ export function applyPageSeo(seo: PageSeo): void {
     seo.description?.trim() || DEFAULT_DESCRIPTION,
   )
   const robots = seo.robots || 'index,follow'
+  const isIndexable = robots.startsWith('index')
+  const fullRobots = isIndexable
+    ? 'index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1'
+    : robots
   const siteUrl = resolveSiteUrl()
   const path = seo.path || (typeof window !== 'undefined' ? window.location.pathname : '/')
   const pageUrl = toAbsoluteUrl(path, siteUrl)
@@ -176,7 +180,8 @@ export function applyPageSeo(seo: PageSeo): void {
   document.title = title
 
   ensureMetaByName('description', description)
-  ensureMetaByName('robots', robots)
+  ensureMetaByName('robots', fullRobots)
+  ensureMetaByName('googlebot', fullRobots)
   ensureMetaByName('application-name', SITE_NAME)
 
   // Open Graph — TVSeries pages use video.tv_show; everything else website
@@ -207,11 +212,13 @@ export function applyPageSeo(seo: PageSeo): void {
 }
 
 export function buildWebsiteJsonLd(siteUrl = resolveSiteUrl()): Record<string, unknown> {
-  const url = siteUrl || undefined
+  const base = siteUrl ? siteUrl.replace(/\/+$/, '') : ''
+  const url = base ? `${base}/` : undefined
   return {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
     name: SITE_NAME,
+    alternateName: ['Animaku 动漫', 'Animaku动漫'],
     description: DEFAULT_DESCRIPTION,
     ...(url ? { url } : {}),
     // Absolute SearchAction only when we know the public origin
@@ -221,7 +228,7 @@ export function buildWebsiteJsonLd(siteUrl = resolveSiteUrl()): Record<string, u
             '@type': 'SearchAction',
             target: {
               '@type': 'EntryPoint',
-              urlTemplate: `${url}/search?q={search_term_string}`,
+              urlTemplate: `${base}/search?q={search_term_string}`,
             },
             'query-input': 'required name=search_term_string',
           },
@@ -252,5 +259,21 @@ export function buildTvSeriesJsonLd(args: {
     ...(args.datePublished ? { datePublished: args.datePublished } : {}),
     url: toAbsoluteUrl(args.path, siteUrl),
     identifier: String(args.id),
+  }
+}
+
+export function buildBreadcrumbJsonLd(
+  items: { name: string; path: string }[],
+  siteUrl = resolveSiteUrl(),
+): Record<string, unknown> {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: items.map((item, index) => ({
+      '@type': 'ListItem',
+      position: index + 1,
+      name: item.name,
+      item: toAbsoluteUrl(item.path, siteUrl),
+    })),
   }
 }

@@ -68,6 +68,8 @@ export default defineConfig(({ mode }) => {
     get('BANGUMI_IMAGE') || get('VITE_BANGUMI_IMAGE_HOST') || get('BANGUMI_IMAGE_HOST'),
   )
 
+  const siteUrl = (get('VITE_SITE_URL') || get('SITE_URL') || '').trim().replace(/\/+$/, '')
+
   const apiPort = envInt(get('PORT'), 8787)
   // Proxy connects to the API process; 0.0.0.0 is not a valid client target
   const apiProxyHost = get('API_PROXY_HOST') || '127.0.0.1'
@@ -91,12 +93,39 @@ export default defineConfig(({ mode }) => {
           )
         },
       },
+      {
+        // Inject Google WebSite structured data (Site Name) dynamically from siteUrl if configured.
+        name: 'animaku-seo-website-jsonld',
+        transformIndexHtml(html: string) {
+          const jsonLd: Record<string, unknown> = {
+            '@context': 'https://schema.org',
+            '@type': 'WebSite',
+            name: 'Animaku',
+            alternateName: ['Animaku 动漫', 'Animaku动漫'],
+            description:
+              'Animaku 提供海量日漫番剧、剧场版动画在线观看，支持高性能自研弹幕播放、1080P 高清画质、画质超分、OP / ED智能跳过、Bangumi 每日更新时间表与追番历史，打造轻快稳定的二次元追番体验。',
+            ...(siteUrl ? { url: `${siteUrl}/` } : {}),
+          }
+          const formatted = JSON.stringify(jsonLd, null, 2)
+            .split('\n')
+            .map((line, idx) => (idx === 0 ? line : '      ' + line))
+            .join('\n')
+          const scriptTag = [
+            '    <!-- Google 网站名称结构化数据 (Site Name) -->',
+            '    <script type="application/ld+json" data-animaku-jsonld="1">',
+            `      ${formatted}`,
+            '    </script>',
+          ].join('\n')
+          return html.replace('<!--website-jsonld-->', scriptTag)
+        },
+      },
     ],
     define: {
       'import.meta.env.VITE_APP_VERSION': JSON.stringify(
         get('VITE_APP_VERSION') || resolvePackageVersion(),
       ),
       'import.meta.env.VITE_BANGUMI_IMAGE_HOST': JSON.stringify(bangumiImageHost),
+      'import.meta.env.VITE_SITE_URL': JSON.stringify(siteUrl),
     },
     resolve: {
       alias: {

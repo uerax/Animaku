@@ -4,6 +4,39 @@
 
 ---
 
+## [2026-08-22] 落地全栈 SEO 深度升级（192px Favicon + 大图预览指令 + BreadcrumbList 面包屑 + 图片 Alt 语义化）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **Google 官方 48px 整数倍 Favicon 适配 (`index.html`)**：
+     - 注入 `<link rel="icon" type="image/png" sizes="192x192" href="/android-chrome-192x192.png" />`，满足 Google Favicon 爬虫规范，消除搜索结果左侧的蓝色地球占位符，展示高清品牌 Logo；
+  2. **大图富媒体索引控制指令 (`index.html` & `seo.ts`)**：
+     - 在 `robots` 与 `googlebot` 元标签中注入 `max-image-preview:large,max-snippet:-1,max-video-preview:-1`，授权 Google 在搜索结果与 Discover 信息流中以全宽大图呈现番剧封面；
+  3. **面包屑导航结构化数据 (`BreadcrumbList`)**：
+     - 在 `seo.ts` 中实现 `buildBreadcrumbJsonLd()`；
+     - 在 `DocumentSeo.tsx` 中为番剧详情页（`首页 > 番剧目录 > {番剧名}`）、目录页（`首页 > 番剧目录`）和时间表页（`首页 > 放送时间表`）注入 Schema.org `BreadcrumbList`，将 Google 搜索结果顶部的生硬 URL 升级为层级导航路径；
+  4. **封面图片语义化 Alt (`BangumiCard.tsx`)**：
+     - 为番剧卡片封面注入 `alt={item.nameCn || item.name || '动画封面'}`，建立图片与动画名称的索引关联，获取 Google 图片搜索流量。
+- 涉及文件：apps/web/index.html, apps/web/src/lib/seo.ts, apps/web/src/components/DocumentSeo.tsx, apps/web/src/components/ui.tsx, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 3 个 workspace 0 报错通过，`pnpm build` 全量打包构建通过。
+
+---
+
+## [2026-08-22] 优化 Google 搜索 Site Name 结构化数据 (解决二级域名继承 eu.org 一级标题问题)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **排查根本原因**：
+     - `bakasine.eu.org` 为二级域名，在 Google 搜索结果中缺少明确的静态首屏 `WebSite` 结构化数据（JSON-LD）声明；
+     - Google 网站实体识别算法自动向上回退，抓取并继承了一级根域名 `eu.org` 首页的网站名称（`EU.org: free domain names since 1996`）；
+  2. **全面修复与 SEO 动态参数化**：
+     - **构建期动态注入 (`apps/web/vite.config.ts` & `index.html`)**：在 Vite 中接入 `animaku-seo-website-jsonld` HTML 转换插件，根据环境变量 `VITE_SITE_URL` / `SITE_URL` 动态将 `@type: WebSite`、`name: "Animaku"`、`alternateName: ["Animaku 动漫", "Animaku动漫"]` 与 `url` 注入到 `dist/index.html` 的首屏 `<head>` 中，拒绝代码硬编码；
+     - **运行时动态响应 (`apps/web/src/lib/seo.ts`)**：在 `buildWebsiteJsonLd` 中统一接入 `resolveSiteUrl()`（自动解析 `import.meta.env.VITE_SITE_URL` 或回退到客户端 `window.location.origin`），动态输出当前访问域名的根路径，保证全栈域名参数化与 Google Site Name 实体完全匹配。
+- 涉及文件：apps/web/index.html, apps/web/vite.config.ts, apps/web/src/lib/seo.ts, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 3 个 workspace 0 报错通过，`pnpm build` 构建注入测试通过。
+
+---
+
 ## [2026-08-22] 修复 OP/ED 标记面板白天模式黄色文字对比度过低问题
 - 状态：已完成
 - 优先级：P1

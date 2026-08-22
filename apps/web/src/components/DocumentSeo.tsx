@@ -6,6 +6,7 @@ import { bangumiApi } from '../lib/bangumi'
 import {
   STATIC_ROUTE_SEO,
   applyPageSeo,
+  buildBreadcrumbJsonLd,
   buildTvSeriesJsonLd,
   buildWebsiteJsonLd,
   DEFAULT_DESCRIPTION,
@@ -68,15 +69,22 @@ export function DocumentSeo() {
         robots: indexable ? 'index,follow' : 'noindex,follow',
         jsonLd:
           item && !isPlayAlias
-            ? buildTvSeriesJsonLd({
-                id: subjectId,
-                name: item.nameCn || item.name,
-                alternateName: alt,
-                description: summary,
-                image: cover || undefined,
-                datePublished: item.airDate || undefined,
-                path,
-              })
+            ? [
+                buildTvSeriesJsonLd({
+                  id: subjectId,
+                  name: item.nameCn || item.name,
+                  alternateName: alt,
+                  description: summary,
+                  image: cover || undefined,
+                  datePublished: item.airDate || undefined,
+                  path,
+                }),
+                buildBreadcrumbJsonLd([
+                  { name: '首页', path: '/' },
+                  { name: '番剧目录', path: '/anime' },
+                  { name, path },
+                ]),
+              ]
             : undefined,
       }
     }
@@ -97,10 +105,25 @@ export function DocumentSeo() {
 
     const staticSeo = STATIC_ROUTE_SEO[pathname]
     if (staticSeo) {
+      let routeJsonLd: PageSeo['jsonLd'] = undefined
+      if (pathname === '/') {
+        routeJsonLd = buildWebsiteJsonLd()
+      } else if (pathname === '/anime') {
+        routeJsonLd = buildBreadcrumbJsonLd([
+          { name: '首页', path: '/' },
+          { name: '番剧目录', path: '/anime' },
+        ])
+      } else if (pathname === '/timeline') {
+        routeJsonLd = buildBreadcrumbJsonLd([
+          { name: '首页', path: '/' },
+          { name: '放送时间表', path: '/timeline' },
+        ])
+      }
+
       return {
         ...staticSeo,
         path: pathname,
-        jsonLd: pathname === '/' ? buildWebsiteJsonLd() : undefined,
+        jsonLd: routeJsonLd,
       }
     }
 
