@@ -4,6 +4,23 @@
 
 ---
 
+## [2026-08-22] 优化 robots.txt 爬虫放行策略与 API 渲染隔离（精准放行 /api/bangumi/ + 全局注入 X-Robots-Tag: noindex）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **排查根本原因**：
+     - Animaku 采用 React SPA 架构，首页热门番剧、分类目录、时间表及详情页依赖客户端 JS 异步调用 `/api/bangumi/...` 渲染 DOM；
+     - 原 `robots.txt` 中配置了 `Disallow: /api/`，导致 Googlebot 无头浏览器渲染页面时判定 API 为禁止抓取资源并强制拦截/中止请求，报错 `Client Closed Request` 并导致爬虫抓取为空白骨架或错误页；
+  2. **robots.txt 精准放行与安全隔离 (`seo-static.ts` & `public/robots.txt`)**：
+     - 利用 Google 爬虫最长匹配（Longest Match）规则，在 `Disallow: /api/` 前追加 `Allow: /api/bangumi/`；
+     - 允许 Googlebot 请求公开的番剧元数据接口（`/trending`、`/search`、`/calendar`、`/subject/:id`）以渲染完整网页 DOM，同时继续严格封禁视频流代理（`/api/media/`）、视频源解析（`/api/plugin/`）、弹幕（`/api/danmaku/`）等高负载/无 SEO 价值端点；
+  3. **服务端 API 防独立收录响应头 (`apps/server/src/index.ts`)**：
+     - 为 `/api/*` 接口统一注入 `X-Robots-Tag: noindex, nofollow` 响应头，确保 API 数据仅用于爬虫渲染网页内容，防止 raw JSON 接口本身作为独立网页被收录进搜索结果。
+- 涉及文件：apps/server/src/lib/seo-static.ts, apps/web/public/robots.txt, apps/server/src/index.ts, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 3 个 workspace 0 报错通过，`pnpm build` 全量生产打包构建验证通过。
+
+---
+
 ## [2026-08-22] 播放页简介封面跳转链接直接写死官方 Bangumi 详情页 (https://bgm.tv/subject/:id)
 - 状态：已完成
 - 优先级：P1

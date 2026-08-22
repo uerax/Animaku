@@ -63,6 +63,12 @@ const app = new Hono()
 // Structured access logger (Pretty single-line with simplified device/OS tag & JSONL support)
 app.use('*', accessLogger())
 
+// Instruct search engines to use API data only for page rendering and not index raw JSON URLs
+app.use('/api/*', async (c, next) => {
+  await next()
+  c.res.headers.set('X-Robots-Tag', 'noindex, nofollow')
+})
+
 // Compress API payloads (Danmaku XML/JSON, Bangumi metadata) and SPA static assets.
 // Skip binary video streams in media proxy to save CPU.
 app.use('*', async (c, next) => {

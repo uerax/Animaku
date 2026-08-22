@@ -50,6 +50,9 @@ Allow: /anime
 Allow: /timeline
 Allow: /subject/
 
+# Allow public metadata API for client-side rendering (SPA)
+Allow: /api/bangumi/
+
 Disallow: /api/
 Disallow: /settings
 Disallow: /history

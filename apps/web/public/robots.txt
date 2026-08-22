@@ -7,6 +7,9 @@ Allow: /anime
 Allow: /timeline
 Allow: /subject/
 
+# Public API endpoints required for client-side rendering (SPA)
+Allow: /api/bangumi/
+
 # API and private client state
 Disallow: /api/
 Disallow: /settings
