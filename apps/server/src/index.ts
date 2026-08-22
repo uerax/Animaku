@@ -15,7 +15,8 @@ import { bilibiliDanmakuRoutes } from './routes/bilibili-danmaku'
 import { pluginRoutes } from './routes/plugin'
 import { pluginCatalogRoutes } from './routes/plugin-catalog'
 import { mediaRoutes } from './routes/media'
-import { buildRobotsTxt, buildSitemapXml, resolvePublicOrigin } from './lib/seo-static'
+import { buildRobotsTxt, buildDynamicSitemapXml, resolvePublicOrigin } from './lib/seo-static'
+import { handleSubjectPrerender } from './lib/seo-prerender'
 
 /**
  * Resolve SPA build output. @hono/node-server serveStatic only accepts
@@ -153,13 +154,14 @@ app.get('/robots.txt', (c) => {
     },
   })
 })
-app.get('/sitemap.xml', (c) => {
+app.get('/sitemap.xml', async (c) => {
   const origin = resolvePublicOrigin(config.siteUrl, c.req)
-  return new Response(buildSitemapXml(origin), {
+  const xml = await buildDynamicSitemapXml(origin)
+  return new Response(xml, {
     status: 200,
     headers: {
       'Content-Type': 'application/xml; charset=utf-8',
-      'Cache-Control': 'public, max-age=3600',
+      'Cache-Control': 'public, max-age=21600',
     },
   })
 })
@@ -167,12 +169,28 @@ app.get('/sitemap.xml', (c) => {
 // Production: one process serves API + Vite build (same origin → no /api proxy needed)
 const webRoot = resolveWebRootRel()
 if (webRoot) {
+  // 301 Permanent Redirect /play/:id to canonical /subject/:id (preserve query params)
+  app.get('/play/:id', (c) => {
+    const id = c.req.param('id')
+    const search = c.req.url.includes('?') ? c.req.url.slice(c.req.url.indexOf('?')) : ''
+    return c.redirect(`/subject/${id}${search}`, 301)
+  })
+
+  // Dynamic SSR Prerender for /subject/:id (SEO & rich crawler metadata)
+  app.get('/subject/:id', async (c) => {
+    const origin = resolvePublicOrigin(config.siteUrl, c.req)
+    return handleSubjectPrerender(c, webRoot, origin)
+  })
+
   // Static asset caching middleware:
   // - Vite hashed chunks (/assets/*): 1 year immutable strong cache
   // - HTML and SPA routes: no-cache so redeploys are detected immediately
   app.use('*', async (c, next) => {
     if (c.req.path.startsWith('/api')) return next()
     if (c.req.path === '/robots.txt' || c.req.path === '/sitemap.xml') {
+      return next()
+    }
+    if (c.req.path.startsWith('/subject/') || c.req.path.startsWith('/play/')) {
       return next()
     }
 
@@ -204,16 +222,26 @@ if (webRoot) {
 
   app.use('*', async (c, next) => {
     if (c.req.path.startsWith('/api')) return next()
-    // Dynamic robots/sitemap already handled above
-    if (c.req.path === '/robots.txt' || c.req.path === '/sitemap.xml') {
+    // Dynamic robots/sitemap/subject already handled above
+    if (
+      c.req.path === '/robots.txt' ||
+      c.req.path === '/sitemap.xml' ||
+      c.req.path.startsWith('/subject/') ||
+      c.req.path.startsWith('/play/')
+    ) {
       return next()
     }
     return serveStatic({ root: webRoot })(c, next)
   })
-  // SPA fallback (client routes like /subject/123)
+  // SPA fallback (client routes like /anime, /timeline, /history, /settings, etc.)
   app.get('*', async (c, next) => {
     if (c.req.path.startsWith('/api')) return next()
-    if (c.req.path === '/robots.txt' || c.req.path === '/sitemap.xml') {
+    if (
+      c.req.path === '/robots.txt' ||
+      c.req.path === '/sitemap.xml' ||
+      c.req.path.startsWith('/subject/') ||
+      c.req.path.startsWith('/play/')
+    ) {
       return next()
     }
     return serveStatic({ root: webRoot, path: 'index.html' })(c, next)

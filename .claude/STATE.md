@@ -4,6 +4,30 @@
 
 ---
 
+## [2026-08-23] 落地 /subject/:id 服务端轻量 SSR SEO 注入与动态多源 Sitemap 索引增强
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **服务端轻量 SSR 动态预渲染与 Meta 注入 (`apps/server/src/lib/seo-prerender.ts`)**：
+     - **安全转义与防注入**：实现 `escapeHtml`（转义 `&<>"'`）与 `escapeJsonLdScript`（防御 `</script>` 标签逃逸），杜绝 HTML 结构损坏与 XSS 风险；
+     - **模板热失效机制**：通过 `fs.statSync(htmlPath).mtimeMs` 检查 `dist/index.html`，产物重新构建部署后自动热重载，保证永远读取最新的 JS/CSS 资源 hash；
+     - **元数据获取与 600ms 超时降级**：接入 `fetchSubjectSeoData`（复用 24h 内存 TTL 缓存），配置 600ms 严格超时；超时或上游 5xx 时降级返回原始模板（200 状态码 + `no-cache, no-store`），绝不抛 500，保护 Crawl Budget；
+     - **200 动态注入**：替换 `<title>`、`<meta description>`、`<og:type: video.tv_show>`、`<og:image>`（附带 400x533 宽高规格与类型）、`<twitter:*>`，注入纯净 Canonical（自动剥离 searchParams）与 Schema.org `TVSeries` + `BreadcrumbList` 结构化数据，并在 `<noscript>` 中预埋 `<h1>`、`<h2>`、`<p>`、`<img>` 语义化正文；下发 `Cache-Control: public, max-age=1800, s-maxage=3600, stale-while-revalidate=86400`；
+     - **真实 404 状态码防 Soft 404**：非法 ID 或查无此番时，严格返回 **HTTP 404 状态码**，注入 `404 Title`、`noindex,nofollow` 元标签及 404 noscript 提示，下发 `Cache-Control: public, max-age=60`；
+  2. **动态 Sitemap 聚合与 Google Image Sitemap 扩展 (`apps/server/src/lib/seo-static.ts`)**：
+     - 自动聚合时间表（Calendar 7天）与热门（Trending）全部番剧条目，使用 `Map<number, BangumiItem>` 按 ID 严格去重；
+     - 采用番剧真实 `airDate` 作为 `<lastmod>`（ISO 8601 YYYY-MM-DD），无日期时安全回退季度基准日，避免随请求时间虚假刷新；
+     - 接入 Google Image Sitemap 扩展（`<image:image><image:loc>...<image:title>...</image:image>`），直接打通图片搜索流量；
+     - 加入 6 小时服务端内存缓存与 `Cache-Control: public, max-age=21600`，单文件严格控制在 50K URL 规范内；
+  3. **路由接管与权重收敛 (`apps/server/src/index.ts`)**：
+     - 拦截 `/subject/:id` 路由直接执行轻量 SSR 预渲染；
+     - 拦截 `/play/:id` 路由并下发 **301 Permanent Redirect** 重定向至 `/subject/:id`（保留查询参数），将外部与历史流量 100% 收敛至权威 Canonical URL；
+     - 托管 `/sitemap.xml` 动态响应。
+- 涉及文件：apps/server/src/lib/seo-prerender.ts, apps/server/src/lib/seo-static.ts, apps/server/src/index.ts, .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck` 0 报错通过，`pnpm build` 全量生产打包构建验证通过，端到端测试用例验证通过。
+
+---
+
 ## [2026-08-22] 优化 robots.txt 爬虫放行策略与 API 渲染隔离（精准放行 /api/bangumi/ + 全局注入 X-Robots-Tag: noindex）
 - 状态：已完成
 - 优先级：P1

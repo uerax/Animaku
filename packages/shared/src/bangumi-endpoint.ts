@@ -144,6 +144,19 @@ export function bangumiImageUrl(url: string): string {
   return `${m[1]}//${currentImageHost}${m[3]}`
 }
 
+/** 把已知 Bangumi 图片 host 强制换成官方源 lain.bgm.tv（用于 SEO / Sitemap / JSON-LD） */
+export function toBangumiOfficialImageUrl(url: string): string {
+  const src = (url || '').trim()
+  if (!src) return ''
+  const m = /^(https?:)\/\/([^/?#]+)(.*)$/i.exec(src)
+  if (!m) return src
+  const host = m[2].toLowerCase()
+  if (REWRITABLE_IMAGE_HOSTS.has(host)) {
+    return `https://${BANGUMI_IMAGE_HOST_BANGUMI}${m[3]}`
+  }
+  return src
+}
+
 /** 生成 Bangumi 条目页面 URL（固定跳转官方 bgm.tv） */
 export function bangumiSubjectUrl(id: number | string): string {
   return `https://bgm.tv/subject/${id}`
