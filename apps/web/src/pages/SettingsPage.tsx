@@ -32,7 +32,7 @@ import {
   submitSingleSubjectToGithub,
   useCustomOpedStore,
 } from '../lib/custom-oped-store'
-import { fetchBangumiOpedData } from '../lib/bangumi-oped'
+import { fetchBangumiOpedDetail } from '../lib/bangumi-oped'
 
 /** Sort plugins by user-defined order, falling back to weight > alphabetical. */
 function sortPluginsByOrder(
@@ -538,8 +538,8 @@ export function SettingsPage() {
                         type="button"
                         onClick={async () => {
                           setOpedToast(`正在拉取 Subject ${subId} 官方数据并合并…`)
-                          const officialData = await fetchBangumiOpedData(subId)
-                          const txt = buildBangumiOpedContent(officialData, sub.episodes)
+                          const remote = await fetchBangumiOpedDetail(subId)
+                          const txt = buildBangumiOpedContent(remote.data, sub.episodes)
                           await navigator.clipboard.writeText(txt)
                           setOpedToast(`已复制 Subject ${subId} 的合并全量 txt 格式（含官方底本与本地标记）`)
                           setTimeout(() => setOpedToast(''), 3000)
@@ -553,11 +553,10 @@ export function SettingsPage() {
                         type="button"
                         onClick={async () => {
                           setOpedToast(`正在拉取 Subject ${subId} 官方数据并准备 PR…`)
-                          const officialData = await fetchBangumiOpedData(subId)
-                          const txt = buildBangumiOpedContent(officialData, sub.episodes)
-                          const existsOnRemote = Boolean(officialData && officialData.size > 0)
-                          const diff = diffSubjectOped(subId, officialData, sub.episodes, sub.totalEpisodes)
-                          const res = await submitSingleSubjectToGithub(subId, txt, existsOnRemote, diff.commitMessage)
+                          const remote = await fetchBangumiOpedDetail(subId)
+                          const txt = buildBangumiOpedContent(remote.data, sub.episodes)
+                          const diff = diffSubjectOped(subId, remote.data, sub.episodes, sub.totalEpisodes)
+                          const res = await submitSingleSubjectToGithub(subId, txt, remote.exists, diff.commitMessage)
                           if (res.method === 'edit_file_clipboard') {
                             setOpedToast('最新全量合并数据已复制！请在 GitHub 编辑页按 Ctrl+A 全选并 Ctrl+V 粘贴覆盖')
                           } else {
@@ -597,10 +596,10 @@ export function SettingsPage() {
                     const files: { path: string; content: string }[] = []
                     for (const [idStr, sub] of Object.entries(opedSubjects)) {
                       const subId = Number(idStr)
-                      const official = await fetchBangumiOpedData(subId)
-                      const txt = buildBangumiOpedContent(official, sub.episodes)
+                      const remote = await fetchBangumiOpedDetail(subId)
+                      const txt = buildBangumiOpedContent(remote.data, sub.episodes)
                       files.push({
-                        path: `data/${subId}/${subId}.txt`,
+                        path: `${subId}/${subId}.txt`,
                         content: txt,
                       })
                     }
@@ -611,13 +610,32 @@ export function SettingsPage() {
                     a.download = `bangumi-oped-custom-${new Date().toISOString().slice(0, 10)}.zip`
                     a.click()
                     URL.revokeObjectURL(url)
-                    setOpedToast('已生成并下载合并全量 ZIP 包！')
-                    setTimeout(() => setOpedToast(''), 3000)
+                    setOpedToast('已生成并下载合并全量 ZIP 包！解压后进入目录全选里面的文件夹拖入 GitHub 即可')
+                    setTimeout(() => setOpedToast(''), 6000)
                   }}
                   className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-1.5 text-xs font-medium text-[var(--kz-fg)] hover:bg-[var(--kz-bg-elevated)] cursor-pointer"
+                  title="打包下载包含官方已有集数与本地标记的全量 txt 数据包"
                 >
                   📦 打包下载全量 ZIP
                 </button>
+                <a
+                  href="https://github.com/uerax/bangumi-oped/upload/data"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-xs font-semibold text-sky-600 dark:text-sky-400 hover:bg-sky-500/20 transition-colors"
+                  title="解压 ZIP 后，进入解压目录全选里面的数字文件夹（如 352410）直接拖入该页面即可一键提交 Pull Request"
+                >
+                  <span>📂 前往 GitHub 批量上传</span>
+                  <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 16 16" fill="none">
+                    <path
+                      d="M6 3.5H3.5C2.67 3.5 2 4.17 2 5V12.5C2 13.33 2.67 14 3.5 14H11C11.83 14 12.5 13.33 12.5 12.5V10M9.5 2H14M14 2V6.5M14 2L6.5 9.5"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </a>
                 {opedToast && <span className="text-xs text-emerald-400 font-medium">{opedToast}</span>}
               </div>
               <button

@@ -234,6 +234,7 @@ export function MobileControls(props: PlayerControlsProps) {
   }
 
   const isDraggingRef = useRef(false)
+  const [dragRatio, setDragRatio] = useState<number | null>(null)
   const seekWrapRef = useRef<HTMLDivElement>(null)
 
   const calcSeekRatio = (clientX: number) => {
@@ -255,13 +256,13 @@ export function MobileControls(props: PlayerControlsProps) {
       /* ignore */
     }
     const ratio = calcSeekRatio(e.clientX)
-    onSeekRatio(ratio)
+    setDragRatio(ratio)
   }
 
   const handleSeekPointerMove = (e: PointerEvent<HTMLDivElement>) => {
     if (isDraggingRef.current) {
       const ratio = calcSeekRatio(e.clientX)
-      onSeekRatio(ratio)
+      setDragRatio(ratio)
     }
   }
 
@@ -275,8 +276,13 @@ export function MobileControls(props: PlayerControlsProps) {
       } catch {
         /* ignore */
       }
+      const ratio = calcSeekRatio(e.clientX)
+      setDragRatio(null)
+      onSeekRatio(ratio)
     }
   }
+
+  const effectiveProgress = dragRatio !== null ? dragRatio * 100 : progress
 
   const barRef = useRef<HTMLDivElement>(null)
   const srBtnRef = useRef<HTMLButtonElement>(null)
@@ -479,9 +485,9 @@ export function MobileControls(props: PlayerControlsProps) {
             className="kz-seek"
             min={0}
             max={1000}
-            value={Math.round(progress * 10)}
+            value={Math.round(effectiveProgress * 10)}
             onChange={(e) => onSeekRatio(Number(e.target.value) / 1000)}
-            style={{ ['--kz-progress' as string]: `${progress}%` }}
+            style={{ ['--kz-progress' as string]: `${effectiveProgress}%` }}
             aria-label="进度"
           />
         </div>

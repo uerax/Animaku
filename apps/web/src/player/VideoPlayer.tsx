@@ -128,6 +128,8 @@ export function VideoPlayer({
   const danmakuContentKeyRef = useRef('')
   const skipBusyRef = useRef(false)
   const isSeekingRef = useRef(false)
+  const pendingSeekTargetRef = useRef<number | null>(null)
+  const seekLockExpiryRef = useRef(0)
   const resumedRef = useRef(false)
   /** Suppress volumechange → settings during softPlay mute dance. */
   const ignoreVolumePersistRef = useRef(false)
@@ -1019,6 +1021,25 @@ export function VideoPlayer({
       const d = video.duration
       const t = video.currentTime
       const now = Date.now()
+
+      // Suppress stale timeupdates right after a seek in Safari/WebKit to prevent scrubber jitter
+      if (pendingSeekTargetRef.current !== null) {
+        if (now < seekLockExpiryRef.current) {
+          if (Math.abs(t - pendingSeekTargetRef.current) > 0.6) {
+            // Still on stale time from before the seek; do not clobber optimistic UI
+            return
+          }
+        }
+        pendingSeekTargetRef.current = null
+      }
+
+      // Once frames advance or are paintable, immediately drop any lingering seek/buffering spinner
+      if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+        setSeekingUi(false)
+        hideBufferingUi()
+        isSeekingRef.current = false
+      }
+
       const floor = Math.floor(t)
       // UI progress: ~4Hz, always commit on whole-second change (scrubber label)
       if (now - lastUiProgressRef.current >= 250 || floor !== lastUiFloor) {
@@ -1166,24 +1187,18 @@ export function VideoPlayer({
       }
     }
     const onSeeked = () => {
-      const clearSeekUi = () => {
-        isSeekingRef.current = false
+      pendingSeekTargetRef.current = null
+      isSeekingRef.current = false
+      // If we have paintable data ready (or buffer ahead), drop seeking/stall spinner immediately
+      if (
+        video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA ||
+        bufferedAhead(video) > 0
+      ) {
         setSeekingUi(false)
-      }
-      // Buffered seek: drop chrome immediately. Hole: keep until canplay/playing.
-      try {
-        const t = video.currentTime
-        for (let i = 0; i < video.buffered.length; i++) {
-          if (t >= video.buffered.start(i) && t <= video.buffered.end(i) - 0.1) {
-            clearSeekUi()
-            return
-          }
-        }
-      } catch {
-        /* ignore */
+        hideBufferingUi()
+        return
       }
       setSeekingUi(true)
-      setTimeout(clearSeekUi, 1200)
     }
 
     /**
@@ -1268,6 +1283,8 @@ export function VideoPlayer({
         clearResumePoll()
         bufferGatePausedRef.current = false
         hideBufferingUi()
+        setSeekingUi(false)
+        isSeekingRef.current = false
         if (video.paused) {
           void video.play().catch(() => {
             /* autoplay / user gesture */
@@ -1309,6 +1326,7 @@ export function VideoPlayer({
       }
     }
     const onCanPlay = () => {
+      pendingSeekTargetRef.current = null
       setSeekingUi(false)
       isSeekingRef.current = false
       tryResumeFromBuffer()
@@ -1317,6 +1335,7 @@ export function VideoPlayer({
     }
     const onPlayingClear = () => {
       // Frames painting again → no stall chrome
+      pendingSeekTargetRef.current = null
       bufferGatePausedRef.current = false
       hideBufferingUi()
       setSeekingUi(false)
@@ -1395,12 +1414,12 @@ export function VideoPlayer({
       } else if (k === 'arrowleft') {
         e.preventDefault()
         const nextTime = Math.max(0, v.currentTime - 5)
-        v.currentTime = nextTime
+        applySeek(v, nextTime)
         flashSkipHint(`⏪ -5s (${formatTime(nextTime)})`, 1000)
       } else if (k === 'arrowright') {
         e.preventDefault()
         const nextTime = Math.min(v.duration || 0, v.currentTime + 5)
-        v.currentTime = nextTime
+        applySeek(v, nextTime)
         flashSkipHint(`⏩ +5s (${formatTime(nextTime)})`, 1000)
       } else if (k === 'arrowup') {
         e.preventDefault()
@@ -2007,6 +2026,25 @@ export function VideoPlayer({
   }
   toggleFsRef.current = toggleFs
 
+  function applySeek(v: HTMLVideoElement, targetTime: number) {
+    const safeTarget = Math.max(0, targetTime)
+    // Safari / WebKit native fastSeek for rapid keyframe-accurate seeking
+    if (
+      typeof (v as HTMLVideoElement & { fastSeek?: (time: number) => void })
+        .fastSeek === 'function'
+    ) {
+      try {
+        ;(
+          v as HTMLVideoElement & { fastSeek: (time: number) => void }
+        ).fastSeek(safeTarget)
+        return
+      } catch {
+        /* fallback to currentTime */
+      }
+    }
+    v.currentTime = safeTarget
+  }
+
   function seekRatio(ratio: number) {
     const v = videoRef.current
     if (!v || !Number.isFinite(v.duration) || v.duration <= 0) return
@@ -2019,6 +2057,11 @@ export function VideoPlayer({
       const formattedDelta = `${sign}${formatTime(Math.abs(delta))}`
       flashSkipHint(`${formattedDelta} (${formattedTarget})`, 1000)
     }
+
+    // Optimistically lock UI current progress to prevent Safari timeupdate bounce
+    setCurrent(target)
+    pendingSeekTargetRef.current = target
+    seekLockExpiryRef.current = Date.now() + 1500
 
     // Spinner only when target is outside buffered ranges (nothing to paint).
     // In-buffer scrub stays silent.
@@ -2036,18 +2079,22 @@ export function VideoPlayer({
     isSeekingRef.current = true
     setSeekingUi(!covered)
     try {
-      v.currentTime = target
+      applySeek(v, target)
     } catch {
       setSeekingUi(false)
       isSeekingRef.current = false
+      pendingSeekTargetRef.current = null
     }
   }
 
   function seekTo(targetTime: number) {
     const v = videoRef.current
     if (!v) return
-    const target = Math.max(0, targetTime)
-    v.currentTime = target
+    const safeTarget = Math.max(0, targetTime)
+    setCurrent(safeTarget)
+    pendingSeekTargetRef.current = safeTarget
+    seekLockExpiryRef.current = Date.now() + 1500
+    applySeek(v, safeTarget)
   }
 
   function handleDrop(e: DragEvent) {

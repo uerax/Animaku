@@ -132,6 +132,15 @@ bangumiRoutes.get('/calendar', async (c) => {
   return c.json(payload, 200, cacheHeaders(false))
 })
 
+function getCurrentSeasonAirDate(): string {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = now.getMonth() + 1 // 1-12
+  const seasonMonth = Math.floor((month - 1) / 3) * 3 + 1
+  const padMonth = String(seasonMonth).padStart(2, '0')
+  return `${year}-${padMonth}-01`
+}
+
 bangumiRoutes.get('/trending', async (c) => {
   const limit = c.req.query('limit') || '24'
   const offset = c.req.query('offset') || '0'
@@ -148,19 +157,16 @@ bangumiRoutes.get('/trending', async (c) => {
   let success = false
   let lastError = 'upstream'
 
-  // Attempt 1: p1/trending/subjects (next.bgm.tv / mirror)
+  // Attempt 1: p1/trending/subjects (provided by next.bgm.tv)
   try {
-    const trendingBase = apiHost.includes('api.bgm.tv')
-      ? config.bangumiNextApi
-      : apiUrl
-    const url = new URL(`${trendingBase}/p1/trending/subjects`)
+    const url = new URL(`${config.bangumiNextApi}/p1/trending/subjects`)
     url.searchParams.set('type', type)
     url.searchParams.set('limit', limit)
     url.searchParams.set('offset', offset)
     const res = await bangumiFetch(url.toString())
     if (res.ok) {
       const json = (await res.json()) as { data?: unknown[] }
-      if (Array.isArray(json.data)) {
+      if (Array.isArray(json.data) && json.data.length > 0) {
         for (const entry of json.data) {
           try {
             const e = entry as Record<string, unknown>
@@ -170,7 +176,9 @@ bangumiRoutes.get('/trending', async (c) => {
             /* skip */
           }
         }
-        success = true
+        if (items.length > 0) {
+          success = true
+        }
       }
     } else {
       lastError = await res.text()
@@ -179,9 +187,10 @@ bangumiRoutes.get('/trending', async (c) => {
     lastError = err instanceof Error ? err.message : String(err)
   }
 
-  // Attempt 2: Fallback to /v0/search/subjects sorted by heat
+  // Attempt 2: Fallback to /v0/search/subjects filtered by current season and sorted by heat
   if (!success) {
     try {
+      const seasonStart = getCurrentSeasonAirDate()
       const searchUrl = `${apiUrl}/v0/search/subjects?limit=${limit}&offset=${offset}`
       const res = await bangumiFetch(searchUrl, {
         method: 'POST',
@@ -191,7 +200,7 @@ bangumiRoutes.get('/trending', async (c) => {
           filter: {
             type: [Number(type) || 2],
             nsfw: false,
-            rank: ['>=0', '<=99999'],
+            air_date: [`>=${seasonStart}`],
           },
         }),
       })
@@ -205,7 +214,9 @@ bangumiRoutes.get('/trending', async (c) => {
             /* skip */
           }
         }
-        success = true
+        if (items.length > 0) {
+          success = true
+        }
       } else {
         lastError = await res.text()
       }

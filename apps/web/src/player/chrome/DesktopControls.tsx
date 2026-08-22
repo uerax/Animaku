@@ -217,6 +217,7 @@ export function DesktopControls(props: PlayerControlsProps) {
   }
 
   const isDraggingRef = useRef(false)
+  const [dragRatio, setDragRatio] = useState<number | null>(null)
   const seekWrapRef = useRef<HTMLDivElement>(null)
 
   const calcSeekRatio = (clientX: number) => {
@@ -238,15 +239,15 @@ export function DesktopControls(props: PlayerControlsProps) {
       /* ignore */
     }
     const ratio = calcSeekRatio(e.clientX)
+    setDragRatio(ratio)
     setHoverRatio(ratio)
-    onSeekRatio(ratio)
   }
 
   const handleSeekPointerMove = (e: PointerEvent<HTMLDivElement>) => {
     const ratio = calcSeekRatio(e.clientX)
     setHoverRatio(ratio)
     if (isDraggingRef.current) {
-      onSeekRatio(ratio)
+      setDragRatio(ratio)
     }
   }
 
@@ -260,6 +261,10 @@ export function DesktopControls(props: PlayerControlsProps) {
       } catch {
         /* ignore */
       }
+      const ratio = calcSeekRatio(e.clientX)
+      setDragRatio(null)
+      onSeekRatio(ratio)
+
       const el = seekWrapRef.current
       if (el) {
         const rect = el.getBoundingClientRect()
@@ -282,6 +287,8 @@ export function DesktopControls(props: PlayerControlsProps) {
       setHoverRatio(null)
     }
   }
+
+  const effectiveProgress = dragRatio !== null ? dragRatio * 100 : progress
 
   return (
     <div
@@ -361,9 +368,9 @@ export function DesktopControls(props: PlayerControlsProps) {
           className="kz-seek"
           min={0}
           max={1000}
-          value={Math.round(progress * 10)}
+          value={Math.round(effectiveProgress * 10)}
           onChange={(e) => onSeekRatio(Number(e.target.value) / 1000)}
-          style={{ ['--kz-progress' as string]: `${progress}%` }}
+          style={{ ['--kz-progress' as string]: `${effectiveProgress}%` }}
           aria-label="进度"
         />
       </div>

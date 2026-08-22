@@ -121,31 +121,50 @@ export function getSkipForEpisode(
 
 // ── Fetcher ────────────────────────────────────────────────────────────────
 
+export interface BgmOpedRemoteDetail {
+  /** 远端仓库中是否存在该文件 (200 OK 为 true, 404 为 false，包含空占位文件) */
+  exists: boolean
+  /** 远端解析出的 OP/ED 条目映射 (若为空占位文件或格式不匹配则 size 为 0) */
+  data: Map<number, BgmOpedEntry>
+  /** 远端原始文本 */
+  rawText: string
+}
+
+/**
+ * 获取指定 Bangumi Subject 的远端 OP/ED 详细信息与文件存在性
+ * 精准区分「404 文件不存在」与「200 文件存在但为空占位文件/0字节」
+ */
+export async function fetchBangumiOpedDetail(
+  subjectId: number,
+  signal?: AbortSignal,
+): Promise<BgmOpedRemoteDetail> {
+  const url = `${BANGUMI_OPED_BASE}/${subjectId}/${subjectId}.txt`
+  try {
+    const res = await fetch(url, { signal })
+    if (res.status === 404) {
+      return { exists: false, data: new Map(), rawText: '' }
+    }
+    if (res.ok) {
+      const rawText = await res.text()
+      const data = parseBgmOpedData(rawText)
+      return { exists: true, data, rawText }
+    }
+  } catch {
+    // network or abort error
+  }
+  return { exists: false, data: new Map(), rawText: '' }
+}
+
 /**
  * Fetch and parse the OP/ED data file for a given Bangumi Subject ID.
- * Returns parsed Map or null on any failure (404, network, parse error).
+ * Returns parsed Map or null on any failure (404, network, empty file, parse error).
  */
 export async function fetchBangumiOpedData(
   subjectId: number,
   signal?: AbortSignal,
 ): Promise<Map<number, BgmOpedEntry> | null> {
-  const url = `${BANGUMI_OPED_BASE}/${subjectId}/${subjectId}.txt`
-  let res: Response
-  try {
-    res = await fetch(url, { signal })
-  } catch {
-    return null
-  }
-  if (!res.ok) {
-    return null
-  }
-  try {
-    const text = await res.text()
-    const data = parseBgmOpedData(text)
-    return data.size > 0 ? data : null
-  } catch {
-    return null
-  }
+  const detail = await fetchBangumiOpedDetail(subjectId, signal)
+  return detail.exists && detail.data.size > 0 ? detail.data : null
 }
 
 // ── React Hooks ────────────────────────────────────────────────────────────

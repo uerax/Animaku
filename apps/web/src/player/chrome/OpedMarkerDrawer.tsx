@@ -8,9 +8,10 @@
  * 4. 采用项目统一的 CSS 变量 tokens（支持明暗双色主题）；
  * 5. 全剧进度矩阵 + Diff 语义分析 + 0 Token 直达 GitHub PR 与复制 txt。
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { BgmOpedEntry } from '../../lib/bangumi-oped'
+import { fetchBangumiOpedDetail } from '../../lib/bangumi-oped'
 import {
   buildBangumiOpedContent,
   diffSubjectOped,
@@ -67,7 +68,7 @@ function DesktopCard(props: OpedMarkerDrawerProps) {
   return (
     <div
       className="kz-oped-panel kz-oped-panel--desktop flex w-[min(24rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)]/98 text-[var(--kz-fg)] shadow-2xl backdrop-blur-2xl pointer-events-auto"
-      style={{ maxHeight: 'min(34rem, calc(100dvh - 6rem))' }}
+      style={{ maxHeight: 'min(27rem, calc(100dvh - 6rem))' }}
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
@@ -95,7 +96,7 @@ function MobileSheet(props: OpedMarkerDrawerProps) {
         onPointerDown={(e) => e.stopPropagation()}
       />
       <div
-        className="fixed inset-0 z-[99999] m-auto flex flex-col w-[90%] max-w-[24rem] h-[82dvh] max-h-[38rem] bg-[var(--kz-bg-elevated)]/98 text-[var(--kz-fg)] backdrop-blur-2xl border border-[var(--kz-border)] rounded-2xl shadow-2xl overflow-hidden pointer-events-auto animate-in zoom-in-95 duration-150"
+        className="fixed inset-0 z-[99999] m-auto flex flex-col w-[90%] max-w-[24rem] h-[66dvh] max-h-[30rem] bg-[var(--kz-bg-elevated)]/98 text-[var(--kz-fg)] backdrop-blur-2xl border border-[var(--kz-border)] rounded-2xl shadow-2xl overflow-hidden pointer-events-auto animate-in zoom-in-95 duration-150"
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
@@ -126,14 +127,29 @@ function OpedPanelContent({
   const [activeEp, setActiveEp] = useState<number>(episodeNumber)
   const [submitting, setSubmitting] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [showPreviewTxt, setShowPreviewTxt] = useState(false)
-  const [prSubmittedGuide, setPrSubmittedGuide] = useState(false)
+  const [epDropdownOpen, setEpDropdownOpen] = useState(false)
+  const epSelectRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (episodeNumber > 0) {
       setActiveEp(episodeNumber)
     }
   }, [episodeNumber])
+
+  useEffect(() => {
+    if (!epDropdownOpen) return
+    const onDocDismiss = (e: MouseEvent | PointerEvent) => {
+      if (!epSelectRef.current?.contains(e.target as Node)) {
+        setEpDropdownOpen(false)
+      }
+    }
+    window.addEventListener('click', onDocDismiss, true)
+    window.addEventListener('pointerdown', onDocDismiss, true)
+    return () => {
+      window.removeEventListener('click', onDocDismiss, true)
+      window.removeEventListener('pointerdown', onDocDismiss, true)
+    }
+  }, [epDropdownOpen])
 
   const store = useCustomOpedStore()
   const subjectRecord = store.subjects[bangumiId]
@@ -233,8 +249,13 @@ function OpedPanelContent({
   const handleCopyTxt = async () => {
     const id = Number(bangumiId)
     if (!id) return
+    let effectiveOfficial = officialOpedData
+    if (!effectiveOfficial) {
+      const remote = await fetchBangumiOpedDetail(id)
+      effectiveOfficial = remote.data
+    }
     const liveEpisodes = useCustomOpedStore.getState().subjects[id]?.episodes
-    const txt = buildBangumiOpedContent(officialOpedData, liveEpisodes)
+    const txt = buildBangumiOpedContent(effectiveOfficial, liveEpisodes)
     try {
       await navigator.clipboard.writeText(txt)
       setCopied(true)
@@ -250,19 +271,20 @@ function OpedPanelContent({
     const id = Number(bangumiId)
     if (!id) return
     setSubmitting(true)
-    const liveEpisodes = useCustomOpedStore.getState().subjects[id]?.episodes
-    const txt = buildBangumiOpedContent(officialOpedData, liveEpisodes)
-    const existsOnRemote = Boolean(officialOpedData && officialOpedData.size > 0)
-    const liveDiff = diffSubjectOped(id, officialOpedData, liveEpisodes, displayTotalEpisodes)
     try {
+      // 动态拉取最新的远端数据与状态，精准识别文件是否存在（含空占位文件）
+      const remote = await fetchBangumiOpedDetail(id)
+      const effectiveOfficial = remote.data.size > 0 ? remote.data : officialOpedData
+      const liveEpisodes = useCustomOpedStore.getState().subjects[id]?.episodes
+      const txt = buildBangumiOpedContent(effectiveOfficial, liveEpisodes)
+      const liveDiff = diffSubjectOped(id, effectiveOfficial, liveEpisodes, displayTotalEpisodes)
       const res = await submitSingleSubjectToGithub(
         id,
         txt,
-        existsOnRemote,
+        remote.exists,
         liveDiff.commitMessage,
       )
       if (res.method === 'edit_file_clipboard') {
-        setPrSubmittedGuide(true)
         onToast?.('最新全量合并数据已写入剪贴板！')
       } else {
         onToast?.('已打开 GitHub 新建文件 PR 页面')
@@ -304,17 +326,62 @@ function OpedPanelContent({
           <div>
             <div className="flex items-center gap-1.5 font-medium text-[var(--kz-fg)]">
               <span>正在标记：</span>
-              <select
-                value={activeEp}
-                onChange={(e) => setActiveEp(Number(e.target.value))}
-                className="rounded-md bg-[var(--kz-bg)] px-2 py-0.5 font-semibold text-sky-600 dark:text-sky-400 outline-none border border-[var(--kz-border)]"
-              >
-                {episodesList.map((ep) => (
-                  <option key={ep} value={ep}>
-                    第 {ep} 集 {ep === episodeNumber ? '(当前播放)' : ''}
-                  </option>
-                ))}
-              </select>
+              <div ref={epSelectRef} className="relative inline-block">
+                <button
+                  type="button"
+                  onClick={() => setEpDropdownOpen((v) => !v)}
+                  className="flex items-center gap-1 rounded-md bg-[var(--kz-bg)] px-2 py-0.5 font-semibold text-sky-600 dark:text-sky-400 outline-none border border-[var(--kz-border)] hover:border-sky-500/40 cursor-pointer transition-colors text-xs select-none"
+                >
+                  <span>
+                    第 {activeEp} 集{activeEp === episodeNumber ? ' (在播)' : ''}
+                  </span>
+                  <svg
+                    className={`w-3 h-3 text-[var(--kz-fg-muted)] shrink-0 transition-transform duration-150 ${
+                      epDropdownOpen ? 'rotate-180' : ''
+                    }`}
+                    viewBox="0 0 16 16"
+                    fill="none"
+                  >
+                    <path
+                      d="M4 6.2L8 10.2L12 6.2"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+                {epDropdownOpen && (
+                  <div className="absolute left-0 top-[calc(100%+4px)] z-[100] min-w-[9.5rem] max-h-48 overflow-y-auto overscroll-contain rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-1 shadow-2xl backdrop-blur-2xl animate-in fade-in-50 zoom-in-95 duration-100">
+                    {episodesList.map((ep) => {
+                      const isCurrentPlay = ep === episodeNumber
+                      const isSelected = ep === activeEp
+                      return (
+                        <button
+                          key={ep}
+                          type="button"
+                          onClick={() => {
+                            setActiveEp(ep)
+                            setEpDropdownOpen(false)
+                          }}
+                          className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-[11px] transition-colors border-0 cursor-pointer ${
+                            isSelected
+                              ? 'bg-sky-500/15 font-semibold text-sky-600 dark:text-sky-400'
+                              : 'text-[var(--kz-fg)] hover:bg-[var(--kz-bg-soft)]'
+                          }`}
+                        >
+                          <span>第 {ep} 集</span>
+                          {isCurrentPlay && (
+                            <span className="rounded bg-sky-500/20 px-1 py-0.2 text-[9px] font-bold text-sky-600 dark:text-sky-400">
+                              当前播放
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
             <p className="mt-1 text-[11px] text-[var(--kz-fg-muted)]">
               当前播放进度: <span className="font-mono text-[var(--kz-fg)] font-semibold">{formatTime(currentTime)}</span> /{' '}
@@ -612,7 +679,7 @@ function OpedPanelContent({
             <span>全剧标记总览</span>
             <span className="text-[11px] text-[var(--kz-fg-dim)]">点击切换集数</span>
           </div>
-          <div className="max-h-44 overflow-y-auto overscroll-contain rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] p-1.5 space-y-1">
+          <div className="max-h-36 overflow-y-auto overscroll-contain rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] p-1.5 space-y-1">
             {episodesList.map((ep) => {
               const diff = diffResult.diffMap[ep]
 
@@ -680,86 +747,24 @@ function OpedPanelContent({
           </div>
         )}
 
-        {/* 编辑已有文件粘贴向导横幅 */}
-        {prSubmittedGuide && (
-          <div className="rounded-xl border border-amber-300 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 p-2.5 text-xs text-amber-900 dark:text-amber-200/90 space-y-1.5 animate-in fade-in duration-150 shadow-sm">
-            <div className="flex items-center justify-between font-bold text-amber-950 dark:text-amber-300">
-              <span>📋 全量合并数据已写入剪贴板</span>
-              <button
-                type="button"
-                onClick={() => setPrSubmittedGuide(false)}
-                className="text-amber-700 hover:text-amber-950 dark:text-amber-400 dark:hover:text-amber-200 border-0 bg-transparent cursor-pointer text-xs"
-              >
-                ✕
-              </button>
-            </div>
-            <p className="text-[11px] leading-relaxed font-medium">
-              GitHub 编辑页已在后台打开。因 GitHub 限制，请在编辑框中按 <kbd className="rounded bg-amber-200/80 dark:bg-black/40 text-amber-950 dark:text-amber-300 border border-amber-300/80 dark:border-transparent px-1 py-0.5 font-mono font-bold shadow-xs">Ctrl+A</kbd> 全选，再按 <kbd className="rounded bg-amber-200/80 dark:bg-black/40 text-amber-950 dark:text-amber-300 border border-amber-300/80 dark:border-transparent px-1 py-0.5 font-mono font-bold shadow-xs">Ctrl+V</kbd> 粘贴覆盖，即可提交包含官方原集数与本地打标的完整 PR！
-            </p>
-            <div className="flex gap-1.5 pt-0.5">
-              <button
-                type="button"
-                onClick={handleCopyTxt}
-                className="rounded bg-amber-100 hover:bg-amber-200/90 dark:bg-amber-500/20 px-2 py-1 text-[11px] font-semibold text-amber-950 dark:text-amber-300 border border-amber-300/60 dark:border-transparent cursor-pointer transition-colors"
-              >
-                再次复制全量数据
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const id = Number(bangumiId)
-                  if (!id) return
-                  const filename = `${id}/${id}.txt`
-                  const liveEpisodes = useCustomOpedStore.getState().subjects[id]?.episodes
-                  const liveDiff = diffSubjectOped(id, officialOpedData, liveEpisodes, displayTotalEpisodes)
-                  const commitMsg = encodeURIComponent(liveDiff.commitMessage)
-                  window.open(`https://github.com/uerax/bangumi-oped/edit/data/${filename}?message=${commitMsg}`, '_blank')
-                }}
-                className="rounded bg-amber-100 hover:bg-amber-200/90 dark:bg-amber-500/20 px-2 py-1 text-[11px] font-semibold text-amber-950 dark:text-amber-300 border border-amber-300/60 dark:border-transparent cursor-pointer transition-colors"
-              >
-                重新打开 GitHub 编辑页
-              </button>
-            </div>
-          </div>
-        )}
-
         <div className="flex gap-2">
           <button
             type="button"
             onClick={handleCopyTxt}
-            className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] py-2 text-xs font-medium text-[var(--kz-fg)] hover:bg-[var(--kz-bg-elevated)] active:scale-[0.98] cursor-pointer transition-all"
+            className="flex-1 flex items-center justify-center gap-1 rounded-md border border-[var(--kz-border)] bg-[var(--kz-bg)] py-1 px-2 text-[10.5px] font-medium text-[var(--kz-fg)] hover:bg-[var(--kz-bg-elevated)] active:scale-[0.98] cursor-pointer transition-all shadow-2xs"
           >
-            {copied ? <IconCheck className="h-4 w-4 text-emerald-400" /> : <IconCopy className="h-4 w-4" />}
-            <span>{copied ? '已复制全量 txt' : '复制全量 txt'}</span>
+            {copied ? <IconCheck className="h-3 w-3 text-emerald-400" /> : <IconCopy className="h-3 w-3" />}
+            <span>{copied ? '已复制' : '复制全量'}</span>
           </button>
           <button
             type="button"
             onClick={handleSubmitPr}
             disabled={submitting}
-            className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-500 active:scale-[0.98] disabled:opacity-50 border-0 cursor-pointer transition-all"
+            className="flex-1 flex items-center justify-center gap-1 rounded-md bg-emerald-600 py-1 px-2 text-[10.5px] font-semibold text-white shadow-2xs hover:bg-emerald-500 active:scale-[0.98] disabled:opacity-50 border-0 cursor-pointer transition-all"
           >
-            <IconLink className="h-4 w-4" />
-            <span>{submitting ? '跳转中...' : '提交本番 PR'}</span>
+            <IconLink className="h-3 w-3" />
+            <span>{submitting ? '跳转中...' : '提交 PR'}</span>
           </button>
-        </div>
-
-        {/* 展开预览合并后 txt */}
-        <div className="pt-0.5">
-          <button
-            type="button"
-            onClick={() => setShowPreviewTxt((v) => !v)}
-            className="w-full text-[10.5px] text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] text-center bg-transparent border-0 cursor-pointer"
-          >
-            {showPreviewTxt ? '▲ 折叠合并后 txt 预览' : '▼ 查看合并后完整 txt (含官方原有与本地标记)'}
-          </button>
-          {showPreviewTxt && (
-            <textarea
-              readOnly
-              rows={4}
-              value={buildBangumiOpedContent(officialOpedData, subjectRecord?.episodes)}
-              className="mt-1.5 w-full rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] p-2 font-mono text-[10.5px] text-[var(--kz-fg)] outline-none resize-y"
-            />
-          )}
         </div>
       </div>
     </>

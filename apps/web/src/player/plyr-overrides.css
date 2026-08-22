@@ -1750,7 +1750,7 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   transform: translateX(-50%) !important;
   transform-origin: bottom center;
   z-index: 85;
-  max-height: min(34rem, calc(100vh - 6rem)) !important;
+  max-height: min(27rem, calc(100vh - 6rem)) !important;
   animation: kz-settings-popover-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
