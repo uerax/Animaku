@@ -4,6 +4,21 @@
 
 ---
 
+## [2026-08-22] 播放页简介封面跳转链接直接写死官方 Bangumi 详情页 (https://bgm.tv/subject/:id)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **排查与重构**：
+     - `packages/shared/src/bangumi-endpoint.ts` 中的 `bangumiSubjectUrl` 此前根据当前 API 代理状态动态切换至镜像域名（`bgmmi.anibt.net`）；
+     - 跳转页面属于用户浏览器端直接访问的外链，与图片 CDN/API 代理无关；
+     - 将 `bangumiSubjectUrl(id)` 彻底简化，直接写死返回 `https://bgm.tv/subject/${id}`；
+     - 同步将 `bangumiOAuthUrl()` 写死返回 `https://bgm.tv/demo/access-token`；
+     - `apps/web/src/pages/SettingsPage.tsx` 中的令牌页链接直接调用 `bangumiOAuthUrl()`。
+- 涉及文件：packages/shared/src/bangumi-endpoint.ts, apps/web/src/pages/SettingsPage.tsx, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 3 个 workspace 0 报错通过，`pnpm build` 全量生产打包构建通过。
+
+---
+
 ## [2026-08-22] 落地全栈 SEO 深度升级（192px Favicon + 大图预览指令 + BreadcrumbList 面包屑 + 图片 Alt 语义化）
 - 状态：已完成
 - 优先级：P1

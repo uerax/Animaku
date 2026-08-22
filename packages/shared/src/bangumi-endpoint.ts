@@ -144,25 +144,12 @@ export function bangumiImageUrl(url: string): string {
   return `${m[1]}//${currentImageHost}${m[3]}`
 }
 
-/** 生成 Bangumi 条目页面 URL（根据当前 API/镜像源自动匹配或自定义 host） */
-export function bangumiSubjectUrl(
-  id: number | string,
-  customHost?: string | null,
-): string {
-  const host = customHost
-    ? normalizeBangumiWebHost(customHost)
-    : currentApiHost === BANGUMI_API_HOST_MIRROR
-      ? BANGUMI_WEB_HOST_MIRROR
-      : BANGUMI_WEB_HOST_BANGUMI
-  return `https://${host}/subject/${id}`
+/** 生成 Bangumi 条目页面 URL（固定跳转官方 bgm.tv） */
+export function bangumiSubjectUrl(id: number | string): string {
+  return `https://bgm.tv/subject/${id}`
 }
 
-/** 生成 Bangumi OAuth / Access Token 页面 URL */
-export function bangumiOAuthUrl(customHost?: string | null): string {
-  const host = customHost
-    ? normalizeBangumiWebHost(customHost)
-    : currentApiHost === BANGUMI_API_HOST_MIRROR
-      ? BANGUMI_WEB_HOST_MIRROR
-      : BANGUMI_WEB_HOST_BANGUMI
-  return `https://${host}/demo/access-token`
+/** 生成 Bangumi OAuth / Access Token 页面 URL（固定跳转官方 bgm.tv） */
+export function bangumiOAuthUrl(): string {
+  return 'https://bgm.tv/demo/access-token'
 }

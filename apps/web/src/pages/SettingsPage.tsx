@@ -443,7 +443,7 @@ export function SettingsPage() {
         <p className="text-sm text-[var(--kz-fg-muted)]">
           用于同步追番收藏。在{' '}
           <a
-            href={bangumiOAuthUrl(bangumiImageHost)}
+            href={bangumiOAuthUrl()}
             target="_blank"
             rel="noreferrer"
             className="kz-link"
