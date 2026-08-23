@@ -119,6 +119,8 @@ Browser Client (Vite 5173 / Production Web)
 | `MEDIA_FULL_PROXY` | `0` | **默认关闭**：媒体代理仅允许 M3U8 列表（切片直连 CDN）；禁止 VPS 转发全量二进制大文件 |
 | `VITE_BANGUMI_API_HOST` / `BANGUMI_API_HOST` | `bgmapi.anibt.net` | Bangumi API 接口源（默认反代免翻；可选 `api.bgm.tv` 官方直连） |
 | `VITE_BANGUMI_IMAGE_HOST` / `BANGUMI_IMAGE_HOST` | `bgmimg.anibt.net` | Bangumi 封面图片源（默认反代免翻；可选 `lain.bgm.tv` 官方直连） |
+| `TZ` / `TIMEZONE` | `Asia/Shanghai` | 服务端日志输出时间及时间戳格式化时区 |
+| `LOG_FORMAT` | `pretty` | 服务端访问日志格式（`pretty` 高可读单行 / `json` 结构化单行） |
 
 - **SSRF 防御**：服务端所有发往第三方的请求必须使用 `fetchPublic`，严格拦截私有网段与内网 Host。
 - **权限不可提权**：客户端设置项保存在本地，服务器始终依据环境变量强制执行安全策略。

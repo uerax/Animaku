@@ -84,9 +84,25 @@ function resolveAppVersion(): string {
   return 'v1.1.1'
 }
 
+function resolveTimezone(): string {
+  const raw = (
+    process.env.TZ ||
+    process.env.TIMEZONE ||
+    process.env.LOG_TIMEZONE ||
+    'Asia/Shanghai'
+  ).trim()
+  return raw || 'Asia/Shanghai'
+}
+
 const dataDir = resolveDataDir()
 const appVersion = resolveAppVersion()
 const cleanVersion = appVersion.replace(/^v/, '')
+const timezone = resolveTimezone()
+
+// Ensure process.env.TZ is set so that standard Node.js APIs also respect the timezone
+if (!process.env.TZ) {
+  process.env.TZ = timezone
+}
 
 export const config = {
   /** Application semantic version (e.g. v1.1.1) */
@@ -189,4 +205,9 @@ export const config = {
    * Server access log output format: 'pretty' (default human-friendly) | 'json' (structured JSONL for ELK/Loki)
    */
   logFormat: (process.env.LOG_FORMAT || 'pretty').trim().toLowerCase() === 'json' ? ('json' as const) : ('pretty' as const),
+  /**
+   * Timezone for server logs and timestamp formatting (e.g. 'Asia/Shanghai', 'UTC').
+   * Configured via TZ, TIMEZONE, or LOG_TIMEZONE. Defaults to 'Asia/Shanghai'.
+   */
+  timezone,
 }

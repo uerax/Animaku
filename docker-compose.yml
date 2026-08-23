@@ -64,6 +64,7 @@ services:
       PLUGIN_SHOP: ${PLUGIN_SHOP:-}
       PLUGIN_SHOP_MIRROR: ${PLUGIN_SHOP_MIRROR:-}
       LOG_FORMAT: ${LOG_FORMAT:-pretty}
+      TZ: ${TZ:-Asia/Shanghai}
     env_file:
       - path: .env
         required: false

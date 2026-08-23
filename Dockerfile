@@ -61,7 +61,8 @@ ENV NODE_ENV=production \
     PORT=8787 \
     HOST=0.0.0.0 \
     WEB_DIST=public \
-    DATA_DIR=/app/data
+    DATA_DIR=/app/data \
+    TZ=Asia/Shanghai
 
 WORKDIR /app
 

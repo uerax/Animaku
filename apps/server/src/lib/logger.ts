@@ -208,15 +208,54 @@ export function parseClientDevice(
 // 3. Client IP & Timestamp Formatters
 // ==========================================
 
-export function formatLogTimestamp(d: Date = new Date()): string {
-  const pad = (n: number) => n.toString().padStart(2, '0')
-  const Y = d.getFullYear()
-  const M = pad(d.getMonth() + 1)
-  const D = pad(d.getDate())
-  const h = pad(d.getHours())
-  const m = pad(d.getMinutes())
-  const s = pad(d.getSeconds())
-  return `${Y}-${M}-${D} ${h}:${m}:${s}`
+let cachedLogFormatter: Intl.DateTimeFormat | null = null
+let cachedLogTz: string | null = null
+
+function getLogDateFormatter(tz: string = config.timezone): Intl.DateTimeFormat {
+  if (cachedLogFormatter && cachedLogTz === tz) {
+    return cachedLogFormatter
+  }
+  try {
+    cachedLogFormatter = new Intl.DateTimeFormat('sv-SE', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    })
+    cachedLogTz = tz
+  } catch {
+    cachedLogFormatter = new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    })
+    cachedLogTz = 'Asia/Shanghai'
+  }
+  return cachedLogFormatter
+}
+
+export function formatLogTimestamp(d: Date = new Date(), tz: string = config.timezone): string {
+  try {
+    return getLogDateFormatter(tz).format(d)
+  } catch {
+    const pad = (n: number) => n.toString().padStart(2, '0')
+    const Y = d.getFullYear()
+    const M = pad(d.getMonth() + 1)
+    const D = pad(d.getDate())
+    const h = pad(d.getHours())
+    const m = pad(d.getMinutes())
+    const s = pad(d.getSeconds())
+    return `${Y}-${M}-${D} ${h}:${m}:${s}`
+  }
 }
 
 export function getClientIp(req: { header: (name: string) => string | undefined }): string {

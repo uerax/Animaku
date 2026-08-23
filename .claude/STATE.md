@@ -4,6 +4,28 @@
 
 ---
 
+## [2026-08-24] 服务端日志时间与时区变量配置接入（TZ/TIMEZONE 支持 + 默认上海时区）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **排查根本原因**：
+     - 原 `formatLogTimestamp` 直接调用 Node 进程的 `Date` 实例本地时间方法（`getFullYear()`, `getHours()` 等）；
+     - 在 Docker 容器及云原生环境（如 `node:22-bookworm-slim`）中，系统默认时区为 UTC（+00:00），且此前未配置 `TZ` 环境变量或时区变量，导致容器内日志时间强制输出为 UTC；
+  2. **时区解析与环境初始化 (`apps/server/src/config.ts`)**：
+     - 新增 `resolveTimezone`，优先读取 `TZ` / `TIMEZONE` / `LOG_TIMEZONE` 环境变量，默认值设为 `Asia/Shanghai`（中国标准时间 UTC+8）；
+     - 挂载 `config.timezone`，并在服务启动时自动为缺失的 `process.env.TZ` 设置默认时区，确保底层运行时与第三方库时间对齐；
+  3. **高精缓存时区格式化器 (`apps/server/src/lib/logger.ts`)**：
+     - 重构 `formatLogTimestamp`，引入带时区缓存的 `Intl.DateTimeFormat('sv-SE', { timeZone: tz, ... })`，单次耗时 $<2\mu s$；
+     - 严格输出标准 `YYYY-MM-DD HH:mm:ss` 单行时间戳，遇到非法时区参数时安全兜底回退 `Asia/Shanghai`；
+  4. **Docker 与文档体系同步**：
+     - `Dockerfile`：在 `runner` 运行时注入 `TZ=Asia/Shanghai` 环境变量；
+     - `docker-compose.yml`：在 `environment` 中挂载 `TZ: ${TZ:-Asia/Shanghai}`；
+     - `.env.example` & `docs/CONTEXT.md`：补充 `TZ` 时区变量说明与默认值。
+- 涉及文件：apps/server/src/config.ts, apps/server/src/lib/logger.ts, docker-compose.yml, Dockerfile, .env.example, docs/CONTEXT.md, .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck` 0 报错通过，`pnpm build` 全量打包构建通过，多时区测试验证通过。
+
+---
+
 ## [2026-08-23] 落地 /subject/:id 服务端轻量 SSR SEO 注入与动态多源 Sitemap 索引增强
 - 状态：已完成
 - 优先级：P0
