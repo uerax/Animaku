@@ -1,7 +1,7 @@
 {
   "name": "Animaku",
   "short_name": "Animaku",
-  "description": "Animaku 动漫 - 免费在线追番 ｜ 高清动画播放与弹幕客户端",
+  "description": "Animaku 动漫 - 在线高清动画多源聚合弹幕平台",
   "lang": "zh-CN",
   "start_url": "/",
   "scope": "/",

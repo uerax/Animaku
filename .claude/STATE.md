@@ -241,8 +241,8 @@
 - 描述：
   1. **首页 Title 与 Meta Description 关键词体系升级**：
      - 将首页标题与默认描述由干瘪的 `发现 · Animaku` 升级为用户指定的丰富业务文案：
-       - **Title**：`Animaku 动漫 - 免费在线追番 ｜ 高清动画播放与弹幕客户端`；
-       - **Description**：`Animaku 提供海量日漫番剧、剧场版动画在线观看，支持高性能自研弹幕播放、1080P 高清画质、画质超分、OP / ED智能跳过、Bangumi 每日更新时间表与追番历史，打造轻快稳定的二次元追番体验。`；
+       - **Title**：`Animaku 动漫 - 在线高清动画多源聚合弹幕平台`；
+       - **Description**：`Animaku 多资源聚合的日漫番剧、剧场版动画在线观看，支持高性能自研弹幕播放、1080P 高清画质、画质超分、OP / ED智能跳过、Bangumi 每日更新时间表与追番历史，打造轻快稳定的二次元追番体验。`；
      - 同步更新 `index.html` 静态首屏、`apps/web/src/lib/seo.ts` 动态路由配置、Open Graph (`og:title`/`og:description`)、Twitter Card 与 `site.webmanifest`；
   2. **Google 专属防乱抓与首屏预埋 (`data-nosnippet` & `<noscript>`)**：
      - 在 `apps/web/src/components/ui.tsx` 的 `ErrorState` 组件容器上注入 Google 官方 `data-nosnippet` 属性，强制禁止搜索引擎爬虫抓取接口异常/重试文字作为搜索结果摘要；
