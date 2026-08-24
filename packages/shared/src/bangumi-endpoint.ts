@@ -164,5 +164,5 @@ export function bangumiSubjectUrl(id: number | string): string {
 
 /** 生成 Bangumi OAuth / Access Token 页面 URL（固定跳转官方 bgm.tv） */
 export function bangumiOAuthUrl(): string {
-  return 'https://bgm.tv/demo/access-token'
+  return 'https://next.bgm.tv/demo/access-token'
 }

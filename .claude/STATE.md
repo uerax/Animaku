@@ -75,7 +75,7 @@
      - `packages/shared/src/bangumi-endpoint.ts` 中的 `bangumiSubjectUrl` 此前根据当前 API 代理状态动态切换至镜像域名（`bgmmi.anibt.net`）；
      - 跳转页面属于用户浏览器端直接访问的外链，与图片 CDN/API 代理无关；
      - 将 `bangumiSubjectUrl(id)` 彻底简化，直接写死返回 `https://bgm.tv/subject/${id}`；
-     - 同步将 `bangumiOAuthUrl()` 写死返回 `https://bgm.tv/demo/access-token`；
+     - 同步将 `bangumiOAuthUrl()` 写死返回 `https://next.bgm.tv/demo/access-tokenn`；
      - `apps/web/src/pages/SettingsPage.tsx` 中的令牌页链接直接调用 `bangumiOAuthUrl()`。
 - 涉及文件：packages/shared/src/bangumi-endpoint.ts, apps/web/src/pages/SettingsPage.tsx, .claude/STATE.md
 - 备注：`pnpm typecheck` 全仓 3 个 workspace 0 报错通过，`pnpm build` 全量生产打包构建通过。
