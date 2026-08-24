@@ -11,8 +11,8 @@ const DANMAKU_CACHE_TTL = {
   subject: 12 * 60 * 60_000,
   /** Anime search results (2 hours) */
   search: 2 * 60 * 60_000,
-  /** Episode comments (15 minutes) */
-  comments: 15 * 60_000,
+  /** Episode comments (30 minutes) */
+  comments: 30 * 60_000,
 } as const
 
 danmakuRoutes.get('/status', (c) =>

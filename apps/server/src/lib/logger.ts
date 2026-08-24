@@ -320,14 +320,27 @@ export async function extractBusinessParams(
   const params: Record<string, unknown> = {}
 
   // 1. Extract from Query parameters
-  const queryKw = req.query('keyword') || req.query('q') || req.query('kw')
-  if (queryKw) params.kw = String(queryKw).trim()
+  const queryTitle = req.query('title') || req.query('name')
+  if (queryTitle) params.title = String(queryTitle).trim()
 
-  const queryPlugin = req.query('plugin') || req.query('source')
-  if (queryPlugin) params.plugin = String(queryPlugin).trim()
+  const queryKw = req.query('keyword') || req.query('q') || req.query('kw') || req.query('wd')
+  if (queryKw && String(queryKw).trim()) {
+    params.kw = String(queryKw).trim()
+  }
 
-  const queryBgmId = req.query('bgmId') || req.query('subjectId')
+  const queryPlugin = req.query('plugin') || req.query('source') || req.query('rule')
+  if (queryPlugin && !req.path.startsWith('/api/bangumi')) {
+    params.plugin = String(queryPlugin).trim()
+  }
+
+  const queryBgmId = req.query('bgmId') || req.query('subjectId') || req.query('subject_id')
   if (queryBgmId) params.bgmId = String(queryBgmId).trim()
+
+  const queryEp = req.query('ep') || req.query('episode') || req.query('p')
+  if (queryEp !== undefined && queryEp !== '') params.ep = queryEp
+
+  const queryBvid = req.query('bvid')
+  if (queryBvid) params.bvid = String(queryBvid).trim()
 
   // 2. Extract from JSON Body (Safe clone)
   if (
@@ -338,22 +351,38 @@ export async function extractBusinessParams(
       const cloned = req.raw.clone()
       const body = (await cloned.json()) as Record<string, unknown>
       if (body && typeof body === 'object') {
-        if (body.keyword) params.kw = String(body.keyword).trim()
-        if (body.plugin) params.plugin = String(body.plugin).trim()
-        if (body.rule && typeof body.rule === 'object') {
+        // Anime title for resolve / chapters / play
+        if (body.title && typeof body.title === 'string' && body.title.trim()) {
+          params.title = body.title.trim()
+        }
+
+        // Search keyword: only log when user actually provided a non-empty search keyword
+        if (body.keyword && typeof body.keyword === 'string' && body.keyword.trim()) {
+          params.kw = body.keyword.trim()
+        }
+
+        // Video source plugin name
+        if (body.plugin && typeof body.plugin === 'string' && body.plugin.trim()) {
+          params.plugin = body.plugin.trim()
+        } else if (body.rule && typeof body.rule === 'object') {
           const ruleObj = body.rule as { name?: string; id?: string }
           if (ruleObj.name || ruleObj.id) {
             params.plugin = ruleObj.name || ruleObj.id
           }
         }
+
+        // Episode number for resolve / play
         if (body.episode !== undefined || body.ep !== undefined) {
-          params.ep = body.episode ?? body.ep
+          const epVal = body.episode ?? body.ep
+          if (epVal !== undefined && epVal !== null && epVal !== '') {
+            params.ep = epVal
+          }
         }
-        if (body.sort && body.sort !== 'heat') {
-          params.sort = body.sort
-        }
-        if (body.year) {
-          params.year = body.year
+
+        // Bangumi Subject ID (if explicitly provided in body)
+        if (body.bangumiId || body.bgmId) {
+          const bVal = body.bangumiId ?? body.bgmId
+          if (bVal) params.bgmId = String(bVal).trim()
         }
       }
     } catch {
@@ -361,10 +390,23 @@ export async function extractBusinessParams(
     }
   }
 
-  // 3. Fallback path parameter recognition (/api/bangumi/subject/123456)
-  const subjectMatch = req.path.match(/\/api\/bangumi\/subject\/([0-9]+)/)
-  if (subjectMatch) {
-    params.bgmId = subjectMatch[1]
+  // 3. Fallback path parameter recognition
+  // /api/bangumi/subjects/123456 or /api/bangumi/collections/123456
+  const bgmMatch = req.path.match(/\/api\/bangumi\/(?:subjects?|collections)\/([0-9]+)/)
+  if (bgmMatch) {
+    params.bgmId = bgmMatch[1]
+  }
+
+  // /api/danmaku/bangumi/bgmtv/123456
+  const danmakuBgmMatch = req.path.match(/\/api\/danmaku\/bangumi\/bgmtv\/([0-9]+)/)
+  if (danmakuBgmMatch) {
+    params.bgmId = danmakuBgmMatch[1]
+  }
+
+  // /api/danmaku/comment/123456
+  const commentMatch = req.path.match(/\/api\/danmaku\/comment\/([0-9]+)/)
+  if (commentMatch) {
+    params.epId = commentMatch[1]
   }
 
   return Object.keys(params).length > 0 ? sanitizeParams(params) : undefined
@@ -404,16 +446,27 @@ function colorLevel(level: 'info' | 'warn' | 'error'): string {
 function formatPrettyParams(params?: Record<string, unknown>): string {
   if (!params || Object.keys(params).length === 0) return ''
   const parts: string[] = []
+
+  // Core business identities: title, ep, plugin, kw
+  if (params.title) parts.push(`title="${params.title}"`)
+  if (params.ep !== undefined) parts.push(`ep=${params.ep}`)
   if (params.plugin) parts.push(`plugin="${params.plugin}"`)
   if (params.kw) parts.push(`kw="${params.kw}"`)
-  if (params.ep !== undefined) parts.push(`ep="${params.ep}"`)
   if (params.bgmId) parts.push(`bgmId=${params.bgmId}`)
-  if (params.sort) parts.push(`sort=${params.sort}`)
-  if (params.year) parts.push(`year=${params.year}`)
+  if (params.bvid) parts.push(`bvid="${params.bvid}"`)
 
   // Any other custom params
+  const knownKeys = new Set([
+    'title',
+    'ep',
+    'plugin',
+    'kw',
+    'bgmId',
+    'bvid',
+    'epId',
+  ])
   for (const [k, v] of Object.entries(params)) {
-    if (!['plugin', 'kw', 'ep', 'bgmId', 'sort', 'year'].includes(k)) {
+    if (!knownKeys.has(k)) {
       parts.push(`${k}=${JSON.stringify(v)}`)
     }
   }

@@ -8,11 +8,11 @@ import { cacheGetOrSet, wantsCacheBypass } from '../lib/ttl-cache'
 /**
  * Bilibili danmaku proxy (BV → cid → XML comments).
  * Browser cannot call api.bilibili.com directly (CORS); server fetches and parses.
- * In-process 15m TTL cache + CDN Cache-Control.
+ * In-process 30m TTL cache + CDN Cache-Control.
  */
 export const bilibiliDanmakuRoutes = new Hono()
 
-const BILI_CACHE_TTL = 15 * 60_000
+const BILI_CACHE_TTL = 30 * 60_000
 
 const UA = config.defaultUserAgent
 

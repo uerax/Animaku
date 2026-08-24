@@ -57,7 +57,12 @@ pluginRoutes.post('/validate', async (c) => {
 
 // Exec routes are open-proxy style (client supplies rule + URLs) — gate them
 pluginRoutes.post('/search', requirePluginApiAccess, async (c) => {
-  const body = await c.req.json<{ rule: unknown; keyword: string }>()
+  const body = await c.req.json<{
+    rule: unknown
+    keyword: string
+    title?: string
+    bangumiId?: number | string
+  }>()
   if (!body.keyword?.trim()) {
     return c.json({ error: 'bad_request', message: '缺少 keyword' }, 400)
   }
@@ -127,7 +132,12 @@ pluginRoutes.post('/search', requirePluginApiAccess, async (c) => {
 })
 
 pluginRoutes.post('/chapters', requirePluginApiAccess, async (c) => {
-  const body = await c.req.json<{ rule: unknown; source: string }>()
+  const body = await c.req.json<{
+    rule: unknown
+    source: string
+    title?: string
+    bangumiId?: number | string
+  }>()
   if (!body.source?.trim() || !body.rule) {
     return c.json({ error: 'bad_request', message: '缺少 rule 或 source' }, 400)
   }
@@ -193,7 +203,13 @@ pluginRoutes.post('/chapters', requirePluginApiAccess, async (c) => {
 })
 
 pluginRoutes.post('/resolve', requirePluginApiAccess, async (c) => {
-  const body = await c.req.json<{ rule: unknown; pageUrl: string }>()
+  const body = await c.req.json<{
+    rule: unknown
+    pageUrl: string
+    title?: string
+    episode?: number | string
+    bangumiId?: number | string
+  }>()
   if (!body.pageUrl?.trim() || !body.rule) {
     return c.json({ error: 'bad_request', message: '缺少 rule 或 pageUrl' }, 400)
   }

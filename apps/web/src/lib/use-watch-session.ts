@@ -670,6 +670,8 @@ export function useWatchSession(bangumiId: number): WatchSession {
       try {
         const res = await pluginApi.chapters(plugin, searchItem.src, {
           signal: chaptersAc.signal,
+          title: searchItem.name || title,
+          bangumiId,
         })
         if (!isWatchPage()) return
         if (chaptersGen.current !== gen) return
@@ -920,6 +922,8 @@ export function useWatchSession(bangumiId: number): WatchSession {
           : await pluginApi.search(plugin, keyword, {
               signal: searchAc.signal,
               refresh: Boolean(opts?.refresh),
+              title,
+              bangumiId,
             })
         if (!cached) setCachedPluginSearch(plugin, keyword, res.data)
         if (pluginSearchGen.current[plugin.name] !== gen) return
@@ -1265,7 +1269,10 @@ export function useWatchSession(bangumiId: number): WatchSession {
             setRoadLoading(false)
             return
           }
-          const searchRes = await pluginApi.search(plugin, kw)
+          const searchRes = await pluginApi.search(plugin, kw, {
+            title,
+            bangumiId,
+          })
           if (cancelled) return
           if (searchRes.data?.items?.length) {
             const ranked = rankSearchItems(searchRes.data.items, titleRefsStable)
@@ -1290,7 +1297,10 @@ export function useWatchSession(bangumiId: number): WatchSession {
           // Chapters need the detail/source URL, not the episode play page.
           // Try sourceUrl first; only fall back to pageUrl for legacy rows.
           const chapterSrc = sourceUrl || qPageUrl
-          const res = await pluginApi.chapters(plugin, chapterSrc)
+          const res = await pluginApi.chapters(plugin, chapterSrc, {
+            title: sourceTitle || title,
+            bangumiId,
+          })
           if (cancelled) return
           roads = res.data.roads || []
           if (roads.length && (sourceUrl || chapterSrc)) {
@@ -1407,6 +1417,9 @@ export function useWatchSession(bangumiId: number): WatchSession {
       return pluginApi.resolve(selection.plugin, episode.pageUrl, {
         signal,
         refresh,
+        title,
+        episode: episode.episode,
+        bangumiId,
       })
     },
     enabled: Boolean(selection?.plugin && episode?.pageUrl),
@@ -1591,7 +1604,11 @@ export function useWatchSession(bangumiId: number): WatchSession {
     setRoadError('')
     setHudMessage(`正在刷新 ${plugin.name} 选集…`)
     try {
-      const res = await pluginApi.chapters(plugin, source.src, { refresh: true })
+      const res = await pluginApi.chapters(plugin, source.src, {
+        refresh: true,
+        title: source.name || title,
+        bangumiId,
+      })
       const roads = res.data?.roads || []
       if (roads.length && roads[0]?.data?.length) {
         writeRoadsForSource(bangumiId, plugin.name, source.src, roads)

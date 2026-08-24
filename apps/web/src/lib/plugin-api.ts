@@ -72,37 +72,69 @@ export const pluginApi = {
       '/api/plugin/validate',
       { method: 'POST', body: JSON.stringify(rule), signal: opts?.signal },
     ),
-  search: (rule: PluginRule, keyword: string, opts?: SignalOpt) =>
+  search: (
+    rule: PluginRule,
+    keyword: string,
+    opts?: SignalOpt & { title?: string; bangumiId?: number | string },
+  ) =>
     api<{ data: PluginSearchResult }>(
       `/api/plugin/search${opts?.refresh ? '?refresh=1' : ''}`,
       withRefreshHeaders(
         {
           method: 'POST',
-          body: JSON.stringify({ rule, keyword }),
+          body: JSON.stringify({
+            rule,
+            keyword,
+            title: opts?.title,
+            bangumiId: opts?.bangumiId,
+          }),
           signal: opts?.signal,
         },
         opts?.refresh,
       ),
     ),
-  chapters: (rule: PluginRule, source: string, opts?: SignalOpt) =>
+  chapters: (
+    rule: PluginRule,
+    source: string,
+    opts?: SignalOpt & { title?: string; bangumiId?: number | string },
+  ) =>
     api<{ data: PluginChapterResult }>(
       `/api/plugin/chapters${opts?.refresh ? '?refresh=1' : ''}`,
       withRefreshHeaders(
         {
           method: 'POST',
-          body: JSON.stringify({ rule, source }),
+          body: JSON.stringify({
+            rule,
+            source,
+            title: opts?.title,
+            bangumiId: opts?.bangumiId,
+          }),
           signal: opts?.signal,
         },
         opts?.refresh,
       ),
     ),
-  resolve: (rule: PluginRule, pageUrl: string, opts?: SignalOpt) =>
+  resolve: (
+    rule: PluginRule,
+    pageUrl: string,
+    opts?: SignalOpt & {
+      title?: string
+      episode?: number | string
+      bangumiId?: number | string
+    },
+  ) =>
     api<{ data: ResolvePlayResult }>(
       `/api/plugin/resolve${opts?.refresh ? '?refresh=1' : ''}`,
       withRefreshHeaders(
         {
           method: 'POST',
-          body: JSON.stringify({ rule, pageUrl }),
+          body: JSON.stringify({
+            rule,
+            pageUrl,
+            title: opts?.title,
+            episode: opts?.episode,
+            bangumiId: opts?.bangumiId,
+          }),
           signal: opts?.signal,
         },
         opts?.refresh,

@@ -254,7 +254,12 @@ export function useSourceAggregator({
           const cached = bypassCache ? undefined : getCachedPluginSearch(plugin, kw)
           const res = cached
             ? { data: cached }
-            : await pluginApi.search(plugin, kw, { signal: ac.signal, refresh: bypassCache })
+            : await pluginApi.search(plugin, kw, {
+                signal: ac.signal,
+                refresh: bypassCache,
+                title: item?.nameCn || item?.name || defaultKeyword,
+                bangumiId,
+              })
           clearTimeout(timeoutId)
 
           if (!cached) {

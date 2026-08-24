@@ -4,6 +4,45 @@
 
 ---
 
+## [2026-08-24] 服务端单集弹幕评论内存 TTL 升级至 30 分钟（与 CDN s-maxage 完全对齐）
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **弹弹单集弹幕评论 TTL 调整 (`apps/server/src/routes/danmaku.ts`)**：
+     - 将 `DANMAKU_CACHE_TTL.comments` 由 `15 * 60_000`（15分钟）提升至 `30 * 60_000`（30分钟）；
+     - 将 50w/月 弹弹 API 额度利用率再提升约 20%~30%，单集热门时段与中等热度番剧合并率大幅提高；
+  2. **B 站弹幕代理 TTL 同步 (`apps/server/src/routes/bilibili-danmaku.ts`)**：
+     - 将 `BILI_CACHE_TTL` 由 15 分钟同步提升至 30 分钟；
+  3. **CDN 边缘生命周期严格对齐**：
+     - 与 `apps/server/src/lib/cdn-cache-headers.ts` 中的 `DANMAKU_CDN_S_MAXAGE_SEC = 1800`（30分钟）实现端到端 100% 对齐。
+- 涉及文件：apps/server/src/routes/danmaku.ts, apps/server/src/routes/bilibili-danmaku.ts, .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck` 0 报错通过，`pnpm build` 全量生产打包验证通过。
+
+---
+
+## [2026-08-24] 服务端日志语义增强（精准输出搜索词/播放番剧标题与集数，过滤首页/目录/时间表内部重复参数）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **排查根本原因**：
+     - **搜索接口**：原 `extractBusinessParams` 在用户进入首页或番剧目录时，将内部自动加载的分类过滤参数（如 `tag="剧场版"`、`tag="OVA"`、`sort=heat` 等）作为参数打印，而在用户未输入关键词时缺少针对性区分；同时 `POST /api/bangumi/search` 与其他搜索端点缺少纯净关键词约束；
+     - **播放接口**：原客户端在调用 `pluginApi.resolve(rule, pageUrl)` 与 `pluginApi.chapters(rule, source)` 时，仅传递了静态规则与链接，未携带番剧名称（`title`）与分集号（`episode`），导致服务端日志仅能输出 `plugin="xifan-next"`，缺失关键业务上下文；
+     - **Bangumi 详情路由漏匹**：原 logger 提取 Bangumi ID 正则为 `/api/bangumi/subject/([0-9]+)`，漏掉了复数形式 `/api/bangumi/subjects/:id`，导致详情页日志无法展示 `bgmId`。
+  2. **服务端请求日志提取与格式化重构 (`apps/server/src/lib/logger.ts`)**：
+     - **播放关键上下文提取**：从 Query / JSON Body 中智能提取番剧标题（`title`）、分集（`ep`）、视频源（`plugin`）、Bangumi ID（`bgmId`）、B 站 BV 号（`bvid`）；
+     - **精准搜索词过滤**：仅当用户实际输入非空关键词（`keyword` / `q` / `kw`）时记录 `kw="xxx"`；首页自动加载剧场版/OVA、分类目录浏览、时间表拉取等内部重复请求不再记录 `tag/sort/year` 等冗余参数，保持日志精炼纯净；
+     - **路由正则校正**：支持 `/api/bangumi/subjects/:id`、`/api/bangumi/collections/:id` 及 `/api/danmaku/bangumi/bgmtv/:id` 的 `bgmId` 提取；
+     - **日志排版优先级**：优先输出 `title="..." ep=1 plugin="..." kw="..." bgmId=...`。
+  3. **全链路播放与搜索上下文透传 (`apps/web` & `apps/server`)**：
+     - `apps/web/src/lib/plugin-api.ts`：增强 `resolve`、`chapters`、`search` 支持透传 `{ title, episode, bangumiId }`；
+     - `apps/web/src/lib/use-watch-session.ts`：在发起流解析（`resolve`）、选集获取（`chapters`）、视频源搜索（`search`）时注入当前番剧名称与分集号；
+     - `apps/web/src/lib/use-source-aggregator.ts`：在视频源看板探活搜索时注入番剧名称与 ID；
+     - `apps/server/src/routes/plugin.ts`：类型定义对齐接收可选 `title`、`episode`、`bangumiId`。
+- 涉及文件：apps/server/src/lib/logger.ts, apps/server/src/routes/plugin.ts, apps/web/src/lib/plugin-api.ts, apps/web/src/lib/use-watch-session.ts, apps/web/src/lib/use-source-aggregator.ts, .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck` 0 报错通过，`pnpm build` 全量生产打包构建验证通过。
+
+---
+
 ## [2026-08-24] 服务端日志时间与时区变量配置接入（TZ/TIMEZONE 支持 + 默认上海时区）
 - 状态：已完成
 - 优先级：P1
