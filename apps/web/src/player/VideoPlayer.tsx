@@ -734,6 +734,7 @@ export function VideoPlayer({
       const t0 = initialTimeRef.current
       if (!resumedRef.current && cfg.continuePlay && t0 > 15) {
         resumedRef.current = true
+        lastSkipTRef.current = t0
         try {
           video.currentTime = t0
         } catch {
@@ -1064,46 +1065,64 @@ export function VideoPlayer({
       lastSkipTRef.current = t
       if (isSeekingRef.current || skipBusyRef.current || t >= d - 3) return
       const safeMax = d - 0.1
-      // Boundary cross (pre as mark <= t) — reliable at 2× where 0.4s windows miss
-      const crossed = (mark: number) => prevT < mark && t >= mark
+
+      // 单向自然平稳连续播放判定 (Natural forward playback)
+      // timeupdate 在正常播放下的时间增量通常在 0.05s~0.5s，高倍速 (3x/4x) 下最大不超过 2.0s
+      const delta = t - prevT
+      const isNaturalPlayback = delta > 0 && delta <= 3.0
 
       // OP skip (independent from ED – both can trigger in the same episode)
       if (p.skipOp.enabled && p.skipOp.duration > 0) {
-        const start = p.skipOp.start || 0
-        const diff = Math.abs(p.skipOp.duration)
-        if (crossed(start)) {
-          skipBusyRef.current = true
-          video.currentTime = Math.min(start + diff, safeMax)
-          flashSkipHint('已跳过片头')
-          setTimeout(() => {
-            skipBusyRef.current = false
-          }, 1500)
+        const opStart = p.skipOp.start || 0
+        const opDuration = Math.abs(p.skipOp.duration)
+        const opEnd = Math.min(opStart + opDuration, safeMax)
+
+        // 严格约束：当前播放时间必须位于片头结束点之前 (仅允许向前跳过，绝对禁止向后拉回进度)
+        if (t < opEnd) {
+          // 触发条件：
+          // 1. 正常向前连续播放跨越片头起点：prevT < opStart && t >= opStart
+          // 2. 开头片头特例 (opStart <= 0.5s)：视频起播处于片头起点极小窗口内 (prevT <= 0.5 && t >= opStart && t < 2.0)
+          const crossedOpStart =
+            (isNaturalPlayback && prevT < opStart && t >= opStart) ||
+            (opStart <= 0.5 && prevT <= 0.5 && t >= opStart && t < 2.0 && isNaturalPlayback)
+
+          if (crossedOpStart) {
+            skipBusyRef.current = true
+            lastSkipTRef.current = opEnd
+            video.currentTime = opEnd
+            flashSkipHint('已跳过片头')
+            setTimeout(() => {
+              skipBusyRef.current = false
+            }, 1500)
+          }
         }
       }
 
       // ED skip (independent from OP)
       if (p.skipEd.enabled && p.skipEd.duration > 0) {
-        const start = p.skipEd.start || 0
-        const diff = Math.abs(p.skipEd.duration)
-        if (start <= 0) {
-          const mark = d - diff
-          if (crossed(mark)) {
+        const edDuration = Math.abs(p.skipEd.duration)
+        const isRelativeEd = (p.skipEd.start || 0) <= 0
+        const edStart = isRelativeEd ? d - edDuration : p.skipEd.start
+        const edEnd = isRelativeEd ? safeMax : Math.min(edStart + edDuration, safeMax)
+
+        // 严格约束：当前播放时间必须位于片尾结束点之前，且 edStart 有效
+        if (t < edEnd && edStart > 0 && edStart < d) {
+          const crossedEdStart = isNaturalPlayback && prevT < edStart && t >= edStart
+          if (crossedEdStart) {
             skipBusyRef.current = true
-            video.currentTime = Math.min(d, safeMax)
-            setOffsetHint('即将结束')
-            window.clearTimeout(offsetHintTimer.current)
-            offsetHintTimer.current = window.setTimeout(() => setOffsetHint(''), 2000)
+            lastSkipTRef.current = edEnd
+            video.currentTime = edEnd
+            if (isRelativeEd) {
+              setOffsetHint('即将结束')
+              window.clearTimeout(offsetHintTimer.current)
+              offsetHintTimer.current = window.setTimeout(() => setOffsetHint(''), 2000)
+            } else {
+              flashSkipHint('已跳过片尾')
+            }
             setTimeout(() => {
               skipBusyRef.current = false
             }, 1500)
           }
-        } else if (crossed(start)) {
-          skipBusyRef.current = true
-          video.currentTime = Math.min(start + diff, safeMax)
-          flashSkipHint('已跳过片尾')
-          setTimeout(() => {
-            skipBusyRef.current = false
-          }, 1500)
         }
       }
     }
@@ -1169,6 +1188,7 @@ export function VideoPlayer({
     // and would clobber the saved default. Speed only saves via onPickSpeed / Settings.
     const onSeeking = () => {
       isSeekingRef.current = true
+      lastSkipTRef.current = video.currentTime
       // If user seeks during auto-next countdown, cancel it
       cancelCountdown()
       // Spinner only if seek lands outside buffered ranges (nothing to paint)
@@ -1189,6 +1209,7 @@ export function VideoPlayer({
     const onSeeked = () => {
       pendingSeekTargetRef.current = null
       isSeekingRef.current = false
+      lastSkipTRef.current = video.currentTime
       // If we have paintable data ready (or buffer ahead), drop seeking/stall spinner immediately
       if (
         video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA ||
@@ -2028,6 +2049,7 @@ export function VideoPlayer({
 
   function applySeek(v: HTMLVideoElement, targetTime: number) {
     const safeTarget = Math.max(0, targetTime)
+    lastSkipTRef.current = safeTarget
     // Safari / WebKit native fastSeek for rapid keyframe-accurate seeking
     if (
       typeof (v as HTMLVideoElement & { fastSeek?: (time: number) => void })

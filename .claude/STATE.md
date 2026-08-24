@@ -4,6 +4,24 @@
 
 ---
 
+## [2026-08-24] 修复 OP/ED 自动跳过功能在用户手动 Seek 跳转时的误触发 Bug
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **排查根本原因**：
+     - 原 `crossed` 判定逻辑仅简单比对 `prevT < mark && t >= mark`，缺少「正向连续正常播放」与「区间有效性」约束；
+     - 当用户刚打开视频（`prevT = 0`）并直接点击进度条跳转到 370s 时，`0 < 90 && 370 >= 90` 判定成立，且未限制 `t < opEnd`（180s），导致播放器误将 370s 强行向后拉回至 180s 并提示「已跳过片头」；
+     - 同时，原用户 Seek 操作（`applySeek` / `onSeeking` / `onSeeked` / 续播恢复）未在触发时立即同步刷新 `lastSkipTRef.current` 为目标时间，导致 Seek 后的初次 `timeupdate` 依然残留跳转前的时间差值。
+  2. **全面修复与重构 (`VideoPlayer.tsx`)**：
+     - **向前跳跃与区间有效性硬约束**：严格要求 `t < opEnd`（对于 OP）与 `t < edEnd`（对于 ED），彻底禁止任何向后倒退拉回进度的非法跳过行为；
+     - **单向自然平稳连续播放判定 (`isNaturalPlayback`)**：引入 `delta = t - prevT` 步进检查（`0 < delta <= 3.0`），精准过滤手动点击跳转、进度条拖拽与时间突变，仅在正常顺序播放自然跨过起点时触发；
+     - **开篇 0s OP 特例精准兼容**：针对 0s 起始的片头（`opStart <= 0.5`），在视频从开头起播且 `t < 2.0` 时安全触发跳过；
+     - **Seek 状态机与时间戳瞬时对齐**：在 `applySeek`、`onSeeking`、`onSeeked` 以及续播 `continuePlay` 中同步将 `lastSkipTRef.current` 更新为目标时间，彻底切断时间差竞态。
+- 涉及文件：apps/web/src/player/VideoPlayer.tsx, .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck` 0 报错通过，`pnpm build` 全量生产打包构建验证通过。
+
+---
+
 ## [2026-08-24] 服务端单集弹幕评论内存 TTL 升级至 30 分钟（与 CDN s-maxage 完全对齐）
 - 状态：已完成
 - 优先级：P2
