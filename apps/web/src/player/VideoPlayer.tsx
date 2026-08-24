@@ -74,9 +74,6 @@ const ASPECT_RATIO_LABELS: Record<AspectRatioMode, string> = {
 /** Min buffer before first play — tiered for HLS vs progressive MP4. */
 const MIN_START_BUFFER_HLS_SEC = 0.4
 const MIN_START_BUFFER_MP4_SEC = 0.8
-/** After rebuffer pause, wait for this much ahead before resume. */
-const MIN_RESUME_BUFFER_HLS_SEC = 1.0
-const MIN_RESUME_BUFFER_MP4_SEC = 1.5
 /** Don't stall forever on empty CDN; start anyway after this. */
 const MAX_START_WAIT_MS = 8_000
 
@@ -137,10 +134,8 @@ export function VideoPlayer({
   const lastAudibleVolumeRef = useRef(
     player.volume && player.volume > 0 ? player.volume : 0.7,
   )
-  /** User intentionally paused — do not auto-resume after rebuffer. */
+  /** User intentionally paused — do not show stall spinner while paused. */
   const userPausedRef = useRef(false)
-  /** We paused because buffer emptied (weak net); resume when ahead is enough. */
-  const bufferGatePausedRef = useRef(false)
 
   const playerRef = useRef(player)
   const danmakuRef = useRef(danmaku)
@@ -562,7 +557,6 @@ export function VideoPlayer({
     lastMediaErrorTimeRef.current = 0
     sessionMediaErrorTotalRef.current = 0
     userPausedRef.current = false
-    bufferGatePausedRef.current = false
     ignoreVolumePersistRef.current = false
     lastUiProgressRef.current = 0
     lastSkipTRef.current = 0
@@ -635,7 +629,6 @@ export function VideoPlayer({
         return
       }
       userPausedRef.current = false
-      bufferGatePausedRef.current = false
       setLoading(true)
 
       const startedAt = Date.now()
@@ -1140,14 +1133,11 @@ export function VideoPlayer({
     const onPlay = () => {
       setPaused(false)
       setLoading(false)
-      // play event = intentional start; drop any pending blip timer
-      bufferGatePausedRef.current = false
       hideBufferingUi()
       bumpBar()
     }
     const onEndedHandler = () => {
       userPausedRef.current = false
-      bufferGatePausedRef.current = false
       hideBufferingUi()
       if (loopRef.current) {
         video.currentTime = 0
@@ -1231,16 +1221,9 @@ export function VideoPlayer({
      * - Nothing left to paint (underrun / seek hole) → center spinner only
      * Never show text tips like 「缓冲中…」.
      */
-    let resumePoll = 0
     let stallShowTimer = 0
     /** Brief delay so micro-stalls that recover don't flash a spinner. */
     const STALL_SPINNER_DELAY_MS = 280
-    const clearResumePoll = () => {
-      if (resumePoll) {
-        window.clearInterval(resumePoll)
-        resumePoll = 0
-      }
-    }
     const clearStallShowTimer = () => {
       if (stallShowTimer) {
         window.clearTimeout(stallShowTimer)
@@ -1261,7 +1244,7 @@ export function VideoPlayer({
     }
     /**
      * Arm center spinner only for real unplayable stalls.
-     * `force` = already confirmed underrun (buffer-gate pause).
+     * `force` = confirmed underrun / waiting event.
      */
     const armStallSpinner = (force = false) => {
       if (userPausedRef.current) return
@@ -1283,36 +1266,7 @@ export function VideoPlayer({
         setBufferingUi(true)
       }, STALL_SPINNER_DELAY_MS)
     }
-    const tryResumeFromBuffer = () => {
-      if (!alive()) {
-        clearResumePoll()
-        return
-      }
-      if (userPausedRef.current) {
-        clearResumePoll()
-        hideBufferingUi()
-        return
-      }
-      const ahead = bufferedAhead(video)
-      const minResumeBuffer = isM3u8(activeSrc)
-        ? MIN_RESUME_BUFFER_HLS_SEC
-        : MIN_RESUME_BUFFER_MP4_SEC
-      if (
-        ahead >= minResumeBuffer ||
-        video.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA
-      ) {
-        clearResumePoll()
-        bufferGatePausedRef.current = false
-        hideBufferingUi()
-        setSeekingUi(false)
-        isSeekingRef.current = false
-        if (video.paused) {
-          void video.play().catch(() => {
-            /* autoplay / user gesture */
-          })
-        }
-      }
-    }
+
     const onWaiting = () => {
       // Network rebuffer (HLS + progressive via proxy)
       if (userPausedRef.current) return
@@ -1321,47 +1275,29 @@ export function VideoPlayer({
       if (ahead >= 0.35 && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
         return
       }
-      // Real underrun: freeze A/V together and show spinner
-      if (!video.paused) {
-        bufferGatePausedRef.current = true
-        armStallSpinner(true)
-        try {
-          video.pause()
-        } catch {
-          /* ignore */
-        }
-      } else if (bufferGatePausedRef.current || isUnplayable()) {
-        armStallSpinner(true)
-      }
-      if (!resumePoll) {
-        resumePoll = window.setInterval(tryResumeFromBuffer, 250)
-      }
+      // Show buffering spinner, but NEVER call video.pause() — keep native playback pipeline active
+      armStallSpinner(true)
     }
     const onStalledPlay = () => {
       if (userPausedRef.current) return
       // stalled while still playable → ignore chrome
       if (!isUnplayable()) return
       armStallSpinner(false)
-      if (!resumePoll) {
-        resumePoll = window.setInterval(tryResumeFromBuffer, 250)
-      }
     }
     const onCanPlay = () => {
       pendingSeekTargetRef.current = null
       setSeekingUi(false)
+      hideBufferingUi()
       isSeekingRef.current = false
-      tryResumeFromBuffer()
       // A: first paintable moment — safe to build danmaku engine
       noteDanmakuMediaReady()
     }
     const onPlayingClear = () => {
       // Frames painting again → no stall chrome
       pendingSeekTargetRef.current = null
-      bufferGatePausedRef.current = false
       hideBufferingUi()
       setSeekingUi(false)
       isSeekingRef.current = false
-      clearResumePoll()
       // Belt-and-suspenders if canplay was skipped on some MSE paths
       noteDanmakuMediaReady()
     }
@@ -1377,7 +1313,6 @@ export function VideoPlayer({
     video.addEventListener('stalled', onStalledPlay)
     video.addEventListener('canplay', onCanPlay)
     video.addEventListener('playing', onPlayingClear)
-    video.addEventListener('progress', tryResumeFromBuffer)
 
     const ro = new ResizeObserver(() => {
       try {
@@ -1420,14 +1355,12 @@ export function VideoPlayer({
         e.preventDefault()
         if (v.paused) {
           userPausedRef.current = false
-          bufferGatePausedRef.current = false
           triggerRipple('play')
           void v.play().catch(() => {
             userPausedRef.current = true
           })
         } else {
           userPausedRef.current = true
-          bufferGatePausedRef.current = false
           setBufferingUi(false)
           triggerRipple('pause')
           v.pause()
@@ -1557,8 +1490,6 @@ export function VideoPlayer({
       video.removeEventListener('stalled', onStalledPlay)
       video.removeEventListener('canplay', onCanPlay)
       video.removeEventListener('playing', onPlayingClear)
-      video.removeEventListener('progress', tryResumeFromBuffer)
-      clearResumePoll()
       clearStallShowTimer()
       const stalled = (
         video as HTMLVideoElement & { __a1Stalled?: () => void }
@@ -1874,7 +1805,6 @@ export function VideoPlayer({
     if (!v) return
     if (v.paused) {
       userPausedRef.current = false
-      bufferGatePausedRef.current = false
       triggerRipple('play')
       // Spinner only when nothing is paint-able yet
       if (
@@ -1890,7 +1820,6 @@ export function VideoPlayer({
       bumpBar()
     } else {
       userPausedRef.current = true
-      bufferGatePausedRef.current = false
       setBufferingUi(false)
       triggerRipple('pause')
       v.pause()
