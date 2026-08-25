@@ -4,6 +4,63 @@
 
 ---
 
+## [2026-08-26] 将宽屏模式调整为仅作用于当前播放页（不持久化记忆 + 跨番重置）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **架构与状态作用域收敛 (`WatchPage.tsx` & `VideoPlayer.tsx`)**：
+     - 将 `widescreen` 状态从全局 `useSettingsStore` / LocalStorage 持久化存储中剥离，迁移为 `WatchPage` 页面级 React 状态（`const [widescreen, setWidescreen] = useState(false)`）；
+     - **跨番自动重置**：当用户切换进入不同番剧时，自动重置为默认的常规双栏模式（`widescreen: false`）；
+     - **同番连贯体验**：在当前番剧内切集、切源时无缝保持用户当前开启的宽屏/常规状态，无需重复点击。
+  2. **组件解耦与类型精简 (`packages/shared/src/player.ts` & `apps/web/src/stores/settings.ts`)**：
+     - 从持久化 `PlayerSettings` 与 `defaultPlayerSettings` 中移除 `widescreen` 字段，避免污染用户的全局配置持久化文件；
+     - 在 `VideoPlayerProps` 中提供显式的受控属性 `widescreen` 与 `onToggleWidescreen`。
+- 涉及文件：packages/shared/src/player.ts, apps/web/src/stores/settings.ts, apps/web/src/player/types.ts, apps/web/src/player/VideoPlayer.tsx, apps/web/src/player/chrome/DesktopControls.tsx, apps/web/src/pages/WatchPage.tsx, .claude/BUGS.md, .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck` 与全量构建 `pnpm build` 0 报错通过。
+
+---
+
+## [2026-08-26] 修复点击宽屏模式时页面自动向下滚动与视口跳动 Bug
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **排查根本原因**：
+     - 用户点击宽屏模式时，控制栏按钮原生获取焦点（Focus）；
+     - 切换到宽屏模式后播放器高度按 16:9 比例增大，原按钮在 DOM 重排后的绝对 Y 坐标下移；
+     - Chromium / WebKit 浏览器的 Scroll Anchoring（滚动锚定）和 Focus-into-view 机制自动将页面向下拉动以追踪焦点按钮，导致画面顶部被顶出可视区。
+  2. **三重立体修复**：
+     - **焦点即时释放**：点击宽屏模式按钮及右键/设置菜单项时，执行 `e.currentTarget.blur()` 与 `(document.activeElement as HTMLElement)?.blur()` 阻断焦点追随；
+     - **双重视口置顶保障**：在状态更新与下一次重绘微任务中调用 `window.scrollTo({ top: 0, behavior: 'instant' })`，牢牢将播放器顶格锚定在首屏顶部；
+     - **禁用滚动锚定 (`overflow-anchor: none`)**：在 `.kz-watch`、`.kz-watch-cinema`、`.kz-player-stack` 与 `.kz-player-shell` 上注入 `overflow-anchor: none`，消除浏览器因播放器尺寸突变导致的自动下移。
+- 涉及文件：apps/web/src/player/chrome/DesktopControls.tsx, apps/web/src/player/VideoPlayer.tsx, apps/web/src/player/plyr-overrides.css, .claude/BUGS.md, .claude/STATE.md
+- 备注：全仓类型检查与生产构建 0 报错通过。
+
+---
+
+## [2026-08-26] 落地桌面端 B 站同款宽屏模式与播放页 73.5%:26.5% 黄金比例调优（360px 右侧栏 + 5 列选集方块 + 视口一屏守恒降档）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **状态层与持久化契约 (`packages/shared/src/player.ts` & `apps/web/src/stores/settings.ts`)**：
+     - 在 `PlayerSettings` 中扩充 `widescreen: boolean` 字段，默认设为 `false`（常规模式）；
+     - 在 `useSettingsStore` 的 `mergePlayer` 中接入 `widescreen` 自动合并与 LocalStorage 持久化记忆，用户切换后永久生效。
+  2. **桌面端控制栏与右键菜单屏幕模式三剑客 (`DesktopControls.tsx`, `icons.tsx`, `PlayerContextMenu.tsx`)**：
+     - 新增 `IconWidescreen` 与 `IconWidescreenExit` 宽屏切换矢量图标；
+     - 在桌面控制栏右侧将屏幕切换三剑客整齐排列：`音量滑块 → 【宽屏模式】 → 【网页全屏】 → 【全屏】`；
+     - 支持状态自适应悬停 Tooltip 提示（`宽屏模式` / `退出宽屏模式`）；
+     - 播放器右键菜单与设置主菜单同步集成「🖥️ 宽屏模式」原子切换开关与快捷键说明。
+  3. **播放页布局双模态与视口一屏守恒 CSS 重构 (`DesktopWatchLayout.tsx` & `plyr-overrides.css`)**：
+     - **右侧栏黄金宽度升级**：将 `--kz-watch-rail-w` 由 `320px` 调整为 **`360px`**（2K/4K 宽屏自适应至 `380px`），使得播放器与右侧栏比例严格对齐 B 站的 **`73.5% : 26.5%`（约 2.8:1）**；
+     - **常规模式 (Standard)**：播放器最大宽度受限于 `--kz-player-normal-max-w`（高度扣除 Header + 底部简介），右侧紧随 360px 视频源/选集/推荐；
+     - **宽屏模式 (Widescreen)**：播放器跳出右侧栏并排限制，横向 100% 居中通栏铺满（高度预留 6.5rem，宽度封顶 1760px 原生 1080P 点对点），下方自动重构为两列（左侧 1fr 简介，右侧 360px 选集/选源/推荐）；
+     - 两种模式均严格保证：在笔记本小屏、1080P 还是 4K 显示器上，播放器与底部控制栏 **100% 完整落在首屏可视区域内，绝不发生纵向溢出滚动**。
+  4. **选集网格调整为 5 列方块排布 (`index.css` & `MobileEpsSection.tsx`)**：
+     - 将展开网格 `kz-bili-ep-grid` 升级为 `repeat(5, minmax(0, 1fr))`，在 360px 宽度的右侧栏下呈现工整的 5 列正方形/圆角方块排布，完全还原 B 站截图中的选集矩阵质感。
+- 涉及文件：packages/shared/src/player.ts, apps/web/src/stores/settings.ts, apps/web/src/player/chrome/icons.tsx, apps/web/src/player/chrome/types.ts, apps/web/src/player/chrome/DesktopControls.tsx, apps/web/src/player/chrome/PlayerContextMenu.tsx, apps/web/src/player/types.ts, apps/web/src/player/VideoPlayer.tsx, apps/web/src/player/plyr-overrides.css, apps/web/src/pages/watch/DesktopWatchLayout.tsx, apps/web/src/pages/WatchPage.tsx, apps/web/src/index.css, .claude/BUGS.md, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 3 个 workspace 0 报错通过，`pnpm build` 全量生产打包构建通过。
+
+---
+
 ## [2026-08-25] 落地播放页 B 站风格番剧推荐流（Slot 0 系列接续 + 2 随机特征 Tag 去噪检索 + 24h 强缓存）
 - 状态：已完成
 - 优先级：P1

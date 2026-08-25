@@ -21,6 +21,8 @@ import {
   IconVolumeMute,
   IconWebFs,
   IconWebFsExit,
+  IconWidescreen,
+  IconWidescreenExit,
 } from './icons'
 
 const ASPECT_RATIO_OPTIONS: { value: AspectRatioMode; label: string }[] = [
@@ -108,6 +110,7 @@ export function DesktopControls(props: PlayerControlsProps) {
     webGpuOk,
     playerFs,
     webFs,
+    widescreen = false,
     aspectRatio = 'contain',
     onTogglePlay,
     onPrev,
@@ -131,6 +134,7 @@ export function DesktopControls(props: PlayerControlsProps) {
     onToggleMute,
     onTogglePlayerFs,
     onToggleWebFs,
+    onToggleWidescreen,
     formatTime,
     speedOptions,
     srLabels,
@@ -609,6 +613,22 @@ export function DesktopControls(props: PlayerControlsProps) {
                       </div>
                     </button>
 
+                    {onToggleWidescreen && (
+                      <button
+                        type="button"
+                        className="kz-settings-item"
+                        onClick={() => onToggleWidescreen?.()}
+                      >
+                        <span>🖥️ 宽屏模式</span>
+                        <div
+                          className="kz-switch"
+                          data-checked={widescreen}
+                        >
+                          <div className="kz-switch-thumb" />
+                        </div>
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       className="kz-settings-item"
@@ -783,6 +803,10 @@ export function DesktopControls(props: PlayerControlsProps) {
                         <span className="kz-settings-shortcut-kbd">F</span>
                       </div>
                       <div className="kz-settings-shortcut-row">
+                        <span>网页全屏</span>
+                        <span className="kz-settings-shortcut-kbd">Shift + W</span>
+                      </div>
+                      <div className="kz-settings-shortcut-row">
                         <span>切换画面比例</span>
                         <span className="kz-settings-shortcut-kbd">W</span>
                       </div>
@@ -839,6 +863,23 @@ export function DesktopControls(props: PlayerControlsProps) {
               />
             </div>
           </div>
+
+          {/* Wide Screen / Theater Mode (Bilibili-style) */}
+          {onToggleWidescreen && (
+            <button
+              type="button"
+              className="kz-ctrl kz-ctrl-icon kz-ctrl-widescreen"
+              data-active={widescreen}
+              onClick={(e) => {
+                e.currentTarget.blur()
+                onToggleWidescreen()
+              }}
+              title={widescreen ? '退出宽屏模式' : '宽屏模式'}
+              aria-label={widescreen ? '退出宽屏模式' : '宽屏模式'}
+            >
+              {widescreen ? <IconWidescreenExit /> : <IconWidescreen />}
+            </button>
+          )}
 
           {/* Web Fullscreen */}
           <button

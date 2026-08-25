@@ -6,6 +6,7 @@
   /* Prefer no overflow:hidden — with border-radius it can black out HW video in Chrome
      while audio still plays. Controls are absolute inside and clip visually fine. */
   overflow: visible;
+  overflow-anchor: none;
   user-select: none;
   /* Faster double-tap; avoid browser double-tap-to-zoom stealing play/pause */
   touch-action: manipulation;
@@ -30,41 +31,91 @@
   width: 100%;
   max-width: min(100%, calc((100dvh - 11rem) * 16 / 9));
   margin-inline: auto;
+  overflow-anchor: none;
 }
 
 /*
  * Watch page (Bilibili-style):
- * - Player max height: 100dvh - 11rem (header + page chrome)
- * - Right rail: 视频源 / 选集 are independent panels (no shared outer scroll)
- * - Each panel caps its own body so they don't fuse into one scrollbar
+ * - Standard Mode: 16:9 player left + 360px rail right, height-capped so full cinema + controls stay in 1st screen
+ * - Widescreen Mode: top full-width cinema, lower two-column meta + rail
+ * - Right rail: 视频源 / 选集 / 推荐 are independent panels (no shared outer scroll)
  */
 .kz-watch {
-  --kz-player-max-h: calc(100dvh - 11rem);
-  --kz-player-max-w: min(100%, calc(var(--kz-player-max-h) * 16 / 9));
-  --kz-watch-rail-w: 320px;
-  --kz-watch-cinema-gap: 0.75rem; /* ~12px — player ↔ rail */
+  --kz-watch-rail-w: 360px;
+  --kz-watch-cinema-gap: 1rem; /* 16px — player ↔ rail */
+  overflow-anchor: none;
+
+  /* Standard mode: reserve header 4rem + bottom meta/padding 6.5rem for 100% 1st-screen visibility */
+  --kz-player-normal-max-h: calc(100dvh - 10.5rem);
+  --kz-player-normal-max-w: min(1440px, calc(var(--kz-player-normal-max-h) * 16 / 9));
+
+  /* Widescreen mode: reserve header 4rem + page padding 2.5rem, capped at 1760px */
+  --kz-player-wide-max-h: calc(100dvh - 6.5rem);
+  --kz-player-wide-max-w: min(1760px, calc(var(--kz-player-wide-max-h) * 16 / 9));
+
+  /* Legacy fallback variable */
+  --kz-player-max-h: var(--kz-player-normal-max-h);
+  --kz-player-max-w: var(--kz-player-normal-max-w);
+
   /* Desktop: each panel body scrolls on its own (not the whole rail) */
   --kz-watch-sources-max-h: min(48dvh, 22rem);
   --kz-watch-eps-max-h: min(42dvh, 20rem);
 }
 
+@media (min-width: 1536px) {
+  .kz-watch {
+    --kz-watch-rail-w: 380px;
+  }
+}
+
 .kz-watch-cinema {
   width: 100%;
   margin-inline: auto;
+  overflow-anchor: none;
 }
 
-/* Desktop: player + rail as one centered unit */
-.kz-watch-cinema--desktop {
+/* Desktop: standard two-column cinema (player + rail as one centered unit) */
+.kz-watch-cinema--desktop:not(.kz-watch-cinema--widescreen) {
   max-width: min(
     100%,
-    calc(var(--kz-player-max-w) + var(--kz-watch-rail-w) + var(--kz-watch-cinema-gap))
+    calc(var(--kz-player-normal-max-w) + var(--kz-watch-rail-w) + var(--kz-watch-cinema-gap))
   );
 }
 
-.kz-watch-cinema--desktop .kz-player-stack {
+.kz-watch-cinema--desktop:not(.kz-watch-cinema--widescreen) .kz-player-stack {
   max-width: none;
   margin-inline: 0;
   width: 100%;
+}
+
+.kz-watch-cinema--desktop:not(.kz-watch-cinema--widescreen) .kz-player-frame,
+.kz-watch-cinema--desktop:not(.kz-watch-cinema--widescreen) .kz-player-placeholder {
+  width: 100%;
+  max-width: var(--kz-player-normal-max-w);
+  aspect-ratio: 16 / 9;
+  max-height: var(--kz-player-normal-max-h);
+  margin-inline: 0;
+}
+
+/* Desktop: widescreen theater mode (Bilibili-style full-bleed top player) */
+.kz-watch-cinema--widescreen {
+  max-width: min(100%, var(--kz-player-wide-max-w));
+  margin-inline: auto;
+}
+
+.kz-watch-cinema--widescreen .kz-player-stack {
+  width: 100%;
+  max-width: 100%;
+  margin-inline: 0;
+}
+
+.kz-watch-cinema--widescreen .kz-player-frame,
+.kz-watch-cinema--widescreen .kz-player-placeholder {
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: var(--kz-player-wide-max-h);
+  margin-inline: auto;
 }
 
 /*
@@ -1829,16 +1880,18 @@ body.kz-has-web-fs header {
   object-fit: contain !important;
 }
 
-/* Icon-only fullscreen controls */
+/* Icon-only screen mode controls (FS / WebFS / Widescreen) */
 .kz-ctrl-fs,
-.kz-ctrl-web-fs {
+.kz-ctrl-web-fs,
+.kz-ctrl-widescreen {
   width: var(--kz-ctrl-h);
   min-width: var(--kz-ctrl-h);
   padding: 0;
 }
 
 .kz-ctrl-fs .kz-ctrl-label,
-.kz-ctrl-web-fs .kz-ctrl-label {
+.kz-ctrl-web-fs .kz-ctrl-label,
+.kz-ctrl-widescreen .kz-ctrl-label {
   font-size: 12px;
   font-weight: 600;
   line-height: 1;

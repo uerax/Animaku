@@ -16,6 +16,7 @@ import {
   IconSpeed,
   IconStats,
   IconWebFs,
+  IconWidescreen,
 } from './icons'
 
 export interface PlayerContextMenuProps {
@@ -39,6 +40,8 @@ export interface PlayerContextMenuProps {
   webGpuOk: boolean | null
   onPickSr: (mode: SuperResolutionMode) => void
   srLabels: Record<SuperResolutionMode, string>
+  widescreen?: boolean
+  onToggleWidescreen?: () => void
   playerFs: boolean
   onTogglePlayerFs: () => void
   webFs: boolean
@@ -94,6 +97,8 @@ export function PlayerContextMenu({
   webGpuOk,
   onPickSr,
   srLabels,
+  widescreen = false,
+  onToggleWidescreen,
   playerFs,
   onTogglePlayerFs,
   webFs,
@@ -359,6 +364,19 @@ export function PlayerContextMenu({
             </SubmenuContainer>
           )}
         </div>
+
+        {/* Widescreen Toggle */}
+        {onToggleWidescreen && (
+          <MenuItem
+            icon={<IconWidescreen />}
+            label="宽屏模式 (剧场)"
+            active={widescreen}
+            onClick={() => {
+              onToggleWidescreen()
+              onClose()
+            }}
+          />
+        )}
 
         {/* Fullscreen Submenu */}
         <div

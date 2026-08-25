@@ -49,6 +49,9 @@ export interface VideoPlayerProps {
   onDanmakuChange?: (partial: Partial<DanmakuSettings>) => void
   onPrev?: () => void
   onNext?: () => void
+  /** Desktop wide-screen / theater mode for current watch session */
+  widescreen?: boolean
+  onToggleWidescreen?: () => void
   embedded?: boolean
   hideHints?: boolean
   danmakuPanel?: DanmakuPanelState

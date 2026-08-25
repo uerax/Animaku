@@ -36,6 +36,7 @@ export interface PlayerControlsProps {
   webGpuOk: boolean | null
   playerFs: boolean
   webFs: boolean
+  widescreen?: boolean
   aspectRatio?: AspectRatioMode
   onTogglePlay: () => void
   onPrev?: () => void
@@ -62,6 +63,7 @@ export interface PlayerControlsProps {
   onToggleMute: () => void
   onTogglePlayerFs: () => void
   onToggleWebFs: () => void
+  onToggleWidescreen?: () => void
   formatTime: (sec: number) => string
   speedOptions: readonly number[]
   srLabels: Record<SuperResolutionMode, string>

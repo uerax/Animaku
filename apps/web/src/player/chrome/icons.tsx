@@ -201,6 +201,24 @@ export function IconWebFs() {
   )
 }
 
+/** Wide screen / Theater mode toggle (Bilibili-style top full-width cinema) */
+export function IconWidescreen() {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M19 6H5c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 10H5V8h14v8zM8.5 13.5l-2-1.5 2-1.5v3zm7 0v-3l2 1.5-2 1.5z" />
+    </svg>
+  )
+}
+
+/** Exit wide screen / Back to standard two-column cinema */
+export function IconWidescreenExit() {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M19 6H5c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 10H5V8h14v8zM6.5 10.5l2 1.5-2 1.5v-3zm11 0v3l-2-1.5 2-1.5z" />
+    </svg>
+  )
+}
+
 /** Speaker with waves — volume > 0 */
 export function IconVolume() {
   return (

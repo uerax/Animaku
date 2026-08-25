@@ -41,6 +41,14 @@ export function WatchPage() {
   const [sourcesOpen, setSourcesOpen] = useState(false)
   /** Bilibili strip: false = horizontal cards, true = full grid (desktop + mobile) */
   const [epsListExpanded, setEpsListExpanded] = useState(false)
+  /** Wide-screen theater mode — active only for current watch session (not persisted). */
+  const [widescreen, setWidescreen] = useState(false)
+
+  // Reset widescreen mode to standard when navigating to a different subject
+  useEffect(() => {
+    setWidescreen(false)
+  }, [bangumiId])
+
   /** Last selection key we auto-focused (collapse sources / mobile scroll) */
   const focusedSelectionKey = useRef<string | null>(null)
   /**
@@ -223,6 +231,8 @@ export function WatchPage() {
           episodeNumber={w.episode?.episode ?? 1}
           totalEpisodes={item?.totalEpisodes || item?.eps || 12}
           officialOpedData={w.bgmOpedData}
+          widescreen={widescreen}
+          onToggleWidescreen={() => setWidescreen((v) => !v)}
         />
       )}
 
@@ -367,6 +377,7 @@ export function WatchPage() {
           player={playerBlock}
           meta={metaBlock}
           rail={rail}
+          widescreen={widescreen}
         />
       ) : (
         // Mobile: player → meta → 视频源 → 选集 → 推荐 (Bilibili-style)

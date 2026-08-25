@@ -1270,39 +1270,45 @@ html[data-theme='dark'] .kz-source-pill--retry:hover {
   background: var(--kz-scroll-thumb, color-mix(in srgb, var(--kz-fg) 22%, transparent));
 }
 
-/* Expanded grid: same ~4-across density as collapsed strip */
+/* Expanded grid: 5-across density on desktop rail & modern mobile (Bilibili-style) */
 .kz-bili-ep-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.4rem;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.35rem;
   width: 100%;
   min-width: 0;
   padding: 2px;
   box-sizing: border-box;
 }
 
-/* Horizontal rounded ep cards (readable titles — not bilibili number squares) */
+@media (max-width: 350px) {
+  .kz-bili-ep-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Horizontal rounded ep cards (Bilibili number squares/capsules) */
 .kz-bili-ep {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.25rem;
+  gap: 0.2rem;
   box-sizing: border-box;
   min-height: 2.35rem;
   min-width: 0;
   border: none;
   border-radius: 6px;
-  padding: 0.4rem 0.45rem;
+  padding: 0.35rem 0.25rem;
   background: var(--kz-bg-soft);
   color: var(--kz-fg);
   cursor: pointer;
   transition: background 0.12s ease;
 }
 
-/* ~4 cards visible: (100% - 3 gaps) / 4 ; gap = 0.4rem */
+/* ~5 cards visible: (100% - 4 gaps) / 5 ; gap = 0.35rem */
 .kz-bili-ep-strip .kz-bili-ep {
-  flex: 0 0 calc((100% - 1.2rem) / 4);
-  width: calc((100% - 1.2rem) / 4);
+  flex: 0 0 calc((100% - 1.4rem) / 5);
+  width: calc((100% - 1.4rem) / 5);
   max-width: none;
 }
 

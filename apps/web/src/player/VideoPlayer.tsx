@@ -99,6 +99,8 @@ export function VideoPlayer({
   episodeNumber,
   totalEpisodes,
   officialOpedData,
+  widescreen: controlledWidescreen,
+  onToggleWidescreen: controlledToggleWidescreen,
 }: VideoPlayerProps) {
   const shellRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -106,6 +108,29 @@ export function VideoPlayer({
   const layerRef = useRef<HTMLDivElement>(null)
   const hlsRef = useRef<Hls | null>(null)
   const danmakuCoreRef = useRef<CanvasDanmaku | null>(null)
+
+  const [internalWidescreen, setInternalWidescreen] = useState(false)
+  const isWidescreen = controlledWidescreen ?? internalWidescreen
+  const handleToggleWidescreen = () => {
+    try {
+      ;(document.activeElement as HTMLElement)?.blur?.()
+    } catch {
+      /* ignore */
+    }
+    const next = !isWidescreen
+    if (controlledToggleWidescreen) {
+      controlledToggleWidescreen()
+    } else {
+      setInternalWidescreen(next)
+    }
+    flashSkipHint(next ? '宽屏模式：已开启' : '宽屏模式：已退出', 1500)
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'instant' })
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, behavior: 'instant' })
+      })
+    }
+  }
   /**
    * Gate first CanvasDanmaku construct until media can paint
    * (canplay / HAVE_CURRENT_DATA). Avoids main-thread work during black buffer.
@@ -2361,6 +2386,8 @@ export function VideoPlayer({
     webGpuOk,
     playerFs,
     webFs,
+    widescreen: isWidescreen,
+    onToggleWidescreen: handleToggleWidescreen,
     aspectRatio,
     onAspectRatioChange: setAspectRatioMode,
     settingsMenuOpen,
@@ -2816,6 +2843,8 @@ export function VideoPlayer({
             }
           }}
           srLabels={SUPER_RESOLUTION_LABELS}
+          widescreen={isWidescreen}
+          onToggleWidescreen={handleToggleWidescreen}
           playerFs={playerFs}
           onTogglePlayerFs={() => void togglePlayerFs()}
           webFs={webFs}
