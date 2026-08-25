@@ -210,4 +210,25 @@ export const config = {
    * Configured via TZ, TIMEZONE, or LOG_TIMEZONE. Defaults to 'Asia/Shanghai'.
    */
   timezone,
+  /**
+   * IndexNow Key for search engine instant indexing (Bing, Yandex, Seznam, Naver).
+   * Key verification file is served at public/{INDEXNOW_KEY}.txt
+   */
+  indexnowKey: (
+    process.env.INDEXNOW_KEY || '4ddfeb9c68384dd99bc302fb0f02eaf1'
+  ).trim(),
+  /**
+   * Dedicated Admin secret token for protected operations (e.g. POST /api/admin/indexnow).
+   * Falls back to PROXY_TOKEN if ADMIN_SECRET is not explicitly configured.
+   */
+  adminSecret: (
+    process.env.ADMIN_SECRET ||
+    process.env.PROXY_TOKEN ||
+    ''
+  ).trim(),
+  /**
+   * Enable/disable IndexNow automatic & manual submissions (default: false).
+   * Must be explicitly set to 1/true in production .env to prevent local dev test leakage.
+   */
+  indexnowEnabled: envBool(process.env.INDEXNOW_ENABLED, false),
 }

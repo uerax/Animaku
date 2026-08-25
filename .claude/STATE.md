@@ -4,6 +4,52 @@
 
 ---
 
+## [2026-08-25] 落地 IndexNow 搜索引擎即时收录协议（自动差量同步 + 手动批量管理端点 + 三重安全防护）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **协议封装与分批提交引擎 (`apps/server/src/lib/indexnow.ts`)**：
+     - 实现 `submitToIndexNow`，支持按照 IndexNow 协议标准格式（`host`, `key`, `keyLocation`, `urlList`）向 `https://api.indexnow.org/IndexNow` 发起 POST 请求；
+     - 接入 10,000 条/批次自动分片切割机制（`chunkArray`），配置 10s 超时与状态码语义解析（200/202 成功，400 格式错误，403 Key/文件无效，422 域名不匹配，429 限流保护）；
+  2. **三重安全与防误报防护**：
+     - **环境显式开关 (`INDEXNOW_ENABLED`)**：默认 `false`（0），仅在生产环境 `.env` 中显式设为 `1` 时激活，防止外部 clone 或本地测试意外发包；
+     - **内网与本地回环熔断**：通过 `isPrivateHost` 自动拦截 `localhost`、`127.0.0.1` 及局域网私有 IP，绝对禁止向外网发包；
+     - **URL 域名匹配白名单**：自动过滤所有非当前站点 `host` 的非法 URL，防止整个批次被 422 整体拒绝；
+  3. **自动差量同步状态机**：
+     - 在内存中维护 `submittedSubjectIds` 集合与 `initialSyncDone` 状态；
+     - **首次启动/同步**：自动提交 3 个静态导航页（`/`、`/anime`、`/timeline`）及全量在库番剧详情页（`/subject/:id`）；
+     - **6 小时 sitemap 刷新**：`buildDynamicSitemapXml` 异步非阻塞比对新增番剧，**0 新增则 0 发包**，彻底杜绝 IndexNow 429 与空转；
+  4. **管理员手动触发端点 (`POST /api/admin/indexnow`)**：
+     - 统一挂载至 `/api/*` 避免 Vite SPA 静态拦截；
+     - 支持无参/`{ forceAll: true }` 全量提交及 `{ urls: ["..."] }` 自定义指定 URL 提交；
+     - 结合 `X-Admin-Secret` / `X-Animaku-Proxy-Token` 或本地回环 IP 鉴权；
+  5. **环境与配置体系同步**：
+     - `config.ts` 接入 `indexnowKey`、`adminSecret`、`indexnowEnabled`；
+     - `.env.example` 补充 `INDEXNOW_ENABLED`、`INDEXNOW_KEY`、`ADMIN_SECRET` 详细说明。
+- 涉及文件：apps/server/src/lib/indexnow.ts, apps/server/src/lib/seo-static.ts, apps/server/src/index.ts, apps/server/src/config.ts, .env.example, .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck` 0 报错通过，`pnpm build` 全量生产打包验证通过。
+
+---
+
+## [2026-08-24] 修复 Safari 拖拽进度条自动暂停与弱网点击播放无效 Bug
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **排查根本原因**：
+     - 上次修复 Safari 缓冲问题时引入的 `bufferGatePaused` 机制，在 `onWaiting` 事件中调用 `video.pause()` 暂停播放，然后通过 `tryResumeFromBuffer` 轮询缓冲量达标后再调用 `video.play()` 恢复；
+     - Safari 的 AVPlayer 后端在拖拽进度条 Seek 时频繁触发 `waiting` 事件，导致每次拖拽都触发 JS 层 `video.pause()`，屏幕闪现暂停图标；
+     - 弱网环境下缓冲量长时间不达标，`tryResumeFromBuffer` 轮询无法满足恢复条件，用户点击播放按钮也无法覆盖 JS 层的暂停状态，形成死锁。
+  2. **全面修复（`VideoPlayer.tsx`）**：
+     - **彻底移除 `bufferGatePaused` 机制**：删除 `bufferGatePausedRef`、`MIN_RESUME_BUFFER_HLS_SEC`、`MIN_RESUME_BUFFER_MP4_SEC` 常量、`resumePoll` 定时器、`clearResumePoll()` 与 `tryResumeFromBuffer()` 函数；
+     - **简化 `onWaiting`**：仅展示缓冲 spinner UI，不再调用 `video.pause()`，让浏览器原生播放管线自行处理缓冲与恢复；
+     - **简化 `onCanPlay`**：调用 `hideBufferingUi()` 隐藏 spinner，移除 `tryResumeFromBuffer()` 调用；
+     - **简化 `onPlayingClear`**：移除 `bufferGatePausedRef.current = false` 与 `clearResumePoll()` 引用；
+     - **清理事件监听**：移除 `video.addEventListener/removeEventListener('progress', tryResumeFromBuffer)` 与 cleanup 中的 `clearResumePoll()` 残留。
+- 涉及文件：apps/web/src/player/VideoPlayer.tsx, .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck` 0 报错通过，`pnpm build` 全量生产打包构建验证通过。
+
+---
+
 ## [2026-08-24] 修复 OP/ED 自动跳过功能在用户手动 Seek 跳转时的误触发 Bug
 - 状态：已完成
 - 优先级：P0

@@ -15,7 +15,17 @@ import { bilibiliDanmakuRoutes } from './routes/bilibili-danmaku'
 import { pluginRoutes } from './routes/plugin'
 import { pluginCatalogRoutes } from './routes/plugin-catalog'
 import { mediaRoutes } from './routes/media'
-import { buildRobotsTxt, buildDynamicSitemapXml, resolvePublicOrigin } from './lib/seo-static'
+import {
+  buildRobotsTxt,
+  buildDynamicSitemapXml,
+  resolvePublicOrigin,
+  fetchSitemapSubjects,
+} from './lib/seo-static'
+import {
+  isAuthorizedAdmin,
+  submitFullSitemapToIndexNow,
+  submitDifferentialSitemapSubjects,
+} from './lib/indexnow'
 import { handleSubjectPrerender } from './lib/seo-prerender'
 
 /**
@@ -134,6 +144,44 @@ app.post('/api/proxy/verify', async (c) => {
   // 300ms anti-bruteforce sleep
   await new Promise((r) => setTimeout(r, 300))
   return c.json({ ok: false, error: 'invalid_token', message: '管理员口令错误' }, 401)
+})
+
+/**
+ * Admin endpoint: submit sitemap URLs or specific custom URLs to IndexNow.
+ * Requires administrator authentication (X-Admin-Secret / PROXY_TOKEN) or loopback access.
+ */
+app.post('/api/admin/indexnow', async (c) => {
+  if (!isAuthorizedAdmin(c)) {
+    return c.json(
+      {
+        ok: false,
+        error: 'unauthorized',
+        message: '需要管理员鉴权（X-Admin-Secret / X-Animaku-Proxy-Token）或本机回环访问',
+      },
+      403,
+    )
+  }
+
+  const origin = resolvePublicOrigin(config.siteUrl, c.req) || config.siteUrl
+  if (!origin) {
+    return c.json(
+      {
+        ok: false,
+        error: 'missing_origin',
+        message: '未配置 SITE_URL 且无法从请求中解析 Public Host',
+      },
+      400,
+    )
+  }
+
+  const body = (await c.req.json<{ urls?: string[]; forceAll?: boolean }>().catch(() => ({}))) as {
+    urls?: string[]
+    forceAll?: boolean
+  }
+
+  const customUrls = Array.isArray(body.urls) && body.urls.length > 0 ? body.urls : undefined
+  const result = await submitFullSitemapToIndexNow(origin, customUrls)
+  return c.json(result, result.ok ? 200 : 400)
 })
 
 app.route('/api/bangumi', bangumiRoutes)
@@ -275,6 +323,24 @@ app.onError((err, c) => {
 
 console.log(`animaku server listening on http://${config.host}:${config.port}`)
 initDatabase()
+
+// Background initial IndexNow sync (runs 5s after startup if enabled and configured)
+if (config.indexnowEnabled) {
+  setTimeout(async () => {
+    try {
+      const origin = config.siteUrl
+      if (origin) {
+        const subjects = await fetchSitemapSubjects()
+        await submitDifferentialSitemapSubjects(origin, subjects)
+      } else {
+        console.log('[indexnow] Initial sync skipped: SITE_URL not set.')
+      }
+    } catch (e) {
+      console.warn('[indexnow] Initial startup sync warning:', e)
+    }
+  }, 5000)
+}
+
 const server = serve({
   fetch: app.fetch,
   port: config.port,

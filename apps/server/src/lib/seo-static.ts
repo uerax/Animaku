@@ -14,7 +14,7 @@ import { cacheGet } from './ttl-cache'
  * responses win when registered before serveStatic.
  */
 
-const SITEMAP_STATIC_PATHS = [
+export const SITEMAP_STATIC_PATHS = [
   { path: '/', priority: '1.0', changefreq: 'daily' },
   { path: '/anime', priority: '0.8', changefreq: 'weekly' },
   { path: '/timeline', priority: '0.8', changefreq: 'daily' },
@@ -101,7 +101,7 @@ const SITEMAP_CACHE_TTL_MS = 6 * 3600 * 1000 // 6 hours cache
  * Fetch calendar and trending subjects for sitemap aggregation.
  * Prefers memory cache, falls back to direct fetch, never throws.
  */
-async function fetchSitemapSubjects(): Promise<BangumiItem[]> {
+export async function fetchSitemapSubjects(): Promise<BangumiItem[]> {
   const subjectsMap = new Map<number, BangumiItem>()
   const apiHost = config.bangumiApiHost
   const apiUrl = config.bangumiApi
@@ -228,6 +228,17 @@ export async function buildDynamicSitemapXml(
 
   // 2. Dynamic subject entries
   const subjects = await fetchSitemapSubjects()
+
+  // Non-blocking trigger differential IndexNow check on sitemap refresh
+  const indexnowOrigin = base || config.siteUrl || origin
+  if (indexnowOrigin) {
+    void import('./indexnow')
+      .then((m) => m.submitDifferentialSitemapSubjects(indexnowOrigin, subjects))
+      .catch((err) => {
+        console.warn('[indexnow] background differential sync error:', err)
+      })
+  }
+
   const subjectUrls = subjects
     .map((item) => {
       const loc = base ? `${base}/subject/${item.id}` : `/subject/${item.id}`
