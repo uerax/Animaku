@@ -24,6 +24,8 @@ export const BANGUMI_CACHE_TTL = {
    * Longer than browse so watch re-entry hits after list navigation.
    */
   subject: 6 * 60 * 60_000,
+  /** Recommendations with 2 random tags — 24h daily exploration cycle. */
+  recommendations: 24 * 60 * 60_000,
 } as const
 
 /** Plugin exec result TTLs (search 4h; chapters 30m session shield; resolve classified). */

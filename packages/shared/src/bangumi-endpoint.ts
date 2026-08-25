@@ -133,15 +133,21 @@ export function getBangumiApiUrl(): string {
   return toBangumiApiUrl(currentApiHost)
 }
 
-/** 把已知 Bangumi 图片 host 换成当前源；其它 host / 相对路径原样返回。 */
-export function bangumiImageUrl(url: string): string {
+/** 把已知 Bangumi 图片 host 换成当前源或指定源；其它 host / 相对路径原样返回。 */
+export function bangumiImageUrl(
+  url: string,
+  overrideHost?: string | null,
+): string {
   const src = (url || '').trim()
   if (!src) return ''
   const m = /^(https?:)\/\/([^/?#]+)(.*)$/i.exec(src)
   if (!m) return src
   const host = m[2].toLowerCase()
-  if (host === currentImageHost || !REWRITABLE_IMAGE_HOSTS.has(host)) return src
-  return `${m[1]}//${currentImageHost}${m[3]}`
+  const targetHost = overrideHost
+    ? resolveBangumiImagePreset(overrideHost) || currentImageHost
+    : currentImageHost
+  if (host === targetHost || !REWRITABLE_IMAGE_HOSTS.has(host)) return src
+  return `${m[1]}//${targetHost}${m[3]}`
 }
 
 /** 把已知 Bangumi 图片 host 强制换成官方源 lain.bgm.tv（用于 SEO / Sitemap / JSON-LD） */

@@ -4,6 +4,7 @@ import type {
   BangumiEpisode,
   BangumiUser,
   BangumiCollectionEntry,
+  BangumiRecommendationsPayload,
   CollectType,
 } from '@animaku/shared'
 import { useSettingsStore } from '../stores/settings'
@@ -61,6 +62,28 @@ export const bangumiApi = {
     api<{ data: BangumiEpisode[] }>(`/api/bangumi/subjects/${id}/episodes`, {
       signal: opts?.signal,
     }),
+  recommendations: (
+    subjectId: number | string,
+    opts?: {
+      tags?: string[]
+      isMovie?: boolean
+      imageHost?: string
+      signal?: AbortSignal
+    },
+  ) =>
+    api<{ data: BangumiRecommendationsPayload }>(
+      '/api/bangumi/recommendations',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          subjectId: Number(subjectId),
+          tags: opts?.tags,
+          isMovie: opts?.isMovie,
+          imageHost: opts?.imageHost,
+        }),
+        signal: opts?.signal,
+      },
+    ),
   me: (opts?: SignalOpt) =>
     api<{ data: BangumiUser }>('/api/bangumi/me', {
       token: token(),

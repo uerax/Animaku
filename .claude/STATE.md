@@ -4,6 +4,39 @@
 
 ---
 
+## [2026-08-25] 落地播放页 B 站风格番剧推荐流（Slot 0 系列接续 + 2 随机特征 Tag 去噪检索 + 24h 强缓存）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **全链路推荐契约与类型定义 (`packages/shared/src/bangumi.ts`)**：
+     - 定义 `BangumiRecommendationItem`、`BangumiRecommendationsRequest` 与 `BangumiRecommendationsPayload`；
+     - 增强 `bangumiImageUrl` 支持可选 `overrideHost` 参数，兼顾服务端显式转换与客户端动态自适应。
+  2. **服务端推荐聚合端点与自适应多象限抽样算法 (`POST /api/bangumi/recommendations`)**：
+     - **独立端点与 CDN 隔离**：独立于 `/subjects/*` 路径，POST 语义保证 CDN 回源，由服务端精准掌控 24 小时 TTL 缓存（`BANGUMI_CACHE_TTL.recommendations`）；
+     - **Slot 0 时序接续算法**：请求 `/v0/subjects/:id/subjects`，顺承续集/紧接剧场版优先（标记 🟢`续作` / 🟣`剧场版`），最终季回溯前作（标记 🔵`前作`）；
+     - **特征 Tag 严格去噪与主流题材保底补齐**：通过黑名单正则与词库剔除年份/月份/TV/漫改/主观词，从有效特征池中随机抽取 2 个 Tag；若冷门番有效 Tag 不足 2 个，自动从通用主流题材池（日常/搞笑/奇幻/热血/科幻等）中随机补齐至 2 个（若 `isMovie: true` 则强制附带 `剧场版`），保证搜索条件永远稳定丰富；
+     - **自适应多象限分桶切片采样算法 (`buildAdaptiveSamplePlan`)**：
+       - 识别 Bangumi 官方搜索接口物理视窗硬上限（`max_result_window = 1000`）；
+       - 小规模（$\le 30$ 部）单次拉取全量 0 遗漏；中等规模自适应降级为 2~3 象限，杜绝重叠退化；
+       - 采用闭区间映射（`floor(i*M/K) .. floor((i+1)*M/K)`）彻底解决整除截断导致的尾部遗漏；
+       - 象限内独立摇号 + 4 次极少并发切片汇聚 60 部样本大池 + 内存 Fisher-Yates 全局洗牌，实现 6.0~8.5 跨年代真·全域探索感；
+     - **动态满额 6 部抽样**：从候选大池中排除自身与 Slot 0，若存在 Slot 0 则随机抽样 5 部，若无 Slot 0 则随机抽样 6 部，永远保证严格满额 6 部；
+     - **纯粹服务端 24h 缓存 (Pure Cache)**：服务端直接以原生图片 URL 进行 24 小时存取，命中缓存时 0 计算、0 重映射；客户端在视图渲染层统一通过 `bangumiImageUrl` 实现图片域名毫秒级自适应。
+  3. **客户端组件与 B 站小横卡排版 (`WatchRecommendations.tsx`)**：
+     - **B 站同款宽幅比例（4:3 占宽 38% 聚焦主角特写）**：左侧封面采用 `aspect-[4/3] w-[38%] max-w-[145px]`，配合 `object-cover object-[center_18%]` 自动聚焦海报上半部的主角半身与面部特写，视觉冲击力强且清晰度拉满；
+     - **两端严格对齐与绝不溢出**：右侧文字区采用 `h-full justify-between`，顶部标题贴顶（2行截断），底部两行贴底（`年份 · 集数` + `★ 评分`），文字高度严格受限于左侧图片绝不上下冒出；
+     - **客户端 count >= 20 低频长尾过滤**：客户端在提取 tags 时，自动过滤打标人数少于 20 的低频个人私货/长尾词（冷门番若不足 2 个则回退 Top 5），提升跨番推荐的共识通用度；
+     - **多级缓存防线**：React Query 配置 `staleTime: 24h` + `gcTime: 24h`，同番剧切集/切源/进出页面 0 重复请求；
+     - **图片源秒级自适应**：前端渲染统一走 `bangumiImageUrl`，用户在设置页切换图片源时推荐封面即时响应；
+     - **路由预加载**：悬停卡片触发 `preloadRoute('subject')` 与 `preloadVideoPlayer()` 秒开切番。
+  4. **全端布局集成 (`WatchPage.tsx` / `MobileWatchLayout.tsx`)**：
+     - 桌面端放置于右侧栏 `kz-watch-rail` 选集模块正下方，填补右下角留白；
+     - 移动端在选集卡片正下方流式自然排布。
+- 涉及文件：packages/shared/src/bangumi.ts, packages/shared/src/bangumi-endpoint.ts, apps/server/src/lib/ttl-cache.ts, apps/server/src/routes/bangumi.ts, apps/web/src/lib/bangumi.ts, apps/web/src/pages/watch/WatchRecommendations.tsx, apps/web/src/pages/watch/MobileWatchLayout.tsx, apps/web/src/pages/WatchPage.tsx, .claude/feature-map.md, .claude/STATE.md
+- 备注：`pnpm typecheck` 与 `pnpm build` 全仓 3 个 workspace 0 报错通过，集成测试验证通过。
+
+---
+
 ## [2026-08-25] 落地设置页带状态摘要的智能折叠卡片（CollapsibleSection）
 - 状态：已完成
 - 优先级：P1

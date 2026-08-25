@@ -19,6 +19,7 @@ import { WatchMeta } from './watch/WatchMeta'
 import { MobileEpsSection } from './watch/MobileEpsSection'
 import { SourceBoard } from './watch/SourceBoard'
 import { WatchHudToast } from './watch/WatchHudToast'
+import { WatchRecommendations } from './watch/WatchRecommendations'
 
 /**
  * Unified subject + cinema page (Bilibili-style).
@@ -342,11 +343,20 @@ export function WatchPage() {
     />
   )
 
-  /* Desktop rail: sources then episodes (right column). */
+  /* 番剧推荐模块（选集下方 B 站小横卡流） */
+  const recommendationsPanel = (
+    <WatchRecommendations
+      bangumiId={bangumiId}
+      bangumiItem={w.bangumiItem}
+    />
+  )
+
+  /* Desktop rail: sources, episodes, then recommendations (right column). */
   const rail = (
     <>
       {sourcesPanel}
       {epsPanel}
+      {recommendationsPanel}
     </>
   )
 
@@ -359,12 +369,13 @@ export function WatchPage() {
           rail={rail}
         />
       ) : (
-        // Mobile: player → meta → 视频源 → 选集 (Bilibili-style)
+        // Mobile: player → meta → 视频源 → 选集 → 推荐 (Bilibili-style)
         <MobileWatchLayout
           player={playerBlock}
           meta={metaBlock}
           sources={sourcesPanel}
           episodes={epsPanel}
+          recommendations={recommendationsPanel}
         />
       )}
     </div>

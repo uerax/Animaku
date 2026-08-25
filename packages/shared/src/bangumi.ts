@@ -128,6 +128,29 @@ export interface BangumiCollectionEntry {
   comment?: string
 }
 
+export interface BangumiRecommendationItem {
+  id: number
+  name: string
+  nameCn: string
+  cover: string
+  score: number
+  year: string
+  epsLabel: string
+  relationBadge?: '续作' | '前作' | '剧场版' | '总集篇' | '衍生' | '系列'
+}
+
+export interface BangumiRecommendationsRequest {
+  subjectId: number
+  tags?: string[]
+  isMovie?: boolean
+  imageHost?: string
+}
+
+export interface BangumiRecommendationsPayload {
+  items: BangumiRecommendationItem[]
+  matchedTags: string[]
+}
+
 /**
  * next.bgm.tv list payloads often only expose `info` like
  * `12话 / 2026年7月6日 / 監督…` — pull eps + air date from it.

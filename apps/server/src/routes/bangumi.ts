@@ -3,11 +3,15 @@ import {
   parseBangumiItem,
   fromBangumiCollectionType,
   toBangumiCollectionType,
+  bangumiImageUrl,
   type BangumiItem,
   type BangumiEpisode,
   type BangumiCollectionEntry,
   type CollectType,
   type BangumiUser,
+  type BangumiRecommendationItem,
+  type BangumiRecommendationsRequest,
+  type BangumiRecommendationsPayload,
 } from '@animaku/shared'
 import { config } from '../config'
 import { bangumiFetch, getBearerToken } from '../lib/http'
@@ -560,3 +564,407 @@ bangumiRoutes.get('/collections/:subjectId', async (c) => {
   }
   return c.json({ data: entry })
 })
+
+const DEFAULT_RECOMMENDATION_LIMIT = 6
+const BANGUMI_MAX_SEARCH_WINDOW = 1000
+
+export interface SamplePlan {
+  offset: number
+  limit: number
+}
+
+/**
+ * 自适应分桶采样计划生成器：
+ * 1. 物理视窗安全截断：Bangumi 官方搜索引擎底层限制 max_result_window = 1000；
+ * 2. 闭区间映射 [floor(i*M/K), floor((i+1)*M/K)]：彻底消除整除余数遗漏与跨象限重叠；
+ * 3. 动态自适应 K 值 (K <= maxRequests)：小规模单次拉全量，中规模降为 2~3 象限，大规模 4 象限。
+ */
+export function buildAdaptiveSamplePlan(
+  total: number,
+  opts?: {
+    maxRequests?: number
+    limitPerBucket?: number
+  },
+): SamplePlan[] {
+  const maxRequests = Math.max(1, opts?.maxRequests ?? 4)
+  const limitPerBucket = Math.max(1, opts?.limitPerBucket ?? 15)
+
+  const safeTotal = Math.max(0, Math.min(total, BANGUMI_MAX_SEARCH_WINDOW))
+  if (safeTotal === 0) return []
+
+  // 小规模场景 (total <= 30)：单次全量精准拉回，0 遗漏
+  if (safeTotal <= 30) {
+    return [{ offset: 0, limit: safeTotal }]
+  }
+
+  // 根据总数自适应推导象限数量，并受 maxRequests 参数硬上限约束
+  let naturalBuckets = 4
+  if (safeTotal < limitPerBucket * 3) {
+    naturalBuckets = 2 // 31 ~ 44 部
+  } else if (safeTotal < limitPerBucket * 5) {
+    naturalBuckets = 3 // 45 ~ 74 部
+  }
+
+  const bucketCount = Math.min(maxRequests, naturalBuckets)
+  const plans: SamplePlan[] = []
+
+  for (let i = 0; i < bucketCount; i++) {
+    const rangeStart = Math.floor((i * safeTotal) / bucketCount)
+    const rangeEnd = Math.floor(((i + 1) * safeTotal) / bucketCount)
+    const rangeWidth = rangeEnd - rangeStart
+
+    const actualLimit = Math.min(limitPerBucket, rangeWidth)
+    const maxOffset = Math.max(rangeStart, rangeEnd - actualLimit)
+
+    // 当 rangeWidth <= actualLimit 时，maxOffset === rangeStart，象限退化为全量覆盖拉取（自由度为 0）
+    const randomOffset =
+      maxOffset > rangeStart
+        ? rangeStart + Math.floor(Math.random() * (maxOffset - rangeStart + 1))
+        : rangeStart
+
+    plans.push({
+      offset: randomOffset,
+      limit: actualLimit,
+    })
+  }
+
+  return plans
+}
+
+const NOISE_TIME_REGEX =
+  /^(\d{4}年?(\d{1,2}月)?|\d{1,2}月|\d{4}s|\d{2}年代|\d{4}(春|夏|秋|冬)|(春|夏|秋|冬)季番|\d{4})$/i
+
+const NOISE_TAGS = new Set([
+  '日本',
+  'TV',
+  '日本动画',
+  'TV动画',
+  'WEB',
+  'web',
+  'ONA',
+  'OVA',
+  'OAD',
+  '动画',
+  '国产',
+  '中国',
+  '漫画改',
+  '小说改',
+  '轻小说改',
+  '漫改',
+  '轻改',
+  '原创',
+  '续作',
+  '第二季',
+  '第三季',
+  '游戏改',
+  '神作',
+  '补番',
+  '烂尾',
+  '弃坑',
+  '待看',
+  '经典',
+  '推荐',
+  '名作',
+  '剧场版',
+  '动画电影',
+  '电影',
+])
+
+const FALLBACK_GENRE_TAGS = [
+  '日常',
+  '搞笑',
+  '奇幻',
+  '热血',
+  '战斗',
+  '科幻',
+  '治愈',
+  '恋爱',
+  '校园',
+  '悬疑',
+  '冒险',
+  '青春',
+]
+
+function cleanAndPickTags(
+  rawTags: string[],
+  isMovie?: boolean,
+): { pickedTags: string[]; searchTags: string[] } {
+  const cleaned: string[] = []
+  for (const raw of rawTags) {
+    const t = String(raw || '').trim()
+    if (!t) continue
+    if (NOISE_TIME_REGEX.test(t)) continue
+    if (NOISE_TAGS.has(t)) continue
+    if (!cleaned.includes(t)) cleaned.push(t)
+  }
+  // Random shuffle for fresh exploration per cycle
+  const shuffled = cleaned.slice().sort(() => 0.5 - Math.random())
+  const picked = shuffled.slice(0, 2)
+
+  // 若有效 Tag 不足 2 个，从通用主流题材池中随机补充保底
+  if (picked.length < 2) {
+    const available = FALLBACK_GENRE_TAGS.filter((t) => !picked.includes(t))
+    const randomFallbacks = available.sort(() => 0.5 - Math.random())
+    while (picked.length < 2 && randomFallbacks.length > 0) {
+      picked.push(randomFallbacks.pop()!)
+    }
+  }
+
+  const search = [...picked]
+  if (isMovie && !search.includes('剧场版')) {
+    search.push('剧场版')
+  }
+  return { pickedTags: picked, searchTags: search }
+}
+
+function extractYear(airDate?: string): string {
+  if (!airDate) return ''
+  const m = /^(\d{4})/.exec(airDate.trim())
+  return m ? m[1] : ''
+}
+
+function formatEpsLabel(item: {
+  eps?: number
+  total_episodes?: number
+  totalEpisodes?: number
+}): string {
+  const total = item.totalEpisodes || item.total_episodes || item.eps || 0
+  if (total > 0) return `全${total}话`
+  return '连载中'
+}
+
+bangumiRoutes.post('/recommendations', async (c) => {
+  const body = await c.req.json<BangumiRecommendationsRequest>()
+  const subjectId = Number(body.subjectId)
+  if (!Number.isFinite(subjectId) || subjectId <= 0) {
+    return c.json({ error: 'bad_request', message: '无效的 subjectId' }, 400)
+  }
+
+  const key = `bangumi:${apiHost}:rec:${subjectId}`
+  const bypass = wantsCacheBypass(c)
+  if (bypass) {
+    cacheDelete(key)
+  } else {
+    const hit = cacheGet<BangumiRecommendationsPayload>(key)
+    if (hit) {
+      return c.json({ data: hit }, 200, cacheHeaders(true))
+    }
+  }
+
+  // 1. Fetch relations for Slot 0 determination (type: 2 anime only)
+  let slot0: BangumiRecommendationItem | null = null
+  const seenSubjectIds = new Set<number>([subjectId])
+
+  try {
+    const relRes = await bangumiFetch(`${apiUrl}/v0/subjects/${subjectId}/subjects`)
+    if (relRes.ok) {
+      const relJson = (await relRes.json()) as Array<{
+        id: number
+        type: number
+        name?: string
+        name_cn?: string
+        relation?: string
+        images?: Record<string, string>
+        rating?: { score?: number }
+        date?: string
+        eps?: number
+        total_episodes?: number
+      }>
+      if (Array.isArray(relJson)) {
+        const animeRelations = relJson.filter((r) => Number(r.type) === 2 && r.id > 0)
+
+        // Priority 1: Next / Sequel
+        const nextRel = animeRelations.find(
+          (r) =>
+            r.relation === '续集' ||
+            r.relation === '主线故事' ||
+            r.relation === '不同演绎',
+        )
+        // Priority 2: Prequel (when current is final season / latest)
+        const prevRel = !nextRel
+          ? animeRelations.find((r) => r.relation === '前传')
+          : undefined
+
+        const chosenRel = nextRel || prevRel
+        if (chosenRel) {
+          const rawImages = chosenRel.images || {}
+          const rawCover =
+            rawImages.medium ||
+            rawImages.common ||
+            rawImages.large ||
+            rawImages.small ||
+            rawImages.grid ||
+            ''
+          const cover = rawCover
+
+          const isMovieTitle =
+            (chosenRel.name_cn || chosenRel.name || '').includes('剧场版') ||
+            (chosenRel.name_cn || chosenRel.name || '').includes('电影')
+
+          let relationBadge: BangumiRecommendationItem['relationBadge'] = '续作'
+          if (nextRel) {
+            relationBadge = isMovieTitle ? '剧场版' : '续作'
+          } else if (prevRel) {
+            relationBadge = '前作'
+          }
+
+          slot0 = {
+            id: chosenRel.id,
+            name: String(chosenRel.name ?? ''),
+            nameCn: String(chosenRel.name_cn || chosenRel.name || ''),
+            cover,
+            score: Number(Number(chosenRel.rating?.score ?? 0).toFixed(1)),
+            year: extractYear(chosenRel.date),
+            epsLabel: formatEpsLabel(chosenRel),
+            relationBadge,
+          }
+          seenSubjectIds.add(chosenRel.id)
+        }
+      }
+    }
+  } catch {
+    /* ignore relations fetch error, fallback to all similar */
+  }
+
+  // 2. Pick 2 random feature tags from client tags
+  const rawTags = Array.isArray(body.tags) ? body.tags : []
+  const { pickedTags, searchTags } = cleanAndPickTags(rawTags, body.isMovie)
+
+  // 3. Search candidate pool using adaptive multi-bucket sampling
+  const targetSimilarCount = slot0
+    ? DEFAULT_RECOMMENDATION_LIMIT - 1
+    : DEFAULT_RECOMMENDATION_LIMIT
+
+  type SearchCandidate = {
+    id: number
+    name: string
+    name_cn?: string
+    images?: Record<string, string>
+    rating?: { score?: number }
+    air_date?: string
+    date?: string
+    eps?: number
+    total_episodes?: number
+  }
+
+  const querySearch = async (
+    tags: string[],
+    limit: number,
+    offset = 0,
+  ): Promise<{ data: SearchCandidate[]; total: number }> => {
+    try {
+      const searchUrl = `${apiUrl}/v0/search/subjects?limit=${limit}&offset=${offset}`
+      const res = await bangumiFetch(searchUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sort: 'match',
+          filter: {
+            type: [2],
+            tag: tags.length > 0 ? tags : undefined,
+            nsfw: false,
+          },
+        }),
+      })
+      if (res.ok) {
+        const json = (await res.json()) as { data?: SearchCandidate[]; total?: number }
+        return {
+          data: json.data || [],
+          total: Number(json.total ?? 0),
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    return { data: [], total: 0 }
+  }
+
+  // Fetch candidates using adaptive multi-bucket plan
+  const fetchSampledPool = async (tags: string[]): Promise<SearchCandidate[]> => {
+    // 1. Probe total with limit 1
+    const probe = await querySearch(tags, 1, 0)
+    const total = probe.total
+    if (total <= 0) return []
+
+    // 2. Build adaptive plan (auto scale 1~4 buckets, clean range mapping)
+    const plans = buildAdaptiveSamplePlan(total, { maxRequests: 4, limitPerBucket: 15 })
+    if (plans.length === 0) return []
+
+    // 3. Concurrent fetch all plan buckets via Promise.all
+    const chunkPromises = plans.map((p) => querySearch(tags, p.limit, p.offset))
+    const chunks = await Promise.all(chunkPromises)
+    return chunks.flatMap((c) => c.data)
+  }
+
+  let candidatePool: SearchCandidate[] = []
+
+  // Attempt 1: search with picked 2 tags
+  candidatePool = await fetchSampledPool(searchTags)
+
+  // Attempt 2: fallback to 1st tag if results < target
+  if (candidatePool.length < targetSimilarCount && pickedTags.length > 1) {
+    const fallbackTags = [pickedTags[0]]
+    if (body.isMovie) fallbackTags.push('剧场版')
+    const fallbackList = await fetchSampledPool(fallbackTags)
+    if (fallbackList.length > candidatePool.length) {
+      candidatePool = fallbackList
+    }
+  }
+
+  // Attempt 3: fallback to general if still empty
+  if (candidatePool.length < targetSimilarCount) {
+    const generalList = await fetchSampledPool(body.isMovie ? ['剧场版'] : [])
+    if (generalList.length > 0) {
+      candidatePool = [...candidatePool, ...generalList]
+    }
+  }
+
+  // Filter out seen subject IDs (self + Slot 0)
+  const availableCandidates = candidatePool.filter(
+    (c) => c && c.id > 0 && !seenSubjectIds.has(c.id),
+  )
+
+  // Random sample targetSimilarCount from available pool
+  const shuffledCandidates = availableCandidates
+    .slice()
+    .sort(() => 0.5 - Math.random())
+  const selectedSimilar = shuffledCandidates.slice(0, targetSimilarCount)
+
+  const similarItems: BangumiRecommendationItem[] = selectedSimilar.map(
+    (item) => {
+      const rawImages = (item.images || {}) as Record<string, string>
+      const rawCover =
+        rawImages.medium ||
+        rawImages.common ||
+        rawImages.large ||
+        rawImages.small ||
+        rawImages.grid ||
+        ''
+      const cover = rawCover
+      const airDate = String(item.air_date || item.date || '')
+
+      return {
+        id: item.id,
+        name: String(item.name ?? ''),
+        nameCn: String(item.name_cn || item.name || ''),
+        cover,
+        score: Number(Number(item.rating?.score ?? 0).toFixed(1)),
+        year: extractYear(airDate),
+        epsLabel: formatEpsLabel(item),
+      }
+    },
+  )
+
+  const items: BangumiRecommendationItem[] = slot0
+    ? [slot0, ...similarItems]
+    : similarItems
+
+  const payload: BangumiRecommendationsPayload = {
+    items,
+    matchedTags: pickedTags,
+  }
+
+  cacheSet(key, payload, BANGUMI_CACHE_TTL.recommendations)
+  return c.json({ data: payload }, 200, cacheHeaders(false))
+})
+
