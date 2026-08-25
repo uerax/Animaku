@@ -76,9 +76,9 @@ const ASPECT_RATIO_LABELS: Record<AspectRatioMode, string> = {
 
 /** Min buffer before first play — tiered for HLS vs progressive MP4. */
 const MIN_START_BUFFER_HLS_SEC = 0.4
-const MIN_START_BUFFER_MP4_SEC = 0.8
+const MIN_START_BUFFER_MP4_SEC = 0.4
 /** Don't stall forever on empty CDN; start anyway after this. */
-const MAX_START_WAIT_MS = 8_000
+const MAX_START_WAIT_MS = 3_500
 
 export function VideoPlayer({
   title,
@@ -773,12 +773,13 @@ export function VideoPlayer({
         if (!alive() || settled) return
         const ahead = bufferedAhead(video)
         const waited = Date.now() - startedAt
-        // Tiered start: HLS pipelines fragments immediately; MP4 checks readyState & safe head buffer
+        // 核心起播门禁：三条独立并列通道（三者取一）
+        // 通道 1：首帧画面已渲染（HAVE_CURRENT_DATA）且具备至少 50ms 微缓冲存量（消除 Safari 死锁且不零缓冲裸奔）
+        // 通道 2：已缓冲达到标准起播阈值（0.4s）常规放行
+        // 通道 3：3.5s 硬超时兜底放行
         const readyEnough =
+          (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && ahead >= 0.05) ||
           ahead >= minStartBuffer ||
-          (ahead >= 0.3 &&
-            video.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA) ||
-          (isHls && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) ||
           waited >= MAX_START_WAIT_MS
         if (!readyEnough) return
 

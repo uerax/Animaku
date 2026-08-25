@@ -4,6 +4,23 @@
 
 ---
 
+## [2026-08-26] 彻底修复 Safari 渐进式 MP4 起播死等硬超时 Bug（解除格式双标 + 50ms 微存量安全底线 + 3.5s 超时收敛）
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **排查根本原因与死锁机制**：
+     - **视觉与状态割裂**：首帧渲染由 `<video>` 的 `loadeddata`（`readyState >= 2 HAVE_CURRENT_DATA`）驱动，但中央 Spinner 蒙层由 React `loading: true` 状态控制，须等待 `softPlay` 内部 `video.play()` 成功后才卸载；
+     - **格式双标与死锁**：老代码中 `softPlay` 仅对 HLS 开放 `(isHls && readyState >= HAVE_CURRENT_DATA)` 宽松通道，而对渐进式 MP4 苛刻要求 `ahead >= 0.8s` 或 `readyState >= 4 HAVE_ENOUGH_DATA`；
+     - **WebKit 节能挂起**：Safari AVPlayer 在未收到 `play()` 播放意图前，渲染完首帧即主动挂起后续 Range 请求，导致 `ahead` 停留在 0~0.1s 且 `readyState` 停留在 2，与 JS 的门禁形成“相互死等”，直到硬等满 8 秒 `MAX_START_WAIT_MS` 触发超时才起播。
+  2. **全面重构起播门禁状态机 (`apps/web/src/player/VideoPlayer.tsx`)**：
+     - **彻底消除格式双标**：将通用通道对 MP4 全面放行，在首帧画面渲染且具备至少 50ms（`0.05s`）微缓冲存量时立即乐观起播（`video.readyState >= HAVE_CURRENT_DATA && ahead >= 0.05`），既消除 Safari 死锁，又避免零缓冲裸奔；
+     - **缓冲指标参数对称收敛**：将 MP4 起播缓冲指标 `MIN_START_BUFFER_MP4_SEC` 由 `0.8s` 下调至与 HLS 完全对齐的 `0.4s`；
+     - **超时兜底收紧**：将 `MAX_START_WAIT_MS` 由 `8_000ms`（8秒）收紧至 `3_500ms`（3.5秒），大幅改善极端弱网下的用户心理预期。
+- 涉及文件：apps/web/src/player/VideoPlayer.tsx, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 3 个 workspace 0 报错通过，播放器状态机单测全量通过。
+
+---
+
 ## [2026-08-26] 调研弹弹play Token 额度耗尽与运行时兜底降级方案并沉淀设计文档
 - 状态：已完成
 - 优先级：P2
