@@ -4,6 +4,24 @@
 
 ---
 
+## [2026-08-26] 调研弹弹play Token 额度耗尽与运行时兜底降级方案并沉淀设计文档
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **排查现存机制与根本问题 (`apps/server/src/lib/dandan.ts`)**：
+     - 确认当前项目仅实现了环境变量未填时的静态 fallback；
+     - 一旦在 `.env` 配置自定义 Token，额度耗尽或报错时上游直接向客户端抛出 502，缺少运行时自动重试与动态降级机制。
+  2. **官方 API 规范与事实核验 (`https://doc.dandanplay.com/open/` & Swagger Spec)**：
+     - 明确了所有接口继承 `ResponseBase`（`errorCode`, `success`, `errorMessage`）；
+     - 明确了鉴权失效、签名错误及配额限制时的 HTTP 401/403/429 表现（403 带 `X-Error-Message` 头）；
+     - 区分了确认事实（`ResponseBase`、HTTP 401/403、`errorCode: 7` 正常资源 404）与推测部分（官方未公开全局 errorCode 完整枚举，额度耗尽可能表现为 HTTP 或业务 JSON 错误）。
+  3. **输出完整设计与待办文档 (`docs/dandan-token-fallback.md` & `docs/TODO.md`)**：
+     - 提出了基于宽容错误判定（`isTokenOrUpstreamFailure`）、两阶段执行器（Primary with Fallback Retry）与内存熔断冷却（Circuit Breaker）的完整架构方案，供未来需要时读取执行。
+- 涉及文件：docs/dandan-token-fallback.md, docs/TODO.md, .claude/STATE.md
+- 备注：文档沉淀完毕，随时可按设计图纸落地执行。
+
+---
+
 ## [2026-08-26] 彻底修复播放起播二次刷新与 DOM 暴力重建（原地 Seek 状态机 + 4重时序互锁 + 权威时长决断 + 弹幕 404 缓存）
 - 状态：已完成
 - 优先级：P0
