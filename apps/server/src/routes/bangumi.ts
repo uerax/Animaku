@@ -647,6 +647,8 @@ const NOISE_TAGS = new Set([
   '动画',
   '国产',
   '中国',
+  '欧美',
+  '韩国',
   '漫画改',
   '小说改',
   '轻小说改',
@@ -688,6 +690,7 @@ const FALLBACK_GENRE_TAGS = [
 function cleanAndPickTags(
   rawTags: string[],
   isMovie?: boolean,
+  country: string = '日本',
 ): { pickedTags: string[]; searchTags: string[] } {
   const cleaned: string[] = []
   for (const raw of rawTags) {
@@ -710,7 +713,7 @@ function cleanAndPickTags(
     }
   }
 
-  const search = [...picked]
+  const search = [country, ...picked]
   if (isMovie && !search.includes('剧场版')) {
     search.push('剧场版')
   }
@@ -872,9 +875,14 @@ bangumiRoutes.post('/recommendations', async (c) => {
     /* ignore relations fetch error, fallback to all similar */
   }
 
-  // 2. Pick 2 random feature tags from client tags
+  // 2. Pick 2 random feature tags from client tags & combine with country tag
+  const country = String(body.country || '').trim() || '日本'
   const rawTags = Array.isArray(body.tags) ? body.tags : []
-  const { pickedTags, searchTags } = cleanAndPickTags(rawTags, body.isMovie)
+  const { pickedTags, searchTags } = cleanAndPickTags(
+    rawTags,
+    body.isMovie,
+    country,
+  )
 
   // 3. Search candidate pool using adaptive multi-bucket sampling
   const targetSimilarCount = slot0
@@ -944,12 +952,12 @@ bangumiRoutes.post('/recommendations', async (c) => {
 
   let candidatePool: SearchCandidate[] = []
 
-  // Attempt 1: search with picked 2 tags
+  // Attempt 1: search with country + picked 2 tags (+ movie tag if applicable)
   candidatePool = await fetchSampledPool(searchTags)
 
-  // Attempt 2: fallback to 1st tag if results < target
+  // Attempt 2: fallback to country + 1st tag if results < target
   if (candidatePool.length < targetSimilarCount && pickedTags.length > 1) {
-    const fallbackTags = [pickedTags[0]]
+    const fallbackTags = [country, pickedTags[0]]
     if (body.isMovie) fallbackTags.push('剧场版')
     const fallbackList = await fetchSampledPool(fallbackTags)
     if (fallbackList.length > candidatePool.length) {
@@ -957,9 +965,11 @@ bangumiRoutes.post('/recommendations', async (c) => {
     }
   }
 
-  // Attempt 3: fallback to general if still empty
+  // Attempt 3: fallback to country (+ movie tag) if still empty
   if (candidatePool.length < targetSimilarCount) {
-    const generalList = await fetchSampledPool(body.isMovie ? ['剧场版'] : [])
+    const generalTags = [country]
+    if (body.isMovie) generalTags.push('剧场版')
+    const generalList = await fetchSampledPool(generalTags)
     if (generalList.length > 0) {
       candidatePool = [...candidatePool, ...generalList]
     }
@@ -1007,7 +1017,7 @@ bangumiRoutes.post('/recommendations', async (c) => {
 
   const payload: BangumiRecommendationsPayload = {
     items,
-    matchedTags: pickedTags,
+    matchedTags: [country, ...pickedTags],
   }
 
   cacheSet(key, payload, BANGUMI_CACHE_TTL.recommendations)

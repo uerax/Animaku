@@ -41,7 +41,7 @@
  * - Right rail: 视频源 / 选集 / 推荐 are independent panels (no shared outer scroll)
  */
 .kz-watch {
-  --kz-watch-rail-w: 360px;
+  --kz-watch-rail-w: clamp(360px, 23vw, 420px);
   --kz-watch-cinema-gap: 1rem; /* 16px — player ↔ rail */
   overflow-anchor: none;
 
@@ -60,12 +60,6 @@
   /* Desktop: each panel body scrolls on its own (not the whole rail) */
   --kz-watch-sources-max-h: min(48dvh, 22rem);
   --kz-watch-eps-max-h: min(42dvh, 20rem);
-}
-
-@media (min-width: 1536px) {
-  .kz-watch {
-    --kz-watch-rail-w: 380px;
-  }
 }
 
 .kz-watch-cinema {

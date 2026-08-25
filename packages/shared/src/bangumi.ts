@@ -142,6 +142,7 @@ export interface BangumiRecommendationItem {
 export interface BangumiRecommendationsRequest {
   subjectId: number
   tags?: string[]
+  country?: string
   isMovie?: boolean
   imageHost?: string
 }
@@ -149,6 +150,28 @@ export interface BangumiRecommendationsRequest {
 export interface BangumiRecommendationsPayload {
   items: BangumiRecommendationItem[]
   matchedTags: string[]
+}
+
+/**
+ * 严格按优先级决断番剧的国家 Tag：
+ * 1. 优先检查是否存在 '日本' -> '日本'
+ * 2. 其次检查是否存在 '国产' -> '国产'
+ * 3. 再次检查是否存在 '欧美' -> '欧美'
+ * 4. 再次检查是否存在 '韩国' -> '韩国'
+ * 5. 若均不存在，默认兜底为 '日本'
+ */
+export function resolveCountryTag(
+  tags?: Array<{ name?: string } | string> | null,
+): '日本' | '国产' | '欧美' | '韩国' {
+  const names = (tags || [])
+    .map((t) => (typeof t === 'string' ? t : t?.name || ''))
+    .filter(Boolean)
+
+  if (names.includes('日本')) return '日本'
+  if (names.includes('国产')) return '国产'
+  if (names.includes('欧美')) return '欧美'
+  if (names.includes('韩国')) return '韩国'
+  return '日本'
 }
 
 /**

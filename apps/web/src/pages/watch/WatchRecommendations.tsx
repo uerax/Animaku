@@ -1,9 +1,10 @@
-import { memo, useMemo } from 'react'
+import { memo, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import clsx from 'clsx'
 import {
   bangumiImageUrl,
+  resolveCountryTag,
   type BangumiItem,
   type BangumiRecommendationItem,
 } from '@animaku/shared'
@@ -33,8 +34,8 @@ const RecommendationCard = memo(function RecommendationCard({
       onTouchStart={onWarmup}
       className="group flex w-full items-stretch gap-3 rounded-xl p-1.5 transition-colors hover:bg-[var(--kz-bg-hover)]"
     >
-      {/* 左侧宽幅 4:3 封面：占宽 ~38%，聚焦主角面部与上半身 */}
-      <div className="relative aspect-[4/3] w-[38%] max-w-[145px] shrink-0 overflow-hidden rounded-lg bg-[var(--kz-bg-soft)] shadow-sm ring-1 ring-[var(--kz-border)]/60">
+      {/* 左侧 B 站同款 16:9 宽幅封面（180*101）：聚焦主角面部与上半身特写 */}
+      <div className="relative h-[90px] w-[160px] sm:h-[101px] sm:w-[180px] shrink-0 overflow-hidden rounded-lg sm:rounded-xl bg-[var(--kz-bg-soft)] shadow-sm ring-1 ring-[var(--kz-border)]/60">
         {coverSrc ? (
           <img
             src={bangumiImageUrl(coverSrc)}
@@ -51,9 +52,9 @@ const RecommendationCard = memo(function RecommendationCard({
       </div>
 
       {/* 右侧文字：高度与封面 100% 严格对齐，绝不超出图片 */}
-      <div className="flex min-w-0 flex-1 flex-col justify-between py-0.5">
+      <div className="flex min-w-0 flex-1 flex-col justify-between py-0.5 sm:py-1">
         {/* 顶部标题 */}
-        <div className="line-clamp-2 text-sm font-medium leading-tight text-[var(--kz-fg)] transition-colors group-hover:text-[var(--kz-accent)]">
+        <div className="line-clamp-2 text-sm font-medium leading-snug text-[var(--kz-fg)] transition-colors group-hover:text-[var(--kz-accent)]">
           {title}
         </div>
 
@@ -105,8 +106,8 @@ function RecommendationsSkeleton() {
           key={i}
           className="flex w-full items-stretch gap-3 rounded-xl p-1.5"
         >
-          <div className="kz-skeleton aspect-[4/3] w-[38%] max-w-[145px] shrink-0 rounded-lg ring-1 ring-[var(--kz-border)]/40" />
-          <div className="flex min-w-0 flex-1 flex-col justify-between py-0.5">
+          <div className="kz-skeleton h-[90px] w-[160px] sm:h-[101px] sm:w-[180px] shrink-0 rounded-lg sm:rounded-xl ring-1 ring-[var(--kz-border)]/40" />
+          <div className="flex min-w-0 flex-1 flex-col justify-between py-0.5 sm:py-1">
             <div className="space-y-1.5">
               <div className="kz-skeleton h-3.5 w-3/4 rounded" />
               <div className="kz-skeleton h-3 w-1/2 rounded" />
@@ -129,7 +130,12 @@ export function WatchRecommendations({
   bangumiId: number
   bangumiItem: BangumiItem | null | undefined
 }) {
+  const [isOpen, setIsOpen] = useState(true)
   const imageHost = useSettingsStore((s) => s.bangumiImageHost)
+
+  const country = useMemo(() => {
+    return resolveCountryTag(bangumiItem?.tags)
+  }, [bangumiItem])
 
   const tags = useMemo(() => {
     const raw = bangumiItem?.tags || []
@@ -153,10 +159,11 @@ export function WatchRecommendations({
   }, [bangumiItem])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['bangumi-recommendations', bangumiId],
+    queryKey: ['bangumi-recommendations', bangumiId, country],
     queryFn: ({ signal }) =>
       bangumiApi.recommendations(bangumiId, {
         tags,
+        country,
         isMovie,
         imageHost,
         signal,
@@ -169,43 +176,76 @@ export function WatchRecommendations({
 
   const items = data?.data?.items || []
 
-  // If loading and no cache yet, render skeleton
-  if (isLoading && items.length === 0) {
-    return (
-      <div className="kz-watch-panel space-y-2.5 p-3 sm:p-4">
-        <div className="flex items-center gap-2">
-          <span
-            className="h-3 w-0.5 shrink-0 rounded-full bg-[var(--kz-accent)]/70"
-            aria-hidden
-          />
-          <h3 className="kz-watch-panel-title">番剧推荐</h3>
-        </div>
-        <RecommendationsSkeleton />
-      </div>
-    )
-  }
-
   // If request finished but no items found, hide cleanly
   if (!isLoading && items.length === 0) {
     return null
   }
 
   return (
-    <div className="kz-watch-panel space-y-2 p-3 sm:p-4">
-      <div className="flex items-center justify-between pb-0.5">
-        <div className="flex items-center gap-2">
+    <section
+      className="kz-watch-panel shrink-0 overflow-hidden rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] shadow-sm transition-all duration-300"
+      aria-label="番剧推荐"
+    >
+      {/* 头部：支持点击整行折叠/展开 */}
+      <button
+        type="button"
+        onClick={() => setIsOpen((v) => !v)}
+        className="kz-bili-sec-head kz-bili-sec-head--btn flex w-full items-center justify-between px-3 py-2.5 text-left transition-colors hover:bg-[var(--kz-bg-hover)]"
+        aria-expanded={isOpen}
+      >
+        <div className="flex items-center gap-2 min-w-0">
           <span
             className="h-3 w-0.5 shrink-0 rounded-full bg-[var(--kz-accent)]/70"
             aria-hidden
           />
-          <h3 className="kz-watch-panel-title">番剧推荐</h3>
+          <span className="font-semibold text-xs sm:text-[13px] text-[var(--kz-fg)] tracking-tight flex items-center gap-1.5">
+            番剧推荐
+            {items.length > 0 && (
+              <span className="text-[11px] font-normal text-[var(--kz-fg-muted)]">
+                ({items.length})
+              </span>
+            )}
+          </span>
         </div>
-      </div>
-      <div className="space-y-1">
-        {items.map((item) => (
-          <RecommendationCard key={item.id} item={item} />
-        ))}
-      </div>
-    </div>
+
+        <div className="flex items-center gap-1 text-[var(--kz-fg-muted)] shrink-0">
+          <span className="text-xs font-normal">
+            {isOpen ? '收起' : '展开'}
+          </span>
+          <svg
+            className={clsx(
+              'kz-bili-chevron h-3.5 w-3.5 transition-transform duration-200',
+              isOpen && 'rotate-180',
+            )}
+            viewBox="0 0 16 16"
+            fill="none"
+            aria-hidden
+          >
+            <path
+              d="M4 6.2L8 10.2L12 6.2"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </div>
+      </button>
+
+      {/* 折叠内容区 */}
+      {isOpen && (
+        <div className="border-t border-[var(--kz-border-subtle)] p-2 sm:p-2.5">
+          {isLoading && items.length === 0 ? (
+            <RecommendationsSkeleton />
+          ) : (
+            <div className="space-y-1">
+              {items.map((item) => (
+                <RecommendationCard key={item.id} item={item} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
   )
 }

@@ -4,6 +4,46 @@
 
 ---
 
+## [2026-08-26] 升级播放页侧栏 clamp(360px, 23vw, 420px) 动态自适应与 B 站同款 180*101 (16:9) 沉浸大封面及智能折叠展开
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **右侧栏响应式动态自适应 (`clamp(360px, 23vw, 420px)`)**：
+     - 在 `apps/web/src/player/plyr-overrides.css` 中将 `--kz-watch-rail-w` 升级为 `clamp(360px, 23vw, 420px)`，告别单一固定写死；
+     - 在 1280~1440 笔记本/中屏下保持 360px 紧凑排版，在 1080P/2K 桌面下自适应伸展至 400px~420px，播放器与右侧栏维持 73.5% : 26.5% 的黄金观影与控制台平衡。
+  2. **番剧推荐封面升级 B 站新版 180*101 大号宽幅标准 (`WatchRecommendations.tsx`)**：
+     - 将卡片封面尺寸升级为 `h-[90px] w-[160px] sm:h-[101px] sm:w-[180px]`（标准 16:9，画面面积大幅增加 61%），角色面部特写与构图更加清晰；
+     - 右侧文字区（2 行标题 + 年份集数 + ★评分/续作角标）与左侧 101px 封面高度严格 1:1 等高对齐，消除空隙与逼仄感；
+     - 骨架屏同步适配 `h-[90px] w-[160px] sm:h-[101px] sm:w-[180px]`。
+  3. **推荐模块与整站风格一致的折叠/展开交互 (`WatchRecommendations.tsx`)**：
+     - 将推荐模块重构为与「视频源」「选集」完全对齐的 `kz-watch-panel` 交互卡片，支持点击整行头部或右侧「收起/展开」旋转 Chevron 切换；
+     - 头部显示相关番剧数量计数，默认展开，折叠时高度紧凑，满足专注选集或精简滚动需求。
+  4. **选集方块大屏 6 列扩展 (`apps/web/src/index.css`)**：
+     - 在 `.kz-bili-ep-grid` 增加 `@media (min-width: 1700px)` 6 列选集方块自适应响应，在大屏宽侧栏下空间利用更加充分。
+- 涉及文件：apps/web/src/pages/watch/WatchRecommendations.tsx, apps/web/src/player/plyr-overrides.css, apps/web/src/index.css, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 0 报错通过，`pnpm build` 全量生产打包构建通过。
+
+---
+
+## [2026-08-26] 落地番剧推荐国家 Tag 严格优先级同步与 B 站同款 141*80 宽幅封面重构
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **客户端国家 Tag 权威决断与透传 (`resolveCountryTag` & `BangumiRecommendationsRequest`)**：
+     - 在 `@animaku/shared` 中实现 `resolveCountryTag`，严格按唯一优先级判断 4 个精确国家 Tag：`日本 (最高优先)` $\to$ `国产` $\to$ `欧美` $\to$ `韩国` $\to$ `无标签默认日本`；
+     - 客户端在 `WatchRecommendations` 中计算当前番剧的规范 `country` 参数并下发至 `POST /api/bangumi/recommendations`；
+     - `queryKey` 联动绑定 `[bangumiId, country]`，实现换番与异国推荐强隔离。
+  2. **服务端国家 + 2 随机 Tag 组合与同国容灾检索 (`apps/server/src/routes/bangumi.ts`)**：
+     - 服务端接收 `country` 参数，将原有的 2 个随机题材/特征 Tag 与 `country` 组装为 3 Tag 复合检索：`[country, ...pickedTags]`（若为剧场版则包含 `剧场版`）；
+     - 多阶容灾采样（Attempt 1: `[country, tag1, tag2]` $\to$ Attempt 2: `[country, tag1]` $\to$ Attempt 3: `[country]`）全程严格锁定国家约束，彻底消除跨国推荐漂移。
+  3. **UI 规格重构与 B 站 141*80 规格对齐 (`WatchRecommendations.tsx`)**：
+     - 将推荐小横卡封面升级为 B 站桌面端标准的 `141*80` 规格（`h-[80px] w-[141px] shrink-0 rounded-lg`），配合 `object-cover object-[center_18%]` 聚焦主角特写；
+     - 骨架屏同步适配 `h-[80px] w-[141px]`，与 360px 宽度右侧栏实现整齐对称的视觉比例。
+- 涉及文件：packages/shared/src/bangumi.ts, apps/server/src/routes/bangumi.ts, apps/web/src/lib/bangumi.ts, apps/web/src/pages/watch/WatchRecommendations.tsx, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 3 个 workspace 0 报错通过，`pnpm build` 全量生产打包构建通过。
+
+---
+
 ## [2026-08-26] 将宽屏模式调整为仅作用于当前播放页（不持久化记忆 + 跨番重置）
 - 状态：已完成
 - 优先级：P1

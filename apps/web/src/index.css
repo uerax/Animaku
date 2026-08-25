@@ -1281,6 +1281,12 @@ html[data-theme='dark'] .kz-source-pill--retry:hover {
   box-sizing: border-box;
 }
 
+@media (min-width: 1700px) {
+  .kz-bili-ep-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 350px) {
   .kz-bili-ep-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));

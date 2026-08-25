@@ -66,6 +66,7 @@ export const bangumiApi = {
     subjectId: number | string,
     opts?: {
       tags?: string[]
+      country?: string
       isMovie?: boolean
       imageHost?: string
       signal?: AbortSignal
@@ -78,6 +79,7 @@ export const bangumiApi = {
         body: JSON.stringify({
           subjectId: Number(subjectId),
           tags: opts?.tags,
+          country: opts?.country,
           isMovie: opts?.isMovie,
           imageHost: opts?.imageHost,
         }),
