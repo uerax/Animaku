@@ -59,12 +59,29 @@ export interface ReleaseConfig {
   varName?: string
 }
 
-/** Plugin rule (subset used by web). */
+/** AniBaka Pipeline Step (anx-rule/2) */
+export interface PipelineStep {
+  op: string
+  [key: string]: unknown
+}
+
+/** Plugin rule (subset used by web, supporting both Kazumi V1 and AniBaka V2 pipelines). */
 export interface PluginRule {
-  api: string
-  type: string
+  api?: string
+  type?: string
+  format?: string
+  id?: string
   name: string
   version: string
+  iconUrl?: string
+  description?: string
+  headers?: Record<string, string>
+  recipes?: string[]
+  search?: PipelineStep[]
+  detail?: PipelineStep[]
+  play?: PipelineStep[]
+  directConnection?: boolean
+  mediaValidationTimeoutMs?: number
   /** Display sorting weight (higher weight = higher priority). Missing defaults to lowest weight. */
   weight?: number
   /**
@@ -95,12 +112,12 @@ export interface PluginRule {
   adBlocker?: boolean
   userAgent?: string
   baseURL: string
-  searchURL: string
-  searchList: string
-  searchName: string
-  searchResult: string
-  chapterRoads: string
-  chapterResult: string
+  searchURL?: string
+  searchList?: string
+  searchName?: string
+  searchResult?: string
+  chapterRoads?: string
+  chapterResult?: string
   referer?: string
   /** True when playback requires server-side full media proxy plus client opt-in. */
   requiresFullMediaProxy?: boolean
@@ -123,9 +140,20 @@ export interface PluginMeta extends PluginRule {
   importedAt: number
   /** how the rule entered the client store */
   source?: 'builtin' | 'import' | 'catalog'
+  /** rule engine / ecosystem type */
+  engineType?: 'anibaka' | 'kazumi' | 'adapter'
 }
 
-/** KazumiRules `index.json` entry (PluginHTTPItem) */
+/** Check if a rule is an AniBaka (anx-rule/2) pipeline rule */
+export function isAnxRule(raw: unknown): boolean {
+  if (!raw || typeof raw !== 'object') return false
+  const r = raw as Record<string, unknown>
+  const format = String(r.format ?? '').trim().toLowerCase()
+  if (format === 'anx-rule/2') return true
+  return Array.isArray(r.search) && (Array.isArray(r.detail) || Array.isArray(r.play))
+}
+
+/** KazumiRules & AniBakaRule `index.json` entry */
 export interface PluginCatalogItem {
   name: string
   version: string
@@ -133,6 +161,16 @@ export interface PluginCatalogItem {
   author: string
   lastUpdate: number
   antiCrawlerEnabled: boolean
+  // AniBaka & Unified Shop extensions
+  id?: string
+  shop?: 'anibaka' | 'kazumi'
+  title?: string
+  intro?: string
+  site?: string
+  badge?: string
+  labels?: string[]
+  ref?: string
+  engine?: string
 }
 
 export type PluginCatalogStatus = 'install' | 'installed' | 'update'
@@ -451,6 +489,90 @@ export function parsePluginRule(raw: unknown): PluginRule {
     throw new Error('插件缺少 name / baseURL')
   }
 
+  const weight =
+    typeof j.weight === 'number' && Number.isFinite(j.weight)
+      ? j.weight
+      : undefined
+
+  const oldAnimePriority =
+    typeof j.oldAnimePriority === 'boolean'
+      ? j.oldAnimePriority
+      : undefined
+
+  const preferOriginalTitle =
+    typeof j.preferOriginalTitle === 'boolean'
+      ? j.preferOriginalTitle
+      : undefined
+
+  const traditionalChinese =
+    typeof j.traditionalChinese === 'boolean'
+      ? j.traditionalChinese
+      : undefined
+
+  const stripSymbols =
+    typeof j.stripSymbols === 'boolean'
+      ? j.stripSymbols
+      : undefined
+
+  // If this is an AniBaka anx-rule/2 pipeline rule, parse its pipeline fields
+  if (isAnxRule(j)) {
+    const parseSteps = (val: unknown): PipelineStep[] | undefined => {
+      if (!Array.isArray(val)) return undefined
+      return val.filter(
+        (step): step is PipelineStep =>
+          Boolean(step) &&
+          typeof step === 'object' &&
+          typeof (step as Record<string, unknown>).op === 'string',
+      )
+    }
+    const headersMap = asObject(j.headers)
+    const headers: Record<string, string> | undefined = headersMap
+      ? Object.fromEntries(
+          Object.entries(headersMap).map(([k, v]) => [k, String(v ?? '')]),
+        )
+      : undefined
+
+    return {
+      format: 'anx-rule/2',
+      id: String(j.id ?? '').trim() || undefined,
+      name,
+      baseURL,
+      version: String(j.version ?? '1.0'),
+      iconUrl: j.iconUrl ? String(j.iconUrl).trim() : undefined,
+      description: j.description ? String(j.description).trim() : undefined,
+      headers,
+      recipes: Array.isArray(j.recipes)
+        ? j.recipes.map((r) => String(r))
+        : undefined,
+      search: parseSteps(j.search),
+      detail: parseSteps(j.detail),
+      play: parseSteps(j.play),
+      useWebview: Boolean(j.useWebview ?? false),
+      directConnection: Boolean(j.directConnection ?? false),
+      mediaValidationTimeoutMs:
+        typeof j.mediaValidationTimeoutMs === 'number'
+          ? j.mediaValidationTimeoutMs
+          : undefined,
+      weight,
+      oldAnimePriority,
+      preferOriginalTitle,
+      traditionalChinese,
+      stripSymbols,
+      muliSources: true,
+      useNativePlayer: true,
+      usePost: false,
+      useLegacyParser: false,
+      adBlocker: Boolean(j.adBlocker ?? false),
+      searchURL: '',
+      searchList: '',
+      searchName: '',
+      searchResult: '',
+      chapterRoads: '',
+      chapterResult: '',
+      referer: headers?.Referer || baseURL,
+    }
+  }
+
   let searchApiConfig: ApiSearchConfig | undefined
   let chapterApiConfig: ApiChapterConfig | undefined
 
@@ -495,31 +617,6 @@ export function parsePluginRule(raw: unknown): PluginRule {
     }
     chapterApiConfig = parseApiChapterConfig(j.chapterApiConfig)
   }
-
-  const weight =
-    typeof j.weight === 'number' && Number.isFinite(j.weight)
-      ? j.weight
-      : undefined
-
-  const oldAnimePriority =
-    typeof j.oldAnimePriority === 'boolean'
-      ? j.oldAnimePriority
-      : undefined
-
-  const preferOriginalTitle =
-    typeof j.preferOriginalTitle === 'boolean'
-      ? j.preferOriginalTitle
-      : undefined
-
-  const traditionalChinese =
-    typeof j.traditionalChinese === 'boolean'
-      ? j.traditionalChinese
-      : undefined
-
-  const stripSymbols =
-    typeof j.stripSymbols === 'boolean'
-      ? j.stripSymbols
-      : undefined
 
   return {
     api: String(j.api ?? '1'),

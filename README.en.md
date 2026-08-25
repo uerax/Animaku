@@ -280,6 +280,8 @@ This software is provided "as is", without warranty of any kind. Use of this pro
 
 Special thanks to [Kazumi](https://github.com/Predidit/Kazumi) and [KazumiRules](https://github.com/Predidit/KazumiRules).
 
+Special thanks to [AniBaka](https://github.com/AniBakaBaka/AniBaka) and [AniBakaRule](https://github.com/AniBakaBaka/AniBakaRule) for modern pipeline rule engine (`anx-rule/2`) and rich source ecosystem.
+
 Special thanks to [agefans-enhance](https://github.com/IronKinoko/agefans-enhance) and [@ironkinoko/danmaku](https://github.com/IronKinoko/danmaku).
 
 Special thanks to [DanDanPlay](https://www.dandanplay.com/) open platform.

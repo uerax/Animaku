@@ -140,16 +140,25 @@ export const pluginApi = {
         opts?.refresh,
       ),
     ),
-  /** KazumiRules index.json via server proxy */
-  catalog: (mirror = false, opts?: SignalOpt) =>
-    api<{ data: PluginCatalogItem[]; source: string }>(
-      `/api/plugin/catalog${mirror ? '?mirror=1' : ''}`,
+  /** Rules index.json via server proxy (AniBaka or Kazumi) */
+  catalog: (
+    shop: 'anibaka' | 'kazumi' = 'anibaka',
+    mirror = false,
+    opts?: SignalOpt,
+  ) =>
+    api<{ data: PluginCatalogItem[]; source: string; shop: string }>(
+      `/api/plugin/catalog?shop=${shop}${mirror ? '&mirror=1' : ''}`,
       { signal: opts?.signal },
     ),
   /** Download a single rule body by name */
-  download: (name: string, mirror = false, opts?: SignalOpt) =>
-    api<{ data: PluginRule; source: string }>(
-      `/api/plugin/catalog/${encodeURIComponent(name)}${mirror ? '?mirror=1' : ''}`,
+  download: (
+    name: string,
+    shop: 'anibaka' | 'kazumi' = 'anibaka',
+    mirror = false,
+    opts?: SignalOpt,
+  ) =>
+    api<{ data: PluginRule; source: string; shop: string }>(
+      `/api/plugin/catalog/${encodeURIComponent(name)}?shop=${shop}${mirror ? '&mirror=1' : ''}`,
       { signal: opts?.signal },
     ),
 }

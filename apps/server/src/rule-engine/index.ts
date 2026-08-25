@@ -721,15 +721,15 @@ function parseSearchHtml(
   // 1) XPath via cheerio→xml→xmldom
   try {
     const doc = htmlToXPathDoc(html)
-    const listNodes = xpathNodes(doc, rule.searchList)
+    const listNodes = xpathNodes(doc, rule.searchList || '')
     if (listNodes.length === 0) {
       diagnostics.push('searchList XPath 未匹配')
     }
     for (let index = 0; index < listNodes.length; index++) {
       const node = listNodes[index]
       try {
-        const nameNode = xpathRelative(node, rule.searchName)
-        const resultNode = xpathRelative(node, rule.searchResult)
+        const nameNode = xpathRelative(node, rule.searchName || '.')
+        const resultNode = xpathRelative(node, rule.searchResult || '.')
         const name = nodeText(nameNode) || nodeText(resultNode)
         let src = nodeAttr(resultNode, 'href') || nodeAttr(nameNode, 'href')
         if (!name || !src) {
@@ -927,6 +927,14 @@ export async function searchWithRule(
     }
   }
 
+  // AniBaka pipeline rules (anx-rule/2)
+  {
+    const { isAnxRule, searchAnx } = await import('../lib/anibaka-adapter')
+    if (isAnxRule(rule)) {
+      return await searchAnx(rule, keyword)
+    }
+  }
+
   // API-mode rules (sorani / TvTFun): JSON API + searchApiConfig
   if (rule.searchMode === 'api') {
     try {
@@ -1015,7 +1023,8 @@ export async function searchWithRule(
     // protocol/host stay literal. xpath/html search previously did NOT expand it,
     // so a rule using @baseURL in searchURL died in assertPublicHttpUrl as "源站 无效".
     const base = rule.baseURL?.replace(/\/+$/, '')
-    const withBase = base ? rule.searchURL.replace(/@baseURL\b/g, () => base) : rule.searchURL
+    const rawSearchUrl = rule.searchURL || ''
+    const withBase = base ? rawSearchUrl.replace(/@baseURL\b/g, () => base) : rawSearchUrl
     const queryUrl = withBase.replace('@keyword', encodeURIComponent(kw))
     // First keyword: allow one retry + full timeout. Later variants: no retry,
     // shorter timeout — worst-case 4×12s×2 was hanging the subject UI.
@@ -1212,6 +1221,14 @@ export async function chaptersWithRule(
     }
   }
 
+  // AniBaka pipeline rules (anx-rule/2)
+  {
+    const { isAnxRule, chaptersAnx } = await import('../lib/anibaka-adapter')
+    if (isAnxRule(rule)) {
+      return await chaptersAnx(rule, source)
+    }
+  }
+
   // API-mode chapters: JSON API + chapterApiConfig (e.g. sorani)
   if (rule.chapterMode === 'api') {
     try {
@@ -1243,13 +1260,13 @@ export async function chaptersWithRule(
 
   try {
     const doc = htmlToXPathDoc(html)
-    const roadNodes = xpathNodes(doc, rule.chapterRoads)
+    const roadNodes = xpathNodes(doc, rule.chapterRoads || '')
     for (let roadIndex = 0; roadIndex < roadNodes.length; roadIndex++) {
       const roadNode = roadNodes[roadIndex]
       try {
         let eps: Node[] = []
         try {
-          const r = xpath.select(rule.chapterResult, roadNode)
+          const r = xpath.select(rule.chapterResult || './/a', roadNode)
           eps = (Array.isArray(r) ? r : r ? [r] : []) as Node[]
         } catch {
           eps = []
@@ -1606,6 +1623,14 @@ export async function resolvePlay(
     const { isMoonciRule, resolveMoonci } = await import('../lib/moonci')
     if (isMoonciRule(rule)) {
       return await resolveMoonci(rule, pageUrl)
+    }
+  }
+
+  // AniBaka pipeline rules (anx-rule/2)
+  {
+    const { isAnxRule, resolveAnx } = await import('../lib/anibaka-adapter')
+    if (isAnxRule(rule)) {
+      return await resolveAnx(rule, pageUrl)
     }
   }
 

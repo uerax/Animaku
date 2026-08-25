@@ -4,6 +4,49 @@
 
 ---
 
+## [2026-08-25] 落地已安装视频源拖拽排序与交互动效，并在 README 致谢 AniBaka 项目
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **已安装视频源 HTML5 拖拽排序与视觉动效 (`SettingsPage.tsx`)**：
+     - 在已安装规则列表接入 `draggable`、`onDragStart`、`onDragOver`、`onDragLeave`、`onDrop`、`onDragEnd` 原生拖拽状态机；
+     - 拖拽过程被拖动卡片呈现半透明轻微缩放态（`opacity-40 scale-[0.98] border-dashed`），目标放置项呈现高亮边框与扩散光环（`ring-2 ring-[var(--kz-accent)]/30`）；
+     - 拖拽手柄图标 `⋮⋮` 配置 `cursor-grab active:cursor-grabbing` 交互手势与悬浮高亮；
+     - 拖放完成后毫秒级更新 `setPluginOrder`，首位自动作为播放默认源，并完美保留 ▲▼ 按钮精准微调。
+  2. **README 感谢项目同步更新 (`README.md` & `README.en.md`)**：
+     - 在中英文 `README` 的「致谢 / Acknowledgements」板块中补充特别致谢 `AniBaka` 与 `AniBakaRule` 仓库。
+- 涉及文件：apps/web/src/pages/SettingsPage.tsx, README.md, README.en.md, .claude/STATE.md
+- 备注：`pnpm typecheck` 0 报错通过，`pnpm build` 全量生产构建通过。
+
+---
+
+## [2026-08-25] 接入 AniBaka 流水线视频源专有适配器与双规则仓库支持（anx-rule/2 算子解释器 + 设置页双 Tab 隔离）
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **AniBaka 流水线算子解释器与专有适配器 (`apps/server/src/lib/anibaka-adapter.ts`)**：
+     - 构建完整的微指令流水线解释器 `PipelineInterpreter`，完整支持 20+ 核心算子：
+       - **网络与模板**：`fetch`, `follow`, `template`（支持 `{var}` 与 `{var:raw}` 插值）, `setVar`, `query`；
+       - **数据提取与转换**：`select` (Cheerio CSS), `regex`, `replace`, `json` (JSONPath 点路径), `pick`, `baseN`（小端自定义进制编解码）；
+       - **加解密与逆向密码学**：`crypto`（AES-CBC, AES-GCM, MD5, SHA1, SHA256, Base64）, `playerAaaa` (MacCMS 解密), `playerDecrypt` (字符重排 MD5 密钥解密), `ecPlayer` (ECPlayer 解密)；
+       - **结构化输出**：`searchList` (番剧列表), `jsonSeries` (JSON API 映射), `episodes` (多线路选集), `jsonEpisodes`, `maccmsApiEpisodes`, `videoUrl`, `setMediaHeaders`；
+       - **控制流与过盾**：`first`（多分支隔离尝试与自愈回退），`maccmsSuggest`，`anime1Search` / `anime1Detail` / `anime1Play`；
+     - 请求全量复用 `fetchPublic` 实现 SSRF 安全防护与超时控制。
+  2. **规则引擎多格式并存与旁路分流 (`apps/server/src/rule-engine/index.ts`)**：
+     - 在 `searchWithRule`、`chaptersWithRule`、`resolvePlay` 中挂载 `isAnxRule(rule)` 旁路分流；
+     - 保持现有所有专有适配器（`cycani`, `tvtfun`, `xifan-next`, `moonci`, `anime1`, `omofun`）与原 Kazumi 规则 100% 不受影响。
+  3. **服务端双规则仓库路由 (`apps/server/src/routes/plugin-catalog.ts` & `config.ts`)**：
+     - `config.ts` 接入 `anibakaShop` (`https://raw.githubusercontent.com/AniBakaBaka/AniBakaRule/main/`) 与镜像源；
+     - `/api/plugin/catalog` 与 `/api/plugin/catalog/:name` 支持 `shop=anibaka` 与 `shop=kazumi` 查询参数，解析 `anx-rulehub/2` 的 `entries` 索引并归一化。
+  4. **前端设置页双仓库与规则标识升级 (`SettingsPage.tsx`)**：
+     - 增加 **⭐ AniBaka 规则库 (推荐 · 34+现代源)** 与 **📦 Kazumi 传统规则库 (遗留源)** 顶部 Tab 切换；
+     - 规则卡片展示站点 favicon 图标、丰富标签（`少广告`、`高清`、`超清`、`无广告` 等彩色徽标）、简介与源站外链；
+     - 已安装规则列表标记驱动类型（🟢 `AniBaka`、🔵 `专有直连`、🟡 `Kazumi`）。
+- 涉及文件：apps/server/src/lib/anibaka-adapter.ts, apps/server/src/rule-engine/index.ts, apps/server/src/routes/plugin-catalog.ts, apps/server/src/config.ts, packages/shared/src/plugin.ts, apps/web/src/lib/plugin-api.ts, apps/web/src/pages/SettingsPage.tsx, scripts/test-anibaka.ts, .claude/feature-map.md, .claude/STATE.md
+- 备注：编写 `scripts/test-anibaka.ts` 全量单测验证通过，`pnpm typecheck` 3 个 workspace 0 报错通过，`pnpm build` 全量打包构建通过。
+
+---
+
 ## [2026-08-25] 全量扫描项目代码并创建功能实现索引（.claude/feature-map.md）
 - 状态：已完成
 - 优先级：P2

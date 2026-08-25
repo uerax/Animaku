@@ -296,6 +296,8 @@ A: 仅本机 Node / 开发需要 pnpm。请安装 pnpm 9.15.0 并在 **仓库根
 
 特别感谢 [Kazumi](https://github.com/Predidit/Kazumi) 与 [KazumiRules](https://github.com/Predidit/KazumiRules)——规则模型、选源与产品形态的重要参考。
 
+特别感谢 [AniBaka](https://github.com/AniBakaBaka/AniBaka) 与 [AniBakaRule](https://github.com/AniBakaBaka/AniBakaRule)——现代化流水线视频源规则引擎（`anx-rule/2`）与高质量开源规则生态的重要参考。
+
 特别感谢 [agefans-enhance](https://github.com/IronKinoko/agefans-enhance) 与 [@ironkinoko/danmaku](https://github.com/IronKinoko/danmaku)——弹幕交互与播放器面板的重要参考。
 
 特别感谢 [弹弹play](https://www.dandanplay.com/) 开放平台提供弹幕能力。

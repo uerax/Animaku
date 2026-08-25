@@ -6,6 +6,7 @@ import {
   comparePluginOrder,
   PLAYER_SPEEDS,
   bangumiOAuthUrl,
+  isAnxRule,
 } from '@animaku/shared'
 import { bangumiApi } from '../lib/bangumi'
 import { pluginApi } from '../lib/plugin-api'
@@ -202,6 +203,9 @@ export function SettingsPage() {
     [plugins, pluginOrder, canUseFullProxySource],
   )
 
+  const [draggedName, setDraggedName] = useState<string | null>(null)
+  const [dragOverName, setDragOverName] = useState<string | null>(null)
+
   /**
    * Move a plugin up/down in the user sort order.
    * Reads current live `sortedPlugins` names to build the new order list.
@@ -221,6 +225,37 @@ export function SettingsPage() {
     [sortedPlugins, setPluginOrder],
   )
 
+  const handleDragDrop = useCallback(
+    (targetName: string) => {
+      if (!draggedName || draggedName.toLowerCase() === targetName.toLowerCase()) {
+        setDraggedName(null)
+        setDragOverName(null)
+        return
+      }
+      const names = sortedPlugins.map((p) => p.name)
+      const fromIdx = names.findIndex(
+        (n) => n.toLowerCase() === draggedName.toLowerCase(),
+      )
+      const toIdx = names.findIndex(
+        (n) => n.toLowerCase() === targetName.toLowerCase(),
+      )
+      if (fromIdx < 0 || toIdx < 0) {
+        setDraggedName(null)
+        setDragOverName(null)
+        return
+      }
+      const newNames = [...names]
+      const [moved] = newNames.splice(fromIdx, 1)
+      newNames.splice(toIdx, 0, moved)
+      setPluginOrder(newNames)
+      setDraggedName(null)
+      setDragOverName(null)
+    },
+    [draggedName, sortedPlugins, setPluginOrder],
+  )
+
+  const [activeShop, setActiveShop] = useState<'anibaka' | 'kazumi'>('anibaka')
+
   const me = useQuery({
     queryKey: ['me-settings', bangumiToken],
     queryFn: ({ signal }) => bangumiApi.me({ signal }),
@@ -229,8 +264,8 @@ export function SettingsPage() {
   })
 
   const catalog = useQuery({
-    queryKey: ['plugin-catalog', useMirror],
-    queryFn: ({ signal }) => pluginApi.catalog(useMirror, { signal }),
+    queryKey: ['plugin-catalog', activeShop, useMirror],
+    queryFn: ({ signal }) => pluginApi.catalog(activeShop, useMirror, { signal }),
     staleTime: 5 * 60_000,
     retry: 1,
   })
@@ -249,7 +284,7 @@ export function SettingsPage() {
       items.sort((a, b) => b.lastUpdate - a.lastUpdate)
     } else {
       items.sort((a, b) =>
-        a.name.toLowerCase().localeCompare(b.name.toLowerCase()),
+        (a.title || a.name).toLowerCase().localeCompare((b.title || b.name).toLowerCase()),
       )
     }
     const q = catalogFilter.trim().toLowerCase()
@@ -257,7 +292,10 @@ export function SettingsPage() {
     return items.filter(
       (i) =>
         i.name.toLowerCase().includes(q) ||
-        i.author.toLowerCase().includes(q),
+        (i.title && i.title.toLowerCase().includes(q)) ||
+        (i.author && i.author.toLowerCase().includes(q)) ||
+        (i.intro && i.intro.toLowerCase().includes(q)) ||
+        (i.labels && i.labels.some((l) => l.toLowerCase().includes(q))),
     )
   }, [catalog.data?.data, catalogSort, catalogFilter])
 
@@ -293,16 +331,17 @@ export function SettingsPage() {
     setInstalling(item.name)
     setPluginMsg('')
     try {
-      const res = await pluginApi.download(item.name, useMirror)
+      const shop = item.shop || activeShop
+      const res = await pluginApi.download(item.name, shop, useMirror)
       const validated = validatePluginLocal(res.data)
       if (!validated.ok || !validated.rule) {
         throw new Error(validated.message || '规则校验失败')
       }
       importRule(validated.rule, { source: 'catalog' })
-      setPluginMsg(`已安装 ${item.name} v${validated.rule.version}`)
+      setPluginMsg(`已安装 ${item.title || item.name} v${validated.rule.version}`)
     } catch (e) {
       setPluginMsg(
-        e instanceof Error ? e.message : `安装 ${item.name} 失败`,
+        e instanceof Error ? e.message : `安装 ${item.title || item.name} 失败`,
       )
     } finally {
       setInstalling(null)
@@ -321,7 +360,8 @@ export function SettingsPage() {
         const status = catalogItemStatus(local, item)
         if (status !== 'update') continue
         try {
-          const res = await pluginApi.download(item.name, useMirror)
+          const shop = item.shop || activeShop
+          const res = await pluginApi.download(item.name, shop, useMirror)
           const validated = validatePluginLocal(res.data)
           if (!validated.ok || !validated.rule) {
             failed++
@@ -724,36 +764,73 @@ export function SettingsPage() {
             const proxyChecked = p.proxy ?? false
             const isFirst = idx === 0
             const isLast = idx === sortedPlugins.length - 1
+            const isDragging = draggedName?.toLowerCase() === p.name.toLowerCase()
+            const isDragOver = dragOverName?.toLowerCase() === p.name.toLowerCase()
             return (
               <li
                 key={p.id}
-                className={`flex flex-wrap items-center gap-2 rounded-xl border border-[var(--kz-border)] px-3 py-2 ${
-                  blockedByServer ? 'opacity-70' : ''
-                }`}
+                draggable={true}
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('text/plain', p.name)
+                  e.dataTransfer.effectAllowed = 'move'
+                  setDraggedName(p.name)
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  e.dataTransfer.dropEffect = 'move'
+                  if (dragOverName !== p.name) setDragOverName(p.name)
+                }}
+                onDragLeave={() => {
+                  if (dragOverName === p.name) setDragOverName(null)
+                }}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  handleDragDrop(p.name)
+                }}
+                onDragEnd={() => {
+                  setDraggedName(null)
+                  setDragOverName(null)
+                }}
+                className={`flex flex-wrap items-center gap-2 rounded-xl border p-3 transition-all duration-150 ${
+                  isDragging
+                    ? 'opacity-40 scale-[0.98] border-dashed border-[var(--kz-accent)] bg-[var(--kz-bg-soft)]'
+                    : isDragOver
+                      ? 'border-[var(--kz-accent)] ring-2 ring-[var(--kz-accent)]/30 bg-[var(--kz-bg-soft)] scale-[1.01]'
+                      : 'border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] hover:border-[var(--kz-border-hover)]'
+                } ${blockedByServer ? 'opacity-70' : ''}`}
               >
                 {/* Row 1: plugin info + order buttons */}
                 <div className="flex flex-wrap items-center gap-2">
                   {/* Drag handle / order buttons */}
-                  <div className="mr-0.5 flex flex-col items-center gap-0.5 text-[var(--kz-fg-dim)]">
+                  <div
+                    className="mr-0.5 flex flex-col items-center gap-0.5 text-[var(--kz-fg-dim)] cursor-grab active:cursor-grabbing p-0.5 rounded hover:bg-[var(--kz-bg-soft)] select-none"
+                    title="拖拽排序或按 ▲▼ 微调"
+                  >
                     <button
                       type="button"
                       disabled={isFirst}
-                      onClick={() => movePlugin(p.name, -1)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        movePlugin(p.name, -1)
+                      }}
                       title="上移（首位为默认源）"
-                      className="text-[10px] leading-none disabled:opacity-20 hover:text-[var(--kz-accent)]"
+                      className="text-[10px] leading-none disabled:opacity-20 hover:text-[var(--kz-accent)] cursor-pointer"
                       aria-label="上移"
                     >
                       ▲
                     </button>
-                    <span className="text-[7px] leading-none text-[var(--kz-fg-dim)] select-none" aria-hidden>
+                    <span className="text-[9px] leading-none text-[var(--kz-fg-dim)] select-none py-0.5" aria-hidden>
                       ⋮⋮
                     </span>
                     <button
                       type="button"
                       disabled={isLast}
-                      onClick={() => movePlugin(p.name, 1)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        movePlugin(p.name, 1)
+                      }}
                       title="下移"
-                      className="text-[10px] leading-none disabled:opacity-20 hover:text-[var(--kz-accent)]"
+                      className="text-[10px] leading-none disabled:opacity-20 hover:text-[var(--kz-accent)] cursor-pointer"
                       aria-label="下移"
                     >
                       ▼
@@ -771,12 +848,36 @@ export function SettingsPage() {
                         </span>
                       )}
                       {p.source && (
-                        <span className="ml-2 text-xs text-[var(--kz-fg-dim)]">
+                        <span className="ml-1 text-xs text-[var(--kz-fg-dim)]">
                           {p.source === 'builtin'
                             ? '内置'
                             : p.source === 'catalog'
                               ? '仓库'
                               : '导入'}
+                        </span>
+                      )}
+                      {isAnxRule(p) ? (
+                        <span
+                          className="ml-1.5 inline-flex items-center rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-400"
+                          title="由 AniBaka 流水线解释器驱动"
+                        >
+                          AniBaka
+                        </span>
+                      ) : ['cycani', 'tvtfun', 'xifan-next', 'moonci', 'anime1', 'omofun'].includes(
+                          p.name.toLowerCase(),
+                        ) ? (
+                        <span
+                          className="ml-1.5 inline-flex items-center rounded border border-sky-500/30 bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-medium text-sky-400"
+                          title="由 TypeScript 专有适配器驱动"
+                        >
+                          专有直连
+                        </span>
+                      ) : (
+                        <span
+                          className="ml-1.5 inline-flex items-center rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-400"
+                          title="传统 Kazumi 规则驱动"
+                        >
+                          Kazumi
                         </span>
                       )}
                       {blockedByServer && (
@@ -865,7 +966,7 @@ export function SettingsPage() {
         </ul>
       </section>
 
-      <section className="space-y-3 rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-5">
+      <section className="space-y-4 rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-bold tracking-tight text-[var(--kz-fg)]">规则仓库</h2>
           <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -895,23 +996,68 @@ export function SettingsPage() {
             </button>
           </div>
         </div>
-        <p className="text-sm text-[var(--kz-fg-muted)]">
-          从{' '}
-          <a
-            href="https://github.com/Predidit/KazumiRules"
-            className="kz-link"
-            target="_blank"
-            rel="noreferrer"
+
+        {/* Shop Switcher Tabs */}
+        <div className="flex rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] p-1">
+          <button
+            type="button"
+            onClick={() => setActiveShop('anibaka')}
+            className={`flex-1 rounded-lg py-1.5 text-xs font-medium transition-all ${
+              activeShop === 'anibaka'
+                ? 'bg-[var(--kz-bg-elevated)] text-[var(--kz-fg)] shadow-sm'
+                : 'text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)]'
+            }`}
           >
-            Predidit/KazumiRules
-          </a>{' '}
-          选择规则安装。访问由本地 server 代理（主源 GitHub raw，失败可切镜像）。
+            ⭐ AniBaka 规则库 <span className="text-[10px] text-emerald-400 font-semibold ml-1">(推荐 · 34+现代源)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveShop('kazumi')}
+            className={`flex-1 rounded-lg py-1.5 text-xs font-medium transition-all ${
+              activeShop === 'kazumi'
+                ? 'bg-[var(--kz-bg-elevated)] text-[var(--kz-fg)] shadow-sm'
+                : 'text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)]'
+            }`}
+          >
+            📦 Kazumi 传统规则库 <span className="text-[10px] text-[var(--kz-fg-dim)] ml-1">(遗留源)</span>
+          </button>
+        </div>
+
+        <p className="text-xs text-[var(--kz-fg-muted)]">
+          {activeShop === 'anibaka' ? (
+            <>
+              从{' '}
+              <a
+                href="https://github.com/AniBakaBaka/AniBakaRule"
+                className="kz-link"
+                target="_blank"
+                rel="noreferrer"
+              >
+                AniBakaBaka/AniBakaRule
+              </a>{' '}
+              选择流水线规则安装。支持多步请求、解密与自动过盾。
+            </>
+          ) : (
+            <>
+              从{' '}
+              <a
+                href="https://github.com/Predidit/KazumiRules"
+                className="kz-link"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Predidit/KazumiRules
+              </a>{' '}
+              选择传统规则安装（部分老规则可能失效）。
+            </>
+          )}
         </p>
+
         <div className="flex flex-wrap gap-2">
           <input
             value={catalogFilter}
             onChange={(e) => setCatalogFilter(e.target.value)}
-            placeholder="筛选规则名…"
+            placeholder="筛选规则名称、标签或简介…"
             className="min-w-[10rem] flex-1 rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-2 text-sm"
           />
           <select
@@ -919,10 +1065,11 @@ export function SettingsPage() {
             onChange={(e) => setCatalogSort(e.target.value as CatalogSort)}
             className="rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-2 text-sm"
           >
+            <option value="name">按名称排序</option>
             <option value="lastUpdate">按更新时间</option>
-            <option value="name">按名称</option>
           </select>
         </div>
+
         {catalog.isError && (
           <div className="rounded-xl border border-red-900/50 bg-red-950/30 p-3 text-sm text-red-300">
             {(catalog.error as Error).message || '无法访问规则仓库'}
@@ -944,6 +1091,7 @@ export function SettingsPage() {
             </div>
           </div>
         )}
+
         {catalog.isLoading && (
           <div className="text-sm text-[var(--kz-fg-muted)]">加载规则目录…</div>
         )}
@@ -955,7 +1103,8 @@ export function SettingsPage() {
             来源：{catalog.data.source}
           </div>
         )}
-        <ul className="max-h-[28rem] space-y-2 overflow-y-auto pr-1">
+
+        <ul className="max-h-[28rem] space-y-2.5 overflow-y-auto pr-1">
           {catalogItems.map((item) => {
             const local = installedByName.get(item.name.toLowerCase())
             const status = catalogItemStatus(local, item)
@@ -968,36 +1117,93 @@ export function SettingsPage() {
                   : '已安装'
             return (
               <li
-                key={item.name}
-                className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--kz-border)] px-3 py-2"
+                key={`${item.shop || activeShop}-${item.name}`}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] p-3.5 transition-all hover:border-[var(--kz-accent-ring)]"
               >
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2 font-medium">
-                    <span>{item.name}</span>
-                    <span className="rounded border border-[var(--kz-border)] bg-[var(--kz-bg)] px-1.5 py-0.5 text-xs text-[var(--kz-fg-muted)]">
-                      v{item.version}
-                    </span>
-                    {item.antiCrawlerEnabled && (
-                      <span className="rounded bg-amber-950 px-1.5 py-0.5 text-xs text-amber-300">
-                        captcha
+                <div className="flex min-w-0 flex-1 items-start gap-3">
+                  {item.badge ? (
+                    <img
+                      src={item.badge}
+                      alt=""
+                      className="h-7 w-7 shrink-0 rounded-lg object-contain bg-black/10 p-0.5 mt-0.5"
+                      onError={(e) => {
+                        ;(e.target as HTMLElement).style.display = 'none'
+                      }}
+                    />
+                  ) : null}
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold text-sm text-[var(--kz-fg)]">
+                        {item.title || item.name}
                       </span>
+                      {item.title && item.title !== item.name && (
+                        <span className="font-mono text-xs text-[var(--kz-fg-dim)]">
+                          ({item.name})
+                        </span>
+                      )}
+                      <span className="rounded border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] px-1.5 py-0.5 text-[10px] text-[var(--kz-fg-muted)]">
+                        v{item.version}
+                      </span>
+                      {item.labels && item.labels.map((lbl) => (
+                        <span
+                          key={lbl}
+                          className={`rounded px-1.5 py-0.5 text-[10px] font-medium border ${
+                            lbl.includes('无广告') || lbl.includes('超清')
+                              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                              : lbl.includes('少广告') || lbl.includes('高清')
+                                ? 'bg-sky-500/10 border-sky-500/30 text-sky-400'
+                                : 'bg-[var(--kz-bg-elevated)] border-[var(--kz-border)] text-[var(--kz-fg-muted)]'
+                          }`}
+                        >
+                          {lbl}
+                        </span>
+                      ))}
+                      {item.antiCrawlerEnabled && (
+                        <span className="rounded bg-amber-950 px-1.5 py-0.5 text-[10px] text-amber-300">
+                          captcha
+                        </span>
+                      )}
+                    </div>
+                    {item.intro && (
+                      <div className="line-clamp-2 text-xs text-[var(--kz-fg-muted)] leading-relaxed">
+                        {item.intro}
+                      </div>
                     )}
-                  </div>
-                  <div className="text-xs text-[var(--kz-fg-muted)]">
-                    {item.lastUpdate > 0
-                      ? `更新：${formatLastUpdate(item.lastUpdate)}`
-                      : '—'}
-                    {local ? ` · 本地 v${local.version}` : ''}
+                    <div className="flex flex-wrap items-center gap-3 text-[11px] text-[var(--kz-fg-dim)]">
+                      {item.site && (
+                        <a
+                          href={item.site}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="kz-link truncate max-w-[16rem]"
+                          title={item.site}
+                        >
+                          {item.site}
+                        </a>
+                      )}
+                      {item.author && <span>作者：{item.author}</span>}
+                      {item.lastUpdate > 0 && (
+                        <span>更新：{formatLastUpdate(item.lastUpdate)}</span>
+                      )}
+                      {local && (
+                        <span className="text-emerald-400/90 font-medium">
+                          · 本地已装 v{local.version}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  disabled={status === 'installed' || busy}
-                  onClick={() => void installFromCatalog(item)}
-                  className="rounded-lg bg-[var(--kz-fg)] px-3 py-1.5 text-xs font-medium text-[var(--kz-bg)] hover:opacity-90 disabled:cursor-default disabled:border disabled:border-[var(--kz-border)] disabled:bg-[var(--kz-bg)] disabled:text-[var(--kz-fg-muted)]"
-                >
-                  {busy ? '…' : label}
-                </button>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    disabled={status === 'installed' || busy}
+                    onClick={() => void installFromCatalog(item)}
+                    className="rounded-xl bg-[var(--kz-fg)] px-4 py-2 text-xs font-semibold text-[var(--kz-bg)] shadow-sm hover:opacity-90 disabled:cursor-default disabled:border disabled:border-[var(--kz-border)] disabled:bg-[var(--kz-bg-elevated)] disabled:text-[var(--kz-fg-muted)] cursor-pointer"
+                  >
+                    {busy ? '安装中…' : label}
+                  </button>
+                </div>
               </li>
             )
           })}

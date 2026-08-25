@@ -45,6 +45,7 @@
   - tvtfun (TvTFun 1080P MP4 直链与鉴权自愈)：`apps/server/src/lib/tvtfun.ts`
   - moonci (月之祠 1080P MP4 直链与分流)：`apps/server/src/lib/moonci.ts`
   - anime1 / omofun：`apps/server/src/lib/anime1.ts`, `apps/server/src/lib/omofun.ts`
+  - anibaka-adapter (AniBaka anx-rule/2 流水线算子解释器与解密)：`apps/server/src/lib/anibaka-adapter.ts`
 - 视频源路由端点：`apps/server/src/routes/plugin.ts`, `apps/server/src/routes/plugin-catalog.ts`
 - 客户端视频源 API 桥接：`apps/web/src/lib/plugin-api.ts`
 - 客户端视频源 Store 与版本控制：`apps/web/src/stores/plugins.ts`
