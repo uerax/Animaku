@@ -9,12 +9,14 @@ import { config } from './config'
 import { initDatabase, closeDatabase } from './db'
 import { corsOriginDecision } from './lib/access'
 import { accessLogger } from './lib/logger'
+import { ipAccessAndRateLimit } from './lib/ip-rate-limit'
 import { bangumiRoutes } from './routes/bangumi'
 import { danmakuRoutes } from './routes/danmaku'
 import { bilibiliDanmakuRoutes } from './routes/bilibili-danmaku'
 import { pluginRoutes } from './routes/plugin'
 import { pluginCatalogRoutes } from './routes/plugin-catalog'
 import { mediaRoutes } from './routes/media'
+import { statsRoutes } from './routes/stats'
 import {
   buildRobotsTxt,
   buildDynamicSitemapXml,
@@ -73,6 +75,9 @@ const app = new Hono()
 
 // Structured access logger (Pretty single-line with simplified device/OS tag & JSONL support)
 app.use('*', accessLogger())
+
+// Global asynchronous IP traffic recording & sliding window rate limiter
+app.use('*', ipAccessAndRateLimit())
 
 // Instruct search engines to use API data only for page rendering and not index raw JSON URLs
 app.use('/api/*', async (c, next) => {
@@ -190,6 +195,7 @@ app.route('/api/danmaku', bilibiliDanmakuRoutes)
 app.route('/api/plugin', pluginRoutes)
 app.route('/api/plugin', pluginCatalogRoutes)
 app.route('/api/media', mediaRoutes)
+app.route('/api/stats', statsRoutes)
 
 // Host-aware SEO files (before SPA static so they are not shadowed by public/)
 app.get('/robots.txt', (c) => {

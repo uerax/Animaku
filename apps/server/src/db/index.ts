@@ -3,6 +3,8 @@ import { initSchema } from './schema'
 import { pluginSearchCache, PluginSearchCacheRepository } from './repositories/plugin-search-cache'
 import { pluginChaptersCache, PluginChaptersCacheRepository } from './repositories/plugin-chapters-cache'
 import { kvCache, KvCacheRepository } from './repositories/kv-cache'
+import { playStatsRepo, PlayStatsRepository } from './repositories/play-stats'
+import { ipAccessRepo, IpAccessRepository } from './repositories/ip-access'
 
 let initialized = false
 let cleanupTimer: NodeJS.Timeout | null = null
@@ -56,4 +58,8 @@ export {
   PluginChaptersCacheRepository,
   kvCache,
   KvCacheRepository,
+  playStatsRepo,
+  PlayStatsRepository,
+  ipAccessRepo,
+  IpAccessRepository,
 }

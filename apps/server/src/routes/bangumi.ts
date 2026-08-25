@@ -733,7 +733,7 @@ function formatEpsLabel(item: {
 }): string {
   const total = item.totalEpisodes || item.total_episodes || item.eps || 0
   if (total > 0) return `全${total}话`
-  return '连载中'
+  return ''
 }
 
 bangumiRoutes.post('/recommendations', async (c) => {
@@ -753,6 +753,8 @@ bangumiRoutes.post('/recommendations', async (c) => {
       return c.json({ data: hit }, 200, cacheHeaders(true))
     }
   }
+
+  const todayStr = new Date().toISOString().slice(0, 10)
 
   // 1. Fetch relations for Slot 0 determination (type: 2 anime only)
   let slot0: BangumiRecommendationItem | null = null
@@ -846,28 +848,31 @@ bangumiRoutes.post('/recommendations', async (c) => {
             /* ignore detail fetch error */
           }
 
-          const isMovieTitle =
-            (chosenRel.name_cn || chosenRel.name || '').includes('剧场版') ||
-            (chosenRel.name_cn || chosenRel.name || '').includes('电影')
+          const isFutureAnime = airDate && airDate.trim().slice(0, 10) > todayStr
+          if (!isFutureAnime) {
+            const isMovieTitle =
+              (chosenRel.name_cn || chosenRel.name || '').includes('剧场版') ||
+              (chosenRel.name_cn || chosenRel.name || '').includes('电影')
 
-          let relationBadge: BangumiRecommendationItem['relationBadge'] = '续作'
-          if (nextRel) {
-            relationBadge = isMovieTitle ? '剧场版' : '续作'
-          } else if (prevRel) {
-            relationBadge = '前作'
-          }
+            let relationBadge: BangumiRecommendationItem['relationBadge'] = '续作'
+            if (nextRel) {
+              relationBadge = isMovieTitle ? '剧场版' : '续作'
+            } else if (prevRel) {
+              relationBadge = '前作'
+            }
 
-          slot0 = {
-            id: chosenRel.id,
-            name: String(chosenRel.name ?? ''),
-            nameCn: String(chosenRel.name_cn || chosenRel.name || ''),
-            cover: rawCover,
-            score: Number(score.toFixed(1)),
-            year: extractYear(airDate),
-            epsLabel: totalEps > 0 ? `全${totalEps}话` : '连载中',
-            relationBadge,
+            slot0 = {
+              id: chosenRel.id,
+              name: String(chosenRel.name ?? ''),
+              nameCn: String(chosenRel.name_cn || chosenRel.name || ''),
+              cover: rawCover,
+              score: Number(score.toFixed(1)),
+              year: extractYear(airDate),
+              epsLabel: totalEps > 0 ? `全${totalEps}话` : '',
+              relationBadge,
+            }
+            seenSubjectIds.add(chosenRel.id)
           }
-          seenSubjectIds.add(chosenRel.id)
         }
       }
     }
@@ -916,6 +921,7 @@ bangumiRoutes.post('/recommendations', async (c) => {
           filter: {
             type: [2],
             tag: tags.length > 0 ? tags : undefined,
+            air_date: [`<=${todayStr}`],
             nsfw: false,
           },
         }),

@@ -104,10 +104,14 @@
 - 服务端主入口与中间件：`apps/server/src/index.ts`
 - 服务端配置解析：`apps/server/src/config.ts`
 - 请求日志记录器 (时区格式化、设备解析、Pretty/JSON 双模)：`apps/server/src/lib/logger.ts`
+- 全局 IP 访问统计与 Rate Limit 频控中间件：`apps/server/src/lib/ip-rate-limit.ts`
+- 播放量与指标统计路由：`apps/server/src/routes/stats.ts`
 - 访问控制与 Token 校验：`apps/server/src/lib/access.ts`
 - 私有 IP 拦截与内网熔断：`apps/server/src/lib/private-host.ts`
 - SQLite 数据库连接与初始化：`apps/server/src/db/connection.ts`, `apps/server/src/db/schema.ts`, `apps/server/src/db/index.ts`
 - SQLite KV 缓存仓储：`apps/server/src/db/repositories/kv-cache.ts`
+- SQLite 播放量与热度统计仓储：`apps/server/src/db/repositories/play-stats.ts`
+- SQLite IP 访问与 PV 异步批量仓储：`apps/server/src/db/repositories/ip-access.ts`
 - 视频源搜索与章节 SQLite 缓存：`apps/server/src/db/repositories/plugin-search-cache.ts`, `apps/server/src/db/repositories/plugin-chapters-cache.ts`
 - 内存 TTL 缓存 (Single-Flight 防击穿)：`apps/server/src/lib/ttl-cache.ts`
 - CDN 边缘缓存响应头配置：`apps/server/src/lib/cdn-cache-headers.ts`

@@ -1,3 +1,4 @@
+import type { RecordPlayViewResponse, AnimePlayStats } from '@animaku/shared'
 import { useSettingsStore } from '../stores/settings'
 
 export class ApiError extends Error {
@@ -59,3 +60,14 @@ export async function api<T>(
   }
   return data as T
 }
+
+export const statsApi = {
+  recordPlayView: (bangumiId: number, episode: number) =>
+    api<RecordPlayViewResponse>('/api/stats/view', {
+      method: 'POST',
+      body: JSON.stringify({ bangumiId, episode }),
+    }),
+  getSubjectStats: (bangumiId: number) =>
+    api<{ data: AnimePlayStats }>(`/api/stats/subject/${bangumiId}`),
+}
+

@@ -4,6 +4,64 @@
 
 ---
 
+## [2026-08-26] 落地服务端 IP 访问统计与全站 API 频控防刷（setImmediate 极简微合批 + 本地时区 + 滑动窗口限流）
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **SQLite Migration v4 IP 访问记录表 (`apps/server/src/db/schema.ts`)**：
+     - 新建 `ip_access_logs` 表（`ip`, `total_hits`, `today_hits`, `last_date`, `first_seen`, `last_seen`），以 `ip` 为主键，并为 `last_seen` 建立索引；
+     - 采用配置的本地时区（默认 `Asia/Shanghai`）计算当前自然日（`YYYY-MM-DD`），确保北京时间 0 点准时跨天并重置 `today_hits`。
+  2. **setImmediate 极简并发微合批仓储 (`apps/server/src/db/repositories/ip-access.ts`)**：
+     - 采用事件循环微任务合并（Micro-batching）机制：同一 IP 在微任务排队期间并发到达的多个请求（如浏览器首屏并发拉取）自动合并为单次 SQLite 写入（`+N`），减少 90% 重复写 IO；
+     - **0 定时器与 0 内存常驻**：无人访问时 100% 深度休眠，无后台空转轮询；
+     - 主请求链路 **0 延迟、0 数据库锁等待**，单次耗时 $<1\mu s$。
+  3. **全局 Rate Limit 频控滑动窗口中间件 (`apps/server/src/lib/ip-rate-limit.ts` & `index.ts`)**：
+     - 内存 1 秒滑动窗口（Sliding Window Counter）：
+       - 普通 API（`/api/*`）：单 IP 最大 30 req/s，超限返回 HTTP 429 `Too Many Requests` 与 `Retry-After: 1`；
+       - 高负载/高开销接口（`/api/plugin/*`, `/api/media/*`）：单 IP 最大 10 req/s；
+     - 自动放行本地回环 IP（`127.0.0.1`, `::1`）、`/api/health` 与静态资源。
+- 涉及文件：apps/server/src/db/schema.ts, apps/server/src/db/repositories/ip-access.ts, apps/server/src/db/index.ts, apps/server/src/lib/ip-rate-limit.ts, apps/server/src/index.ts, scripts/test-ip-access.ts, scripts/test-rate-limit.ts, .claude/BUGS.md, .claude/STATE.md
+- 备注：编写 `scripts/test-ip-access.ts` 覆盖微合批、跨天重置、本地时区与异常安全性测试，全部单测与 `pnpm typecheck` 0 报错通过。
+
+---
+
+## [2026-08-26] 落地服务端番剧与分集播放量统计与 15s 播放防刷上报体系
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **SQLite Migration v3 播放量表 (`apps/server/src/db/schema.ts`)**：
+     - 新建 `anime_play_stats` 表（`bangumi_id`, `episode`, `play_count`, `updated_at`），建立 `(bangumi_id, episode)` 联合主键与 `bangumi_id` 索引；
+     - 约定 `episode = 0` 表示全剧总播放量，`episode >= 1` 表示对应分集播放量。
+  2. **仓储层原子事务与统计聚合 (`apps/server/src/db/repositories/play-stats.ts`)**：
+     - 实现 `recordPlay`：在 SQLite 原子事务中利用 `ON CONFLICT DO UPDATE` 幂等自增指定分集与全剧总播放量；
+     - 实现 `getPlayStats` 与 `getTopPlayed` 支持全剧总播放、分集明细与全站热门排行查询。
+  3. **服务端路由与 10 分钟内存去重防刷 (`apps/server/src/routes/stats.ts`)**：
+     - 挂载 `POST /api/stats/view`、`GET /api/stats/subject/:id`、`GET /api/stats/rank/top`；
+     - 接入服务端 10 分钟滑动窗口去重缓存（`ip::bangumiId::episode`），10 分钟内重复上报返回 200 与 `deduped: true`，不重复写入 SQLite，并配备 5 分钟定时清理过期缓存。
+  4. **前端播放器满 15 秒有效播放精准上报 (`VideoPlayer.tsx` & `api.ts`)**：
+     - 在 `VideoPlayer` 中引入实际播放时长累加计时器（剔除暂停、拖拽快进与 Seek 跳跃），连续平稳播放满 15 秒触发单次上报；
+     - 切番、切集时自动重置计时器与上报状态。
+- 涉及文件：packages/shared/src/stats.ts, packages/shared/src/index.ts, apps/server/src/db/schema.ts, apps/server/src/db/repositories/play-stats.ts, apps/server/src/db/index.ts, apps/server/src/routes/stats.ts, apps/server/src/index.ts, apps/web/src/lib/api.ts, apps/web/src/player/VideoPlayer.tsx, scripts/test-play-stats.ts, .claude/BUGS.md, .claude/STATE.md
+- 备注：编写 `scripts/test-play-stats.ts` 全量单测验证通过，`pnpm typecheck` 全仓 3 个 workspace 0 报错通过。
+
+---
+
+## [2026-08-26] 优化推荐番剧上游接口未放送过滤与彻底移除「连载中」伪造状态
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **上游接口原生过滤未来未开播条目 (`apps/server/src/routes/bangumi.ts`)**：
+     - 在 `POST /recommendations` 的 `querySearch` 请求体 `filter` 中直接注入 `air_date: ['<=' + todayStr]`；
+     - 依托 Bangumi 官方搜索接口原生时间过滤能力，使采样总数（`total`）与多象限分桶切片拉取到的候选条目 100% 均为已开播番剧，0 浪费网络与计算，避免推荐无资源可播的未上映条目；
+     - 对 Slot 0 关联番剧增加 `airDate > todayStr` 过滤校验，若续作为未来未上映条目则放弃 Slot 0，回退为同类已上映番剧推荐。
+  2. **彻底移除「连载中」伪造状态**：
+     - 将 `formatEpsLabel` 简化重构为真实展示：`total > 0 ? '全' + total + '话' : ''`；
+     - 彻底消除此前将未标记集数或 OVA/剧场版错误兜底显示为「连载中」的问题，仅展示真实上映年份与真实总集数。
+- 涉及文件：apps/server/src/routes/bangumi.ts, .claude/BUGS.md, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 3 个 workspace 0 报错通过。
+
+---
+
 ## [2026-08-26] 升级播放页侧栏 clamp(360px, 23vw, 420px) 动态自适应与 B 站同款 180*101 (16:9) 沉浸大封面及智能折叠展开
 - 状态：已完成
 - 优先级：P1

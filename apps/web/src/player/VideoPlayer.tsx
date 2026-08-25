@@ -15,6 +15,7 @@ import {
   PLAYER_SPEEDS,
   type SuperResolutionMode,
 } from '@animaku/shared'
+import { statsApi } from '../lib/api'
 import { DanmakuPanel, type DanmakuPanelTab } from './DanmakuPanel'
 import {
   hasWebGPU,
@@ -256,6 +257,17 @@ export function VideoPlayer({
   const [panelTab, setPanelTab] = useState<DanmakuPanelTab>('search')
   const [filterDraft, setFilterDraft] = useState('')
   const [dropActive, setDropActive] = useState(false)
+
+  // Play statistics metrics: accumulate actual continuous play duration and report when reaching 15s
+  const playSecAccumulatedRef = useRef<number>(0)
+  const playViewReportedRef = useRef<boolean>(false)
+  const lastPlaySecTickRef = useRef<number>(0)
+
+  useEffect(() => {
+    playSecAccumulatedRef.current = 0
+    playViewReportedRef.current = false
+    lastPlaySecTickRef.current = 0
+  }, [bangumiId, episodeNumber, activeSrc])
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false)
   const [srMenuOpen, setSrMenuOpen] = useState(false)
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
@@ -1081,6 +1093,27 @@ export function VideoPlayer({
       const p = playerRef.current
       const prevT = lastSkipTRef.current
       lastSkipTRef.current = t
+
+      // 累加实际有效播放时长并在满 15 秒时上报播放统计
+      if (
+        !playViewReportedRef.current &&
+        bangumiId &&
+        bangumiId > 0 &&
+        !video.paused &&
+        !isSeekingRef.current
+      ) {
+        const lastTick = lastPlaySecTickRef.current || t
+        const tickDelta = t - lastTick
+        if (tickDelta > 0 && tickDelta <= 2.5) {
+          playSecAccumulatedRef.current += tickDelta
+          if (playSecAccumulatedRef.current >= 15) {
+            playViewReportedRef.current = true
+            void statsApi.recordPlayView(bangumiId, episodeNumber || 0).catch(() => {})
+          }
+        }
+      }
+      lastPlaySecTickRef.current = t
+
       if (isSeekingRef.current || skipBusyRef.current || t >= d - 3) return
       const safeMax = d - 0.1
 
@@ -1204,6 +1237,7 @@ export function VideoPlayer({
     const onSeeking = () => {
       isSeekingRef.current = true
       lastSkipTRef.current = video.currentTime
+      lastPlaySecTickRef.current = video.currentTime
       // If user seeks during auto-next countdown, cancel it
       cancelCountdown()
       // Spinner only if seek lands outside buffered ranges (nothing to paint)
@@ -1225,6 +1259,7 @@ export function VideoPlayer({
       pendingSeekTargetRef.current = null
       isSeekingRef.current = false
       lastSkipTRef.current = video.currentTime
+      lastPlaySecTickRef.current = video.currentTime
       // If we have paintable data ready (or buffer ahead), drop seeking/stall spinner immediately
       if (
         video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA ||

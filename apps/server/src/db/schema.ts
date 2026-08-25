@@ -69,6 +69,41 @@ const MIGRATIONS: Migration[] = [
       `)
     },
   },
+  {
+    version: 3,
+    name: 'anime_play_stats',
+    up: (db) => {
+      // Anime subject & episode play metrics table
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS anime_play_stats (
+          bangumi_id INTEGER NOT NULL,
+          episode INTEGER NOT NULL,
+          play_count INTEGER NOT NULL DEFAULT 0,
+          updated_at INTEGER NOT NULL,
+          PRIMARY KEY (bangumi_id, episode)
+        );
+        CREATE INDEX IF NOT EXISTS idx_play_stats_bgm ON anime_play_stats(bangumi_id);
+      `)
+    },
+  },
+  {
+    version: 4,
+    name: 'ip_access_logs',
+    up: (db) => {
+      // IP access and PV metrics table
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS ip_access_logs (
+          ip TEXT PRIMARY KEY,
+          total_hits INTEGER NOT NULL DEFAULT 1,
+          today_hits INTEGER NOT NULL DEFAULT 1,
+          last_date TEXT NOT NULL,
+          first_seen INTEGER NOT NULL,
+          last_seen INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_ip_last_seen ON ip_access_logs(last_seen);
+      `)
+    },
+  },
 ]
 
 /**
