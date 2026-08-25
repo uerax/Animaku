@@ -788,14 +788,60 @@ bangumiRoutes.post('/recommendations', async (c) => {
         const chosenRel = nextRel || prevRel
         if (chosenRel) {
           const rawImages = chosenRel.images || {}
-          const rawCover =
+          let rawCover =
             rawImages.medium ||
             rawImages.common ||
             rawImages.large ||
             rawImages.small ||
             rawImages.grid ||
             ''
-          const cover = rawCover
+
+          let score = 0
+          let airDate = ''
+          let totalEps = 0
+
+          // Bangumi /subjects/:id/subjects (relations endpoint) only returns shallow fields (no date, eps, score).
+          // Fetch the full subject detail for Slot 0 (1 single light fetch, backed by subject TTL cache).
+          try {
+            const detailCacheKey = `bangumi:${apiHost}:subject:${chosenRel.id}`
+            const cachedDetail = cacheGet<{ data: BangumiItem }>(detailCacheKey)
+            if (cachedDetail?.data) {
+              const d = cachedDetail.data
+              score = d.ratingScore || 0
+              airDate = d.airDate || ''
+              totalEps = d.totalEpisodes || d.eps || 0
+              if (!rawCover) {
+                rawCover =
+                  d.images?.medium || d.images?.common || d.images?.large || ''
+              }
+            } else {
+              const detailRes = await bangumiFetch(
+                `${apiUrl}/v0/subjects/${chosenRel.id}`,
+              )
+              if (detailRes.ok) {
+                const detailJson =
+                  (await detailRes.json()) as Record<string, unknown>
+                const parsedItem = parseBangumiItem(detailJson)
+                cacheSet(
+                  detailCacheKey,
+                  { data: parsedItem },
+                  BANGUMI_CACHE_TTL.subject,
+                )
+                score = parsedItem.ratingScore || 0
+                airDate = parsedItem.airDate || ''
+                totalEps = parsedItem.totalEpisodes || parsedItem.eps || 0
+                if (!rawCover) {
+                  rawCover =
+                    parsedItem.images?.medium ||
+                    parsedItem.images?.common ||
+                    parsedItem.images?.large ||
+                    ''
+                }
+              }
+            }
+          } catch {
+            /* ignore detail fetch error */
+          }
 
           const isMovieTitle =
             (chosenRel.name_cn || chosenRel.name || '').includes('剧场版') ||
@@ -812,10 +858,10 @@ bangumiRoutes.post('/recommendations', async (c) => {
             id: chosenRel.id,
             name: String(chosenRel.name ?? ''),
             nameCn: String(chosenRel.name_cn || chosenRel.name || ''),
-            cover,
-            score: Number(Number(chosenRel.rating?.score ?? 0).toFixed(1)),
-            year: extractYear(chosenRel.date),
-            epsLabel: formatEpsLabel(chosenRel),
+            cover: rawCover,
+            score: Number(score.toFixed(1)),
+            year: extractYear(airDate),
+            epsLabel: totalEps > 0 ? `全${totalEps}话` : '连载中',
             relationBadge,
           }
           seenSubjectIds.add(chosenRel.id)
