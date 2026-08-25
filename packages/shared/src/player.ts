@@ -66,6 +66,12 @@ export const SUPER_RESOLUTION_MODES: readonly SuperResolutionMode[] = [
   'quality',
 ] as const
 
+/**
+ * Minimum history position in seconds before continue-play seeks on mount.
+ * Prevents jarring jumps for brief accidental clicks / intros (<15s).
+ */
+export const CONTINUE_PLAY_MIN_THRESHOLD_SEC = 15
+
 export const defaultPlayerSettings: PlayerSettings = {
   speed: 1,
   autoplay: true,

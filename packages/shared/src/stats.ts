@@ -3,6 +3,12 @@ export interface RecordPlayViewRequest {
   episode: number
 }
 
+/**
+ * Continuous uninterrupted playback duration required before reporting a valid play view.
+ * Prevents inflated play metrics from short bounces (<15s).
+ */
+export const STATS_VALID_PLAY_THRESHOLD_SEC = 15
+
 export interface RecordPlayViewResponse {
   success: boolean
   playCount: number

@@ -4,6 +4,37 @@
 
 ---
 
+## [2026-08-26] 彻底修复播放起播二次刷新与 DOM 暴力重建（原地 Seek 状态机 + 4重时序互锁 + 权威时长决断 + 弹幕 404 缓存）
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **净化 `playerKey` 与解耦数字状态 (`use-watch-session.ts`)**：
+     - 将 `playerKey` 重构为 `${mediaSrc}#${playerRemount}#${playback.mode}`，彻底剥离 `resumeTime`；
+     - 终结了此前因历史记录异步到达/分集对齐使 `playerKey` 后缀从 `#r0` 变更为 `#rXX` 触发的 React 强制卸载重建（Unmount & Remount）恶性二次刷新问题。
+  2. **业务常量解耦与语义隔离 (`packages/shared/src/player.ts` & `stats.ts`)**：
+     - 独立定义 `CONTINUE_PLAY_MIN_THRESHOLD_SEC = 15`（客户端体验：小于 15s 不打扰用户做续播）；
+     - 独立定义 `STATS_VALID_PLAY_THRESHOLD_SEC = 15`（服务端口径：连续播放满 15s 计为有效 PV 上报）。
+  3. **VideoPlayer 原地续播状态机与 4 重事件互锁 (`VideoPlayer.tsx`)**：
+     - **权威时长决断器 (`resolveAuthoritativeDuration`)**：
+       - MP4：元数据就绪后直接信任权威时长；若为未做 FastStart 优化的网盘/云盘直链（初始时长为 `Infinity/NaN`）则安全返回 `null` 挂起，杜绝误判；
+       - HLS：当前 active level 触发 `LEVEL_LOADED` 且为非直播 VOD 时读取 `details.totalduration`，探测期返回 `null` 挂起；
+       - 彻底消除此前用 `rawDuration >= targetTime` 代理判断导致的“删减版/短视频越界跳至末尾触发 ended”的自相矛盾漏洞。
+     - **Stale Instance Guard 实例失效守卫**：
+       - 在换源重试（`authRetry`）、报错（`mediaError`）或失败（`loadFailed`）期间 100% 冻结 Seek 响应，彻底杜绝换源窗口期旧实例误 Seek；
+       - 换源失败时在 Promise catch 中展示明确的错误与切源 UI。
+     - **4 重事件驱动互锁网**：
+       - 入口 1: Prop 驱动（`useEffect([initialTime])`，处理 Late Hydrate 历史记录异步到达）；
+       - 入口 2: `loadedmetadata` 事件（FastStart MP4 / Safari 原生 HLS）；
+       - 入口 3: `durationchange` 事件（专为无 FastStart 的网盘 MP4 在异步探测到时长后重试续播）；
+       - 入口 4: HLS `LEVEL_LOADED` 事件（HLS VOD 完整分片总时长解析就绪）。
+  4. **服务端弹幕 404/未收录资源优雅响应与 12h 缓存 (`apps/server/src/routes/danmaku.ts`)**：
+     - 当弹弹 API 返回 `errorCode: 7`（无法找到指定的资源）时，正常返回 200 `{ data: { bangumiId: 0, episodes: [] } }` 并缓存 12 小时；
+     - 彻底消除 F12 控制台刺眼的红色 502 报错，并节约弹弹 API 调用配额。
+- 涉及文件：packages/shared/src/player.ts, packages/shared/src/stats.ts, packages/shared/src/index.ts, apps/web/src/player/VideoPlayer.tsx, apps/web/src/lib/use-watch-session.ts, apps/server/src/routes/danmaku.ts, scripts/test-player-resume.ts, .claude/STATE.md
+- 备注：编写 `scripts/test-player-resume.ts` 覆盖时长权威性、安全裁剪与失效守卫单测全量通过，`pnpm typecheck` 全仓 3 个 workspace 0 报错通过，`pnpm build` 全量生产打包构建通过。
+
+---
+
 ## [2026-08-26] 落地服务端 IP 访问统计与全站 API 频控防刷（setImmediate 极简微合批 + 本地时区 + 滑动窗口限流）
 - 状态：已完成
 - 优先级：P2

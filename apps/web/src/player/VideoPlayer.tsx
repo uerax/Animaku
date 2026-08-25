@@ -7,12 +7,14 @@
  * Desktop vs mobile chrome lives under `./chrome/*` so edits to one side
  * do not touch the other.
  */
-import { useEffect, useRef, useState, type DragEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
 import './plyr-overrides.css'
 /** Instance type only — runtime constructor is dynamic-imported for m3u8 */
 import type Hls from 'hls.js'
 import {
+  CONTINUE_PLAY_MIN_THRESHOLD_SEC,
   PLAYER_SPEEDS,
+  STATS_VALID_PLAY_THRESHOLD_SEC,
   type SuperResolutionMode,
 } from '@animaku/shared'
 import { statsApi } from '../lib/api'
@@ -405,6 +407,97 @@ export function VideoPlayer({
     lastAudibleVolumeRef.current = player.volume
   }
 
+  /**
+   * 解析媒体当前可信的最终总时长（秒）。
+   * 区分 MP4 与 HLS VOD 解析态，若处于切片探测期返回 null 挂起，杜绝误判。
+   */
+  const resolveAuthoritativeDuration = useCallback((): number | null => {
+    const video = videoRef.current
+    if (!video) return null
+    const isHls = isM3u8(activeSrc)
+
+    if (isHls) {
+      const hls = hlsRef.current
+      if (!hls) {
+        // Safari 原生 HLS 播放模式：已解析出有效有限时长
+        const d = video.duration
+        return Number.isFinite(d) && d > 0 ? d : null
+      }
+      // hls.js 模式：当前 active level 的 VOD 切片已完整就绪
+      const lvl = hls.levels[hls.currentLevel]
+      const details = lvl?.details
+      if (
+        details &&
+        !details.live &&
+        Number.isFinite(details.totalduration) &&
+        details.totalduration > 0
+      ) {
+        return details.totalduration
+      }
+      return null
+    }
+
+    // Progressive MP4：只要元数据已就绪且 duration 为有限正数
+    if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+      const d = video.duration
+      return Number.isFinite(d) && d > 0 ? d : null
+    }
+
+    return null
+  }, [activeSrc])
+
+  /**
+   * 幂等且时序安全的初始续播调度器：
+   * 1. Stale Instance Guard：失效/重试中实例绝不响应；
+   * 2. 权威时长决断：未稳定时挂起重试，杜绝代理指标漏洞；
+   * 3. 严格防越界裁剪与 try/catch 保护。
+   */
+  const tryApplyInitialResume = useCallback((): boolean => {
+    const video = videoRef.current
+    const targetTime = initialTimeRef.current
+    const cfg = playerRef.current
+
+    if (
+      !video ||
+      !cfg.continuePlay ||
+      resumedRef.current ||
+      targetTime <= CONTINUE_PLAY_MIN_THRESHOLD_SEC
+    ) {
+      return false
+    }
+
+    // Stale Instance Guard：若当前实例已处于凭证重试、报错或失效状态，坚决不执行
+    if (authRetryRef.current || loadFailedOnceRef.current || mediaError) {
+      return false
+    }
+
+    const authDuration = resolveAuthoritativeDuration()
+    if (authDuration === null) {
+      // 权威时长尚未稳定，等待后续事件（loadedmetadata / durationchange / LEVEL_LOADED）重试
+      return false
+    }
+
+    // 严格防越界裁剪：锁定在 [0, authDuration - 0.5s] 安全区间内，防止触发非法 ended
+    const safeTarget = Math.max(0, Math.min(targetTime, Math.max(0, authDuration - 0.5)))
+
+    resumedRef.current = true
+    lastSkipTRef.current = safeTarget
+    try {
+      video.currentTime = safeTarget
+      return true
+    } catch (e) {
+      console.warn('[player] initial resume seek failed:', e)
+      return false
+    }
+  }, [resolveAuthoritativeDuration, mediaError])
+
+  // 入口 1: Prop 驱动入口（处理 Late Hydrate 异步到达）
+  useEffect(() => {
+    if (initialTime > CONTINUE_PLAY_MIN_THRESHOLD_SEC && !resumedRef.current) {
+      tryApplyInitialResume()
+    }
+  }, [initialTime, tryApplyInitialResume])
+
   function reportLoadFailed(reason: string) {
     if (loadFailedOnceRef.current) return
     loadFailedOnceRef.current = true
@@ -761,16 +854,8 @@ export function VideoPlayer({
       setDuration(video.duration || 0)
       // load()/attachMedia often resets rate → re-apply saved default here
       applyPlaybackRate()
-      const t0 = initialTimeRef.current
-      if (!resumedRef.current && cfg.continuePlay && t0 > 15) {
-        resumedRef.current = true
-        lastSkipTRef.current = t0
-        try {
-          video.currentTime = t0
-        } catch {
-          /* ignore */
-        }
-      }
+      // 入口 2: loadedmetadata / MANIFEST_PARSED 事件驱动尝试续播
+      tryApplyInitialResume()
       // Wait for buffer gate then play; danmaku engine waits for paintable media
       // (noteDanmakuMediaReady on canplay/playing) so open-buffer stays light.
       softPlay()
@@ -788,6 +873,18 @@ export function VideoPlayer({
     const attachProgressive = () => {
       video.src = activeSrc
       video.addEventListener('loadedmetadata', onReady, { once: true })
+
+      // 入口 3: durationchange 事件驱动（针对无 faststart 优化的 MP4 云盘/网盘直链在异步探测到真实时长后重试续播）
+      const onDurationChange = () => {
+        if (!alive()) return
+        const d = video.duration
+        if (Number.isFinite(d) && d > 0) setDuration(d)
+        if (!resumedRef.current) {
+          tryApplyInitialResume()
+        }
+      }
+      video.addEventListener('durationchange', onDurationChange)
+      ;(video as HTMLVideoElement & { __durationChange?: () => void }).__durationChange = onDurationChange
 
       const tryAuthRefresh = () => {
         if (!alive() || authRetryRef.current) return false
@@ -808,7 +905,8 @@ export function VideoPlayer({
         void Promise.resolve(onMediaAuthExpiredRef.current(pos)).catch(() => {
           if (!alive()) return
           setLoading(false)
-          setMediaError('凭证刷新失败，请重新选集')
+          setBufferingUi(false)
+          setMediaError('凭证刷新失败，建议切换视频源')
         })
         return true
       }
@@ -957,6 +1055,10 @@ export function VideoPlayer({
               if (data.details.totalduration) {
                 setDuration(data.details.totalduration)
               }
+              // 入口 4: HLS VOD 完整切片列表与总时长解析就绪
+              if (!resumedRef.current) {
+                tryApplyInitialResume()
+              }
             })
             hls.on(HlsCtor.Events.ERROR, (_e, data) => {
               if (!alive()) return
@@ -1094,7 +1196,7 @@ export function VideoPlayer({
       const prevT = lastSkipTRef.current
       lastSkipTRef.current = t
 
-      // 累加实际有效播放时长并在满 15 秒时上报播放统计
+      // 累加实际有效播放时长并在满 STATS_VALID_PLAY_THRESHOLD_SEC 秒时上报播放统计
       if (
         !playViewReportedRef.current &&
         bangumiId &&
@@ -1106,7 +1208,7 @@ export function VideoPlayer({
         const tickDelta = t - lastTick
         if (tickDelta > 0 && tickDelta <= 2.5) {
           playSecAccumulatedRef.current += tickDelta
-          if (playSecAccumulatedRef.current >= 15) {
+          if (playSecAccumulatedRef.current >= STATS_VALID_PLAY_THRESHOLD_SEC) {
             playViewReportedRef.current = true
             void statsApi.recordPlayView(bangumiId, episodeNumber || 0).catch(() => {})
           }
@@ -1351,6 +1453,9 @@ export function VideoPlayer({
       isSeekingRef.current = false
       // A: first paintable moment — safe to build danmaku engine
       noteDanmakuMediaReady()
+      if (!resumedRef.current) {
+        tryApplyInitialResume()
+      }
     }
     const onPlayingClear = () => {
       // Frames painting again → no stall chrome
@@ -1551,6 +1656,14 @@ export function VideoPlayer({
       video.removeEventListener('canplay', onCanPlay)
       video.removeEventListener('playing', onPlayingClear)
       clearStallShowTimer()
+      const durationChange = (
+        video as HTMLVideoElement & { __durationChange?: () => void }
+      ).__durationChange
+      if (durationChange) {
+        video.removeEventListener('durationchange', durationChange)
+        delete (video as HTMLVideoElement & { __durationChange?: () => void })
+          .__durationChange
+      }
       const stalled = (
         video as HTMLVideoElement & { __a1Stalled?: () => void }
       ).__a1Stalled

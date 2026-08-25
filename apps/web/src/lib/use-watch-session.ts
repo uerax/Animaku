@@ -18,6 +18,7 @@ import {
   bestTitleSimilarity,
   coverOf,
   comparePluginOrder,
+  CONTINUE_PLAY_MIN_THRESHOLD_SEC,
   isOldAnime,
   resolvePluginDefaultKeyword,
   findMatchingEpisodeIndex,
@@ -85,8 +86,8 @@ export type EpisodePlay = {
  */
 export const AUTO_PICK_MIN_SIMILARITY = 0.55
 
-/** Seconds of history progress required before continue-play seeks. */
-const RESUME_MIN_POSITION = 15
+/** Minimum history progress in seconds before continue-play seeks. */
+const RESUME_MIN_POSITION = CONTINUE_PLAY_MIN_THRESHOLD_SEC
 
 function formatMinutesSeconds(sec: number): string {
   const m = Math.floor(sec / 60)
@@ -1703,8 +1704,9 @@ export function useWatchSession(bangumiId: number): WatchSession {
     playbackMode: playback.mode,
     /** direct | playlist-proxy (ad hybrid) | full-proxy — for WatchMeta hint */
     playbackTransit: playback.transit,
-    // Include resume bucket so late history hydrate / auth remount re-seeks
-    playerKey: `${mediaSrc}#${playerRemount}#${playback.mode}#r${Math.floor(resumeTime)}`,
+    // playerKey uniquely represents physical media stream channel and transit mode;
+    // in-place seek handles late resume without destructive player DOM remounts.
+    playerKey: `${mediaSrc}#${playerRemount}#${playback.mode}`,
     resumeTime,
     resolveLoading: Boolean(selection && episode && resolve.isLoading),
     resolveError: resolve.error,

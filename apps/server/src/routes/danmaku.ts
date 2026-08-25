@@ -73,11 +73,19 @@ danmakuRoutes.get('/bangumi/bgmtv/:bgmId', async (c) => {
       async () => {
         const json = (await dandanGet(`/api/v2/bangumi/bgmtv/${bgmId}`)) as {
           success?: boolean
+          errorCode?: number
           errorMessage?: string
           bangumi?: { animeId?: number; episodes?: Array<Record<string, unknown>> }
           bangumiId?: number
         }
         if (json.success === false) {
+          // errorCode 7: 无法找到指定的资源（新番未收录/无映射正常情况，缓存空结果以保护配额并消除 502）
+          if (json.errorCode === 7 || json.errorMessage?.includes('无法找到')) {
+            return {
+              bangumiId: 0,
+              episodes: [],
+            }
+          }
           throw new Error(json.errorMessage || '弹弹 BGM 查询失败')
         }
         const bangumi = json.bangumi || json
@@ -119,10 +127,17 @@ danmakuRoutes.get('/bangumi/:id', async (c) => {
       async () => {
         const json = (await dandanGet(`/api/v2/bangumi/${id}`)) as {
           success?: boolean
+          errorCode?: number
           errorMessage?: string
           bangumi?: { episodes?: Array<Record<string, unknown>>; animeId?: number }
         }
         if (json.success === false) {
+          if (json.errorCode === 7 || json.errorMessage?.includes('无法找到')) {
+            return {
+              bangumiId: Number(id) || 0,
+              episodes: [],
+            }
+          }
           throw new Error(json.errorMessage || '弹弹番剧详情查询失败')
         }
         const episodes = (json.bangumi?.episodes || []).map((e) => ({
