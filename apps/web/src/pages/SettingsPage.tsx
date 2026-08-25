@@ -206,6 +206,9 @@ export function SettingsPage() {
   const [draggedName, setDraggedName] = useState<string | null>(null)
   const [dragOverName, setDragOverName] = useState<string | null>(null)
 
+  const touchSourceRef = useRef<string | null>(null)
+  const touchTargetRef = useRef<string | null>(null)
+
   /**
    * Move a plugin up/down in the user sort order.
    * Reads current live `sortedPlugins` names to build the new order list.
@@ -254,7 +257,120 @@ export function SettingsPage() {
     [draggedName, sortedPlugins, setPluginOrder],
   )
 
+  const handleTouchStart = useCallback((name: string) => {
+    touchSourceRef.current = name
+    touchTargetRef.current = name
+    setDraggedName(name)
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      try {
+        navigator.vibrate(10)
+      } catch {}
+    }
+  }, [])
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!touchSourceRef.current) return
+    const touch = e.touches[0]
+    if (!touch) return
+    const el = document.elementFromPoint(touch.clientX, touch.clientY)
+    const card = el?.closest<HTMLElement>('[data-plugin-card-name]')
+    const targetName = card?.dataset.pluginCardName
+    if (targetName) {
+      touchTargetRef.current = targetName
+      if (dragOverName !== targetName) {
+        setDragOverName(targetName)
+      }
+    }
+  }, [dragOverName])
+
+  const handleTouchEnd = useCallback(() => {
+    const fromName = touchSourceRef.current
+    const toName = touchTargetRef.current
+    if (fromName && toName && fromName.toLowerCase() !== toName.toLowerCase()) {
+      const names = sortedPlugins.map((p) => p.name)
+      const fromIdx = names.findIndex(
+        (n) => n.toLowerCase() === fromName.toLowerCase(),
+      )
+      const toIdx = names.findIndex(
+        (n) => n.toLowerCase() === toName.toLowerCase(),
+      )
+      if (fromIdx >= 0 && toIdx >= 0) {
+        const newNames = [...names]
+        const [moved] = newNames.splice(fromIdx, 1)
+        newNames.splice(toIdx, 0, moved)
+        setPluginOrder(newNames)
+      }
+    }
+    touchSourceRef.current = null
+    touchTargetRef.current = null
+    setDraggedName(null)
+    setDragOverName(null)
+  }, [sortedPlugins, setPluginOrder])
+
+  const handleTouchCancel = useCallback(() => {
+    touchSourceRef.current = null
+    touchTargetRef.current = null
+    setDraggedName(null)
+    setDragOverName(null)
+  }, [])
+
   const [activeShop, setActiveShop] = useState<'anibaka' | 'kazumi'>('anibaka')
+
+  // 折叠卡片状态管理（支持本地持久化记忆）
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('kz-settings-open-sections')
+      if (saved) return JSON.parse(saved)
+    } catch {}
+    // 默认展开高频核心项
+    return {
+      'server-status': false,
+      'image-host': false,
+      'bangumi-token': true,
+      'oped-center': false,
+      'installed-plugins': true,
+      'rule-catalog': false,
+      'player-settings': true,
+      'danmaku-settings': false,
+    }
+  })
+
+  const toggleSection = useCallback((key: string) => {
+    setOpenSections((prev) => {
+      const next = { ...prev, [key]: !prev[key] }
+      try {
+        localStorage.setItem('kz-settings-open-sections', JSON.stringify(next))
+      } catch {}
+      return next
+    })
+  }, [])
+
+  const allOpen = useMemo(() => {
+    return Object.values(openSections).some(Boolean)
+  }, [openSections])
+
+  const toggleAllSections = useCallback(() => {
+    setOpenSections((prev) => {
+      const targetState = !allOpen
+      const next: Record<string, boolean> = {}
+      for (const k of [
+        'server-status',
+        'image-host',
+        'bangumi-token',
+        'oped-center',
+        'installed-plugins',
+        'rule-catalog',
+        'player-settings',
+        'danmaku-settings',
+      ]) {
+        next[k] = targetState
+      }
+      try {
+        localStorage.setItem('kz-settings-open-sections', JSON.stringify(next))
+      } catch {}
+      return next
+    })
+  }, [allOpen])
 
   const me = useQuery({
     queryKey: ['me-settings', bangumiToken],
@@ -395,17 +511,31 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
-      <PageHeader title="设置" description="Token、规则插件与弹幕偏好" />
+    <div className="mx-auto max-w-3xl space-y-4 sm:space-y-6">
+      <div className="flex items-center justify-between gap-3">
+        <PageHeader title="设置" description="Token、规则插件与播放偏好" />
+        <button
+          type="button"
+          onClick={toggleAllSections}
+          className="rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] px-3 py-1.5 text-xs font-medium text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] hover:bg-[var(--kz-bg-soft)] transition-colors shrink-0 cursor-pointer select-none"
+          title={allOpen ? '收起全部卡片' : '展开全部卡片'}
+        >
+          {allOpen ? '📁 全部收起' : '📂 全部展开'}
+        </button>
+      </div>
 
-      <section className="space-y-3 rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-6 shadow-sm transition-all duration-200 hover:border-[var(--kz-accent-ring)]">
-        <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-[var(--kz-accent)]" />
-          <h2 className="text-lg font-bold tracking-tight text-[var(--kz-fg)]">服务状态</h2>
-        </div>
-        <div className="text-sm text-[var(--kz-fg-muted)] space-y-1">
-          <div>
-            版本：
+      {/* 1. 服务状态 */}
+      <CollapsibleSection
+        id="server-status"
+        icon={<span className="h-2.5 w-2.5 rounded-full bg-[var(--kz-accent)] inline-block" />}
+        title="服务状态"
+        summary={`v${b.version} · ${health.data?.ok ? 'API 正常' : health.isLoading ? '检测中' : '未连接'}`}
+        isOpen={Boolean(openSections['server-status'])}
+        onToggle={() => toggleSection('server-status')}
+      >
+        <div className="text-xs sm:text-sm text-[var(--kz-fg-muted)] space-y-1.5 divide-y divide-[var(--kz-border)]/40">
+          <div className="flex items-center justify-between pt-1">
+            <span>版本</span>
             <span className="font-semibold text-[var(--kz-fg)]">
               {b.version}
               {health.data?.version && health.data.version !== b.version
@@ -413,57 +543,67 @@ export function SettingsPage() {
                 : ''}
             </span>
           </div>
-          <div>API：<span className="font-semibold text-[var(--kz-fg)]">{health.data?.ok ? '正常' : health.isLoading ? '检测中…' : '不可用（请启动 server）'}</span></div>
-          <div>
-            弹幕：
+          <div className="flex items-center justify-between pt-1.5">
+            <span>API</span>
+            <span className="font-semibold text-[var(--kz-fg)]">{health.data?.ok ? '正常' : health.isLoading ? '检测中…' : '不可用（请启动 server）'}</span>
+          </div>
+          <div className="flex items-center justify-between pt-1.5">
+            <span>弹幕</span>
             <span className="font-semibold text-[var(--kz-fg)]">
               {health.data?.danmakuConfigured
                 ? (health.data as ServerHealth).danmakuUsingFallback
-                  ? '可用（内置密钥，与 agefans-enhance 相同）'
-                  : '已配置开放平台密钥'
+                  ? '内置密钥'
+                  : '已配置'
                 : '不可用'}
             </span>
           </div>
-          <div>
-            媒体代理：
+          <div className="flex items-center justify-between pt-1.5">
+            <span>媒体代理</span>
             <span className="font-semibold text-[var(--kz-fg)]">
               {health.isLoading
                 ? '检测中…'
                 : health.data?.ok
                   ? mediaFullProxy
-                    ? '允许全量（m3u8 + 分片/整段，MEDIA_FULL_PROXY=1）'
-                    : '仅 m3u8 列表（默认 MEDIA_FULL_PROXY=0；分片直连 CDN）'
+                    ? '允许全量（MEDIA_FULL_PROXY=1）'
+                    : '仅 m3u8（MEDIA_FULL_PROXY=0）'
                   : '未知'}
             </span>
           </div>
           {!health.isLoading && health.data?.ok && (
-            <div>
-              开放代理访问：
+            <div className="flex items-center justify-between pt-1.5">
+              <span>开放代理访问</span>
               <span className="font-semibold text-[var(--kz-fg)]">
                 {(health.data as ServerHealth).publicProxy
-                  ? '公网可调（PUBLIC_PROXY 默认开）'
-                  : '仅本机/局域网（PUBLIC_PROXY=0）'}
+                  ? '公网可调'
+                  : '仅本机/局域网'}
               </span>
             </div>
           )}
         </div>
-        <p className="text-xs text-[var(--kz-fg-dim)] pt-1">
-          以上两项由服务器 <code className="text-[var(--kz-fg-muted)]">.env</code>{' '}
-          决定，设置页无法改写。公网部署建议保持仅 m3u8，避免被当作出站带宽跳板。
+        <p className="text-[11px] sm:text-xs text-[var(--kz-fg-dim)] pt-1">
+          以上配置由服务器 <code className="text-[var(--kz-fg-muted)]">.env</code>{' '}
+          决定。公网部署建议保持仅 m3u8，避免被当作出站带宽跳板。
         </p>
-      </section>
+      </CollapsibleSection>
 
-      <section className="space-y-3 rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-6 shadow-sm transition-all duration-200 hover:border-[var(--kz-accent-ring)]">
-        <h2 className="text-lg font-bold tracking-tight text-[var(--kz-fg)]">封面图片源</h2>
-        <p className="text-sm text-[var(--kz-fg-muted)]">
-          番剧海报封面与角色图的访问 CDN。默认值由 <code className="text-[var(--kz-fg-muted)]">.env</code> 的 <code className="text-[var(--kz-fg-muted)]">BANGUMI_IMAGE</code> 决定，此处选择仅保存在本机浏览器。
+      {/* 2. 封面图片源 */}
+      <CollapsibleSection
+        id="image-host"
+        icon="🖼️"
+        title="封面图片源"
+        summary={bangumiImageHost.includes('mirror') || bangumiImageHost.includes('proxy') ? '代理优化' : '官方直连'}
+        isOpen={Boolean(openSections['image-host'])}
+        onToggle={() => toggleSection('image-host')}
+      >
+        <p className="text-xs sm:text-sm text-[var(--kz-fg-muted)]">
+          番剧海报封面与角色图的访问 CDN。此处选择仅保存在本机浏览器。
         </p>
-        <label className="flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--kz-fg)]">
-          <span>图片源</span>
+        <label className="flex items-center justify-between gap-3 text-xs sm:text-sm text-[var(--kz-fg)]">
+          <span className="font-medium">图片源</span>
           <select
             value={bangumiImageHost}
             onChange={(e) => setBangumiImageHost(e.target.value)}
-            className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1.5 text-sm outline-none focus:border-[var(--kz-accent)]"
+            className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1.5 text-xs sm:text-sm outline-none focus:border-[var(--kz-accent)] cursor-pointer"
           >
             {BANGUMI_IMAGE_HOST_OPTIONS.map((o) => (
               <option key={o.host} value={o.host}>
@@ -473,14 +613,21 @@ export function SettingsPage() {
             ))}
           </select>
         </label>
-        <p className="text-xs text-[var(--kz-fg-dim)]">
+        <p className="text-[11px] sm:text-xs text-[var(--kz-fg-dim)]">
           切换后立即生效；新域名的图片按需重新下载并建立浏览器本地缓存。
         </p>
-      </section>
+      </CollapsibleSection>
 
-      <section className="space-y-3 rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-6 shadow-sm transition-all duration-200 hover:border-[var(--kz-accent-ring)]">
-        <h2 className="text-lg font-bold tracking-tight text-[var(--kz-fg)]">Bangumi Access Token</h2>
-        <p className="text-sm text-[var(--kz-fg-muted)]">
+      {/* 3. Bangumi Access Token */}
+      <CollapsibleSection
+        id="bangumi-token"
+        icon="👤"
+        title="Bangumi 账号"
+        summary={bangumiToken ? (me.data?.data?.nickname || me.data?.data?.username ? `已登录: ${me.data?.data?.nickname || me.data?.data?.username}` : '已绑定 Token') : '未登录'}
+        isOpen={Boolean(openSections['bangumi-token'])}
+        onToggle={() => toggleSection('bangumi-token')}
+      >
+        <p className="text-xs sm:text-sm text-[var(--kz-fg-muted)]">
           用于同步追番收藏。在{' '}
           <a
             href={bangumiOAuthUrl()}
@@ -497,13 +644,13 @@ export function SettingsPage() {
           onChange={(e) => setTokenInput(e.target.value)}
           rows={3}
           placeholder="粘贴 Access Token…"
-          className="w-full rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-2 text-sm outline-none ring-[var(--kz-accent)] focus:ring-2"
+          className="w-full rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-2 text-xs sm:text-sm outline-none ring-[var(--kz-accent)] focus:ring-2"
         />
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
             onClick={saveToken}
-            className="rounded-xl bg-[var(--kz-accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--kz-accent-hover)]"
+            className="rounded-xl bg-[var(--kz-accent)] px-4 py-2 text-xs sm:text-sm font-medium text-white hover:bg-[var(--kz-accent-hover)] cursor-pointer shadow-sm"
           >
             保存
           </button>
@@ -519,40 +666,42 @@ export function SettingsPage() {
             </span>
           )}
         </div>
-      </section>
+      </CollapsibleSection>
 
-      {/* OP/ED 标记中心 */}
-      <section className="space-y-4 rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-6 shadow-sm transition-all duration-200 hover:border-[var(--kz-accent-ring)]">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="text-lg font-bold tracking-tight text-[var(--kz-fg)] flex items-center gap-2">
-              <span>⏱️ OP/ED 标记中心</span>
-              <span className="rounded-full bg-sky-500/15 px-2.5 py-0.5 text-xs font-semibold text-sky-400">
-                {opedSummary.subjectCount} 部番剧 · {opedSummary.episodeCount} 集已标记
-              </span>
-            </h2>
-            <p className="mt-1 text-sm text-[var(--kz-fg-muted)]">
-              播放视频时通过控制栏「OP/ED 标记助手」记录片头片尾时间戳，本地打标优先覆盖并自动跳过。数据保存在本机浏览器，可随时逐部贡献至{' '}
-              <a
-                href="https://github.com/uerax/bangumi-oped"
-                target="_blank"
-                rel="noreferrer"
-                className="kz-link"
-              >
-                uerax/bangumi-oped
-              </a>{' '}
-              开源仓库。
-            </p>
-          </div>
-        </div>
+      {/* 4. OP/ED 标记中心 */}
+      <CollapsibleSection
+        id="oped-center"
+        icon="⏱️"
+        title="OP/ED 标记中心"
+        badge={
+          <span className="rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-semibold text-sky-400">
+            {opedSummary.subjectCount} 部
+          </span>
+        }
+        summary={`${opedSummary.subjectCount} 部 · ${opedSummary.episodeCount} 集已标记`}
+        isOpen={Boolean(openSections['oped-center'])}
+        onToggle={() => toggleSection('oped-center')}
+      >
+        <p className="text-xs sm:text-sm text-[var(--kz-fg-muted)] leading-relaxed">
+          播放视频时通过「OP/ED 标记助手」打点，本地优先跳过并可贡献至{' '}
+          <a
+            href="https://github.com/uerax/bangumi-oped"
+            target="_blank"
+            rel="noreferrer"
+            className="kz-link"
+          >
+            uerax/bangumi-oped
+          </a>{' '}
+          开源仓库。
+        </p>
 
         {opedSummary.subjectCount === 0 ? (
-          <div className="rounded-xl border border-dashed border-[var(--kz-border)] p-6 text-center text-sm text-[var(--kz-fg-muted)]">
-            本地暂无打标记录。在播放任意番剧时，打开右下角控制条的「⏱️ OP/ED 标记助手」即可开始极简打点。
+          <div className="rounded-xl border border-dashed border-[var(--kz-border)] p-5 text-center text-xs sm:text-sm text-[var(--kz-fg-muted)]">
+            本地暂无打标记录。在播放任意番剧时，打开右下角控制条的「⏱️ OP/ED 标记助手」即可开始打点。
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="max-h-60 overflow-y-auto space-y-2 rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] p-3">
+            <div className="max-h-60 overflow-y-auto space-y-2 rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] p-2.5 sm:p-3">
               {Object.entries(opedSubjects).map(([idStr, sub]) => {
                 const subId = Number(idStr)
                 const epsCount = Object.keys(sub.episodes).length
@@ -560,12 +709,12 @@ export function SettingsPage() {
                 return (
                   <div
                     key={subId}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-3 text-xs"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-2.5 sm:p-3 text-xs"
                   >
-                    <div>
-                      <div className="font-semibold text-[var(--kz-fg)]">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold text-[var(--kz-fg)] truncate">
                         {sub.subjectName || `Bangumi Subject ${subId}`}
-                        <span className="ml-2 font-mono text-[11px] text-[var(--kz-fg-dim)]">
+                        <span className="ml-2 font-mono text-[10px] text-[var(--kz-fg-dim)]">
                           ID: {subId}
                         </span>
                       </div>
@@ -573,7 +722,7 @@ export function SettingsPage() {
                         已标记 {epsCount} 集 · 默认推算 {sub.defaultDuration || 90}s
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
                       <button
                         type="button"
                         onClick={async () => {
@@ -581,10 +730,10 @@ export function SettingsPage() {
                           const remote = await fetchBangumiOpedDetail(subId)
                           const txt = buildBangumiOpedContent(remote.data, sub.episodes)
                           await navigator.clipboard.writeText(txt)
-                          setOpedToast(`已复制 Subject ${subId} 的合并全量 txt 格式（含官方底本与本地标记）`)
+                          setOpedToast(`已复制 Subject ${subId} 的合并全量 txt 格式`)
                           setTimeout(() => setOpedToast(''), 3000)
                         }}
-                        className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1 text-xs font-medium text-[var(--kz-fg)] hover:bg-[var(--kz-bg-elevated)] cursor-pointer"
+                        className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2 py-1 text-[11px] font-medium text-[var(--kz-fg)] hover:bg-[var(--kz-bg-elevated)] cursor-pointer"
                         title="复制包含官方已有集数与本地标记的完整数据"
                       >
                         复制 txt
@@ -604,7 +753,7 @@ export function SettingsPage() {
                           }
                           setTimeout(() => setOpedToast(''), 5000)
                         }}
-                        className="rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white shadow hover:bg-emerald-500 cursor-pointer"
+                        className="rounded-lg bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white shadow hover:bg-emerald-500 cursor-pointer"
                         title="提交包含官方原本内容与本地新增修改的完整 PR"
                       >
                         提交 PR
@@ -616,7 +765,7 @@ export function SettingsPage() {
                             opedStore.clearSubjectMarks(subId)
                           }
                         }}
-                        className="rounded-lg px-2 py-1 text-xs text-rose-400 hover:bg-rose-500/10 cursor-pointer"
+                        className="rounded-lg px-2 py-1 text-[11px] text-rose-400 hover:bg-rose-500/10 cursor-pointer"
                         title="删除该番打标记录"
                       >
                         删除
@@ -627,8 +776,8 @@ export function SettingsPage() {
               })}
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-              <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={async () => {
@@ -653,20 +802,20 @@ export function SettingsPage() {
                     setOpedToast('已生成并下载合并全量 ZIP 包！解压后进入目录全选里面的文件夹拖入 GitHub 即可')
                     setTimeout(() => setOpedToast(''), 6000)
                   }}
-                  className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-1.5 text-xs font-medium text-[var(--kz-fg)] hover:bg-[var(--kz-bg-elevated)] cursor-pointer"
+                  className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1 text-xs font-medium text-[var(--kz-fg)] hover:bg-[var(--kz-bg-elevated)] cursor-pointer"
                   title="打包下载包含官方已有集数与本地标记的全量 txt 数据包"
                 >
-                  📦 打包下载全量 ZIP
+                  📦 打包全量 ZIP
                 </button>
                 <a
                   href="https://github.com/uerax/bangumi-oped/upload/data"
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-xs font-semibold text-sky-600 dark:text-sky-400 hover:bg-sky-500/20 transition-colors"
+                  className="inline-flex items-center gap-1 rounded-lg border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-xs font-semibold text-sky-600 dark:text-sky-400 hover:bg-sky-500/20 transition-colors"
                   title="解压 ZIP 后，进入解压目录全选里面的数字文件夹（如 352410）直接拖入该页面即可一键提交 Pull Request"
                 >
                   <span>📂 前往 GitHub 批量上传</span>
-                  <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 16 16" fill="none">
+                  <svg className="w-3 h-3 shrink-0" viewBox="0 0 16 16" fill="none">
                     <path
                       d="M6 3.5H3.5C2.67 3.5 2 4.17 2 5V12.5C2 13.33 2.67 14 3.5 14H11C11.83 14 12.5 13.33 12.5 12.5V10M9.5 2H14M14 2V6.5M14 2L6.5 9.5"
                       stroke="currentColor"
@@ -685,20 +834,32 @@ export function SettingsPage() {
                     opedStore.clearAllMarks()
                   }
                 }}
-                className="text-xs text-rose-400 hover:underline bg-transparent border-0 cursor-pointer"
+                className="text-xs text-rose-400 hover:underline bg-transparent border-0 cursor-pointer self-start sm:self-center"
               >
-                清空所有本地标记
+                清空本地标记
               </button>
             </div>
           </div>
         )}
-      </section>
+      </CollapsibleSection>
 
-      <section className="space-y-3 rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-5">
-        <h2 className="text-lg font-bold tracking-tight text-[var(--kz-fg)]">已安装规则</h2>
-        <p className="text-sm text-[var(--kz-fg-muted)]">
+      {/* 5. 已安装规则 */}
+      <CollapsibleSection
+        id="installed-plugins"
+        icon="🧩"
+        title="已安装规则"
+        badge={
+          <span className="rounded-full bg-[var(--kz-accent)]/15 px-2 py-0.5 text-[10px] font-semibold text-[var(--kz-accent)]">
+            {sortedPlugins.length}
+          </span>
+        }
+        summary={`${sortedPlugins.length} 个源 · 默认: ${sortedPlugins[0]?.name || '无'}`}
+        isOpen={Boolean(openSections['installed-plugins'])}
+        onToggle={() => toggleSection('installed-plugins')}
+      >
+        <p className="text-xs sm:text-sm text-[var(--kz-fg-muted)] leading-relaxed">
           列表首位为播放时的默认源。可拖拽或按 ▲▼ 调整顺序。
-          导入 JSON 仅在本机校验与保存，不会上传到服务器。也可从下方规则仓库安装。仓库：{' '}
+          导入 JSON 仅在本机校验与保存。仓库：{' '}
           <a
             href="https://github.com/Predidit/KazumiRules"
             className="kz-link"
@@ -713,7 +874,7 @@ export function SettingsPage() {
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="rounded-xl bg-[var(--kz-fg)] px-4 py-2 text-sm font-medium text-[var(--kz-bg)] hover:opacity-90"
+            className="rounded-xl bg-[var(--kz-fg)] px-3.5 py-1.5 text-xs sm:text-sm font-medium text-[var(--kz-bg)] hover:opacity-90 cursor-pointer shadow-sm"
           >
             导入 JSON
           </button>
@@ -740,7 +901,7 @@ export function SettingsPage() {
                 setPluginMsg('已恢复默认规则')
               }
             }}
-            className="rounded-xl border border-[var(--kz-border)] px-4 py-2 text-sm text-[var(--kz-fg)] hover:bg-[var(--kz-bg-soft)]"
+            className="rounded-xl border border-[var(--kz-border)] px-3.5 py-1.5 text-xs sm:text-sm text-[var(--kz-fg)] hover:bg-[var(--kz-bg-soft)] cursor-pointer"
           >
             恢复默认
           </button>
@@ -751,7 +912,7 @@ export function SettingsPage() {
         )}
         {plugins.length > 1 && (
           <p className="text-xs text-[var(--kz-fg-dim)]">
-            拖拽或按 ▲▼ 调整顺序，首位为播放默认源
+            拖拽手柄或按 ▲▼ 调整顺序，首位为播放默认源
           </p>
         )}
         <ul className="space-y-2">
@@ -769,19 +930,31 @@ export function SettingsPage() {
             return (
               <li
                 key={p.id}
+                data-plugin-card-name={p.name}
                 draggable={true}
                 onDragStart={(e) => {
                   e.dataTransfer.setData('text/plain', p.name)
                   e.dataTransfer.effectAllowed = 'move'
-                  setDraggedName(p.name)
+                  // 延迟一帧更新状态，确保浏览器顺利捕获原生 Drag Image，避免因 DOM 样式重排中断拖拽
+                  requestAnimationFrame(() => {
+                    setDraggedName(p.name)
+                  })
                 }}
                 onDragOver={(e) => {
                   e.preventDefault()
                   e.dataTransfer.dropEffect = 'move'
-                  if (dragOverName !== p.name) setDragOverName(p.name)
+                  if (dragOverName !== p.name) {
+                    setDragOverName(p.name)
+                  }
                 }}
-                onDragLeave={() => {
-                  if (dragOverName === p.name) setDragOverName(null)
+                onDragLeave={(e) => {
+                  const related = e.relatedTarget as Node | null
+                  if (related && e.currentTarget.contains(related)) {
+                    return // 鼠标在卡片内部子元素间移动时忽略，避免频繁闪烁与重渲染
+                  }
+                  if (dragOverName === p.name) {
+                    setDragOverName(null)
+                  }
                 }}
                 onDrop={(e) => {
                   e.preventDefault()
@@ -791,46 +964,56 @@ export function SettingsPage() {
                   setDraggedName(null)
                   setDragOverName(null)
                 }}
-                className={`flex flex-wrap items-center gap-2 rounded-xl border p-3 transition-all duration-150 ${
+                className={`flex flex-wrap items-center gap-2 rounded-xl border p-3 select-none transition-colors duration-150 ${
                   isDragging
-                    ? 'opacity-40 scale-[0.98] border-dashed border-[var(--kz-accent)] bg-[var(--kz-bg-soft)]'
+                    ? 'opacity-40 border-dashed border-[var(--kz-accent)] bg-[var(--kz-bg-soft)]'
                     : isDragOver
-                      ? 'border-[var(--kz-accent)] ring-2 ring-[var(--kz-accent)]/30 bg-[var(--kz-bg-soft)] scale-[1.01]'
+                      ? 'border-[var(--kz-accent)] ring-2 ring-[var(--kz-accent)]/40 bg-[var(--kz-accent)]/5 shadow-sm'
                       : 'border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] hover:border-[var(--kz-border-hover)]'
                 } ${blockedByServer ? 'opacity-70' : ''}`}
               >
                 {/* Row 1: plugin info + order buttons */}
                 <div className="flex flex-wrap items-center gap-2">
-                  {/* Drag handle / order buttons */}
+                  {/* Drag handle / order buttons - touch-none 确保移动端按住手柄时不触发页面滚动 */}
                   <div
-                    className="mr-0.5 flex flex-col items-center gap-0.5 text-[var(--kz-fg-dim)] cursor-grab active:cursor-grabbing p-0.5 rounded hover:bg-[var(--kz-bg-soft)] select-none"
-                    title="拖拽排序或按 ▲▼ 微调"
+                    className="mr-0.5 flex flex-col items-center gap-0.5 text-[var(--kz-fg-dim)] cursor-grab active:cursor-grabbing p-1.5 sm:p-0.5 rounded hover:bg-[var(--kz-bg-soft)] active:bg-[var(--kz-bg-soft)] select-none touch-none"
+                    title="拖拽手柄排序或按 ▲▼ 微调"
+                    draggable={false}
+                    onDragStart={(e) => e.stopPropagation()}
+                    onTouchStart={() => handleTouchStart(p.name)}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
+                    onTouchCancel={handleTouchCancel}
                   >
                     <button
                       type="button"
                       disabled={isFirst}
+                      draggable={false}
+                      onDragStart={(e) => e.stopPropagation()}
                       onClick={(e) => {
                         e.stopPropagation()
                         movePlugin(p.name, -1)
                       }}
                       title="上移（首位为默认源）"
-                      className="text-[10px] leading-none disabled:opacity-20 hover:text-[var(--kz-accent)] cursor-pointer"
+                      className="text-[10px] leading-none disabled:opacity-20 hover:text-[var(--kz-accent)] cursor-pointer p-0.5"
                       aria-label="上移"
                     >
                       ▲
                     </button>
-                    <span className="text-[9px] leading-none text-[var(--kz-fg-dim)] select-none py-0.5" aria-hidden>
+                    <span className="text-[11px] leading-none text-[var(--kz-fg-dim)] select-none py-0.5 tracking-tighter" aria-hidden>
                       ⋮⋮
                     </span>
                     <button
                       type="button"
                       disabled={isLast}
+                      draggable={false}
+                      onDragStart={(e) => e.stopPropagation()}
                       onClick={(e) => {
                         e.stopPropagation()
                         movePlugin(p.name, 1)
                       }}
                       title="下移"
-                      className="text-[10px] leading-none disabled:opacity-20 hover:text-[var(--kz-accent)] cursor-pointer"
+                      className="text-[10px] leading-none disabled:opacity-20 hover:text-[var(--kz-accent)] cursor-pointer p-0.5"
                       aria-label="下移"
                     >
                       ▼
@@ -901,9 +1084,13 @@ export function SettingsPage() {
                   </div>
                 </div>
                 {/* Row 2: options + actions */}
-                <div className="flex flex-wrap items-center gap-3 lg:flex-1 lg:justify-end">
+                <div
+                  className="flex flex-wrap items-center gap-3 lg:flex-1 lg:justify-end"
+                  draggable={false}
+                  onDragStart={(e) => e.stopPropagation()}
+                >
                   <label
-                    className={`flex items-center gap-1 text-xs text-[var(--kz-fg-muted)] ${
+                    className={`flex items-center gap-1 text-xs text-[var(--kz-fg-muted)] cursor-pointer ${
                       blockedByServer ? 'cursor-not-allowed' : ''
                     }`}
                   >
@@ -916,7 +1103,7 @@ export function SettingsPage() {
                     启用
                   </label>
                   <label
-                    className="flex items-center gap-1 text-xs text-[var(--kz-fg-muted)]"
+                    className="flex items-center gap-1 text-xs text-[var(--kz-fg-muted)] cursor-pointer"
                     title="HLS 分片广告过滤（#EXT-X-DISCONTINUITY 短段）。播放列表经服务器过滤；无 cookie 时分片可直连 CDN。"
                   >
                     <input
@@ -930,7 +1117,7 @@ export function SettingsPage() {
                   </label>
                   <label
                     className={`flex items-center gap-1 text-xs text-[var(--kz-fg-muted)] ${
-                      proxyDisabled || proxyLocked ? 'cursor-not-allowed' : ''
+                      proxyDisabled || proxyLocked ? 'cursor-not-allowed' : 'cursor-pointer'
                     }`}
                     title={
                       proxyLocked
@@ -953,8 +1140,10 @@ export function SettingsPage() {
                   {!isBuiltinPlugin(p) && (
                     <button
                       type="button"
+                      draggable={false}
+                      onDragStart={(e) => e.stopPropagation()}
                       onClick={() => removePlugin(p.id)}
-                      className="rounded-lg px-2 py-1 text-xs text-red-400 hover:bg-[var(--kz-bg-soft)]"
+                      className="rounded-lg px-2 py-1 text-xs text-red-400 hover:bg-[var(--kz-bg-soft)] cursor-pointer"
                     >
                       删除
                     </button>
@@ -964,13 +1153,20 @@ export function SettingsPage() {
             )
           })}
         </ul>
-      </section>
+      </CollapsibleSection>
 
-      <section className="space-y-4 rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-bold tracking-tight text-[var(--kz-fg)]">规则仓库</h2>
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <label className="flex items-center gap-1.5 text-[var(--kz-fg-muted)]">
+      {/* 6. 规则仓库 */}
+      <CollapsibleSection
+        id="rule-catalog"
+        icon="🏪"
+        title="规则仓库"
+        summary={activeShop === 'anibaka' ? '⭐ AniBaka 规则库 (34+)' : '📦 Kazumi 规则库 (遗留)'}
+        isOpen={Boolean(openSections['rule-catalog'])}
+        onToggle={() => toggleSection('rule-catalog')}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
+            <label className="flex items-center gap-1.5 text-[var(--kz-fg-muted)] cursor-pointer">
               <input
                 type="checkbox"
                 checked={useMirror}
@@ -982,7 +1178,7 @@ export function SettingsPage() {
               type="button"
               onClick={() => void catalog.refetch()}
               disabled={catalog.isFetching}
-              className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-1.5 text-xs text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] disabled:opacity-50"
+              className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1 text-xs text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] disabled:opacity-50 cursor-pointer"
             >
               {catalog.isFetching ? '刷新中…' : '刷新目录'}
             </button>
@@ -990,7 +1186,7 @@ export function SettingsPage() {
               type="button"
               onClick={() => void updateAllFromCatalog()}
               disabled={batchBusy || catalog.isLoading || !catalog.data}
-              className="rounded-lg bg-[var(--kz-accent)] px-3 py-1.5 text-xs font-medium text-white hover:bg-[var(--kz-accent-hover)] disabled:opacity-50"
+              className="rounded-lg bg-[var(--kz-accent)] px-2.5 py-1 text-xs font-medium text-white hover:bg-[var(--kz-accent-hover)] disabled:opacity-50 cursor-pointer"
             >
               {batchBusy ? '更新中…' : '更新全部'}
             </button>
@@ -998,32 +1194,36 @@ export function SettingsPage() {
         </div>
 
         {/* Shop Switcher Tabs */}
-        <div className="flex rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] p-1">
+        <div className="flex rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] p-1 gap-1">
           <button
             type="button"
             onClick={() => setActiveShop('anibaka')}
-            className={`flex-1 rounded-lg py-1.5 text-xs font-medium transition-all ${
+            className={`flex-1 rounded-lg py-1.5 px-2 text-xs font-medium transition-all text-center ${
               activeShop === 'anibaka'
                 ? 'bg-[var(--kz-bg-elevated)] text-[var(--kz-fg)] shadow-sm'
                 : 'text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)]'
             }`}
           >
-            ⭐ AniBaka 规则库 <span className="text-[10px] text-emerald-400 font-semibold ml-1">(推荐 · 34+现代源)</span>
+            <span>⭐ AniBaka 规则库</span>
+            <span className="hidden sm:inline text-[10px] text-emerald-400 font-semibold ml-1">(推荐 · 34+现代源)</span>
+            <span className="sm:hidden ml-1 rounded-full bg-emerald-500/15 px-1.5 py-0.2 text-[9px] text-emerald-400 font-semibold">34+</span>
           </button>
           <button
             type="button"
             onClick={() => setActiveShop('kazumi')}
-            className={`flex-1 rounded-lg py-1.5 text-xs font-medium transition-all ${
+            className={`flex-1 rounded-lg py-1.5 px-2 text-xs font-medium transition-all text-center ${
               activeShop === 'kazumi'
                 ? 'bg-[var(--kz-bg-elevated)] text-[var(--kz-fg)] shadow-sm'
                 : 'text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)]'
             }`}
           >
-            📦 Kazumi 传统规则库 <span className="text-[10px] text-[var(--kz-fg-dim)] ml-1">(遗留源)</span>
+            <span>📦 Kazumi 规则库</span>
+            <span className="hidden sm:inline text-[10px] text-[var(--kz-fg-dim)] ml-1">(遗留源)</span>
+            <span className="sm:hidden ml-1 text-[9px] text-[var(--kz-fg-dim)]">旧</span>
           </button>
         </div>
 
-        <p className="text-xs text-[var(--kz-fg-muted)]">
+        <p className="text-xs text-[var(--kz-fg-muted)] leading-relaxed">
           {activeShop === 'anibaka' ? (
             <>
               从{' '}
@@ -1058,12 +1258,12 @@ export function SettingsPage() {
             value={catalogFilter}
             onChange={(e) => setCatalogFilter(e.target.value)}
             placeholder="筛选规则名称、标签或简介…"
-            className="min-w-[10rem] flex-1 rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-2 text-sm"
+            className="min-w-[9rem] flex-1 rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-1.5 text-xs sm:text-sm"
           />
           <select
             value={catalogSort}
             onChange={(e) => setCatalogSort(e.target.value as CatalogSort)}
-            className="rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-2 text-sm"
+            className="rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1.5 text-xs sm:text-sm cursor-pointer"
           >
             <option value="name">按名称排序</option>
             <option value="lastUpdate">按更新时间</option>
@@ -1079,11 +1279,11 @@ export function SettingsPage() {
                 className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2 py-1 text-xs text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)]"
                 onClick={() => setUseMirror((v) => !v)}
               >
-                {useMirror ? '改用主源' : '启用镜像'}
+                {useMirror ? '改用直连' : '改用镜像'}
               </button>
               <button
                 type="button"
-                className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2 py-1 text-xs text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)]"
+                className="rounded-lg bg-red-900/50 px-2 py-1 text-xs text-red-200 hover:bg-red-900"
                 onClick={() => void catalog.refetch()}
               >
                 重试
@@ -1093,12 +1293,10 @@ export function SettingsPage() {
         )}
 
         {catalog.isLoading && (
-          <div className="text-sm text-[var(--kz-fg-muted)]">加载规则目录…</div>
+          <div className="text-sm text-[var(--kz-fg-muted)]">加载目录中…</div>
         )}
-        {catalog.isSuccess && !catalogItems.length && (
-          <div className="text-sm text-[var(--kz-fg-muted)]">规则仓库中暂无匹配规则</div>
-        )}
-        {catalog.data?.source && (
+
+        {catalog.data && (
           <div className="truncate text-xs text-[var(--kz-fg-dim)]">
             来源：{catalog.data.source}
           </div>
@@ -1118,36 +1316,36 @@ export function SettingsPage() {
             return (
               <li
                 key={`${item.shop || activeShop}-${item.name}`}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] p-3.5 transition-all hover:border-[var(--kz-accent-ring)]"
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] p-3 sm:p-3.5 transition-all hover:border-[var(--kz-accent-ring)]"
               >
-                <div className="flex min-w-0 flex-1 items-start gap-3">
+                <div className="flex min-w-0 flex-1 items-start gap-2.5 sm:gap-3">
                   {item.badge ? (
                     <img
                       src={item.badge}
                       alt=""
-                      className="h-7 w-7 shrink-0 rounded-lg object-contain bg-black/10 p-0.5 mt-0.5"
+                      className="h-6 w-6 sm:h-7 sm:w-7 shrink-0 rounded-lg object-contain bg-black/10 p-0.5 mt-0.5"
                       onError={(e) => {
                         ;(e.target as HTMLElement).style.display = 'none'
                       }}
                     />
                   ) : null}
                   <div className="min-w-0 flex-1 space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold text-sm text-[var(--kz-fg)]">
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                      <span className="font-semibold text-xs sm:text-sm text-[var(--kz-fg)]">
                         {item.title || item.name}
                       </span>
                       {item.title && item.title !== item.name && (
-                        <span className="font-mono text-xs text-[var(--kz-fg-dim)]">
+                        <span className="font-mono text-[11px] text-[var(--kz-fg-dim)]">
                           ({item.name})
                         </span>
                       )}
-                      <span className="rounded border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] px-1.5 py-0.5 text-[10px] text-[var(--kz-fg-muted)]">
+                      <span className="rounded border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] px-1.5 py-0.2 text-[9px] sm:text-[10px] text-[var(--kz-fg-muted)]">
                         v{item.version}
                       </span>
                       {item.labels && item.labels.map((lbl) => (
                         <span
                           key={lbl}
-                          className={`rounded px-1.5 py-0.5 text-[10px] font-medium border ${
+                          className={`rounded px-1.5 py-0.2 text-[9px] sm:text-[10px] font-medium border ${
                             lbl.includes('无广告') || lbl.includes('超清')
                               ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
                               : lbl.includes('少广告') || lbl.includes('高清')
@@ -1159,7 +1357,7 @@ export function SettingsPage() {
                         </span>
                       ))}
                       {item.antiCrawlerEnabled && (
-                        <span className="rounded bg-amber-950 px-1.5 py-0.5 text-[10px] text-amber-300">
+                        <span className="rounded bg-amber-950 px-1.5 py-0.2 text-[9px] sm:text-[10px] text-amber-300">
                           captcha
                         </span>
                       )}
@@ -1169,13 +1367,13 @@ export function SettingsPage() {
                         {item.intro}
                       </div>
                     )}
-                    <div className="flex flex-wrap items-center gap-3 text-[11px] text-[var(--kz-fg-dim)]">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[10px] sm:text-[11px] text-[var(--kz-fg-dim)]">
                       {item.site && (
                         <a
                           href={item.site}
                           target="_blank"
                           rel="noreferrer"
-                          className="kz-link truncate max-w-[16rem]"
+                          className="kz-link truncate max-w-[12rem] sm:max-w-[16rem]"
                           title={item.site}
                         >
                           {item.site}
@@ -1194,12 +1392,12 @@ export function SettingsPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center justify-end gap-2 shrink-0 self-end sm:self-center">
                   <button
                     type="button"
                     disabled={status === 'installed' || busy}
                     onClick={() => void installFromCatalog(item)}
-                    className="rounded-xl bg-[var(--kz-fg)] px-4 py-2 text-xs font-semibold text-[var(--kz-bg)] shadow-sm hover:opacity-90 disabled:cursor-default disabled:border disabled:border-[var(--kz-border)] disabled:bg-[var(--kz-bg-elevated)] disabled:text-[var(--kz-fg-muted)] cursor-pointer"
+                    className="rounded-xl bg-[var(--kz-fg)] px-3 py-1.5 sm:px-4 sm:py-2 text-xs font-semibold text-[var(--kz-bg)] shadow-sm hover:opacity-90 disabled:cursor-default disabled:border disabled:border-[var(--kz-border)] disabled:bg-[var(--kz-bg-elevated)] disabled:text-[var(--kz-fg-muted)] cursor-pointer"
                   >
                     {busy ? '安装中…' : label}
                   </button>
@@ -1208,29 +1406,34 @@ export function SettingsPage() {
             )
           })}
         </ul>
-      </section>
+      </CollapsibleSection>
 
-      <section className="space-y-4 rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-5">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold tracking-tight text-[var(--kz-fg)]">播放器</h2>
+      {/* 7. 播放器偏好 */}
+      <CollapsibleSection
+        id="player-settings"
+        icon="🎬"
+        title="播放器偏好"
+        summary={`${player.speed}x · ${player.autoNext ? '连播' : '单集'} · ${player.superResolution && player.superResolution !== 'off' ? 'Anime4K' : '无超分'}`}
+        isOpen={Boolean(openSections['player-settings'])}
+        onToggle={() => toggleSection('player-settings')}
+        headerActions={
           <button
             type="button"
             onClick={resetPlayer}
-            className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-1.5 text-xs text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)]"
+            className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1 text-xs text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] cursor-pointer"
           >
             恢复默认
           </button>
-        </div>
-        <p className="text-xs text-[var(--kz-fg-muted)]">
-          播放器：倍速、自动下一集、记忆进度、跳过片头/片尾。
-          默认关闭时不占 GPU。也可在播放器控制条切换。
-          HLS 广告过滤：按 discontinuity 短段启发式剔除，非域名拦截。
+        }
+      >
+        <p className="text-xs text-[var(--kz-fg-muted)] leading-relaxed">
+          播放器偏好：倍速、自动下一集、记忆进度与智能跳过。
         </p>
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span>{proxyTokenRequired ? (isProxyUnlocked ? '🔓' : '🔒') : '⚡'}</span>
-              <span className="text-sm font-medium text-[var(--kz-fg)]">服务器代理</span>
+              <span className="text-xs sm:text-sm font-medium text-[var(--kz-fg)]">服务器代理</span>
               {proxyTokenRequired && (
                 <span
                   className={`rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
@@ -1239,19 +1442,19 @@ export function SettingsPage() {
                       : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
                   }`}
                 >
-                  {isProxyUnlocked ? '已解锁管理员权限' : '需口令解锁'}
+                  {isProxyUnlocked ? '已解锁' : '需口令'}
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
               {proxyTokenRequired && isProxyUnlocked && (
                 <button
                   type="button"
                   onClick={handleRelockProxy}
-                  className="text-xs text-[var(--kz-fg-dim)] hover:text-amber-400 transition-colors underline decoration-dotted"
+                  className="text-xs text-[var(--kz-fg-dim)] hover:text-amber-400 transition-colors underline decoration-dotted cursor-pointer"
                   title="清空当前保存的口令并重新上锁"
                 >
-                  🔒 重新锁定
+                  🔒 锁定
                 </button>
               )}
               <input
@@ -1274,14 +1477,14 @@ export function SettingsPage() {
           {/* Inline smooth expanding password card when locked */}
           {proxyTokenRequired && showUnlockInput && !isProxyUnlocked && (
             <div
-              className={`rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/80 backdrop-blur-md p-4 space-y-3 shadow-lg transition-all duration-200 ${
+              className={`rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/80 backdrop-blur-md p-3.5 sm:p-4 space-y-3 shadow-lg transition-all duration-200 ${
                 isShaking ? 'animate-kz-shake ring-2 ring-rose-500/50' : ''
               } ${unlockSuccess ? 'ring-2 ring-emerald-500/60 bg-emerald-950/20' : ''}`}
             >
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs font-semibold text-[var(--kz-fg)]">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--kz-fg)]">
                   <span>🔑</span>
-                  <span>请输入管理员代理口令 (PROXY_TOKEN)</span>
+                  <span>管理员代理口令 (PROXY_TOKEN)</span>
                 </div>
                 <button
                   type="button"
@@ -1289,13 +1492,13 @@ export function SettingsPage() {
                     setShowUnlockInput(false)
                     setVerifyError('')
                   }}
-                  className="text-xs text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] px-1.5 py-0.5 rounded hover:bg-[var(--kz-bg)]"
+                  className="text-xs text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] px-1.5 py-0.5 rounded hover:bg-[var(--kz-bg)] cursor-pointer"
                 >
                   ✕
                 </button>
               </div>
-              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
-                <div className="relative flex-1 min-w-[12rem]">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <div className="relative flex-1 min-w-0">
                   <input
                     ref={unlockInputRef}
                     type={showPasswordText ? 'text' : 'password'}
@@ -1309,7 +1512,7 @@ export function SettingsPage() {
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') void handleVerifyUnlock()
                     }}
-                    className="w-full rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-2 pr-9 text-sm text-[var(--kz-fg)] placeholder:text-[var(--kz-fg-dim)] outline-none ring-[var(--kz-accent)] focus:ring-2"
+                    className="w-full rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-2 pr-9 text-xs sm:text-sm text-[var(--kz-fg)] placeholder:text-[var(--kz-fg-dim)] outline-none ring-[var(--kz-accent)] focus:ring-2"
                   />
                   <button
                     type="button"
@@ -1325,7 +1528,7 @@ export function SettingsPage() {
                   type="button"
                   disabled={!unlockPassword.trim() || isVerifying}
                   onClick={() => void handleVerifyUnlock()}
-                  className="rounded-xl bg-[var(--kz-accent)] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[var(--kz-accent-hover)] disabled:opacity-50 flex items-center justify-center gap-1.5 transition-colors whitespace-nowrap"
+                  className="rounded-xl bg-[var(--kz-accent)] px-4 py-2 text-xs sm:text-sm font-semibold text-white shadow-sm hover:bg-[var(--kz-accent-hover)] disabled:opacity-50 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
                   {isVerifying ? (
                     <>
@@ -1345,24 +1548,21 @@ export function SettingsPage() {
                   <span>{verifyError}</span>
                 </p>
               )}
-              <p className="text-[11px] text-[var(--kz-fg-dim)]">
-                💡 口令保存在当前浏览器本地中，验证成功后刷新页面无需重新输入。
+              <p className="text-[10px] sm:text-[11px] text-[var(--kz-fg-dim)]">
+                💡 口令保存在当前浏览器中，验证成功后刷新页面无需重新输入。
               </p>
             </div>
           )}
 
-          <p className="text-xs text-[var(--kz-fg-dim)]">
+          <p className="text-[11px] sm:text-xs text-[var(--kz-fg-dim)]">
             {mediaFullProxy ? (
               <>
-                总开关。关闭后下方所有源的「代理」不可勾选，全部直连 CDN。开启后可单独为每个源设置是否走
-                <code className="mx-0.5 text-[var(--kz-fg-muted)]">/api/media/proxy</code>
-                。只影响播放媒体，会增加服务器出站。
+                总开关。关闭后下方所有源全部直连 CDN。开启后可单独为每个源设置是否走媒体代理。
               </>
             ) : (
               <>
                 服务器 <code className="text-[var(--kz-fg-muted)]">MEDIA_FULL_PROXY=0</code>
-                （默认）：最多代理 m3u8 列表，分片由浏览器直连 CDN。设置无法开启全量代拉；需要
-                Anime1 等源时由部署方在 .env 设 MEDIA_FULL_PROXY=1。
+                （默认）：最多代理 m3u8 列表，分片由浏览器直连 CDN。如需 Anime1 等源请在 .env 开启 MEDIA_FULL_PROXY=1。
               </>
             )}
           </p>
@@ -1372,11 +1572,8 @@ export function SettingsPage() {
           checked={Boolean(player.forceAdBlocker)}
           onChange={(forceAdBlocker) => setPlayer({ forceAdBlocker })}
         />
-        <p className="text-xs text-[var(--kz-fg-dim)]">
-          开启后所有规则播放 m3u8 时强制过滤（忽略下方规则的「广告过滤」关闭）。默认仅
-          MXdm 规则开启；Anime1 / xifan 默认关。无 DISCONTINUITY
-          的片源无效。只需服务器处理播放列表；无 cookie
-          时分片仍直连 CDN（不经本机出站）。若分片被热链拦截，可开上方「媒体走服务器代理」。
+        <p className="text-[11px] sm:text-xs text-[var(--kz-fg-dim)]">
+          开启后所有规则播放 m3u8 时强制过滤短广告分片。
         </p>
         <Toggle
           label="自动播放"
@@ -1393,12 +1590,12 @@ export function SettingsPage() {
           checked={player.continuePlay}
           onChange={(continuePlay) => setPlayer({ continuePlay })}
         />
-        <label className="flex items-center justify-between gap-3 text-sm text-[var(--kz-fg)]">
-          <span>默认倍速</span>
+        <label className="flex items-center justify-between gap-3 text-xs sm:text-sm text-[var(--kz-fg)]">
+          <span className="font-medium">默认倍速</span>
           <select
             value={player.speed}
             onChange={(e) => setPlayer({ speed: Number(e.target.value) || 1 })}
-            className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2 py-1.5 text-sm"
+            className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2 py-1.5 text-xs sm:text-sm cursor-pointer"
           >
             {PLAYER_SPEEDS.map((s) => (
               <option key={s} value={s}>
@@ -1407,8 +1604,8 @@ export function SettingsPage() {
             ))}
           </select>
         </label>
-        <label className="flex items-center justify-between gap-3 text-sm text-[var(--kz-fg)]">
-          <span>超分（Anime4K）</span>
+        <label className="flex items-center justify-between gap-3 text-xs sm:text-sm text-[var(--kz-fg)]">
+          <span className="font-medium">超分（Anime4K）</span>
           <select
             value={player.superResolution || 'off'}
             onChange={(e) =>
@@ -1419,21 +1616,18 @@ export function SettingsPage() {
                   : 'off') as 'off' | 'efficiency' | 'quality',
               })
             }
-            className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2 py-1.5 text-sm"
+            className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2 py-1.5 text-xs sm:text-sm cursor-pointer"
           >
             <option value="off">关闭（默认）</option>
             <option value="efficiency">效率档</option>
             <option value="quality">质量档</option>
           </select>
         </label>
-        <p className="text-xs text-[var(--kz-fg-dim)]">
-          需要 Chrome / Edge 等支持 WebGPU 的浏览器，且页面为安全上下文（HTTPS
-          或 localhost）。用局域网 IP 的 HTTP 访问 Docker
-          时 WebGPU 不可用。弱显卡请用效率档；iPhone 系统全屏看不到 canvas
-          超分，请用「网页全屏」。iframe 降级播放不支持超分。
+        <p className="text-[11px] sm:text-xs text-[var(--kz-fg-dim)]">
+          需要 Chrome / Edge 等支持 WebGPU 的浏览器。iPhone 系统全屏看不到 canvas 超分，请用「网页全屏」。
         </p>
-        <label className="flex items-center justify-between gap-3 text-sm text-[var(--kz-fg)]">
-          <span>记忆跳转时长（J 键，秒）</span>
+        <label className="flex items-center justify-between gap-3 text-xs sm:text-sm text-[var(--kz-fg)]">
+          <span className="font-medium">记忆跳转时长（J 键，秒）</span>
           <input
             type="number"
             min={1}
@@ -1442,7 +1636,7 @@ export function SettingsPage() {
             onChange={(e) =>
               setPlayer({ customSeekTime: Number(e.target.value) || 85 })
             }
-            className="w-24 rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2 py-1.5 text-sm"
+            className="w-20 sm:w-24 rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2 py-1.5 text-xs sm:text-sm text-center"
           />
         </label>
         <Toggle
@@ -1450,8 +1644,8 @@ export function SettingsPage() {
           checked={Boolean(player.preferBangumiOped)}
           onChange={(preferBangumiOped) => setPlayer({ preferBangumiOped })}
         />
-        <p className="text-xs text-[var(--kz-fg-dim)]">
-          默认关闭。从{' '}
+        <p className="text-[11px] sm:text-xs text-[var(--kz-fg-dim)]">
+          从{' '}
           <a
             href="https://github.com/uerax/bangumi-oped"
             className="kz-link"
@@ -1460,22 +1654,28 @@ export function SettingsPage() {
           >
             bangumi-oped
           </a>{' '}
-          获取每部番剧每集的实际 OP/ED 时间，自动跳过片头片尾。
-          无数据或集数时长差距超过 4 秒时静默不跳过。
+          获取番剧每集实际 OP/ED 时间并自动跳过。
         </p>
-      </section>
+      </CollapsibleSection>
 
-      <section className="space-y-4 rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-5">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold tracking-tight text-[var(--kz-fg)]">弹幕默认设置</h2>
+      {/* 8. 弹幕默认设置 */}
+      <CollapsibleSection
+        id="danmaku-settings"
+        icon="💬"
+        title="弹幕偏好"
+        summary={danmaku.enabled ? `开启 · 透明度 ${Math.round(danmaku.opacity * 100)}%` : '已关闭'}
+        isOpen={Boolean(openSections['danmaku-settings'])}
+        onToggle={() => toggleSection('danmaku-settings')}
+        headerActions={
           <button
             type="button"
             onClick={resetDanmaku}
-            className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-1.5 text-xs text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)]"
+            className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1 text-xs text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] cursor-pointer"
           >
             恢复默认
           </button>
-        </div>
+        }
+      >
         <Toggle
           label="默认开启弹幕"
           checked={danmaku.enabled}
@@ -1518,27 +1718,27 @@ export function SettingsPage() {
           value={danmaku.area}
           onChange={(area) => setDanmaku({ area })}
         />
-        <div className="flex flex-wrap gap-4 text-sm">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-4 text-xs sm:text-sm pt-1">
           {(
             [
-              ['showScroll', '滚动'],
-              ['showTop', '顶部'],
-              ['showBottom', '底部'],
-              ['showColor', '彩色'],
+              ['showScroll', '滚动弹幕'],
+              ['showTop', '顶部弹幕'],
+              ['showBottom', '底部弹幕'],
+              ['showColor', '彩色弹幕'],
             ] as const
           ).map(([key, label]) => (
-            <label key={key} className="flex items-center gap-1.5 text-[var(--kz-fg)]">
+            <label key={key} className="flex items-center gap-1.5 text-[var(--kz-fg)] cursor-pointer rounded-lg border border-[var(--kz-border)]/50 sm:border-transparent bg-[var(--kz-bg)] sm:bg-transparent p-2 sm:p-0">
               <input
                 type="checkbox"
                 checked={danmaku[key]}
                 onChange={(e) => setDanmaku({ [key]: e.target.checked })}
               />
-              {label}
+              <span>{label}</span>
             </label>
           ))}
         </div>
         <div>
-          <label className="mb-1 block text-sm text-[var(--kz-fg-muted)]">
+          <label className="mb-1 block text-xs sm:text-sm text-[var(--kz-fg-muted)]">
             关键词屏蔽（每行一条，支持 /正则/）
           </label>
           <textarea
@@ -1551,12 +1751,98 @@ export function SettingsPage() {
                   .filter(Boolean),
               })
             }
-            rows={4}
-            className="w-full rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-2 text-sm"
+            rows={3}
+            className="w-full rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-2 text-xs sm:text-sm outline-none ring-[var(--kz-accent)] focus:ring-2"
           />
         </div>
-      </section>
+      </CollapsibleSection>
     </div>
+  )
+}
+
+function CollapsibleSection({
+  id,
+  icon,
+  title,
+  badge,
+  summary,
+  isOpen,
+  onToggle,
+  headerActions,
+  children,
+  className = '',
+}: {
+  id: string
+  icon?: React.ReactNode
+  title: string
+  badge?: React.ReactNode
+  summary?: React.ReactNode
+  isOpen: boolean
+  onToggle: () => void
+  headerActions?: React.ReactNode
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <section
+      id={id}
+      className={`rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] shadow-sm transition-all duration-200 hover:border-[var(--kz-accent-ring)] ${className}`}
+    >
+      <div
+        onClick={onToggle}
+        className="flex items-center justify-between gap-3 p-4 sm:p-5 cursor-pointer select-none"
+        role="button"
+        tabIndex={0}
+        aria-expanded={isOpen}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onToggle()
+          }
+        }}
+      >
+        <div className="flex min-w-0 items-center gap-2 sm:gap-2.5">
+          {icon && <span className="text-base sm:text-lg shrink-0">{icon}</span>}
+          <h2 className="text-base sm:text-lg font-bold tracking-tight text-[var(--kz-fg)] truncate">
+            {title}
+          </h2>
+          {badge}
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {summary && !isOpen && (
+            <span className="hidden xs:inline-flex sm:inline-flex items-center rounded-full bg-[var(--kz-bg-soft)] px-2.5 py-0.5 text-[11px] font-medium text-[var(--kz-fg-muted)] border border-[var(--kz-border)]/60 max-w-[14rem] truncate">
+              {summary}
+            </span>
+          )}
+          {headerActions && (
+            <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1.5">
+              {headerActions}
+            </div>
+          )}
+          <span
+            className={`flex h-6 w-6 items-center justify-center rounded-full text-[var(--kz-fg-muted)] transition-transform duration-200 hover:bg-[var(--kz-bg-soft)] ${
+              isOpen ? 'rotate-180 text-[var(--kz-accent)]' : ''
+            }`}
+            aria-hidden
+          >
+            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+              <path
+                fillRule="evenodd"
+                d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </span>
+        </div>
+      </div>
+
+      {isOpen && (
+        <div className="px-4 pb-4 sm:px-6 sm:pb-6 pt-0 space-y-4 border-t border-[var(--kz-border)]/40 mt-1">
+          <div className="pt-3 space-y-3">{children}</div>
+        </div>
+      )}
+    </section>
   )
 }
 

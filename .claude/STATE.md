@@ -4,6 +4,75 @@
 
 ---
 
+## [2026-08-25] 落地设置页带状态摘要的智能折叠卡片（CollapsibleSection）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **折叠卡片组件设计与封装 (`CollapsibleSection`)**：
+     - 在 `SettingsPage.tsx` 中封装通用可折叠卡片组件，支持整栏点击触发、旋转 Chevron 动效（`rotate-180 text-[var(--kz-accent)]`）、平滑 CSS 过渡与键盘可访问性支持（Enter/Space 展开）；
+     - 头部支持注入常驻操作区（`headerActions`，如恢复默认等）与数量角标（`badge`），点击操作区自动阻止折叠冒泡。
+  2. **收起状态下的「概览摘要胶囊（Glanceable Status Chips）」**：
+     - 为设置页全部 8 个区块配置收起状态下的核心配置摘要：
+       - 服务状态：`v1.1.2 · 🟢 API 正常`
+       - 封面图片源：`⚡ 代理优化 / 🌐 官方直连`
+       - Bangumi 账号：`👤 已登录: xxx / 未登录`
+       - OP/ED 标记中心：`3 部 · 36 集已标记`
+       - 已安装规则：`7 个源 · 默认: xifan-next`
+       - 规则仓库：`⭐ AniBaka (34+) / 📦 Kazumi (遗留)`
+       - 播放器偏好：`1.0x · 连播 · Anime4K`
+       - 弹幕偏好：`开启 · 透明度 100%`
+     - 用户无需展开卡片即可 0 点击看清全局配置。
+  3. **智能默认展开与用户习惯持久化记忆**：
+     - 默认策略：高频核心项（已安装规则、播放器偏好、Bangumi 账号）默认展开，其余低频项默认折叠，在移动端实现 1 屏尽览；
+     - 接入 `localStorage`（`kz-settings-open-sections`）自动记忆用户的展开习惯；
+     - 顶栏配备「📁 全部收起 / 📂 全部展开」一键切换按钮。
+- 涉及文件：apps/web/src/pages/SettingsPage.tsx, .claude/STATE.md
+- 备注：`pnpm typecheck` 与 `pnpm build` 全量通过，保持已安装规则拖拽排序逻辑与结构 100% 完整。
+
+---
+
+## [2026-08-25] 全面优化设置页移动端窄屏响应式排版与拥挤度
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **容器与全局卡片 Padding 响应式释放**：
+     - 将所有主要 Section 卡片与容器从死板的 `p-6` / `p-5` 升级为 `p-4 sm:p-6`，在窄屏（375px~430px）下瞬间释放 30px+ 横向可用宽度，彻底消除压迫感。
+  2. **服务状态与指标对齐排版**：
+     - 将原本密集的自由文本换行改造为清爽的自适应指标分行（`divide-y divide-[var(--kz-border)]/40`），左右两端对齐，层次清晰整齐。
+  3. **规则仓库 Tab 栏与卡片响应式重构**：
+     - 规则仓库 Tab 按钮在移动端采用精炼显示（`⭐ AniBaka 规则库` + 独立徽标 `34+`，大屏保留完整文字），彻底消除小屏下标题被挤成 3 行的拥挤问题；
+     - 仓库规则卡片在窄屏下自适应垂直分层，标题与操作按钮左右对齐，标签与简介展开自然，外链底栏整齐划一。
+  4. **OP/ED 标记中心操作按钮组弹性排布**：
+     - 单番条目在移动端采用上下分层，番剧标题与 ID 拥有充裕宽度，3 个操作按钮右对齐紧凑呈现；底部批量操作栏支持弹性自适应。
+  5. **播放器与弹幕设置控件触控优化**：
+     - 弹幕滚动/顶部/底部/彩色 4 选框在移动端升级为 2x2 弹性网格，大幅改善单手触控命中率；
+     - 代理口令解锁卡片在窄屏下自适应垂直流式布局，输入框与解锁按钮整齐对齐。
+- 涉及文件：apps/web/src/pages/SettingsPage.tsx, .claude/STATE.md
+- 备注：`pnpm typecheck` 与 `pnpm build` 全量通过，保持拖拽卡片核心逻辑不动。
+
+---
+
+## [2026-08-25] 修复已安装规则拖拽排序卡顿与适配手机端 Touch 触摸拖拽
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **排查并解决桌面端按住卡死与闪烁根因**：
+     - 原 `onDragStart` 中同步调用 `setDraggedName` 引起 React 同步 re-render 并改变正在抓取的 DOM 样式（`scale-[0.98]` 与 `opacity-40`），导致 Chromium/WebKit 内核在捕获原生 Drag Ghost 图像时几何变形直接打断拖拽初始化抛出 `dragend`。
+     - 改为通过 `requestAnimationFrame` 延迟一帧异步设置拖拽视觉状态，确保原生拖拽手势 100% 顺利初始化。
+     - 在 `onDragLeave` 中引入 `e.currentTarget.contains(e.relatedTarget)` 防抖判断，过滤在卡片内部各子节点间移动时产生的虚假离开事件，彻底消除卡顿与重渲染抖动；
+     - 移除卡片 `scale` 缩放动画，改为平滑的光晕与高亮边框过渡（`border-[var(--kz-accent)] ring-2 ring-[var(--kz-accent)]/40 bg-[var(--kz-accent)]/5 shadow-sm`）。
+  2. **全面适配手机端/触摸屏 Touch 拖拽排序**：
+     - 针对移动端浏览器不支持 HTML5 原生 Drag and Drop 的问题，在拖拽手柄上接入 `touch-none` (`touch-action: none`) 及 `onTouchStart` / `onTouchMove` / `onTouchEnd` / `onTouchCancel` 触摸手势流水线；
+     - 基于 `document.elementFromPoint` 与 `closest('[data-plugin-card-name]')` 动态追踪手指滑动位置并实时高亮目标放置项，手指释放瞬间平滑更新 `setPluginOrder`；
+     - 接入触觉震动反馈（`navigator.vibrate(10)`），并在移动端扩充手柄触控命中区域（`p-1.5 sm:p-0.5`）。
+  3. **交互区域隔离与手柄手势增强**：
+     - 为卡片配置 `select-none` 消除移动端和桌面端长按选中文本的问题；
+     - 对卡片内部所有的按钮、复选框、链接打上 `draggable={false}` 与 `onDragStart={(e) => e.stopPropagation()}` 隔离。
+- 涉及文件：apps/web/src/pages/SettingsPage.tsx, .claude/STATE.md
+- 备注：`pnpm typecheck` 与 `pnpm build` 全量通过。
+
+---
+
 ## [2026-08-25] 落地已安装视频源拖拽排序与交互动效，并在 README 致谢 AniBaka 项目
 - 状态：已完成
 - 优先级：P1

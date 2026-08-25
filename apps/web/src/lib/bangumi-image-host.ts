@@ -17,8 +17,8 @@ export const DEFAULT_BANGUMI_IMAGE_HOST =
   ) || BANGUMI_IMAGE_HOST_MIRROR
 
 export const BANGUMI_IMAGE_HOST_OPTIONS: { host: string; label: string }[] = [
-  { host: BANGUMI_IMAGE_HOST_MIRROR, label: '反代 (推荐 · 针对国内免翻)' },
-  { host: BANGUMI_IMAGE_HOST_BANGUMI, label: '官方 (直连 · 需翻墙)' },
+  { host: BANGUMI_IMAGE_HOST_MIRROR, label: '代理 (针对国内优化)' },
+  { host: BANGUMI_IMAGE_HOST_BANGUMI, label: '官方 (国内不稳定)' },
 ]
 
 // 如果 .env 配置了自定义第三方图片反代（如 img.temp.cn），自动注入为可选列表中的默认项
