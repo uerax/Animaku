@@ -542,7 +542,7 @@ async function extractHighestResolutionHls(masterUrl: string): Promise<string> {
           'User-Agent': config.defaultUserAgent,
         },
       },
-      { timeoutMs: 3_000 },
+      { timeoutMs: 4_500 },
     )
     if (!res.ok) return masterUrl
     const m3u8Text = await res.text()
@@ -610,7 +610,7 @@ export async function resolveXifanNext(
         action: 'hls',
         episode_id: episodeId,
       },
-      timeoutMs: 4_000,
+      timeoutMs: 6_000,
     },
   ).catch((e) => ({ ok: false as const, error: (e as Error).message }))
 
@@ -619,15 +619,15 @@ export async function resolveXifanNext(
     {
       method: 'POST',
       body: fbBody,
-      timeoutMs: 4_000,
+      timeoutMs: 6_000,
     },
   ).catch((e) => ({ ok: false as const, error: (e as Error).message }))
 
-  // Priority-aware race with 2.0s grace window:
-  // 1. If domestic 1080P MP4 (fallback) succeeds within 2000ms, immediately pick it
+  // Priority-aware race with 2.5s grace window:
+  // 1. If domestic 1080P MP4 (fallback) succeeds within 2500ms, immediately pick it
   const fbEarlyResult = await Promise.race([
     fbPromise,
-    new Promise<null>((resolve) => setTimeout(() => resolve(null), 2_000)),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), 2_500)),
   ])
 
   if (fbEarlyResult && 'ok' in fbEarlyResult && fbEarlyResult.ok && fbEarlyResult.url) {

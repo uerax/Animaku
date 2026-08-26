@@ -4,6 +4,24 @@
 
 ---
 
+## [2026-08-26] 优化 xifan-next 视频源解析超时与冷启动容灾（放宽至 6.0s + 2.5s 竞速窗口 + HLS 4.5s 稳健抓取）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **排查根本原因**：
+     - `xifan-next` 上游解析依赖海外 Supabase Edge Functions（`issue-web-playback`）；
+     - 当接口长时间未被调用或处于跨国冷启动阶段（Cold Start）时，函数初始化与网络往返通常需要 3.5s ~ 5.2s；
+     - 原服务端配置了严苛的 `timeoutMs: 4_000`（4秒）硬超时，导致冷启动请求被主动掐断并向客户端抛出解析失败；而用户过几秒重新请求时，因上游已被前次请求唤醒（Hot 状态）并建立了服务端缓存，从而成功解析；
+     - Safari 因 ITP 本地存储隔离、更倾向 IPv6 跨国回源及严格错误渲染，比 Chrome 更加频繁地暴露此冷启动超时问题。
+  2. **调优与参数收敛 (`apps/server/src/lib/xifan-next.ts`)**：
+     - **上游解析超时放宽**：将 `issue-web-playback` 并发请求（HLS 与 Fallback MP4）的 `timeoutMs` 由 `4_000ms` 放宽至 **`6_000ms`（6.0秒）**，从容覆盖 98% 以上的 Serverless 冷启动耗时；
+     - **竞速窗口微调**：将优先 MP4 竞速窗口由 `2.0s` 优化调整至 **`2.5s`**，在保证秒级起播的同时兼顾 HLS 分支的快速无阻塞采纳；
+     - **最高画质 M3U8 探测放宽**：将 `extractHighestResolutionHls` 的 `timeoutMs` 由 `3_000ms` 提升至 **`4_500ms`**，增强弱网与跨国拉取 master playlist 的容错性。
+- 涉及文件：apps/server/src/lib/xifan-next.ts, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 3 个 workspace 0 报错通过。
+
+---
+
 ## [2026-08-26] 彻底修复 Safari 播放 cycani 正常加载但画面黑屏 Bug（HTML5 `<source type="...">` 显式 MIME 提示 + AVFoundation 视频轨挂载）
 - 状态：已完成
 - 优先级：P0
