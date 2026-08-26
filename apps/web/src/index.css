@@ -120,6 +120,8 @@ html[data-theme='dark'] {
 }
 
 html {
+  /* Prevent horizontal layout shifts (scrollbar jump/jitter) when navigating between long & short pages */
+  scrollbar-gutter: stable;
   /* Inter for Latin UI; system CJK stacks after (Bunny may omit full CJK) */
   font-family:
     Inter,
