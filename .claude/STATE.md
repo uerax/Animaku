@@ -4,6 +4,23 @@
 
 ---
 
+## [2026-08-26] 彻底修复 Safari 播放 cycani 正常加载但画面黑屏 Bug（HTML5 `<source type="...">` 显式 MIME 提示 + AVFoundation 视频轨挂载）
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **排查根本原因与内核机制**：
+     - **上游伪装扩展名**：CYCani（次元城）CDN 下发的 1080P MP4 视频直链在 Base64 编码路径末尾追加了 `.mp3` 后缀（如 `...01zm.mp4=.mp3?expires=...`）；
+     - **Chrome 解复用机制**：Chrome 采用内置 FFmpeg 解复用器，根据二进制文件头的 `ftypisom` / `moov` / `trak` 识别并挂载视频轨与音频轨，播放正常；
+     - **Safari AVFoundation 误判**：Safari / WebKit 依赖 Apple 原生 AVFoundation 框架。当直接对 `<video>` 赋值 `video.src = "...xxx.mp3"` 时，因缺少显式 MIME 提示，AVFoundation 仅通过 URL 路径扩展名 `.mp3` 将其归类为音频资源（`kUTTypeMP3`），仅创建并初始化了音频轨（`soun`），彻底忽略/跳过了视频渲染管线（`vide`），导致 `videoWidth=0` 且画面全黑（但音频正常、进度正常）。
+  2. **全面重构渐进式媒体挂载流水线 (`VideoPlayer.tsx` & `format.ts`)**：
+     - **显式 MIME 类型推断 (`inferMediaMimeType`)**：根据流地址特征智能推断规范 MIME（WebM $\to$ `video/webm`，HLS $\to$ `application/vnd.apple.mpegurl`，MP4/伪装 MP3 $\to$ `video/mp4`）；
+     - **HTML5 `<source type="...">` 挂载**：在 `attachProgressive` 与 Safari 原生 HLS 分支中，动态生成带 `type` 属性的 `<source>` 子元素并挂载至 `<video>`，使 WebKit 在创建 `AVURLAsset` 时精准注入 `AVURLAssetOutOfBandMIMETypeKey: "video/mp4"`，强力唤醒 AVPlayer 视频渲染管线；
+     - **全方位事件与错误互锁**：在 `<source>` 与 `<video>` 宿主上双向挂载错误捕获与状态重置，确保换源/切集时无缝清理 DOM 子节点。
+- 涉及文件：apps/web/src/player/VideoPlayer.tsx, apps/web/src/player/media/format.ts, .claude/STATE.md
+- 备注：编写 Swift 原生 WebKit / AVURLAsset 脚本验证通过（1920x1080 视频轨完整激活），`pnpm typecheck` 全仓 3 个 workspace 0 报错通过，`pnpm build` 全量生产构建通过。
+
+---
+
 ## [2026-08-26] 彻底修复 Safari 渐进式 MP4 起播死等硬超时 Bug（解除格式双标 + 50ms 微存量安全底线 + 3.5s 超时收敛）
 - 状态：已完成
 - 优先级：P0

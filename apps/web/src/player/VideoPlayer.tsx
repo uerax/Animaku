@@ -47,6 +47,7 @@ import {
 import {
   bufferedAhead,
   formatTime,
+  inferMediaMimeType,
   isM3u8,
   isVideoFile,
   isXmlDanmakuFile,
@@ -716,6 +717,9 @@ export function VideoPlayer({
       hlsRef.current = null
     }
 
+    while (video.firstChild) {
+      video.removeChild(video.firstChild)
+    }
     video.removeAttribute('src')
     video.load()
 
@@ -870,10 +874,24 @@ export function VideoPlayer({
       })
     }
 
-    /** Progressive mp4 path (sync). HLS path is async after dynamic import. */
+    /**
+     * Progressive mp4/webm path.
+     * Use <source type="..."> instead of bare video.src so WebKit/AVFoundation receives
+     * an explicit out-of-band MIME type. This prevents Safari from classifying streams with
+     * disguised extensions (such as cycani's .mp3 URLs) as audio-only and causing black screens.
+     */
     const attachProgressive = () => {
-      video.src = activeSrc
-      video.addEventListener('loadedmetadata', onReady, { once: true })
+      while (video.firstChild) {
+        video.removeChild(video.firstChild)
+      }
+      video.removeAttribute('src')
+
+      const sourceEl = document.createElement('source')
+      sourceEl.src = activeSrc
+      const mime = inferMediaMimeType(activeSrc)
+      if (mime) {
+        sourceEl.type = mime
+      }
 
       // 入口 3: durationchange 事件驱动（针对无 faststart 优化的 MP4 云盘/网盘直链在异步探测到真实时长后重试续播）
       const onDurationChange = () => {
@@ -912,24 +930,27 @@ export function VideoPlayer({
         return true
       }
 
-      video.addEventListener(
-        'error',
-        () => {
-          if (!alive()) return
-          if (tryAuthRefresh()) return
-          setLoading(false)
-          const reason = video.error?.code
-            ? `video_error_${video.error.code}`
-            : 'video_load_failed'
-          setMediaError(
-            video.error?.code
-              ? `视频错误 code=${video.error.code}（建议切换视频源）`
-              : '视频加载失败，建议切换视频源',
-          )
-          reportLoadFailed(reason)
-        },
-        { once: true },
-      )
+      const onMediaError = () => {
+        if (!alive()) return
+        if (tryAuthRefresh()) return
+        setLoading(false)
+        const reason = video.error?.code
+          ? `video_error_${video.error.code}`
+          : 'video_load_failed'
+        setMediaError(
+          video.error?.code
+            ? `视频错误 code=${video.error.code}（建议切换视频源）`
+            : '视频加载失败，建议切换视频源',
+        )
+        reportLoadFailed(reason)
+      }
+
+      sourceEl.addEventListener('error', onMediaError, { once: true })
+      video.addEventListener('error', onMediaError, { once: true })
+      video.appendChild(sourceEl)
+      video.load()
+
+      video.addEventListener('loadedmetadata', onReady, { once: true })
 
       // Mid-play 403 often surfaces as stalled buffer; probe proxy once
       const onStalled = () => {
@@ -1123,18 +1144,24 @@ export function VideoPlayer({
             return
           }
           if (video.canPlayType('application/vnd.apple.mpegurl')) {
-            video.src = activeSrc
+            while (video.firstChild) {
+              video.removeChild(video.firstChild)
+            }
+            video.removeAttribute('src')
+            const sourceEl = document.createElement('source')
+            sourceEl.src = activeSrc
+            sourceEl.type = 'application/vnd.apple.mpegurl'
+            const onHlsError = () => {
+              if (!alive()) return
+              setLoading(false)
+              setMediaError('原生 HLS 加载失败，建议切换视频源')
+              reportLoadFailed('native_hls')
+            }
+            sourceEl.addEventListener('error', onHlsError, { once: true })
+            video.addEventListener('error', onHlsError, { once: true })
+            video.appendChild(sourceEl)
+            video.load()
             video.addEventListener('loadedmetadata', onReady, { once: true })
-            video.addEventListener(
-              'error',
-              () => {
-                if (!alive()) return
-                setLoading(false)
-                setMediaError('原生 HLS 加载失败，建议切换视频源')
-                reportLoadFailed('native_hls')
-              },
-              { once: true },
-            )
             return
           }
           setLoading(false)
@@ -1695,6 +1722,11 @@ export function VideoPlayer({
         }
         hlsRef.current = null
       }
+      while (video.firstChild) {
+        video.removeChild(video.firstChild)
+      }
+      video.removeAttribute('src')
+      video.load()
       window.clearTimeout(offsetHintTimer.current)
       setOffsetHint('')
       clearHideTimer()

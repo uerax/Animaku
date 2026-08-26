@@ -1,11 +1,36 @@
 export function isM3u8(url: string) {
   try {
     const d = decodeURIComponent(url).toLowerCase()
-    return d.includes('.m3u8') || d.includes('mpegurl') || d.includes('m3u8')
+    return d.includes('.m3u8') || d.includes('mpegurl')
   } catch {
     const u = url.toLowerCase()
-    return u.includes('.m3u8') || u.includes('mpegurl') || u.includes('m3u8')
+    return u.includes('.m3u8') || u.includes('mpegurl')
   }
+}
+
+/**
+ * Infer explicit MIME type for HTML5 <source> elements.
+ * Critical for Safari (WebKit / AVFoundation): when video URLs carry disguised
+ * extensions like .mp3 (e.g. CYCani CDN), omitting type="video/mp4" causes
+ * AVURLAsset to classify the asset as audio-only, rendering a black screen.
+ */
+export function inferMediaMimeType(url: string): string {
+  if (!url) return 'video/mp4'
+  try {
+    const d = decodeURIComponent(url).toLowerCase()
+    if (d.includes('.webm')) return 'video/webm'
+    if (d.includes('.ogg') || d.includes('.ogv')) return 'video/ogg'
+    if (d.includes('.m3u8') || d.includes('mpegurl')) return 'application/vnd.apple.mpegurl'
+    if (d.includes('.mp4') || d.includes('.m4v') || d.includes('.mov') || d.includes('.ts')) return 'video/mp4'
+  } catch {
+    const u = url.toLowerCase()
+    if (u.includes('.webm')) return 'video/webm'
+    if (u.includes('.ogg') || u.includes('.ogv')) return 'video/ogg'
+    if (u.includes('.m3u8') || u.includes('mpegurl')) return 'application/vnd.apple.mpegurl'
+    if (u.includes('.mp4') || u.includes('.m4v') || u.includes('.mov') || u.includes('.ts')) return 'video/mp4'
+  }
+  // Default to standard MP4 for all online progressive video streams
+  return 'video/mp4'
 }
 
 export function isXmlDanmakuFile(file: File) {
