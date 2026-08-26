@@ -81,6 +81,26 @@ const BLOCKED_HOSTNAMES = new Set([
   'kubernetes.default.svc',
 ])
 
+export function isLoopbackIp(ip: string | undefined | null): boolean {
+  if (!ip) return true
+  const s = stripBrackets(ip).trim().toLowerCase()
+  if (!s) return true
+  if (
+    s === '127.0.0.1' ||
+    s === '::1' ||
+    s === 'localhost' ||
+    s === '0.0.0.0' ||
+    s === '::' ||
+    s === '::ffff:127.0.0.1'
+  ) {
+    return true
+  }
+  if (s.startsWith('127.') || s.startsWith('::ffff:127.')) {
+    return true
+  }
+  return false
+}
+
 export function isPrivateHost(hostname: string): boolean {
   const h = stripBrackets(hostname).toLowerCase().trim()
   if (!h) return true

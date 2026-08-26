@@ -4,6 +4,22 @@
 
 ---
 
+## [2026-08-27] 过滤 IP 访问统计中的本地回环地址与健康检查（剔除 127.0.0.1、::1、/api/health 等记录）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **排查根本原因**：
+     - 原 `ipAccessAndRateLimit` 中间件在入口处无条件调用 `ipAccessRepo.recordHit(ip)`，随后才进行 `isLoopback` 与 `path === '/api/health'` 校验；
+     - 导致 Docker 容器内健康检查轮询（`curl -f http://localhost:3000/api/health`）以及本地开发访问全部被记录写入 SQLite `ip_access_logs` 表，产生大量 `127.0.0.1` 虚假高频访问数据。
+  2. **全面过滤与双重防护**：
+     - **回环地址判定提取与扩展 (`apps/server/src/lib/private-host.ts`)**：实现 `isLoopbackIp`，完整识别 `127.0.0.1`、`127.*`、`::1`、`[::1]`、`localhost`、`0.0.0.0`、`::`、`::ffff:127.*` 等各种本地回环格式；
+     - **中间件前置过滤 (`apps/server/src/lib/ip-rate-limit.ts`)**：将 `isLoopbackIp` 与 `isHealthCheckPath`（`/api/health`、`/health`）检查前置，直接跳过 `recordHit` 统计与频控检查，从源头杜绝本地健康检查入库；
+     - **仓储层第二重防御 (`apps/server/src/db/repositories/ip-access.ts`)**：在 `recordHit` 与 `recordHitBatchSync` 内部追加 `isLoopbackIp` 校验，即使其他模块误调也不会写入数据库。
+- 涉及文件：apps/server/src/lib/private-host.ts, apps/server/src/lib/ip-rate-limit.ts, apps/server/src/db/repositories/ip-access.ts, scripts/test-ip-access.ts, scripts/test-rate-limit.ts, .claude/STATE.md
+- 备注：编写并扩充 `scripts/test-ip-access.ts` 与 `scripts/test-rate-limit.ts` 验证通过，`pnpm typecheck` 全仓 3 个 workspace 0 报错通过，`pnpm build` 全量生产打包构建通过。
+
+---
+
 ## [2026-08-26] 沉淀 SQLite 数据库表结构字典与 Docker 容器免安装查询指南文档 (docs/database-maintenance.md)
 - 状态：已完成
 - 优先级：P2

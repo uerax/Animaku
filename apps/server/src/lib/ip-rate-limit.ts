@@ -1,6 +1,7 @@
 import type { Context, Next } from 'hono'
 import { getClientIp } from './logger'
 import { clientRemoteAddress } from './access'
+import { isLoopbackIp } from './private-host'
 import { ipAccessRepo } from '../db'
 
 export interface RateLimitOptions {
@@ -42,12 +43,12 @@ function resolveIp(c: Context): string {
   return sock || ip || '127.0.0.1'
 }
 
-function isLoopback(ip: string): boolean {
+export function isHealthCheckPath(path: string): boolean {
   return (
-    ip === '127.0.0.1' ||
-    ip === '::1' ||
-    ip === 'localhost' ||
-    ip.startsWith('127.')
+    path === '/api/health' ||
+    path === '/api/health/' ||
+    path === '/health' ||
+    path === '/health/'
   )
 }
 
@@ -90,12 +91,19 @@ export function ipAccessAndRateLimit(options?: RateLimitOptions) {
     }
 
     const ip = resolveIp(c)
+    const isLocal = isLoopbackIp(ip)
+    const isHealthCheck = isHealthCheckPath(path)
 
-    // 1. Asynchronously record IP visit in memory (0 DB blocking)
+    // 1. Skip traffic recording & rate limiting for loopback addresses & health checks
+    if (isLocal || isHealthCheck) {
+      return next()
+    }
+
+    // 2. Asynchronously record IP visit in memory (0 DB blocking) for non-local real requests
     ipAccessRepo.recordHit(ip)
 
-    // 2. Skip rate limiting for loopback addresses & health check
-    if (isLoopback(ip) || path === '/api/health' || !path.startsWith('/api/')) {
+    // 3. Skip rate limiting for non-api requests
+    if (!path.startsWith('/api/')) {
       return next()
     }
 

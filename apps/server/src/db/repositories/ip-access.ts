@@ -1,4 +1,5 @@
 import { config } from '../../config'
+import { isLoopbackIp } from '../../lib/private-host'
 import { getDatabase, prepareStatement } from '../connection'
 
 export interface IpAccessLogRow {
@@ -45,7 +46,7 @@ export class IpAccessRepository {
   recordHitBatchSync(ip: string, increment: number, customDateStr?: string): void {
     if (!ip || increment <= 0) return
     const normalizedIp = ip.trim()
-    if (!normalizedIp) return
+    if (!normalizedIp || isLoopbackIp(normalizedIp)) return
 
     const now = Date.now()
     const dateStr = customDateStr || getLocalTodayDateStr(now)
@@ -78,7 +79,7 @@ export class IpAccessRepository {
   recordHit(ip: string): void {
     if (!ip || typeof ip !== 'string') return
     const normalizedIp = ip.trim()
-    if (!normalizedIp) return
+    if (!normalizedIp || isLoopbackIp(normalizedIp)) return
 
     const existing = this.pendingIps.get(normalizedIp)
     if (existing) {
