@@ -61,7 +61,7 @@
 - 桌面端播放页布局：`apps/web/src/pages/watch/DesktopWatchLayout.tsx`
 - 移动端播放页布局：`apps/web/src/pages/watch/MobileWatchLayout.tsx`
 - 移动端选集抽屉：`apps/web/src/pages/watch/MobileEpsSection.tsx`
-- 播放页番剧推荐流 (B站小横卡与系列接续)：`apps/web/src/pages/watch/WatchRecommendations.tsx`
+- 播放页番剧推荐列表 / 相关推荐 (WatchRecommendations)：`apps/web/src/pages/watch/WatchRecommendations.tsx`
 - 播放页元信息与简介：`apps/web/src/pages/watch/WatchMeta.tsx`
 - 播放页 HUD 悬浮提示：`apps/web/src/pages/watch/WatchHudToast.tsx`
 - 播放页布局响应式 Hook：`apps/web/src/pages/watch/useWatchLayoutMode.ts`
@@ -76,7 +76,7 @@
 - 统一 Bangumi 端点解析与反代映射：`packages/shared/src/bangumi-endpoint.ts`
 - Bangumi 图片 CDN 优化与反代：`packages/shared/src/bangumi-image.ts`, `apps/web/src/lib/bangumi-image-host.ts`
 - Bangumi 类型定义与工具：`packages/shared/src/bangumi.ts`
-- 服务端 Bangumi API 代理路由与容灾：`apps/server/src/routes/bangumi.ts`
+- 服务端 Bangumi API 代理与推荐聚合路由 (POST /api/bangumi/recommendations)：`apps/server/src/routes/bangumi.ts`
 - 客户端 Bangumi API 请求层：`apps/web/src/lib/bangumi.ts`, `apps/web/src/lib/api.ts`
 
 ## 9. 业务页面与前端核心路由 (Pages & App Shell)
