@@ -173,6 +173,7 @@ export function AnimePage() {
       offset: number
       sort: SortKey
       tags?: string[]
+      type: number
       year?: number
       airDate?: string[]
     } = {
@@ -180,6 +181,7 @@ export function AnimePage() {
       offset,
       sort,
       tags: tag ? [tag] : undefined,
+      type: 2,
     }
     if (month != null) {
       // Explicit quarter range; do not also pass year (server prefers airDate)

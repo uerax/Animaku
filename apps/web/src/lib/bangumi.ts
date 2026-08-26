@@ -33,6 +33,7 @@ export const bangumiApi = {
       /** heat | rank | score | date (放送时间, page-local) | match */
       sort?: string
       tags?: string[]
+      type?: number[] | number
       year?: number | null
       airDate?: string[]
       signal?: AbortSignal
@@ -48,6 +49,7 @@ export const bangumiApi = {
           offset: opts?.offset ?? 0,
           sort: opts?.sort,
           tags: opts?.tags,
+          type: opts?.type,
           year: opts?.year ?? undefined,
           airDate: opts?.airDate,
         }),

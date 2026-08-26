@@ -25,7 +25,7 @@ export function SearchPage() {
     <div>
       <PageHeader
         title={keyword ? `搜索「${keyword}」` : '搜索'}
-        description="在 Bangumi 中搜索动画 · 使用右上角搜索框"
+        description="在 Bangumi 中搜索 · 使用右上角搜索框"
       />
       {!keyword && (
         <div className="rounded-xl border border-dashed border-[var(--kz-border)] py-16 text-center text-sm text-[var(--kz-fg-muted)]">

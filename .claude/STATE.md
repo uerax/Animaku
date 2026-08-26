@@ -4,6 +4,22 @@
 
 ---
 
+## [2026-08-26] 放开搜索条目类型限制（支持动画与三次元影视/电视剧/电影混合检索）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **服务端搜索类型放宽与缓存键适配 (`apps/server/src/routes/bangumi.ts`)**：
+     - 将 `POST /api/bangumi/search` 的条目类型过滤条件由硬编码的 `type: [2]` 放宽为默认 `[2, 6]`（同时支持动画与三次元影视/电视剧/电影）；
+     - 请求体支持可选 `type?: number[] | number` 参数，并在 `browseCacheKey` 中加入 `types` 维度确保多类型缓存精准隔离。
+  2. **客户端 API 参数支持与搜索页文案更新 (`apps/web/src/lib/bangumi.ts` & `SearchPage.tsx`)**：
+     - `bangumiApi.search` 支持透传 `type` 参数；
+     - `SearchPage` 副标题文案简化更新为 `在 Bangumi 中搜索 · 使用右上角搜索框`；
+     - `AnimePage`（番剧索引页）显式锁定 `type: 2`，保证分类索引浏览依然专注文档定义的动画品类。
+- 涉及文件：apps/server/src/routes/bangumi.ts, apps/web/src/lib/bangumi.ts, apps/web/src/pages/SearchPage.tsx, apps/web/src/pages/AnimePage.tsx, .claude/STATE.md
+- 备注：`pnpm typecheck` 3 个 workspace 0 报错通过，`pnpm build` 全量生产打包构建通过。
+
+---
+
 ## [2026-08-26] 彻底解决视频源搜索结果同步、失效绑定清理与看板状态脱节 Bug
 - 状态：已完成
 - 优先级：P0

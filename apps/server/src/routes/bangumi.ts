@@ -265,13 +265,15 @@ function browseCacheKey(parts: {
   keyword: string
   sort: string
   tags: string[]
+  types: number[]
   airDate: string[]
   limit: number
   offset: number
 }): string {
   const tags = [...parts.tags].sort().join(',')
+  const types = [...parts.types].sort().join(',')
   const air = [...parts.airDate].sort().join(',')
-  return `bangumi:${parts.apiHost}:browse:${parts.keyword}\0${parts.sort}\0${tags}\0${air}\0${parts.limit}\0${parts.offset}`
+  return `bangumi:${parts.apiHost}:browse:${parts.keyword}\0${parts.sort}\0${tags}\0${types}\0${air}\0${parts.limit}\0${parts.offset}`
 }
 
 bangumiRoutes.post('/search', async (c) => {
@@ -281,6 +283,8 @@ bangumiRoutes.post('/search', async (c) => {
     offset?: number
     sort?: string
     tags?: string[]
+    /** Subject type filter (e.g. 2 for anime, 6 for real/tv/movie). Defaults to [2, 6] */
+    type?: number[] | number
     /** Calendar year, e.g. 2024 — maps to air_date [>=Y-01-01, <Y+1-01-01] */
     year?: number | null
     /** Explicit air_date filter expressions, e.g. [">=2020-01-01", "<2021-01-01"] */
@@ -315,6 +319,16 @@ bangumiRoutes.post('/search', async (c) => {
     airDate.push(`>=${year}-01-01`, `<${year + 1}-01-01`)
   }
 
+  const rawTypes = Array.isArray(body.type)
+    ? body.type
+    : body.type != null && Number(body.type) > 0
+      ? [Number(body.type)]
+      : [2, 6]
+  const types = rawTypes
+    .map(Number)
+    .filter((n) => Number.isFinite(n) && n > 0)
+  const finalTypes = types.length > 0 ? types : [2, 6]
+
   const keyword = body.keyword || ''
   const resultSort = sortByDate ? 'date' : upstreamSort
   const key = browseCacheKey({
@@ -322,6 +336,7 @@ bangumiRoutes.post('/search', async (c) => {
     keyword,
     sort: resultSort,
     tags,
+    types: finalTypes,
     airDate,
     limit,
     offset,
@@ -334,7 +349,7 @@ bangumiRoutes.post('/search', async (c) => {
   }
 
   const filter: Record<string, unknown> = {
-    type: [2],
+    type: finalTypes,
     // Always exclude NSFW — not client-configurable
     nsfw: false,
   }
