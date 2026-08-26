@@ -4,6 +4,23 @@
 
 ---
 
+## [2026-08-26] 沉淀 SQLite 数据库表结构字典与 Docker 容器免安装查询指南文档 (docs/database-maintenance.md)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **输出完整数据库运维与查询指南 (`docs/database-maintenance.md`)**：
+     - 梳理并输出服务端全部数据表字典（`anime_play_stats`, `ip_access_logs`, `plugin_search_cache`, `plugin_chapters_cache`, `kv_cache`, `_schema_migrations`）与其核心字段含义；
+     - 沉淀 Docker Compose 容器内单行免安装执行命令（`docker compose exec animaku node -e '...'`）；
+     - 记录并规避 Linux Bash 下双引号展开导致 SQLite 将字面量误判为列名（`no such column: "unixepoch"`）的坑点，提供纯 JS 格式化时间与原生数据双模态查询模板；
+     - 总结宿主机 Node.js、SQLite3 CLI 以及 VS Code `SQLite Viewer` 可视化插件查看方式。
+  2. **文档与导航索引同步 (`README.md`, `docs/CONTEXT.md`, `.claude/feature-map.md`)**：
+     - 在 `README.md` 运维 Q&A 中补充持久化与查询说明链接；
+     - 在 `docs/CONTEXT.md` 与 `.claude/feature-map.md` 中同步追加文档路径索引。
+- 涉及文件：docs/database-maintenance.md, README.md, docs/CONTEXT.md, .claude/feature-map.md, .claude/STATE.md
+- 备注：文档创建与全仓索引同步完毕。
+
+---
+
 ## [2026-08-26] 修复高分辨率下短页面（追番/历史等）切换时顶部导航栏水平跳动 Bug
 - 状态：已完成
 - 优先级：P1

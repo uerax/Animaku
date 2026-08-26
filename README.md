@@ -268,9 +268,9 @@ A: 本地可留空 `DANDAN_*` 使用内置密钥。若仍失败可检查 `/api/d
 
 A: 确认镜像构建包含前端 SPA；`WEB_DIST=public`，并确认 `GET /api/health` 响应正常。
 
-#### Q: 数据如何持久化备份？
+#### Q: 数据如何持久化备份与直接查询？
 
-A: 服务端 SQLite 缓存数据库保存在容器 `/app/data`。使用 Docker 部署时请挂载 `-v ./data:/app/data`。
+A: 服务端 SQLite 缓存数据库保存在容器 `/app/data/animaku.db`（挂载于宿主机 `./data`）。无需安装 SQLite，可通过 `docker compose exec animaku node -e '...'` 一键免安装查询，详见 [数据库运维指南 (docs/database-maintenance.md)](docs/database-maintenance.md)。
 
 #### Q: `pnpm: command not found` / `node_modules missing`？
 

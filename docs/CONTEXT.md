@@ -1,7 +1,7 @@
 # Animaku 开发者架构上下文 (CONTEXT)
 
 > 本文档面向维护者、贡献者与开发协作，汇总了系统的**核心架构设计、数据流向、关键技术选型与避坑准则**。  
-> 快速上手请参阅根目录 [README.md](../README.md)；视频源接入规范请参阅 [docs/video-source-integration.md](./video-source-integration.md)。
+> 快速上手请参阅根目录 [README.md](../README.md)；视频源接入规范请参阅 [docs/video-source-integration.md](./video-source-integration.md)；SQLite 数据库运维与查询指南请参阅 [docs/database-maintenance.md](./database-maintenance.md)。
 
 ---
 

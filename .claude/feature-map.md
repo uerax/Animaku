@@ -108,6 +108,7 @@
 - 播放量与指标统计路由：`apps/server/src/routes/stats.ts`
 - 访问控制与 Token 校验：`apps/server/src/lib/access.ts`
 - 私有 IP 拦截与内网熔断：`apps/server/src/lib/private-host.ts`
+- 数据库维护与免安装查询指南文档：`docs/database-maintenance.md`
 - SQLite 数据库连接与初始化：`apps/server/src/db/connection.ts`, `apps/server/src/db/schema.ts`, `apps/server/src/db/index.ts`
 - SQLite KV 缓存仓储：`apps/server/src/db/repositories/kv-cache.ts`
 - SQLite 播放量与热度统计仓储：`apps/server/src/db/repositories/play-stats.ts`
