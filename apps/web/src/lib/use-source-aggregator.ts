@@ -10,7 +10,7 @@ import {
 import { pluginApi } from './plugin-api'
 import { getCachedPluginSearch, setCachedPluginSearch } from './plugin-result-cache'
 import { useSourceBindingStore, type SourceBindingEntry } from '../stores/source-bindings'
-import { AUTO_PICK_MIN_SIMILARITY, type SourceSelection } from './use-watch-session'
+import { AUTO_PICK_MIN_SIMILARITY, type SourceSelection, type SearchRow } from './use-watch-session'
 
 export type SourceProbeStatus =
   | 'idle'
@@ -41,6 +41,7 @@ export interface UseSourceAggregatorOptions {
   isOpen: boolean
   activePluginName?: string
   selection?: SourceSelection | null
+  searchResults?: SearchRow[]
 }
 
 const CONCURRENCY_LIMIT = 2
@@ -58,6 +59,7 @@ export function useSourceAggregator({
   isOpen,
   activePluginName,
   selection,
+  searchResults,
 }: UseSourceAggregatorOptions) {
   const [sources, setSources] = useState<Record<string, AggregatedSourceState>>({})
   const activeJobsRef = useRef<number>(0)
@@ -184,6 +186,52 @@ export function useSourceAggregator({
       },
     }))
   }, [selection])
+
+  // Keep sources strictly synchronized with session searchResults
+  useEffect(() => {
+    if (!searchResults?.length) return
+    setSources((prev) => {
+      let changed = false
+      const next = { ...prev }
+      for (const row of searchResults) {
+        if (!row.searched) continue
+        const name = row.plugin.name
+        const raw = row.items || []
+        const kw = row.keyword || defaultKeyword
+        const ranked = rankSearchItems(raw, [...titleRefs, kw])
+        const top = ranked[0]
+        const score = top ? bestTitleSimilarity(top.name, [...titleRefs, kw]) : 0
+
+        let status: SourceProbeStatus = 'empty'
+        let matchedItem: SearchItem | undefined
+
+        if (row.error && !raw.length) {
+          status = row.error.includes('超时') ? 'error' : 'empty'
+        } else if (!raw.length) {
+          status = 'empty'
+        } else if (score >= AUTO_PICK_MIN_SIMILARITY) {
+          status = 'ready'
+          matchedItem = top
+        } else {
+          status = 'needs_pick'
+          matchedItem = top
+        }
+
+        probeDoneRef.current[name] = true
+        next[name] = {
+          plugin: row.plugin,
+          status,
+          items: ranked,
+          matchedItem,
+          errorMsg: row.error,
+          searched: true,
+          keyword: row.keyword || prev[name]?.keyword || defaultKeyword,
+        }
+        changed = true
+      }
+      return changed ? next : prev
+    })
+  }, [searchResults, titleRefs, defaultKeyword])
 
   const processQueue = useCallback(async () => {
     if (!mountedRef.current || !isOpen) return
@@ -348,14 +396,18 @@ export function useSourceAggregator({
 
     const unprobed: string[] = []
     for (const p of plugins) {
-      if (!probeDoneRef.current[p.name] && p.name.toLowerCase() !== activePluginName?.toLowerCase()) {
+      if (!probeDoneRef.current[p.name]) {
         unprobed.push(p.name)
       }
     }
 
     if (unprobed.length > 0) {
-      // Prioritize sources in user order
+      // Prioritize activePluginName first, then user configured order
       const ordered = [...unprobed].sort((a, b) => {
+        if (activePluginName) {
+          if (a.toLowerCase() === activePluginName.toLowerCase()) return -1
+          if (b.toLowerCase() === activePluginName.toLowerCase()) return 1
+        }
         const ia = pluginOrder.indexOf(a)
         const ib = pluginOrder.indexOf(b)
         if (ia !== -1 && ib !== -1) return ia - ib

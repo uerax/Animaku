@@ -15,8 +15,10 @@ import { preloadVideoPlayer } from '../../player/lazy'
 
 const RecommendationCard = memo(function RecommendationCard({
   item,
+  currentPlugin,
 }: {
   item: BangumiRecommendationItem
+  currentPlugin?: string
 }) {
   const title = item.nameCn || item.name || '未知动画'
   const coverSrc = item.cover
@@ -26,9 +28,13 @@ const RecommendationCard = memo(function RecommendationCard({
     preloadVideoPlayer()
   }
 
+  const toUrl = currentPlugin
+    ? `/subject/${item.id}?plugin=${encodeURIComponent(currentPlugin)}`
+    : `/subject/${item.id}`
+
   return (
     <Link
-      to={`/subject/${item.id}`}
+      to={toUrl}
       onMouseEnter={onWarmup}
       onFocus={onWarmup}
       onTouchStart={onWarmup}
@@ -126,9 +132,11 @@ function RecommendationsSkeleton() {
 export function WatchRecommendations({
   bangumiId,
   bangumiItem,
+  currentPlugin,
 }: {
   bangumiId: number
   bangumiItem: BangumiItem | null | undefined
+  currentPlugin?: string
 }) {
   const [isOpen, setIsOpen] = useState(true)
   const imageHost = useSettingsStore((s) => s.bangumiImageHost)
@@ -240,7 +248,11 @@ export function WatchRecommendations({
           ) : (
             <div className="space-y-1">
               {items.map((item) => (
-                <RecommendationCard key={item.id} item={item} />
+                <RecommendationCard
+                  key={item.id}
+                  item={item}
+                  currentPlugin={currentPlugin}
+                />
               ))}
             </div>
           )}

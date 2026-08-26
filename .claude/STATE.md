@@ -4,6 +4,57 @@
 
 ---
 
+## [2026-08-26] 彻底解决视频源搜索结果同步、失效绑定清理与看板状态脱节 Bug
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **排查根本原因**：
+     - `useWatchSession` 与 `useSourceAggregator` 各自独立维护一套搜索状态。当 `useWatchSession` 在首访或跳转时执行搜索并得出无结果时，`useSourceAggregator` 未能接收该结果；
+     - 如果该番剧此前存在自动持久化的旧绑定（`bindingStore`），`useSourceAggregator` 在初始化时会直接将该源置为 🟢 `ready`（绿色就绪）状态；
+     - 搜索未命中时未自动清理 localStorage 中的失效绑定，导致再次打开面板时依然误显绿灯。
+  2. **全面修复与数据流归一化**：
+     - **主会话与看板 100% 实时同步 (`use-source-aggregator.ts` & `WatchPage.tsx`)**：将 `w.searchResults` 通过 props 注入 `SourceBoard` 与 `useSourceAggregator`，只要主会话搜完任一源，看板立即同步其真实状态；
+     - **未搜到结果精准红灯 (`empty` / `error`)**：当源站返回 0 条结果时，看板状态立即变为 `empty`（🔴 红色指示灯与「未搜到结果」字样），彻底消除虚假绿灯；
+     - **自动清理失效绑定 (`use-watch-session.ts`)**：当搜源确认无结果或分集失败时，自动从 `useSourceBindingStore` 中移除该源在当前番剧下的非手动绑定。
+- 涉及文件：apps/web/src/lib/use-watch-session.ts, apps/web/src/lib/use-source-aggregator.ts, apps/web/src/pages/watch/SourceBoard.tsx, apps/web/src/pages/WatchPage.tsx, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 3 个 workspace 0 报错通过，`pnpm build` 全量生产打包构建通过。
+
+---
+
+## [2026-08-26] 修复番剧跳转未搜到结果无提示、关键词残留与视频源面板状态脱节 Bug
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **排查根本原因**：
+     - **无结果无提示**：`searchOnePlugin` 在自动搜源（`autoPickFirst`）遇到 `items.length === 0` 或低相似度时，仅在 `searchResults` 记录了 error，未设置 `hudMessage` 与 `roadError`，选集区仅呈现默认操作引导，用户无法获知后台搜源失败；
+     - **旧番剧搜索词与结果残留**：`searchResults` 在 `bangumiId` 改变时未清空且在 effect 中复用了旧 `prev` 行，导致上一部番剧的关键词和结果残留；`SourceBoard` 的 `expandedPlugin` 与 `cardKwInputs` 也未在切换番剧时重置；
+     - **视频源看板探活排除 activePlugin**：`useSourceAggregator` 在构建探活队列时排除了 `activePluginName`，导致当前源未在看板中重新探活，残留了未搜态或误显历史 🟢 绿灯。
+  2. **全面修复与状态机对齐**：
+     - **搜索未命中即时双重提示 (`use-watch-session.ts`)**：当自动搜源未找到资源时，即时触发 HUD Toast 提示（`${plugin.name} 未搜到该番剧，请切换视频源`）并设置选集区错误文案（`${plugin.name} 未搜到该番剧资源，请点击上方「视频源」选择其他播放源`）；
+     - **切换番剧彻底重置旧词与结果 (`use-watch-session.ts` & `SourceBoard.tsx`)**：在 `bangumiId` 改变时彻底清空 `searchResults`，丢弃旧 `prev` 数据，并重置 `SourceBoard` 的展开抽屉与自定义输入词；
+     - **看板探活队列优先当前源 (`use-source-aggregator.ts`)**：移除对 `activePluginName` 的错误排除，并将其置于探活队列首位，未搜到时准确呈现 🔴 状态（`未搜到结果`）及当前番剧真实搜索词。
+- 涉及文件：apps/web/src/lib/use-watch-session.ts, apps/web/src/pages/watch/SourceBoard.tsx, apps/web/src/lib/use-source-aggregator.ts, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 3 个 workspace 0 报错通过，`pnpm build` 全量生产打包构建通过。
+
+---
+
+## [2026-08-26] 落地番剧推荐跳转视频源参数继承与首访自动搜源选集闭环
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **推荐列表带源参数无缝跳转 (`WatchRecommendations.tsx` & `WatchPage.tsx`)**：
+     - 在 `WatchRecommendations` 中接收 `currentPlugin` 属性；
+     - 将卡片 `<Link>` 升级为动态带参路径：`to={currentPlugin ? \`/subject/\${item.id}?plugin=\${encodeURIComponent(currentPlugin)}\` : \`/subject/\${item.id}\`}`；
+     - 在 `WatchPage` 中将当前选中的源（`w.selection?.plugin.name || w.pluginName || w.defaultSourceName`）精准透传，实现用户从当前番剧跳转至推荐番剧时的源偏好无缝继承。
+  2. **首访自动搜源状态机闭环 (`apps/web/src/lib/use-watch-session.ts`)**：
+     - 修复此前带有 `?plugin=xxx` 但无 `ep`/`pageUrl` 时被首访检查错误 early return 挂起的问题；
+     - 当检测到带有 `qPlugin` 且无显式分集时，直接将首选源锁定为该 `plugin`，自动触发首访持久化绑定检查与 `openPluginSearch(preferred, kw, { autoPickFirst: true })`；
+     - 搜索命中后自动拉取章节并选中选集，彻底消除跳转推荐番剧后选集区空白且需手动点选视频源的问题。
+- 涉及文件：apps/web/src/pages/watch/WatchRecommendations.tsx, apps/web/src/pages/WatchPage.tsx, apps/web/src/lib/use-watch-session.ts, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 3 个 workspace 0 报错通过，`pnpm build` 全量生产构建通过。
+
+---
+
 ## [2026-08-26] 优化 xifan-next 视频源解析超时与冷启动容灾（放宽至 6.0s + 2.5s 竞速窗口 + HLS 4.5s 稳健抓取）
 - 状态：已完成
 - 优先级：P1

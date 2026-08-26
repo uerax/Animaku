@@ -1,5 +1,6 @@
 import {
   useState,
+  useEffect,
   type FormEvent,
   startTransition,
 } from 'react'
@@ -10,7 +11,7 @@ import {
   useSourceAggregator,
   type AggregatedSourceState,
 } from '../../lib/use-source-aggregator'
-import type { SourceSelection } from '../../lib/use-watch-session'
+import type { SourceSelection, SearchRow } from '../../lib/use-watch-session'
 
 export interface SourceBoardProps {
   bangumiId: number
@@ -29,6 +30,7 @@ export interface SourceBoardProps {
   pendingSource: { pluginName: string; src: string } | null
   roadLoading: boolean
   defaultSourceName: string
+  searchResults?: SearchRow[]
 }
 
 export function SourceBoard({
@@ -47,9 +49,16 @@ export function SourceBoard({
   selection,
   pendingSource,
   defaultSourceName,
+  searchResults,
 }: SourceBoardProps) {
   const [expandedPlugin, setExpandedPlugin] = useState<string | null>(null)
   const [cardKwInputs, setCardKwInputs] = useState<Record<string, string>>({})
+
+  // Reset expanded drawer & manual keyword inputs on subject switch
+  useEffect(() => {
+    setExpandedPlugin(null)
+    setCardKwInputs({})
+  }, [bangumiId])
 
   const { sources, prioritizePlugin, reProbePlugin } = useSourceAggregator({
     bangumiId,
@@ -61,6 +70,7 @@ export function SourceBoard({
     isOpen: sourcesOpen,
     activePluginName,
     selection,
+    searchResults,
   })
 
   function handleCardKeywordSubmit(pluginName: string, e: FormEvent) {

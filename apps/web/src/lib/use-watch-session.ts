@@ -544,14 +544,19 @@ export function useWatchSession(bangumiId: number): WatchSession {
     dmResetPools()
     pluginSearchGen.current = {}
     setSearchKeyword('')
+    setSearchResults([])
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only on subject id
   }, [bangumiId])
 
+  const prevBangumiIdRef = useRef(bangumiId)
   // Seed / refresh idle plugin rows without wiping in-progress selection.
   // Keep the row order aligned with the user's configured source order.
   useEffect(() => {
+    const isNewSubject = prevBangumiIdRef.current !== bangumiId
+    prevBangumiIdRef.current = bangumiId
+
     setSearchResults((prev) => {
-      const byName = new Map(prev.map((r) => [r.plugin.name, r]))
+      const byName = isNewSubject ? new Map() : new Map(prev.map((r) => [r.plugin.name, r]))
       const rows = plugins.map((plugin) => {
         const old = byName.get(plugin.name)
         if (old) return { ...old, plugin }
@@ -942,6 +947,10 @@ export function useWatchSession(bangumiId: number): WatchSession {
           ...keywordCandidatesStable,
         ])
         if (!items.length) {
+          const existingBinding = useSourceBindingStore.getState().getBinding(bangumiId, plugin.name)
+          if (existingBinding && !existingBinding.isManual) {
+            useSourceBindingStore.getState().removeBinding(bangumiId, plugin.name)
+          }
           // Show first non-meta diagnostic (skip "关键词变体" style prefatory lines)
           // so users see actionable error info: timeout, 403, no results, etc.
           const diag = (res.data.diagnostics || []).filter(Boolean)
@@ -955,6 +964,10 @@ export function useWatchSession(bangumiId: number): WatchSession {
       } catch (e) {
         if (pluginSearchGen.current[plugin.name] !== gen) return
         if (searchAc.signal.aborted) return
+        const existingBinding = useSourceBindingStore.getState().getBinding(bangumiId, plugin.name)
+        if (existingBinding && !existingBinding.isManual) {
+          useSourceBindingStore.getState().removeBinding(bangumiId, plugin.name)
+        }
         const msg = e instanceof Error ? e.message : '搜索失败'
         if (/取消|aborted|AbortError/i.test(msg)) return
         error = /504|timeout|超时|无法访问/i.test(msg)
@@ -989,7 +1002,13 @@ export function useWatchSession(bangumiId: number): WatchSession {
         (opts?.autoPickFirst ||
           ((isDefault || opts?.clearSelection) &&
             (opts?.clearSelection || !selectionRef.current)))
-      if (shouldAutoPick && items[0]) {
+
+      if (!items.length) {
+        if (opts?.autoPickFirst && !selectionRef.current) {
+          setRoadError(`${plugin.name} 未搜到该番剧资源，请点击上方「视频源」选择其他播放源`)
+          setHudMessage(`${plugin.name} 未搜到该番剧，请切换视频源`)
+        }
+      } else if (shouldAutoPick && items[0]) {
         // Guard against background search race conditions:
         // Do not allow an in-flight background search of plugin A to clobber
         // when the user has already selected or targeted a different plugin B.
@@ -1014,18 +1033,24 @@ export function useWatchSession(bangumiId: number): WatchSession {
         ])
         if (score >= AUTO_PICK_MIN_SIMILARITY) {
           await pickSource(plugin, items[0])
-        } else if (!error) {
-          // Keep results visible; surface why we didn't auto-enter episodes
-          setSearchResults((prev) =>
-            prev.map((row) =>
-              row.plugin.name === plugin.name
-                ? {
-                    ...row,
-                    error: '未自动选择（标题不够相近，请点选一条）',
-                  }
-                : row,
-            ),
-          )
+        } else {
+          if (opts?.autoPickFirst && !selectionRef.current) {
+            setRoadError(`${plugin.name} 搜索结果与当前番剧标题不够相近，请在「视频源」中确认或点选`)
+            setHudMessage(`${plugin.name} 未自动匹配，请在视频源中点选`)
+          }
+          if (!error) {
+            // Keep results visible; surface why we didn't auto-enter episodes
+            setSearchResults((prev) =>
+              prev.map((row) =>
+                row.plugin.name === plugin.name
+                  ? {
+                      ...row,
+                      error: '未自动选择（标题不够相近，请点选一条）',
+                    }
+                  : row,
+              ),
+            )
+          }
         }
       }
     },
@@ -1107,20 +1132,20 @@ export function useWatchSession(bangumiId: number): WatchSession {
     [bangumiId, pickSource, openPluginSearch],
   )
 
-  // First visit (not history resume): check persistent binding for default source first (0ms),
-  // otherwise search the first enabled source and auto-pick the first hit.
+  // First visit (not history resume): check persistent binding for target/default source first (0ms),
+  // otherwise search the target/default source and auto-pick the first hit.
   useEffect(() => {
     if (!Number.isFinite(bangumiId) || bangumiId <= 0) return
     if (defaultSearchDoneFor.current === bangumiId) return
-    // If entered with a specific plugin or a selection already exists, mark default search done and skip
-    if (qPlugin || selectionRef.current || paramsRef.current.get('plugin')) {
+    // If a selection already exists, skip
+    if (selectionRef.current) return
+
+    // If deep-link with specific episode/pageUrl, deep-link resume handler will take care of it
+    if (qPlugin && (qPageUrl || qEp)) {
       defaultSearchDoneFor.current = bangumiId
       const target =
-        qPlugin &&
-        (plugins.find(
-          (p) => p.name.toLowerCase() === qPlugin.toLowerCase(),
-        ) ||
-          usePluginStore.getState().getByName(qPlugin))
+        plugins.find((p) => p.name.toLowerCase() === qPlugin.toLowerCase()) ||
+        usePluginStore.getState().getByName(qPlugin)
       if (target && !keywordTargetPluginRef.current) {
         setKeywordTargetPlugin(target)
       }
@@ -1128,7 +1153,15 @@ export function useWatchSession(bangumiId: number): WatchSession {
     }
     if (!plugins.length) return
 
-    const preferred = findDefaultSourcePlugin(plugins, pluginOrder, isOld)
+    // Preferred plugin: use qPlugin if provided and enabled, otherwise fallback to default source
+    const targetPlugin =
+      qPlugin
+        ? plugins.find((p) => p.name.toLowerCase() === qPlugin.toLowerCase()) ||
+          usePluginStore.getState().getByName(qPlugin)
+        : undefined
+
+    const preferred =
+      targetPlugin || findDefaultSourcePlugin(plugins, pluginOrder, isOld)
     if (!preferred) return
 
     // Check persistent binding first!
@@ -1178,8 +1211,11 @@ export function useWatchSession(bangumiId: number): WatchSession {
   }, [
     bangumiId,
     qPlugin,
+    qPageUrl,
+    qEp,
     plugins,
     pluginOrder,
+    isOld,
     item,
     qTitle,
     defaultKeyword,
