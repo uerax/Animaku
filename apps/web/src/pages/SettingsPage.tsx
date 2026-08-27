@@ -61,6 +61,60 @@ function sortPluginsByOrder(
   })
 }
 
+function renderPluginBadge(p: PluginMeta) {
+  if (isBuiltinPlugin(p)) {
+    const isDedicated = ['cycani', 'tvtfun', 'xifan-next', 'moonci', 'anime1', 'omofun'].includes(
+      p.name.toLowerCase(),
+    )
+    if (isDedicated) {
+      return (
+        <span
+          className="inline-flex items-center rounded-md border border-sky-500/30 bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-medium text-sky-400"
+          title="Animaku 内置 · TypeScript 专有直连驱动"
+        >
+          内置直连
+        </span>
+      )
+    }
+    return (
+      <span
+        className="inline-flex items-center rounded-md border border-purple-500/30 bg-purple-500/10 px-1.5 py-0.5 text-[10px] font-medium text-purple-400"
+        title="Animaku 内置 · 通用规则驱动"
+      >
+        内置规则
+      </span>
+    )
+  }
+  if (isAnxRule(p)) {
+    return (
+      <span
+        className="inline-flex items-center rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-400"
+        title="由 AniBaka 流水线解释器驱动"
+      >
+        AniBaka
+      </span>
+    )
+  }
+  if (p.source === 'import') {
+    return (
+      <span
+        className="inline-flex items-center rounded-md border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--kz-fg-muted)]"
+        title="用户本地导入规则"
+      >
+        自定义
+      </span>
+    )
+  }
+  return (
+    <span
+      className="inline-flex items-center rounded-md border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-400"
+      title="传统 Kazumi 规则驱动"
+    >
+      Kazumi
+    </span>
+  )
+}
+
 type CatalogSort = 'lastUpdate' | 'name'
 
 export function SettingsPage() {
@@ -859,64 +913,117 @@ export function SettingsPage() {
         isOpen={Boolean(openSections['installed-plugins'])}
         onToggle={() => toggleSection('installed-plugins')}
       >
-        <p className="text-xs sm:text-sm text-[var(--kz-fg-muted)] leading-relaxed">
-          列表首位为播放时的默认源。可拖拽或按 ▲▼ 调整顺序。
-          导入 JSON 仅在本机校验与保存。仓库：{' '}
-          <a
-            href="https://github.com/Predidit/KazumiRules"
-            className="kz-link"
-            target="_blank"
-            rel="noreferrer"
-          >
-            KazumiRules
-          </a>
-          。
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            className="rounded-xl bg-[var(--kz-fg)] px-3.5 py-1.5 text-xs sm:text-sm font-medium text-[var(--kz-bg)] hover:opacity-90 cursor-pointer shadow-sm"
-          >
-            导入 JSON
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="application/json,.json"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0]
-              if (f) void onImportFile(f)
-              e.target.value = ''
-            }}
-          />
-          <button
-            type="button"
-            onClick={() => {
-              if (
-                window.confirm(
-                  '将清空当前规则并恢复为内置默认（xifan-next / cycani / anime1 / libvio / mxdm / omofun / xifan），确定？',
-                )
-              ) {
-                resetToDefaults()
-                setPluginMsg('已恢复默认规则')
-              }
-            }}
-            className="rounded-xl border border-[var(--kz-border)] px-3.5 py-1.5 text-xs sm:text-sm text-[var(--kz-fg)] hover:bg-[var(--kz-bg-soft)] cursor-pointer"
-          >
-            恢复默认
-          </button>
+        {/* 顶部操作与说明栏 */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-1">
+            <p className="text-xs sm:text-sm text-[var(--kz-fg-muted)] leading-relaxed">
+              列表首位为播放时的默认源。可拖拽或按 ▲▼ 调整优先级顺序。
+            </p>
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-[var(--kz-fg-dim)]">
+              <span>规则生态：</span>
+              <a
+                href="https://github.com/AniBakaBaka/AniBakaRule"
+                target="_blank"
+                rel="noreferrer"
+                className="kz-link"
+              >
+                AniBakaRule
+              </a>
+              <span>·</span>
+              <a
+                href="https://github.com/Predidit/KazumiRules"
+                target="_blank"
+                rel="noreferrer"
+                className="kz-link"
+              >
+                KazumiRules
+              </a>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="inline-flex items-center gap-1 rounded-xl bg-[var(--kz-fg)] px-3.5 py-1.5 text-xs font-semibold text-[var(--kz-bg)] hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-sm"
+            >
+              <span>📥 导入 JSON</span>
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) void onImportFile(f)
+                e.target.value = ''
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                if (
+                  window.confirm(
+                    '将清空当前规则并恢复为内置默认（xifan-next / cycani / anime1 / libvio / mxdm / omofun / xifan），确定？',
+                  )
+                ) {
+                  resetToDefaults()
+                  setPluginMsg('已恢复默认规则')
+                }
+              }}
+              className="inline-flex items-center gap-1 rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] px-3 py-1.5 text-xs font-medium text-[var(--kz-fg)] hover:bg-[var(--kz-bg-soft)] active:scale-95 transition-all cursor-pointer"
+            >
+              <span>↺ 恢复默认</span>
+            </button>
+          </div>
         </div>
-        {pluginMsg && <div className="text-sm text-emerald-400">{pluginMsg}</div>}
+
+        {pluginMsg && (
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs sm:text-sm font-medium text-emerald-400">
+            {pluginMsg}
+          </div>
+        )}
+
+        {/* 状态统计与拖拽提示胶囊 */}
+        {sortedPlugins.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[var(--kz-bg-soft)]/60 border border-[var(--kz-border)]/40 px-3 py-2 text-xs text-[var(--kz-fg-muted)]">
+            <div className="flex flex-wrap items-center gap-2">
+              <span>
+                共 <strong className="text-[var(--kz-fg)] font-semibold">{sortedPlugins.length}</strong> 个源
+              </span>
+              <span>·</span>
+              <span className="text-emerald-500 font-medium">
+                {sortedPlugins.filter(
+                  (p) =>
+                    p.enabled !== false &&
+                    !(pluginNeedsFullMediaProxy(p) && !canUseFullProxySource),
+                ).length}{' '}
+                个已启用
+              </span>
+              {sortedPlugins[0] && (
+                <>
+                  <span className="hidden sm:inline">·</span>
+                  <span className="hidden sm:inline text-amber-500 dark:text-amber-400 font-medium">
+                    首选: {sortedPlugins[0].name}
+                  </span>
+                </>
+              )}
+            </div>
+            {sortedPlugins.length > 1 && (
+              <div className="text-[11px] text-[var(--kz-fg-dim)] select-none">
+                💡 拖拽手柄或按 ▲▼ 调整顺序
+              </div>
+            )}
+          </div>
+        )}
+
         {!plugins.length && (
-          <div className="text-sm text-[var(--kz-fg-muted)]">暂无插件，可恢复默认或从仓库安装</div>
+          <div className="rounded-2xl border border-dashed border-[var(--kz-border)] p-6 text-center text-xs sm:text-sm text-[var(--kz-fg-muted)]">
+            暂无插件，可从下方规则仓库安装或点击上方「恢复默认」。
+          </div>
         )}
-        {plugins.length > 1 && (
-          <p className="text-xs text-[var(--kz-fg-dim)]">
-            拖拽手柄或按 ▲▼ 调整顺序，首位为播放默认源
-          </p>
-        )}
+
+        {/* 规则卡片流式列表 */}
         <ul className="space-y-2">
           {sortedPlugins.map((p, idx) => {
             const needsFull = pluginNeedsFullMediaProxy(p)
@@ -929,6 +1036,7 @@ export function SettingsPage() {
             const isLast = idx === sortedPlugins.length - 1
             const isDragging = draggedName?.toLowerCase() === p.name.toLowerCase()
             const isDragOver = dragOverName?.toLowerCase() === p.name.toLowerCase()
+
             return (
               <li
                 key={p.id}
@@ -937,7 +1045,6 @@ export function SettingsPage() {
                 onDragStart={(e) => {
                   e.dataTransfer.setData('text/plain', p.name)
                   e.dataTransfer.effectAllowed = 'move'
-                  // 延迟一帧更新状态，确保浏览器顺利捕获原生 Drag Image，避免因 DOM 样式重排中断拖拽
                   requestAnimationFrame(() => {
                     setDraggedName(p.name)
                   })
@@ -952,7 +1059,7 @@ export function SettingsPage() {
                 onDragLeave={(e) => {
                   const related = e.relatedTarget as Node | null
                   if (related && e.currentTarget.contains(related)) {
-                    return // 鼠标在卡片内部子元素间移动时忽略，避免频繁闪烁与重渲染
+                    return
                   }
                   if (dragOverName === p.name) {
                     setDragOverName(null)
@@ -966,191 +1073,223 @@ export function SettingsPage() {
                   setDraggedName(null)
                   setDragOverName(null)
                 }}
-                className={`flex flex-wrap items-center gap-2 rounded-xl border p-3 select-none transition-colors duration-150 ${
+                className={`group relative flex flex-col rounded-xl border transition-all duration-200 select-none overflow-hidden ${
                   isDragging
-                    ? 'opacity-40 border-dashed border-[var(--kz-accent)] bg-[var(--kz-bg-soft)]'
+                    ? 'opacity-40 border-dashed border-[var(--kz-accent)] bg-[var(--kz-bg-soft)] scale-[0.99]'
                     : isDragOver
-                      ? 'border-[var(--kz-accent)] ring-2 ring-[var(--kz-accent)]/40 bg-[var(--kz-accent)]/5 shadow-sm'
-                      : 'border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] hover:border-[var(--kz-border-hover)]'
-                } ${blockedByServer ? 'opacity-70' : ''}`}
+                      ? 'border-[var(--kz-accent)] ring-2 ring-[var(--kz-accent)]/40 bg-[var(--kz-accent)]/5 shadow-md'
+                      : isFirst && effectivelyOn
+                        ? 'border-[var(--kz-accent)]/40 bg-[var(--kz-bg-elevated)] shadow-xs hover:border-[var(--kz-accent)]/70'
+                        : 'border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] hover:border-[var(--kz-border-hover)] hover:shadow-xs'
+                } ${!effectivelyOn ? 'opacity-60 saturate-75 bg-[var(--kz-bg-soft)]/50' : ''}`}
               >
-                {/* Row 1: plugin info + order buttons */}
-                <div className="flex flex-wrap items-center gap-2">
-                  {/* Drag handle / order buttons - touch-none 确保移动端按住手柄时不触发页面滚动 */}
+                {/* 卡片上层：拖拽手柄 + 序号 + 规则名称 + 驱动徽章 + 默认源徽章 + 主启用 Switch */}
+                <div className="flex items-center justify-between gap-2 px-3 py-1.5 sm:py-2">
+                  <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-2.5">
+                    {/* 拖拽手柄与微调 */}
+                    <div
+                      className="flex items-center gap-1 shrink-0 rounded-lg bg-[var(--kz-bg-soft)] p-0.5 sm:p-1 text-[var(--kz-fg-dim)] select-none touch-none"
+                      draggable={false}
+                      onDragStart={(e) => e.stopPropagation()}
+                      onTouchStart={() => handleTouchStart(p.name)}
+                      onTouchMove={handleTouchMove}
+                      onTouchEnd={handleTouchEnd}
+                      onTouchCancel={handleTouchCancel}
+                      title="按住手柄拖拽排序"
+                    >
+                      <span className="cursor-grab active:cursor-grabbing px-0.5 hover:text-[var(--kz-fg)] transition-colors">
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor">
+                          <circle cx="4.5" cy="3.5" r="1.2" />
+                          <circle cx="4.5" cy="8" r="1.2" />
+                          <circle cx="4.5" cy="12.5" r="1.2" />
+                          <circle cx="11.5" cy="3.5" r="1.2" />
+                          <circle cx="11.5" cy="8" r="1.2" />
+                          <circle cx="11.5" cy="12.5" r="1.2" />
+                        </svg>
+                      </span>
+                      <span
+                        className={`font-mono text-[10.5px] font-bold px-1 rounded ${
+                          isFirst
+                            ? 'bg-amber-500/15 text-amber-500 dark:text-amber-400'
+                            : 'text-[var(--kz-fg-muted)]'
+                        }`}
+                      >
+                        #{idx + 1}
+                      </span>
+                      <div className="flex flex-col gap-0.5 ml-0.5">
+                        <button
+                          type="button"
+                          disabled={isFirst}
+                          draggable={false}
+                          onDragStart={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            movePlugin(p.name, -1)
+                          }}
+                          title="上移"
+                          className="text-[8.5px] leading-none disabled:opacity-20 hover:text-[var(--kz-accent)] cursor-pointer transition-colors p-0.5"
+                        >
+                          ▲
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isLast}
+                          draggable={false}
+                          onDragStart={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            movePlugin(p.name, 1)
+                          }}
+                          title="下移"
+                          className="text-[8.5px] leading-none disabled:opacity-20 hover:text-[var(--kz-accent)] cursor-pointer transition-colors p-0.5"
+                        >
+                          ▼
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 规则名称与标签 */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-semibold text-xs sm:text-sm text-[var(--kz-fg)] truncate">
+                          {p.name}
+                        </span>
+                        <span className="rounded border border-[var(--kz-border)] bg-[var(--kz-bg)] px-1.5 py-0.2 font-mono text-[10px] text-[var(--kz-fg-muted)]">
+                          v{p.version || '?'}
+                        </span>
+                        {renderPluginBadge(p)}
+                        {isFirst && (
+                          <span className="inline-flex items-center gap-0.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.2 text-[9.5px] sm:text-[10px] font-semibold text-amber-500 dark:text-amber-400 shadow-xs">
+                            <span>⭐</span>
+                            <span>默认主源</span>
+                          </span>
+                        )}
+                        {blockedByServer && (
+                          <span
+                            className="inline-flex items-center gap-0.5 rounded-full border border-rose-500/30 bg-rose-500/10 px-1.5 py-0.2 text-[9.5px] sm:text-[10px] font-semibold text-rose-400"
+                            title="需要 MEDIA_FULL_PROXY=1 代拉 Cookie mp4"
+                          >
+                            ⚠️ 需全量代理
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 右侧：iOS 风格 Switch 主开关 */}
                   <div
-                    className="mr-0.5 flex flex-col items-center gap-0.5 text-[var(--kz-fg-dim)] cursor-grab active:cursor-grabbing p-1.5 sm:p-0.5 rounded hover:bg-[var(--kz-bg-soft)] active:bg-[var(--kz-bg-soft)] select-none touch-none"
-                    title="拖拽手柄排序或按 ▲▼ 微调"
+                    className="flex items-center gap-2 shrink-0"
                     draggable={false}
                     onDragStart={(e) => e.stopPropagation()}
-                    onTouchStart={() => handleTouchStart(p.name)}
-                    onTouchMove={handleTouchMove}
-                    onTouchEnd={handleTouchEnd}
-                    onTouchCancel={handleTouchCancel}
                   >
-                    <button
-                      type="button"
-                      disabled={isFirst}
-                      draggable={false}
-                      onDragStart={(e) => e.stopPropagation()}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        movePlugin(p.name, -1)
-                      }}
-                      title="上移（首位为默认源）"
-                      className="text-[10px] leading-none disabled:opacity-20 hover:text-[var(--kz-accent)] cursor-pointer p-0.5"
-                      aria-label="上移"
+                    <label
+                      className={`relative inline-flex items-center cursor-pointer select-none ${
+                        blockedByServer ? 'cursor-not-allowed opacity-50' : ''
+                      }`}
+                      title={
+                        blockedByServer
+                          ? '服务器代理未开启，无法启用'
+                          : effectivelyOn
+                            ? '点击停用规则'
+                            : '点击启用规则'
+                      }
                     >
-                      ▲
-                    </button>
-                    <span className="text-[11px] leading-none text-[var(--kz-fg-dim)] select-none py-0.5 tracking-tighter" aria-hidden>
-                      ⋮⋮
-                    </span>
-                    <button
-                      type="button"
-                      disabled={isLast}
-                      draggable={false}
-                      onDragStart={(e) => e.stopPropagation()}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        movePlugin(p.name, 1)
-                      }}
-                      title="下移"
-                      className="text-[10px] leading-none disabled:opacity-20 hover:text-[var(--kz-accent)] cursor-pointer p-0.5"
-                      aria-label="下移"
-                    >
-                      ▼
-                    </button>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="font-medium">
-                      {p.name}{' '}
-                      <span className="text-xs text-[var(--kz-fg-muted)]">
-                        v{p.version || '?'}
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={effectivelyOn}
+                        disabled={blockedByServer}
+                        onChange={() => togglePlugin(p.id)}
+                      />
+                      <div className="w-9 h-5 sm:w-10 sm:h-5.5 bg-[var(--kz-bg-soft)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 sm:after:h-4.5 sm:after:w-4.5 after:transition-all after:shadow-sm peer-checked:bg-[var(--kz-accent)] border border-[var(--kz-border)] peer-checked:border-[var(--kz-accent)]" />
+                      <span className="ml-1.5 text-xs font-medium text-[var(--kz-fg)] hidden sm:inline">
+                        {effectivelyOn ? '已启用' : '已停用'}
                       </span>
-                      {isBuiltinPlugin(p) ? (
-                        ['cycani', 'tvtfun', 'xifan-next', 'moonci', 'anime1', 'omofun'].includes(
-                          p.name.toLowerCase(),
-                        ) ? (
-                          <span
-                            className="ml-1.5 inline-flex items-center rounded border border-sky-500/30 bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-medium text-sky-400"
-                            title="Animaku 内置 · TypeScript 专有直连驱动"
-                          >
-                            内置直连
-                          </span>
-                        ) : (
-                          <span
-                            className="ml-1.5 inline-flex items-center rounded border border-purple-500/30 bg-purple-500/10 px-1.5 py-0.5 text-[10px] font-medium text-purple-400"
-                            title="Animaku 内置 · 通用规则驱动"
-                          >
-                            内置规则
-                          </span>
-                        )
-                      ) : isAnxRule(p) ? (
-                        <span
-                          className="ml-1.5 inline-flex items-center rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-400"
-                          title="由 AniBaka 流水线解释器驱动"
-                        >
-                          AniBaka
-                        </span>
-                      ) : p.source === 'import' ? (
-                        <span
-                          className="ml-1.5 inline-flex items-center rounded border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--kz-fg-muted)]"
-                          title="用户本地导入规则"
-                        >
-                          自定义
-                        </span>
-                      ) : (
-                        <span
-                          className="ml-1.5 inline-flex items-center rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-400"
-                          title="传统 Kazumi 规则驱动"
-                        >
-                          Kazumi
-                        </span>
-                      )}
-                      {blockedByServer && (
-                        <span
-                          className="ml-2 text-xs text-amber-400"
-                          title="需要 MEDIA_FULL_PROXY=1 代拉 Cookie mp4"
-                        >
-                          需全量代理
-                        </span>
-                      )}
-                    </div>
-                    <div className="truncate text-xs text-[var(--kz-fg-muted)]">
-                      {p.baseURL}
-                    </div>
-                    {blockedByServer && (
-                      <div className="mt-0.5 text-xs text-amber-400/90">
-                        服务器代理未开启
-                      </div>
-                    )}
+                    </label>
                   </div>
                 </div>
-                {/* Row 2: options + actions */}
+
+                {/* 卡片下层：BaseURL 外链 + 广告过滤 Pill + 代理 Pill + 删除按钮 */}
                 <div
-                  className="flex flex-wrap items-center gap-3 lg:flex-1 lg:justify-end"
+                  className="flex items-center justify-between gap-2 border-t border-[var(--kz-border)]/40 bg-[var(--kz-bg-soft)]/20 px-3 py-1 text-xs"
                   draggable={false}
                   onDragStart={(e) => e.stopPropagation()}
                 >
-                  <label
-                    className={`flex items-center gap-1 text-xs text-[var(--kz-fg-muted)] cursor-pointer ${
-                      blockedByServer ? 'cursor-not-allowed' : ''
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={effectivelyOn}
-                      disabled={blockedByServer}
-                      onChange={() => togglePlugin(p.id)}
-                    />
-                    启用
-                  </label>
-                  <label
-                    className="flex items-center gap-1 text-xs text-[var(--kz-fg-muted)] cursor-pointer"
-                    title="HLS 分片广告过滤（#EXT-X-DISCONTINUITY 短段）。播放列表经服务器过滤；无 cookie 时分片可直连 CDN。"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={Boolean(p.adBlocker)}
-                      onChange={(e) =>
-                        setPluginAdBlocker(p.id, e.target.checked)
-                      }
-                    />
-                    广告过滤
-                  </label>
-                  <label
-                    className={`flex items-center gap-1 text-xs text-[var(--kz-fg-muted)] ${
-                      proxyDisabled || proxyLocked ? 'cursor-not-allowed' : 'cursor-pointer'
-                    }`}
-                    title={
-                      proxyLocked
-                        ? '此源需要服务器代理才能播放，不可关闭'
-                        : proxyDisabled
-                          ? '需开启上方「服务器代理」'
-                          : '媒体经服务器代理'
-                    }
-                  >
-                    <input
-                      type="checkbox"
-                      checked={proxyChecked}
-                      disabled={proxyDisabled || proxyLocked}
-                      onChange={(e) =>
-                        setPluginProxy(p.id, e.target.checked)
-                      }
-                    />
-                    代理
-                  </label>
-                  {!isBuiltinPlugin(p) && (
+                  <div className="flex items-center gap-1 text-[11px] text-[var(--kz-fg-muted)] min-w-0 max-w-[42%] sm:max-w-[50%]">
+                    <span className="text-[var(--kz-fg-dim)] shrink-0 text-[10px]">🔗</span>
+                    {p.baseURL ? (
+                      <a
+                        href={p.baseURL}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="truncate hover:text-[var(--kz-fg)] hover:underline transition-colors text-[10.5px] sm:text-[11px]"
+                        title={`打开源站：${p.baseURL}`}
+                      >
+                        {p.baseURL.replace(/^https?:\/\//, '')}
+                      </a>
+                    ) : (
+                      <span className="text-[var(--kz-fg-dim)] italic text-[10.5px]">内置专有直连</span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       type="button"
-                      draggable={false}
-                      onDragStart={(e) => e.stopPropagation()}
-                      onClick={() => removePlugin(p.id)}
-                      className="rounded-lg px-2 py-1 text-xs text-red-400 hover:bg-[var(--kz-bg-soft)] cursor-pointer"
+                      onClick={() => setPluginAdBlocker(p.id, !p.adBlocker)}
+                      className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10.5px] font-medium border transition-all cursor-pointer ${
+                        p.adBlocker
+                          ? 'border-emerald-500/35 bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 font-semibold'
+                          : 'border-[var(--kz-border)] bg-[var(--kz-bg)] text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] hover:bg-[var(--kz-bg-elevated)]'
+                      }`}
+                      title={
+                        p.adBlocker
+                          ? '已开启广告过滤（点击关闭）'
+                          : 'HLS 分片广告过滤（#EXT-X-DISCONTINUITY 短段过滤，点击开启）'
+                      }
                     >
-                      删除
+                      <span>🛡️ 广告过滤</span>
                     </button>
-                  )}
+
+                    <button
+                      type="button"
+                      disabled={proxyDisabled || proxyLocked}
+                      onClick={() => setPluginProxy(p.id, !proxyChecked)}
+                      className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10.5px] font-medium border transition-all ${
+                        proxyLocked || proxyDisabled
+                          ? 'cursor-not-allowed opacity-50 border-[var(--kz-border)] bg-[var(--kz-bg-soft)] text-[var(--kz-fg-dim)]'
+                          : proxyChecked
+                            ? 'border-sky-500/35 bg-sky-500/10 text-sky-500 dark:text-sky-400 font-semibold cursor-pointer'
+                            : 'border-[var(--kz-border)] bg-[var(--kz-bg)] text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] hover:bg-[var(--kz-bg-elevated)] cursor-pointer'
+                      }`}
+                      title={
+                        proxyLocked
+                          ? '此源需要服务器代理才能播放，已强制锁定'
+                          : proxyDisabled
+                            ? '需开启上方「服务状态」中的服务器代理'
+                            : proxyChecked
+                              ? '媒体流经服务器代理（点击关闭）'
+                              : '媒体流直连 CDN（点击开启代理）'
+                      }
+                    >
+                      <span>⚡ 代理</span>
+                    </button>
+
+                    {!isBuiltinPlugin(p) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm(`确定删除规则「${p.name}」吗？`)) {
+                            removePlugin(p.id)
+                          }
+                        }}
+                        className="inline-flex items-center gap-0.5 rounded-md border border-rose-500/20 bg-rose-500/5 px-1.5 py-0.5 text-[10.5px] font-medium text-rose-400 hover:bg-rose-500/15 hover:border-rose-500/30 hover:text-rose-500 transition-all cursor-pointer"
+                        title="删除此规则"
+                      >
+                        <span>🗑️</span>
+                        <span>删除</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </li>
             )
