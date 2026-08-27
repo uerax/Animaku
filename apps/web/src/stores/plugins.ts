@@ -105,6 +105,16 @@ const BUILTIN_NAMES = new Set(
 
 export function isBuiltinPlugin(plugin: PluginMeta): boolean {
   if (plugin.source === 'builtin') return true
+  if (plugin.source === 'catalog' || plugin.source === 'import') return false
+  const id = (plugin.id || '').toLowerCase()
+  if (id.endsWith('-builtin')) return true
+  if (
+    id.endsWith('-anibaka') ||
+    id.endsWith('-kazumi') ||
+    id.endsWith('-import')
+  ) {
+    return false
+  }
   if (plugin.name && BUILTIN_NAMES.has(plugin.name.toLowerCase())) return true
   return false
 }
@@ -203,13 +213,21 @@ export const usePluginStore = create<PluginState>()(
         set((s) => {
           const plugin = normalizePlugins(s.plugins).find((p) => p.id === id)
           if (plugin && isBuiltinPlugin(plugin)) return s
+          const remaining = normalizePlugins(s.plugins).filter((p) => p.id !== id)
+          const stillHasSameName = Boolean(
+            plugin &&
+              remaining.some(
+                (p) => p.name.toLowerCase() === plugin.name.toLowerCase(),
+              ),
+          )
           return {
-            plugins: normalizePlugins(s.plugins).filter((p) => p.id !== id),
-            pluginOrder: plugin
-              ? s.pluginOrder.filter(
-                  (n) => n.toLowerCase() !== plugin.name.toLowerCase(),
-                )
-              : s.pluginOrder,
+            plugins: remaining,
+            pluginOrder:
+              plugin && !stillHasSameName
+                ? s.pluginOrder.filter(
+                    (n) => n.toLowerCase() !== plugin.name.toLowerCase(),
+                  )
+                : s.pluginOrder,
           }
         }),
       togglePlugin: (id, enabled) =>

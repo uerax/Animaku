@@ -4,6 +4,22 @@
 
 ---
 
+## [2026-08-28] 修复安装同名外部规则被误判为内置源且无法删除 Bug（精准 source/id 判别 + pluginOrder 保护）
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **排查根本原因**：
+     - `apps/web/src/stores/plugins.ts` 中的 `isBuiltinPlugin` 采用了过于宽泛的名称兜底检查（`BUILTIN_NAMES.has(plugin.name.toLowerCase())`）；
+     - 当用户从 AniBaka 等仓库安装与内置同名的规则（如 `moonci`）时，虽然其实际为 `source: 'catalog'` / `id: 'moonci-anibaka'`，但仍被强制判定为内置源；
+     - 导致 UI 上删除按钮被隐藏、Store 内部 `removePlugin` 拦截拒绝删除，且驱动徽标被误标为 🔵 `内置直连`。
+  2. **全面修复与严格来源隔离 (`apps/web/src/stores/plugins.ts`)**：
+     - **严密判定逻辑 (`isBuiltinPlugin`)**：显式声明 `source === 'catalog'` / `'import'` 或 `id` 以 `-anibaka` / `-kazumi` / `-import` 结尾的规则一律判定为外部规则；仅 `source === 'builtin'` 或 `id` 以 `-builtin` 结尾的规则判定为内置；仅未打标 `source` 的历史 legacy 数据才回退 `BUILTIN_NAMES`；
+     - **删除安全与排序保护 (`removePlugin`)**：当删除某一同名外部规则但内置同名规则依然留存时，避免从 `pluginOrder` 中误清除同名键，确保排序体验连贯。
+- 涉及文件：apps/web/src/stores/plugins.ts, .claude/STATE.md
+- 备注：编写并执行 tsx 覆盖测试全量通过，`pnpm typecheck` 全仓 3 个 workspace 0 报错通过。
+
+---
+
 ## [2026-08-28] 规范已安装规则标签体系（移除灰色弱文本 + 统一收敛为内置直连/内置规则/AniBaka/Kazumi/自定义彩色徽标）
 - 状态：已完成
 - 优先级：P1
