@@ -531,7 +531,7 @@ export function SettingsPage() {
         id="server-status"
         icon={<span className="h-2.5 w-2.5 rounded-full bg-[var(--kz-accent)] inline-block" />}
         title="服务状态"
-        summary={`v${b.version} · ${health.data?.ok ? 'API 正常' : health.isLoading ? '检测中' : '未连接'}`}
+        summary={`${b.version} · ${health.data?.ok ? 'API 正常' : health.isLoading ? '检测中' : '未连接'}`}
         isOpen={Boolean(openSections['server-status'])}
         onToggle={() => toggleSection('server-status')}
       >
@@ -1027,35 +1027,37 @@ export function SettingsPage() {
                       <span className="text-xs text-[var(--kz-fg-muted)]">
                         v{p.version || '?'}
                       </span>
-                      {isFirst && (
-                        <span className="ml-1 text-xs text-[var(--kz-accent)]">
-                          默认源
-                        </span>
-                      )}
-                      {p.source && (
-                        <span className="ml-1 text-xs text-[var(--kz-fg-dim)]">
-                          {p.source === 'builtin'
-                            ? '内置'
-                            : p.source === 'catalog'
-                              ? '仓库'
-                              : '导入'}
-                        </span>
-                      )}
-                      {isAnxRule(p) ? (
+                      {isBuiltinPlugin(p) ? (
+                        ['cycani', 'tvtfun', 'xifan-next', 'moonci', 'anime1', 'omofun'].includes(
+                          p.name.toLowerCase(),
+                        ) ? (
+                          <span
+                            className="ml-1.5 inline-flex items-center rounded border border-sky-500/30 bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-medium text-sky-400"
+                            title="Animaku 内置 · TypeScript 专有直连驱动"
+                          >
+                            内置直连
+                          </span>
+                        ) : (
+                          <span
+                            className="ml-1.5 inline-flex items-center rounded border border-purple-500/30 bg-purple-500/10 px-1.5 py-0.5 text-[10px] font-medium text-purple-400"
+                            title="Animaku 内置 · 通用规则驱动"
+                          >
+                            内置规则
+                          </span>
+                        )
+                      ) : isAnxRule(p) ? (
                         <span
                           className="ml-1.5 inline-flex items-center rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-400"
                           title="由 AniBaka 流水线解释器驱动"
                         >
                           AniBaka
                         </span>
-                      ) : ['cycani', 'tvtfun', 'xifan-next', 'moonci', 'anime1', 'omofun'].includes(
-                          p.name.toLowerCase(),
-                        ) ? (
+                      ) : p.source === 'import' ? (
                         <span
-                          className="ml-1.5 inline-flex items-center rounded border border-sky-500/30 bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-medium text-sky-400"
-                          title="由 TypeScript 专有适配器驱动"
+                          className="ml-1.5 inline-flex items-center rounded border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--kz-fg-muted)]"
+                          title="用户本地导入规则"
                         >
-                          专有直连
+                          自定义
                         </span>
                       ) : (
                         <span
