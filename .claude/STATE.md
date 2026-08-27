@@ -4,6 +4,24 @@
 
 ---
 
+## [2026-08-27] 沉淀 Cloudflare CDN 接入、WAF 防爆破/扫描与边缘缓存规则配置指南 (docs/cloudflare-cdn-rules.md)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **输出全套 Cloudflare 接入与配置指南 (`docs/cloudflare-cdn-rules.md`)**：
+     - **标准接入流程**：涵盖 DNS 小黄云（Proxied）解析、SSL/TLS Full (Strict) 加密与性能优化（Brotli / Early Hints）；
+     - **工业级 WAF 自定义规则**：提供基于 `lower()` 全小写归一化与 `http.request.uri.path.extension in { ... }` 集合匹配的完整防御表达式，覆盖敏感环境文件（`.env`、`.aws`、`.ssh`）、IDE/版本控制泄露（`.git`、`.svn`、`.vscode`）、数据库脱裤（`.sql`、`.db`）、高危脚本探测（`.php`、`.asp`、`.sh`）、备份残留（`.bak`、`.old`）及目录遍历；
+     - **全栈多级边缘缓存规则 (Cache Rules)**：详细列出 Vite 哈希静态资源（1年 immutable）、SPA HTML 动态协商（Bypass/no-cache）、弹幕与 B 站代理（边缘 30m 对齐 `s-maxage=1800`）、SSR `/subject/:id` 预渲染（边缘 1h）、SEO 索引（1h~6h）及媒体代理流旁路策略；
+     - **源站与 Nginx 协同加固**：提供真实客户端 IP 还原配置（`CF-Connecting-IP`）及 Nginx 隐藏文件与危险扩展名阻断配置（杜绝 SPA 路由 200 误报）；
+     - **验证与测试指南**：提供针对 WAF 拦截与 CDN 缓存命中状态（`CF-Cache-Status: HIT`）的 curl 验证命令。
+  2. **文档与导航索引同步 (`README.md`, `docs/CONTEXT.md`, `.claude/feature-map.md`)**：
+     - 在 `README.md` 运维 Q&A 中补充 Cloudflare 配置链接；
+     - 在 `docs/CONTEXT.md` 与 `.claude/feature-map.md` 中同步追加文档路径索引。
+- 涉及文件：docs/cloudflare-cdn-rules.md, README.md, docs/CONTEXT.md, .claude/feature-map.md, .claude/STATE.md
+- 备注：文档创建与全仓索引同步完毕。
+
+---
+
 ## [2026-08-27] 过滤 IP 访问统计中的本地回环地址与健康检查（剔除 127.0.0.1、::1、/api/health 等记录）
 - 状态：已完成
 - 优先级：P1

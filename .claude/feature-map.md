@@ -116,6 +116,7 @@
 - 视频源搜索与章节 SQLite 缓存：`apps/server/src/db/repositories/plugin-search-cache.ts`, `apps/server/src/db/repositories/plugin-chapters-cache.ts`
 - 内存 TTL 缓存 (Single-Flight 防击穿)：`apps/server/src/lib/ttl-cache.ts`
 - CDN 边缘缓存响应头配置：`apps/server/src/lib/cdn-cache-headers.ts`
+- Cloudflare CDN 接入与 WAF/Cache 规则指南：`docs/cloudflare-cdn-rules.md`
 
 ## 12. SEO 搜索引擎优化与收录协议 (SEO & Indexing)
 - 服务端轻量 SSR 预渲染与 Meta 注入：`apps/server/src/lib/seo-prerender.ts`

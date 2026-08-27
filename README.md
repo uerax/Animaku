@@ -272,6 +272,10 @@ A: 确认镜像构建包含前端 SPA；`WEB_DIST=public`，并确认 `GET /api/
 
 A: 服务端 SQLite 缓存数据库保存在容器 `/app/data/animaku.db`（挂载于宿主机 `./data`）。无需安装 SQLite，可通过 `docker compose exec animaku node -e '...'` 一键免安装查询，详见 [数据库运维指南 (docs/database-maintenance.md)](docs/database-maintenance.md)。
 
+#### Q: 如何接入 Cloudflare CDN 加速、配置边缘缓存与防御恶意扫描？
+
+A: 本项目针对 Cloudflare 提供了完整的 WAF 防爆破/防敏感文件嗅探规则以及多级 Edge Cache 最佳实践配置清单，详见 [Cloudflare CDN 与 WAF 规则指南 (docs/cloudflare-cdn-rules.md)](docs/cloudflare-cdn-rules.md)。
+
 #### Q: `pnpm: command not found` / `node_modules missing`？
 
 A: 仅本机 Node / 开发需要 pnpm。请安装 pnpm 9.15.0 并在 **仓库根目录** 执行 `pnpm install`。只想部署请直接使用 Docker。
