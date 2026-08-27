@@ -501,14 +501,22 @@ export function SettingsPage() {
     setInstalling(item.name)
     setPluginMsg('')
     try {
+      const key = (item.id || item.name).toLowerCase()
       const shop = item.shop || activeShop
+      const local =
+        installedById.get(`${key}-${shop}`) || installedById.get(`${key}-builtin`)
+      const isUpdate = Boolean(local)
       const res = await pluginApi.download(item.name, shop, useMirror)
       const validated = validatePluginLocal(res.data)
       if (!validated.ok || !validated.rule) {
         throw new Error(validated.message || '规则校验失败')
       }
       importRule(validated.rule, { source: 'catalog' })
-      setPluginMsg(`已安装 ${item.title || item.name} v${validated.rule.version}`)
+      setPluginMsg(
+        isUpdate
+          ? `已更新 ${item.title || item.name} 至 v${validated.rule.version}`
+          : `已安装 ${item.title || item.name} v${validated.rule.version}`,
+      )
     } catch (e) {
       setPluginMsg(
         e instanceof Error ? e.message : `安装 ${item.title || item.name} 失败`,
@@ -1528,8 +1536,15 @@ export function SettingsPage() {
                         <span>更新：{formatLastUpdate(item.lastUpdate)}</span>
                       )}
                       {local && (
-                        <span className="text-emerald-400/90 font-medium">
+                        <span
+                          className={
+                            status === 'update'
+                              ? 'text-amber-500 dark:text-amber-400 font-medium'
+                              : 'text-emerald-500 dark:text-emerald-400/90 font-medium'
+                          }
+                        >
                           · 本地已装 v{local.version}
+                          {status === 'update' && '（有新版本）'}
                         </span>
                       )}
                     </div>
@@ -1541,9 +1556,15 @@ export function SettingsPage() {
                     type="button"
                     disabled={status === 'installed' || busy}
                     onClick={() => void installFromCatalog(item)}
-                    className="rounded-xl bg-[var(--kz-fg)] px-3 py-1.5 sm:px-4 sm:py-2 text-xs font-semibold text-[var(--kz-bg)] shadow-sm hover:opacity-90 disabled:cursor-default disabled:border disabled:border-[var(--kz-border)] disabled:bg-[var(--kz-bg-elevated)] disabled:text-[var(--kz-fg-muted)] cursor-pointer"
+                    className={
+                      status === 'update'
+                        ? 'rounded-xl bg-emerald-600 dark:bg-emerald-500 px-3 py-1.5 sm:px-4 sm:py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 dark:hover:bg-emerald-400 active:scale-95 transition-all cursor-pointer select-none disabled:opacity-50'
+                        : status === 'install'
+                          ? 'rounded-xl bg-[var(--kz-fg)] px-3 py-1.5 sm:px-4 sm:py-2 text-xs font-semibold text-[var(--kz-bg)] shadow-sm hover:opacity-90 active:scale-95 transition-all cursor-pointer select-none disabled:opacity-50'
+                          : 'rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] px-3 py-1.5 sm:px-4 sm:py-2 text-xs font-medium text-[var(--kz-fg-muted)] opacity-60 cursor-default select-none'
+                    }
                   >
-                    {busy ? '安装中…' : label}
+                    {busy ? (status === 'update' ? '更新中…' : '安装中…') : label}
                   </button>
                 </div>
               </li>

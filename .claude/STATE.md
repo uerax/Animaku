@@ -4,6 +4,26 @@
 
 ---
 
+## [2026-08-28] 规范规则仓库按钮视觉色彩体系（安装/更新/已安装按状态分色区分）
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **排查根本原因**：
+     - 规则仓库列表中的「安装」与「更新」按钮原本统一使用 `bg-[var(--kz-fg)]`，视觉上完全雷同，用户无法一目了然识别哪些已有新版本可升级；
+     - 「更新」状态下的加载反馈文案固定为「安装中…」，且成功 Toast 提示未区分安装与更新。
+  2. **全面升级按钮状态分色与反馈体系 (`apps/web/src/pages/SettingsPage.tsx`)**：
+     - **状态分色规范**：
+       - **更新（Update）**：升级为醒目的翡翠绿高光按钮（`bg-emerald-600 dark:bg-emerald-500 text-white hover:bg-emerald-700 dark:hover:bg-emerald-400`），并在版本提示中以琥珀金黄色高亮标注 `· 本地已装 vX.X（有新版本）`；
+       - **安装（Install）**：保持经典高对比黑白中性按键（`bg-[var(--kz-fg)] text-[var(--kz-bg)]`）；
+       - **已安装（Installed）**：弱化置灰边框卡片按键（`border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] text-[var(--kz-fg-muted)] opacity-60`），版本提示为翡翠绿 `· 本地已装 vX.X`；
+     - **交互与文案对齐**：
+       - 更新中的 Loading 状态准确显示为「更新中…」；
+       - 安装/更新完成后 Toast 精准区分「已更新 X 至 vY」与「已安装 X vY」。
+- 涉及文件：apps/web/src/pages/SettingsPage.tsx, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 3 个 workspace 0 报错通过，`pnpm --filter @animaku/web build` 生产构建验证通过。
+
+---
+
 ## [2026-08-28] 重构设置页已安装规则模块（分层两段式卡片 + 紧凑高度调优 + iOS 风格 Switch + Pill 胶囊开关）
 - 状态：已完成
 - 优先级：P1
