@@ -386,10 +386,10 @@ export function SettingsPage() {
     retry: 1,
   })
 
-  const installedByName = useMemo(() => {
+  const installedById = useMemo(() => {
     const map = new Map<string, PluginMeta>()
     for (const p of plugins) {
-      map.set(p.name.toLowerCase(), p)
+      map.set(p.id.toLowerCase(), p)
     }
     return map
   }, [plugins])
@@ -472,7 +472,9 @@ export function SettingsPage() {
     let failed = 0
     try {
       for (const item of catalog.data.data) {
-        const local = installedByName.get(item.name.toLowerCase())
+        const key = (item.id || item.name).toLowerCase()
+        const shop = item.shop || activeShop
+        const local = installedById.get(`${key}-${shop}`) || installedById.get(`${key}-builtin`)
         const status = catalogItemStatus(local, item)
         if (status !== 'update') continue
         try {
@@ -1077,8 +1079,7 @@ export function SettingsPage() {
                     </div>
                     {blockedByServer && (
                       <div className="mt-0.5 text-xs text-amber-400/90">
-                        服务器仅代理 m3u8，已禁用此源（部署方设置 MEDIA_FULL_PROXY=1
-                        后可用）
+                        服务器代理未开启
                       </div>
                     )}
                   </div>
@@ -1304,7 +1305,9 @@ export function SettingsPage() {
 
         <ul className="max-h-[28rem] space-y-2.5 overflow-y-auto pr-1">
           {catalogItems.map((item) => {
-            const local = installedByName.get(item.name.toLowerCase())
+            const key = (item.id || item.name).toLowerCase()
+            const shop = item.shop || activeShop
+            const local = installedById.get(`${key}-${shop}`) || installedById.get(`${key}-builtin`)
             const status = catalogItemStatus(local, item)
             const busy = installing === item.name
             const label =

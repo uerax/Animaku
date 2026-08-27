@@ -4,6 +4,22 @@
 
 ---
 
+## [2026-08-28] 重构 PluginMeta.id 标识体系与规则仓库 (id || name)-origin 对称匹配
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **排查根本原因**：
+     - 原 `toMeta` 硬编码 `id: ${rule.name}-${rule.version}`，导致 AniBaka 规则自带的英文唯一主键（`rule.id`，如 `7sefun`）被覆盖为中文名，与规则仓库的英文标识错位；
+     - 规则仓库在检查是否已安装时无法匹配，导致安装后依然显示「安装」；
+     - AniBaka 规则文件内部缺少 `version` 字段，导致版本比对始终判定有更新。
+  2. **全面重构与精准匹配**：
+     - **Meta ID 规范化 (`apps/web/src/stores/plugins.ts`)**：将 `toMeta` 重构为以 `const baseKey = (rule.id || rule.name).trim()` 结合来源生态生成 `meta.id = ${baseKey}-${origin}`（`-anibaka`, `-kazumi`, `-builtin`, `-import`），并在 `importRule` 中按 `meta.id` 进行精准覆盖去重；
+     - **仓库双向对齐与版本同步 (`apps/web/src/pages/SettingsPage.tsx`)**：将 `installedByName` 重构为 `installedById`，卡片状态判定与批量更新按 `${key}-${shop}` 与 `${key}-builtin` 精确检索，并在 `installFromCatalog` 时同步仓库真实版本号。
+- 涉及文件：apps/web/src/stores/plugins.ts, apps/web/src/pages/SettingsPage.tsx, .claude/STATE.md
+- 备注：`pnpm typecheck` 全仓 3 个 workspace 0 报错通过。
+
+---
+
 ## [2026-08-27] 沉淀 Cloudflare CDN 接入、WAF 防爆破/扫描与边缘缓存规则配置指南 (docs/cloudflare-cdn-rules.md)
 - 状态：已完成
 - 优先级：P1

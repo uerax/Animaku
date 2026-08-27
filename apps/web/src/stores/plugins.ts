@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { PluginMeta, PluginRule } from '@animaku/shared'
-import { parsePluginRule, comparePluginOrder } from '@animaku/shared'
+import { parsePluginRule, comparePluginOrder, isAnxRule } from '@animaku/shared'
 import { DEFAULT_PLUGIN_RULES } from '../data/default-plugins'
 import { migrateLocalStorageKey } from '../lib/storage'
 
@@ -63,9 +63,16 @@ function toMeta(
   source: PluginMeta['source'] = 'import',
   enabled = true,
 ): PluginMeta {
+  const baseKey = (rule.id || rule.name).trim()
+  const origin =
+    source === 'catalog'
+      ? isAnxRule(rule)
+        ? 'anibaka'
+        : 'kazumi'
+      : source
   return {
     ...rule,
-    id: `${rule.name}-${rule.version || '0'}`,
+    id: `${baseKey}-${origin}`,
     enabled,
     proxy: rule.requiresFullMediaProxy === true ? true : undefined,
     importedAt: Date.now(),
@@ -168,13 +175,13 @@ export const usePluginStore = create<PluginState>()(
         set((s) => {
           const prev = normalizePlugins(s.plugins)
           const existing = prev.find(
-            (p) => p.name.toLowerCase() === meta.name.toLowerCase(),
+            (p) => p.id.toLowerCase() === meta.id.toLowerCase(),
           )
           if (existing && opts?.enabled === undefined) {
             meta.enabled = existing.enabled
           }
           const rest = prev.filter(
-            (p) => p.name.toLowerCase() !== meta.name.toLowerCase(),
+            (p) => p.id.toLowerCase() !== meta.id.toLowerCase(),
           )
           // If user has a custom pluginOrder, preserve the new rule at the end of custom order (or let fallback rank it)
           const newOrder = s.pluginOrder.slice()
