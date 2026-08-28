@@ -7,6 +7,7 @@ import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { config } from './config'
 import { initDatabase, closeDatabase } from './db'
+import { initBangumiDataMapping } from './lib/bangumi-data'
 import { corsOriginDecision } from './lib/access'
 import { accessLogger } from './lib/logger'
 import { ipAccessAndRateLimit } from './lib/ip-rate-limit'
@@ -329,6 +330,7 @@ app.onError((err, c) => {
 
 console.log(`animaku server listening on http://${config.host}:${config.port}`)
 initDatabase()
+initBangumiDataMapping()
 
 // Background initial IndexNow sync (runs 5s after startup if enabled and configured)
 if (config.indexnowEnabled) {

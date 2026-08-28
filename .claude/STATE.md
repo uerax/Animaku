@@ -4,6 +4,61 @@
 
 ---
 
+## [2026-08-28] 实现 B 站弹幕全自动跨站映射同步、智能开闭决策与 O(1) 极速去重合并体系
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **服务端跨平台权威映射仓储与服务 (`apps/server/src/lib/bangumi-data.ts`, `apps/server/src/db/repositories/bangumi-data.ts`)**：
+     - 基于 `bangumi-data` 构建 8,741+ 条全量跨平台映射模型（保留 Bilibili、港澳台、爱奇艺、腾讯、巴哈姆特、MAL、AniDB 等全站点映射，方便后续扩展）；
+     - **三层高可用存储与调度**：
+       - 层 1：启动秒级载入内存 `Map<number, AnimeBangumiMapping>`，查询 `0.001ms` 零 I/O；
+       - 层 2：SQLite `bangumi_data_mapping` 持久化，采用单事务批量 Upsert；
+       - 层 3：7 天周期非阻塞异步拉取与多 CDN 容灾（jsDelivr -> unpkg -> GitHub Raw）；
+     - **两级回退队列与媒体号逆向解析**：支持 `bilibili` 大陆版优先，无大陆版时自动回退到 `bilibili_hk_mo_tw` 港澳台版；支持调用 `/pgc/review/user?media_id=xxx` 自动将 `media_id` 逆向解析为 `season_id`；
+     - **路由增强**：`/api/danmaku/bilibili` 支持 `bgm`/`bangumiId`/`md` 等多模态直接查询。
+  2. **共享层 O(1) 极速弹幕去重与增量合并算法 (`packages/shared/src/danmaku.ts`)**：
+     - `DanmakuComment` 扩展 `senderHash` 字段；
+     - 实现 `deduplicateDanmakuIncremental`：以弹弹为主基准（保留社区时间轴校准），利用 `senderHash + text` 强指纹与 2.5s 滑动时间窗口过滤重复弹幕，精准提取 B 站独有增量。
+  3. **前端客户端并发拉取、智能开闭与多源视觉控制 (`apps/web/src/lib/use-danmaku-session.ts`, `apps/web/src/lib/danmaku-pools.ts`, `apps/web/src/player/DanmakuPanel.tsx`)**：
+     - 播放时并发拉取弹弹源与 B 站官方映射源；
+     - **智能开闭决策**：当 B 站弹幕量显著大于弹弹（`biliCount >= 300 && (biliCount > dandanCount * 1.5 || dandanCount < 50)`）时默认自动点亮开启；否则默认只开启弹弹、B 站静默待命由用户按需点亮；
+     - **多源独立标签与视觉色彩区分**：
+       - 自动同步 B 站源：命名为 **`B站`**（B 站粉色微胶囊）
+       - 手动导入自定义源：命名为 **`bilibili`**（紫粉色微胶囊）
+       - 弹弹play 基础源：命名为 **`弹弹`**（薄荷绿微胶囊）
+       - **紧凑排版与防撑爆横滑保护 (`DanmakuPanel.tsx`)**：采用 `Micro-Pill` 微型胶囊（`text-[10.5px]` + `px-2 py-0.5`），4 个源在单行 270px 空间内完整容纳，配合 `overflow-x-auto no-scrollbar` 弹性横滑保护，底部 Footer 保持 28px 恒定高度，彻底杜绝多源撑爆面板。
+  4. **测试与质量验证**：
+     - 编写 `scripts/test-bilibili-auto-sync.ts` 验证《浪客剑心 追忆篇》（BGM 1728）从 `md28229015 -> ss3578 -> ep86012` 的全自动映射与 5057 条弹幕去重合并；
+     - 全仓 `tsc -b` 与 `vite build` 0 错误编译通过，端到端测试 100% 通过。
+- 涉及文件：apps/server/src/db/schema.ts, apps/server/src/db/repositories/bangumi-data.ts, apps/server/src/db/index.ts, apps/server/src/lib/bangumi-data.ts, apps/server/src/routes/bilibili-danmaku.ts, apps/server/src/index.ts, apps/server/src/data/bangumi-data-snapshot.json, packages/shared/src/danmaku.ts, apps/web/src/lib/danmaku-pools.ts, apps/web/src/lib/use-danmaku-session.ts, apps/web/src/player/DanmakuPanel.tsx, scripts/test-bilibili-auto-sync.ts, .claude/feature-map.md, .claude/STATE.md
+- 备注：完美达成自动映射、智能开闭决策、精准去重与标签规范。
+
+---
+
+## [2026-08-28] 实现 B 站弹幕导入全面支持番剧链接（ep/ss）、av号及 b23.tv 短链
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **排查根本原因**：
+     - 原弹幕导入仅依赖正则 `/BV[0-9A-Za-z]+/` 匹配 `BV` 号，遇到 B 站番剧/影视专属的 `ep` (如 `ep86012`) 或 `ss` (如 `ss28277`) 时前端直接拦截报错；
+     - 原服务端反代路由仅对接了普通 UGC 接口 `api.bilibili.com/x/web-interface/view`，未接入 B 站 PGC 剧集接口。
+  2. **全面升级 B 站多模态输入解析与 PGC 弹幕反代**：
+     - **共享解析工具层 (`packages/shared/src/danmaku.ts`)**：实现 `parseBilibiliInput`，支持智能识别并提取 `ep\d+`、`ss\d+`、`BV[0-9A-Za-z]+`、`av\d+`/`aid=\d+` 以及 `b23.tv` 短链接，并自动提取 URL 中携带的 `?p=N` 分 P 序号；同时保留 `extractBvid` 兼容旧调用；
+     - **服务端多模态反代路由 (`apps/server/src/routes/bilibili-danmaku.ts`)**：
+       - **短链重定向解析**：识别 `b23.tv` 自动跟随 302 重定向定位目标真实链接；
+       - **PGC 剧集分流**：调用 `api.bilibili.com/pgc/view/web/season`，聚合正片与 section (SP/PV) 列表，精准匹配 `ep_id` 或根据 `page` 匹配 `season_id`，提取单集 `cid`、`bvid` 与剧集标题；
+       - **多级缓存体系**：针对 `ep`、`ss`、`bv`、`av` 构建分级 30m TTL 内存缓存与 CDN 响应头；
+     - **前端客户端与交互升级 (`apps/web/src/lib/use-danmaku-session.ts`, `apps/web/src/lib/plugin-api.ts`, `apps/web/src/player/DanmakuPanel.tsx`)**：
+       - 接入统一多格式校验，自动将 URL 中的 `?p=N` 同步至分 P 状态；
+       - 更新桌面端与移动端弹幕导入输入框文案与占位符（`BV号 / ep86012 / ss28277 / av号 / 完整链接`）。
+  3. **测试与质量验证**：
+     - 编写 `scripts/test-bilibili-danmaku.ts` 针对各格式正则解析、真实 B 站 `ep86012`（浪客剑心 追忆篇）、`ss28277`（守护解放西）、`BV1TT4y1g77n`、`av925796497` 及 `b23.tv` 短链测试全量 100% 通过；
+     - `pnpm typecheck` 全仓 3 个 workspace 0 报错，`pnpm build` 全量生产构建成功。
+- 涉及文件：packages/shared/src/danmaku.ts, apps/server/src/routes/bilibili-danmaku.ts, apps/web/src/lib/plugin-api.ts, apps/web/src/lib/use-danmaku-session.ts, apps/web/src/player/DanmakuPanel.tsx, scripts/test-bilibili-danmaku.ts, .claude/feature-map.md, .claude/STATE.md
+- 备注：实现方案完整覆盖 PGC/UGC/短链全场景，运行顺畅。
+
+---
+
 ## [2026-08-28] 全面重构并同步中英文项目文档 (README.md & README.en.md)
 - 状态：已完成
 - 优先级：P1

@@ -10,8 +10,10 @@ import {
 import {
   bestTitleSimilarity,
   extractBvid,
+  parseBilibiliInput,
   matchDanmakuEpisode,
   parseDanmakuXml,
+  deduplicateDanmakuIncremental,
   titleSimilarity,
   type DanmakuAnime,
   type DanmakuComment,
@@ -146,32 +148,106 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
   }, [])
 
   const loadCommentsByEpisodeId = useCallback(
-    async (epId: number, signal?: AbortSignal) => {
-      const cached = commentsCacheRef.current.get(epId)
-      if (cached) {
-        setPools((p) =>
-          writePool(p, 'dandan', cached.data, 'replace', `ep ${epId}`),
-        )
-        setEpisodeId(epId)
-        setStatus(`弹弹 · 已加载 ${cached.count} 条（其它源保留）`)
-        return cached
+    async (
+      epId: number,
+      opts?:
+        | {
+            targetEpNum?: number
+            targetBgmId?: number
+            signal?: AbortSignal
+          }
+        | AbortSignal,
+    ) => {
+      let signal: AbortSignal | undefined
+      let targetEpNum = episode
+      let targetBgmId = bangumiId
+
+      if (opts instanceof AbortSignal) {
+        signal = opts
+      } else if (opts) {
+        signal = opts.signal
+        if (opts.targetEpNum !== undefined) targetEpNum = opts.targetEpNum
+        if (opts.targetBgmId !== undefined) targetBgmId = opts.targetBgmId
       }
 
-      const comments = await danmakuApi.comments(epId, { signal })
-      if (commentsCacheRef.current.size > 100) {
-        const firstKey = commentsCacheRef.current.keys().next().value
-        if (firstKey !== undefined) commentsCacheRef.current.delete(firstKey)
-      }
-      commentsCacheRef.current.set(epId, comments)
+      // 1. Fetch Dandan comments and Bilibili auto comments in parallel
+      const [dandanSettled, biliSettled] = await Promise.allSettled([
+        danmakuApi.comments(epId, { signal }),
+        targetBgmId > 0
+          ? danmakuApi.bilibili(`bgm${targetBgmId}`, targetEpNum, { signal })
+          : Promise.resolve(null),
+      ])
 
-      setPools((p) =>
-        writePool(p, 'dandan', comments.data, 'replace', `ep ${epId}`),
+      let dandanComments: DanmakuComment[] = []
+      let dandanCount = 0
+      if (dandanSettled.status === 'fulfilled') {
+        dandanComments = dandanSettled.value.data || []
+        dandanCount = dandanSettled.value.count || dandanComments.length
+      }
+
+      let biliComments: DanmakuComment[] = []
+      let biliCount = 0
+      let biliPart = ''
+      if (biliSettled.status === 'fulfilled' && biliSettled.value?.data) {
+        biliComments = biliSettled.value.data || []
+        biliCount = biliSettled.value.count || biliComments.length
+        biliPart = biliSettled.value.meta?.part || `P${targetEpNum}`
+      }
+
+      // 2. Perform O(1) deduplication
+      const { incremental } = deduplicateDanmakuIncremental(
+        dandanComments,
+        biliComments,
       )
+
+      // 3. Determine whether Bilibili auto source should be enabled by default
+      const isBiliSignificant =
+        biliCount >= 300 &&
+        (biliCount > dandanCount * 1.5 || dandanCount < 50)
+
+      setPools((p) => {
+        let next = writePool(
+          p,
+          'dandan',
+          dandanComments,
+          'replace',
+          `ep ${epId}`,
+          true,
+        )
+        if (biliComments.length > 0) {
+          next = writePool(
+            next,
+            'bilibili_auto',
+            incremental,
+            'replace',
+            biliPart,
+            isBiliSignificant,
+          )
+        }
+        return next
+      })
+
       setEpisodeId(epId)
-      setStatus(`弹弹 · 已加载 ${comments.count} 条（其它源保留）`)
-      return comments
+
+      if (isBiliSignificant && incremental.length > 0) {
+        setStatus(
+          `弹弹 (${dandanCount}) + B站 (+${incremental.length}) 已启用`,
+        )
+      } else if (biliComments.length > 0) {
+        setStatus(
+          `弹弹 (${dandanCount}) 已启用 · B站 (${biliCount}) 待命`,
+        )
+      } else {
+        setStatus(`弹弹 · 已加载 ${dandanCount} 条`)
+      }
+
+      return {
+        dandanCount,
+        biliCount,
+        incrementalCount: incremental.length,
+      }
     },
-    [],
+    [episode, bangumiId],
   )
 
   function scoreAnimeLive(animeTitle: string): number {
@@ -417,19 +493,38 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
   }, [keyword, handleAnimeChange])
 
   const handleLoadBilibili = useCallback(async () => {
-    const bvid = extractBvid(bvInput)
-    if (!bvid) {
-      setStatus('请输入有效 BV 号或视频链接')
+    const target = parseBilibiliInput(bvInput)
+    if (!target) {
+      setStatus(
+        '请输入有效 B 站链接（支持 BV号 / ep番剧 / ss季度 / av号 / b23短链）',
+      )
       return
     }
+    const effectivePage =
+      target.page && target.page > 0 ? target.page : bvPage
+    if (target.page && target.page > 0 && target.page !== bvPage) {
+      setBvPage(target.page)
+    }
+
+    const displayId =
+      target.type === 'ep'
+        ? `ep${target.epId}`
+        : target.type === 'ss'
+          ? `ss${target.seasonId}`
+          : target.type === 'bv'
+            ? target.bvid
+            : target.type === 'av'
+              ? `av${target.aid}`
+              : '链接'
+
     setBilibiliBusy(true)
-    setStatus(`拉取 B 站弹幕 ${bvid}…`)
+    setStatus(`拉取 B 站弹幕 ${displayId}…`)
     try {
-      const res = await danmakuApi.bilibili(bvid, bvPage)
+      const res = await danmakuApi.bilibili(bvInput.trim(), effectivePage)
       const part = res.meta.part ? ` · ${res.meta.part}` : ''
-      const meta = `${res.meta.title || bvid}${part}`
-      setPools((p) => writePool(p, 'bilibili', res.data, 'append', meta))
-      setStatus(`已追加 B站 · ${meta} · +${res.count} 条（默认叠加显示）`)
+      const meta = `${res.meta.title || displayId}${part}`
+      setPools((p) => writePool(p, 'bilibili_manual', res.data, 'append', meta, true))
+      setStatus(`已追加 bilibili · ${meta} · +${res.count} 条（默认叠加显示）`)
     } catch (e) {
       setStatus(e instanceof Error ? e.message : 'B 站弹幕拉取失败')
     } finally {

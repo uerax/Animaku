@@ -275,42 +275,64 @@ function SourcesFooter({
     <div
       className={
         compact
-          ? 'kz-danmaku-panel-sources shrink-0 border-t border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/60 px-3 py-2.5 text-[var(--kz-fg-muted)]'
-          : 'kz-danmaku-panel-sources shrink-0 border-t border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/60 px-3 py-2 text-[var(--kz-fg-muted)]'
+          ? 'kz-danmaku-panel-sources shrink-0 border-t border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/60 px-3 py-2 text-[var(--kz-fg-muted)]'
+          : 'kz-danmaku-panel-sources shrink-0 border-t border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/60 px-3 py-1.5 text-[var(--kz-fg-muted)]'
       }
     >
-      <div
-        className={
-          compact
-            ? 'mb-1 text-[11px] font-medium text-[var(--kz-fg-muted)]'
-            : 'mb-1.5 text-[11px] text-[var(--kz-fg-muted)]'
-        }
-      >
-        弹幕源
+      <div className="mb-1 flex items-center justify-between text-[10.5px] font-medium text-[var(--kz-fg-muted)]">
+        <span>弹幕源</span>
+        <span className="text-[10px] opacity-70">点击可单独开/关</span>
       </div>
-      <div className="flex flex-wrap gap-1.5">
-        {loaded.map((s) => (
-          <button
-            key={s.id}
-            type="button"
-            onClick={() => onToggleSource(s.id)}
-            title={
-              s.enabled
-                ? `点击关闭「${s.label}」${s.meta ? ` · ${s.meta}` : ''}`
-                : `点击显示「${s.label}」${s.meta ? ` · ${s.meta}` : ''}`
-            }
-            className={
-              s.enabled
-                ? 'rounded-full bg-[var(--kz-accent-soft)] border border-[var(--kz-accent)] px-2.5 py-1 text-[11px] font-medium text-[var(--kz-accent)] shadow-sm transition-all cursor-pointer'
-                : 'rounded-full bg-[var(--kz-bg-soft)] border border-[var(--kz-border)] px-2.5 py-1 text-[11px] font-medium text-[var(--kz-fg-muted)] hover:bg-[var(--kz-bg-hover)] hover:text-[var(--kz-fg)] transition-all cursor-pointer'
-            }
-          >
-            {s.label}
-            <span className="ml-1 opacity-80">
-              {s.count}
-            </span>
-          </button>
-        ))}
+      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 scroll-smooth">
+        {loaded.map((s) => {
+          let activeClass =
+            'border-emerald-500/40 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-semibold'
+          let badgeActive =
+            'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+
+          if (s.id === 'bilibili_auto') {
+            activeClass =
+              'border-pink-500/40 bg-pink-500/15 text-pink-600 dark:text-pink-400 font-semibold'
+            badgeActive = 'bg-pink-500/20 text-pink-700 dark:text-pink-300'
+          } else if (s.id === 'bilibili_manual') {
+            activeClass =
+              'border-purple-500/40 bg-purple-500/15 text-purple-600 dark:text-purple-400 font-semibold'
+            badgeActive = 'bg-purple-500/20 text-purple-700 dark:text-purple-300'
+          } else if (s.id === 'upload') {
+            activeClass =
+              'border-sky-500/40 bg-sky-500/15 text-sky-600 dark:text-sky-400 font-semibold'
+            badgeActive = 'bg-sky-500/20 text-sky-700 dark:text-sky-300'
+          }
+
+          return (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => onToggleSource(s.id)}
+              title={
+                s.enabled
+                  ? `点击关闭「${s.label}」${s.meta ? ` · ${s.meta}` : ''}`
+                  : `点击显示「${s.label}」${s.meta ? ` · ${s.meta}` : ''}`
+              }
+              className={`group inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10.5px] leading-tight transition-all duration-150 cursor-pointer select-none ${
+                s.enabled
+                  ? `${activeClass} shadow-xs`
+                  : 'border-[var(--kz-border)] bg-[var(--kz-bg-soft)] text-[var(--kz-fg-muted)] opacity-70 hover:opacity-100 hover:border-[var(--kz-border-hover)]'
+              }`}
+            >
+              <span>{s.label}</span>
+              <span
+                className={`rounded-full px-1 py-0.2 text-[9.5px] font-mono leading-none tracking-tight ${
+                  s.enabled
+                    ? badgeActive
+                    : 'bg-black/10 dark:bg-white/10 text-[var(--kz-fg-muted)]'
+                }`}
+              >
+                {s.count}
+              </span>
+            </button>
+          )
+        })}
       </div>
     </div>
   )
@@ -762,12 +784,12 @@ function ImportTab({ compact, ...props }: Props & { compact: boolean }) {
     return (
       <div className="kz-dm-form">
         <div className="kz-dm-section">
-          <div className="kz-dm-label">B 站 BV 号 / 链接</div>
+          <div className="kz-dm-label">B 站视频 / 番剧链接</div>
           <input
             className="kz-dm-input"
             value={props.bvInput}
             onChange={(e) => props.onBvInputChange(e.target.value)}
-            placeholder="BV1… 或完整链接"
+            placeholder="BV号 / ep86012 / ss季度 / 完整链接"
             onKeyDown={(e) => {
               if (e.key === 'Enter') props.onLoadBilibili()
             }}
@@ -855,12 +877,12 @@ function ImportTab({ compact, ...props }: Props & { compact: boolean }) {
   return (
     <div className="space-y-3">
       <div className="space-y-1.5">
-        <div className="text-xs text-[var(--kz-fg-muted)]">Bilibili BV 号 / 链接</div>
+        <div className="text-xs text-[var(--kz-fg-muted)]">Bilibili 视频 / 番剧链接</div>
         <input
           className="w-full rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-2.5 py-1.5 text-sm text-[var(--kz-fg)] placeholder:text-[var(--kz-fg-muted)] outline-none focus:border-[var(--kz-accent)]"
           value={props.bvInput}
           onChange={(e) => props.onBvInputChange(e.target.value)}
-          placeholder="BV1… 或完整视频链接"
+          placeholder="BV号 / ep86012 / ss28277 / av号 / 完整链接"
           onKeyDown={(e) => {
             if (e.key === 'Enter') props.onLoadBilibili()
           }}
@@ -888,7 +910,7 @@ function ImportTab({ compact, ...props }: Props & { compact: boolean }) {
           </button>
         </div>
         <p className="text-[11px] text-[var(--kz-fg-muted)]">
-          默认追加到现有弹幕，不会清空弹弹源。
+          支持番剧 ep/ss、普通视频 BV/av 及短链，默认追加到现有弹幕。
         </p>
       </div>
 

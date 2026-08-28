@@ -6,6 +6,7 @@ export interface DanmakuComment {
   time: number
   style?: { color?: string }
   source?: string
+  senderHash?: string
 }
 
 export interface DanmakuAnime {
@@ -97,7 +98,7 @@ export function parseDanmakuComments(
 ): DanmakuComment[] {
   const out: DanmakuComment[] = []
   for (const o of comments) {
-    const [time, type, color, source] = o.p.split(',')
+    const [time, type, color, senderHash] = o.p.split(',')
     const t = parseFloat(time)
     if (!Number.isFinite(t)) continue
     out.push({
@@ -105,7 +106,8 @@ export function parseDanmakuComments(
       text: o.m,
       time: t,
       style: { color: colorToHex(color) },
-      source: source || '',
+      source: 'dandan',
+      senderHash: senderHash || undefined,
     })
   }
   out.sort((a, b) => a.time - b.time)
@@ -114,7 +116,7 @@ export function parseDanmakuComments(
 
 /**
  * Parse bilibili / pakku style danmaku XML.
- * Each `<d p="time,mode,fontSize,color,...">text</d>`
+ * Each `<d p="time,mode,fontSize,color,timestamp,pool,senderHash,rowId">text</d>`
  * (same format agefans-enhance `parsePakkuDanmakuXML` expects)
  */
 export function parseDanmakuXml(xml: string): DanmakuComment[] {
@@ -130,16 +132,73 @@ export function parseDanmakuXml(xml: string): DanmakuComment[] {
     const time = parseFloat(parts[0] || '0')
     const type = parts[1] || '1'
     const color = parts[3]
+    const senderHash = parts[6] || undefined
     if (!Number.isFinite(time)) continue
     out.push({
       mode: MODE_MAP[type] || 'rtl',
       text,
       time,
       style: { color: colorToHex(color) },
-      source: 'xml',
+      source: 'bilibili',
+      senderHash,
     })
   }
   return out.sort((a, b) => a.time - b.time)
+}
+
+/**
+ * Fast O(1) deduplication of extra/Bilibili comments against base/Dandan comments.
+ * 1. Strong match: senderHash + '_' + normalizedText
+ * 2. Time window match: same normalizedText within tolerance window (default 2.5s)
+ * Returns the filtered incremental list from extraComments that are NOT in baseComments.
+ */
+export function deduplicateDanmakuIncremental(
+  baseComments: DanmakuComment[],
+  extraComments: DanmakuComment[],
+  opts?: { windowSeconds?: number }
+): {
+  incremental: DanmakuComment[]
+  duplicatesCount: number
+} {
+  const windowSec = opts?.windowSeconds ?? 2.5
+  const baseStrongFingerprints = new Set<string>()
+  const baseTimeBuckets = new Map<string, number[]>()
+
+  for (const c of baseComments) {
+    const text = (c.text || '').trim().toLowerCase()
+    if (!text) continue
+    if (c.senderHash) {
+      baseStrongFingerprints.add(`${c.senderHash}_${text}`)
+    }
+    const times = baseTimeBuckets.get(text) || []
+    times.push(c.time)
+    baseTimeBuckets.set(text, times)
+  }
+
+  const incremental: DanmakuComment[] = []
+  let duplicatesCount = 0
+
+  for (const c of extraComments) {
+    const text = (c.text || '').trim().toLowerCase()
+    if (!text) continue
+
+    // Rule 1: Strong fingerprint (same sender hash + same content)
+    if (c.senderHash && baseStrongFingerprints.has(`${c.senderHash}_${text}`)) {
+      duplicatesCount++
+      continue
+    }
+
+    // Rule 2: Time-window content match (same text within windowSec)
+    const existingTimes = baseTimeBuckets.get(text)
+    if (existingTimes && existingTimes.some((t) => Math.abs(t - c.time) <= windowSec)) {
+      duplicatesCount++
+      continue
+    }
+
+    incremental.push(c)
+  }
+
+  return { incremental, duplicatesCount }
 }
 
 function decodeXmlEntities(s: string): string {
@@ -161,9 +220,124 @@ function colorToHex(color: string | undefined): string {
   return `#${(n & 0xffffff).toString(16).padStart(6, '0')}`
 }
 
+/**
+ * Structured target representation for Bilibili video / bangumi input.
+ */
+export type BilibiliTarget =
+  | { type: 'ep'; epId: number; page?: number; raw: string }
+  | { type: 'ss'; seasonId: number; page?: number; raw: string }
+  | { type: 'md'; mediaId: number; page?: number; raw: string }
+  | { type: 'bgm'; bangumiId: number; page?: number; raw: string }
+  | { type: 'bv'; bvid: string; page?: number; raw: string }
+  | { type: 'av'; aid: number; page?: number; raw: string }
+  | { type: 'b23'; url: string; page?: number; raw: string }
+
+/**
+ * Parse various formats of Bilibili links and IDs:
+ * - Bangumi episode: https://www.bilibili.com/bangumi/play/ep86012, ep86012, ep_id=86012
+ * - Bangumi season: https://www.bilibili.com/bangumi/play/ss28277, ss28277, season_id=28277
+ * - UGC BV video: https://www.bilibili.com/video/BV1TT4y1g77n, BV1TT4y1g77n
+ * - UGC AV video: https://www.bilibili.com/video/av925796497, av925796497, aid=925796497
+ * - Short links: https://b23.tv/ep86012, https://b23.tv/BV1xx, https://b23.tv/XyZ123
+ * Automatically extracts ?p=N or &p=N pagination.
+ */
+export function parseBilibiliInput(input: string): BilibiliTarget | null {
+  const s = (input || '').trim()
+  if (!s) return null
+
+  // 1. Extract optional page index (?p=2, ?page=2, &p=2)
+  let page: number | undefined
+  const pageMatch = s.match(/[?&](?:p|page)=(\d+)/i)
+  if (pageMatch) {
+    const p = parseInt(pageMatch[1], 10)
+    if (p > 0) page = p
+  }
+
+  // 2. Bangumi Episode (e.g. ep86012, /bangumi/play/ep86012, ep_id=86012)
+  const epMatch = s.match(/(?:^|\/|[?&]ep_id=|\b)ep(\d+)/i)
+  if (epMatch) {
+    return {
+      type: 'ep',
+      epId: parseInt(epMatch[1], 10),
+      page,
+      raw: s,
+    }
+  }
+
+  // 3. Bangumi Season (e.g. ss28277, /bangumi/play/ss28277, season_id=28277)
+  const ssMatch = s.match(/(?:^|\/|[?&]season_id=|\b)ss(\d+)/i)
+  if (ssMatch) {
+    return {
+      type: 'ss',
+      seasonId: parseInt(ssMatch[1], 10),
+      page,
+      raw: s,
+    }
+  }
+
+  // 4. Bangumi Media (e.g. md28229015, /bangumi/media/md28229015, media_id=28229015)
+  const mdMatch = s.match(/(?:^|\/|[?&]media_id=|\b)md(\d+)/i)
+  if (mdMatch) {
+    return {
+      type: 'md',
+      mediaId: parseInt(mdMatch[1], 10),
+      page,
+      raw: s,
+    }
+  }
+
+  // 5. Bangumi.tv Subject (e.g. bgm1728, /subject/1728, bgm_id=1728)
+  const bgmMatch = s.match(/(?:^|\/|[?&](?:bgm_id|bgm|bangumi_id)=|\b)bgm(\d+)/i) || s.match(/bangumi\.tv\/subject\/(\d+)/i)
+  if (bgmMatch) {
+    return {
+      type: 'bgm',
+      bangumiId: parseInt(bgmMatch[1], 10),
+      page,
+      raw: s,
+    }
+  }
+
+  // 6. Standard BV (e.g. BV1TT4y1g77n, /video/BV1TT4y1g77n)
+  const bvMatch = s.match(/BV[0-9A-Za-z]+/)
+  if (bvMatch) {
+    return {
+      type: 'bv',
+      bvid: bvMatch[0],
+      page,
+      raw: s,
+    }
+  }
+
+  // 5. Classic AV / AID (e.g. av925796497, /video/av925796497, aid=925796497)
+  const avMatch = s.match(/(?:^|\/|[?&]aid=|\b)av(\d+)/i)
+  if (avMatch) {
+    return {
+      type: 'av',
+      aid: parseInt(avMatch[1], 10),
+      page,
+      raw: s,
+    }
+  }
+
+  // 6. Generic b23.tv short link (e.g. https://b23.tv/AbCdEf or b23.tv/AbCdEf)
+  const b23Match = s.match(/(?:https?:\/\/)?(?:www\.)?b23\.tv\/([A-Za-z0-9_-]+)/i)
+  if (b23Match) {
+    return {
+      type: 'b23',
+      url: s.startsWith('http') ? s : `https://${s}`,
+      page,
+      raw: s,
+    }
+  }
+
+  return null
+}
+
 /** Extract BV id from raw input (url or bare BV…) */
 export function extractBvid(input: string): string | null {
-  const s = input.trim()
+  const target = parseBilibiliInput(input)
+  if (target?.type === 'bv') return target.bvid
+  const s = (input || '').trim()
   if (!s) return null
   const m = s.match(/BV[0-9A-Za-z]+/)
   return m ? m[0] : null

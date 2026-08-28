@@ -5,6 +5,9 @@ import { pluginChaptersCache, PluginChaptersCacheRepository } from './repositori
 import { kvCache, KvCacheRepository } from './repositories/kv-cache'
 import { playStatsRepo, PlayStatsRepository } from './repositories/play-stats'
 import { ipAccessRepo, IpAccessRepository } from './repositories/ip-access'
+import { BangumiDataRepository, type AnimeBangumiMapping } from './repositories/bangumi-data'
+
+const bangumiDataRepo = new BangumiDataRepository()
 
 let initialized = false
 let cleanupTimer: NodeJS.Timeout | null = null
@@ -62,4 +65,7 @@ export {
   PlayStatsRepository,
   ipAccessRepo,
   IpAccessRepository,
+  bangumiDataRepo,
+  BangumiDataRepository,
+  type AnimeBangumiMapping,
 }

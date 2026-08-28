@@ -1,17 +1,19 @@
 import type { DanmakuComment } from '@animaku/shared'
 
 /** Independent comment pools that can be shown / hidden without reloading */
-export type DanmakuPoolId = 'dandan' | 'bilibili' | 'upload'
+export type DanmakuPoolId = 'dandan' | 'bilibili_auto' | 'bilibili_manual' | 'upload'
 
 export const DANMAKU_POOL_ORDER: DanmakuPoolId[] = [
   'dandan',
-  'bilibili',
+  'bilibili_auto',
+  'bilibili_manual',
   'upload',
 ]
 
 export const DANMAKU_POOL_LABEL: Record<DanmakuPoolId, string> = {
   dandan: '弹弹',
-  bilibili: 'B站',
+  bilibili_auto: 'B站',
+  bilibili_manual: 'bilibili',
   upload: '用户上传',
 }
 
@@ -37,7 +39,8 @@ export type DanmakuSourceChip = {
 export function emptyDanmakuPools(): DanmakuPools {
   return {
     dandan: { comments: [], enabled: true },
-    bilibili: { comments: [], enabled: true },
+    bilibili_auto: { comments: [], enabled: false },
+    bilibili_manual: { comments: [], enabled: true },
     upload: { comments: [], enabled: true },
   }
 }
@@ -82,7 +85,7 @@ export function tagCommentsPool(
  * Write into one pool.
  * - replace: used for 弹弹 re-match / re-pick episode
  * - append: default for B站 / 本地 XML import
- * Newly written pool is auto-enabled.
+ * If enabled is provided, sets enabled state explicitly; otherwise defaults to true.
  */
 export function writePool(
   pools: DanmakuPools,
@@ -90,6 +93,7 @@ export function writePool(
   comments: DanmakuComment[],
   mode: 'replace' | 'append',
   meta?: string,
+  enabled?: boolean,
 ): DanmakuPools {
   const tagged = tagCommentsPool(comments, id)
   const prev = pools[id]
@@ -99,7 +103,7 @@ export function writePool(
     ...pools,
     [id]: {
       comments: nextComments,
-      enabled: true,
+      enabled: enabled !== undefined ? enabled : true,
       meta: meta !== undefined ? meta : prev.meta,
     },
   }

@@ -47,21 +47,29 @@ export const danmakuApi = {
       `/api/danmaku/comment/${episodeId}?withRelated=true&chConvert=1${opts?.refresh ? '&refresh=1' : ''}`,
       withRefreshHeaders({ signal: opts?.signal }, opts?.refresh),
     ),
-  /** BV 号 / 链接 → 解析弹幕（服务端代理 B 站） */
-  bilibili: (bvid: string, page = 1, opts?: SignalOpt) =>
+  /** B 站链接 / BV / ep / ss / av / b23 短链 → 解析弹幕（服务端代理 B 站） */
+  bilibili: (input: string, page = 1, opts?: SignalOpt) =>
     api<{
       data: DanmakuComment[]
       count: number
       meta: {
-        bvid: string
+        bvid?: string
+        epid?: number
+        seasonId?: number
         cid: number
         page: number
         title: string
         part: string
-        pages: Array<{ page: number; cid: number; part: string }>
+        pages: Array<{
+          page: number
+          cid: number
+          part: string
+          epId?: number
+          bvid?: string
+        }>
       }
     }>(
-      `/api/danmaku/bilibili?bvid=${encodeURIComponent(bvid)}&p=${page}${opts?.refresh ? '&refresh=1' : ''}`,
+      `/api/danmaku/bilibili?input=${encodeURIComponent(input)}&p=${page}${opts?.refresh ? '&refresh=1' : ''}`,
       withRefreshHeaders({ signal: opts?.signal }, opts?.refresh),
     ),
 }

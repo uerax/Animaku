@@ -26,11 +26,12 @@
 ## 3. 高精弹幕渲染与弹幕流引擎 (Danmaku Engine & Streams)
 - Canvas 2D 物理时钟弹幕渲染引擎：`apps/web/src/player/media/canvas-danmaku.ts`（rVFC 帧同步、分级漂移滤波、Retina 离屏位图缓存）
 - 弹幕控制与设置面板：`apps/web/src/player/DanmakuPanel.tsx`
-- 客户端弹幕会话调度：`apps/web/src/lib/use-danmaku-session.ts`（切集复用、BGM优先降级、客户端内存缓存）
-- 弹幕过滤与池化转换：`apps/web/src/lib/danmaku-pools.ts`, `apps/web/src/player/media/danmaku-utils.ts`
-- 弹幕类型与集数正则匹配：`packages/shared/src/danmaku.ts`
+- 客户端弹幕会话调度：`apps/web/src/lib/use-danmaku-session.ts`（弹弹+B站双源并发拉取、根据数量比智能开闭、切集复用、客户端内存缓存）
+- 弹幕过滤与池化转换：`apps/web/src/lib/danmaku-pools.ts`, `apps/web/src/player/media/danmaku-utils.ts`（多源独立控制、B站自动源与bilibili手动源样式区分）
+- 弹幕类型与集数正则匹配：`packages/shared/src/danmaku.ts`（弹幕类型定义、O(1)极速发送者哈希+文本增量去重算法、ep/ss/md/bgm/bv/av/b23 智能解析器与分P匹配）
+- 跨平台映射服务 (bangumi-data)：`apps/server/src/lib/bangumi-data.ts`, `apps/server/src/db/repositories/bangumi-data.ts`（BGM ID到全网多平台ID映射、SQLite持久化、7天周期异步增量同步与港澳台回退队列）
 - 弹弹 API 代理与服务端缓存：`apps/server/src/routes/danmaku.ts`, `apps/server/src/lib/dandan.ts`
-- B 站弹幕反代与 Proto 解析：`apps/server/src/routes/bilibili-danmaku.ts`
+- B 站弹幕反代与 Proto 解析：`apps/server/src/routes/bilibili-danmaku.ts`（B 站 PGC/UGC/短链/BGM映射弹幕反代、media_id逆向解析、ep/ss/md/bgm/bv/av 多模态解析与 30m TTL 缓存）
 
 ## 4. OP/ED 跳过与标记助手 (OP/ED Markers & Community Contribution)
 - OP/ED 标记助手抽屉：`apps/web/src/player/chrome/OpedMarkerDrawer.tsx`
