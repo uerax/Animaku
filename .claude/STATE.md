@@ -4,6 +4,24 @@
 
 ---
 
+## [2026-08-28] 全面重构并同步中英文项目文档 (README.md & README.en.md)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **全面同步最新特性与架构演进 (`README.md` & `README.en.md`)**：
+     - **双规则生态与新一代流水线规则引擎 (`anx-rule/2`)**：系统化阐述 AniBaka 20+ 流水线算子解释器、AniBaka (34+ 现代源) 与 Kazumi 双规则仓库、安装/更新分色、多维度彩色徽标、HTML5/Touch 触摸拖拽排序与分层紧凑卡片；
+     - **B 站同款视口与桌面端宽屏模式 (Widescreen)**：详细介绍「🖥️ 宽屏模式 / 🔲 网页全屏 / ⛶ 系统全屏」屏幕三剑客、73.5%:26.5% 视口黄金比例、视口一屏守恒与 `clamp(360px, 23vw, 420px)` 响应式侧栏；
+     - **B 站风格番剧推荐流 (WatchRecommendations)**：阐述 Slot 0 系列接续、国家 Tag 严格优先级（日本/国产/欧美/韩国）、自适应多象限分桶抽样与推荐跳转视频源参数继承；
+     - **播放器极致稳定性与 Safari 深度优化**：总结原地 Seek 状态机、4 重时序互锁网、HTML5 `<source type="...">` 显式 MIME 提示（解决 Safari 伪装 `.mp3` 黑屏）及 50ms 微缓冲乐观起播；
+     - **全栈性能、指标统计与安全防御**：阐述 15s 有效播放统计 (`anime_play_stats`)、微合批 IP 访问频控 (`ip_access_logs`)、IndexNow 即时收录协议与 `/subject/:id` 服务端 SSR 预渲染；
+     - **折叠式设置中心与多端交互**：阐述智能折叠卡片（Glanceable Status Chips）、移动端窄屏排版与手势支持。
+  2. **完善配套运维与架构文档导航**：
+     - 整合 `docs/database-maintenance.md`（SQLite 字典与免安装查询）、`docs/cloudflare-cdn-rules.md`（Cloudflare WAF 与 Edge Cache）、`docs/video-source-integration.md`（视频源接入规范）及 `docs/danmaku-perf.md`。
+- 涉及文件：README.md, README.en.md, .claude/STATE.md
+- 备注：中英文文档同步完成，排版工整，所有链接与命令核对无误。
+
+---
+
 ## [2026-08-28] 规范规则仓库按钮视觉色彩体系（安装/更新/已安装按状态分色区分）
 - 状态：已完成
 - 优先级：P2
