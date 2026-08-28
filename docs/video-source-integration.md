@@ -37,15 +37,15 @@
 
 ### 步骤一：自动化指纹探测与协议逆向
 
-项目提供了标准化的**自动化视频源探查工具**（`scripts/probe-source.ts`），可快速识别技术指纹、反爬特征并给出推荐接入形态：
+项目提供了标准化的**自动化视频源探查工具**（`scripts/probe-source.mjs`），可快速识别技术指纹、反爬特征并给出推荐接入形态：
 
 ```bash
 # 自动化探查视频源架构与接口
-npx tsx scripts/probe-source.ts <站点URL> [测试关键词]
+node scripts/probe-source.mjs <站点URL> [测试关键词]
 
 # 示例
-npx tsx scripts/probe-source.ts https://www.tvtfun.net/videos 从零开始
-npx tsx scripts/probe-source.ts https://www.cycani.org 鬼灭之刃
+node scripts/probe-source.mjs https://www.tvtfun.net/videos 从零开始
+node scripts/probe-source.mjs https://www.cycani.org 鬼灭之刃
 ```
 
 探查核心 4 个业务链路：

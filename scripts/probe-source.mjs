@@ -1,39 +1,26 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env node
 /**
  * 视频源自动化探查与指纹识别工具 (Automated Video Source Prober)
  *
  * 用法:
- *   npx tsx scripts/probe-source.ts <URL> [keyword]
+ *   node scripts/probe-source.mjs <URL> [keyword]
  *
  * 示例:
- *   npx tsx scripts/probe-source.ts https://www.tvtfun.net/videos 从零开始
- *   npx tsx scripts/probe-source.ts https://www.cycani.org 鬼灭之刃
+ *   node scripts/probe-source.mjs https://www.tvtfun.net/videos 从零开始
+ *   node scripts/probe-source.mjs https://www.cycani.org 鬼灭之刃
  */
 
 const targetUrl = process.argv[2]
 const testKeyword = process.argv[3] || '从零开始'
 
 if (!targetUrl) {
-  console.log(`\n用法: npx tsx scripts/probe-source.ts <URL> [keyword]`)
-  console.log(`示例: npx tsx scripts/probe-source.ts https://www.tvtfun.net/videos 从零开始\n`)
+  console.log(`\n用法: node scripts/probe-source.mjs <URL> [keyword]`)
+  console.log(`示例: node scripts/probe-source.mjs https://www.tvtfun.net/videos 从零开始\n`)
   process.exit(1)
 }
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-
-interface Fingerprint {
-  framework: string
-  isMacCMS: boolean
-  isNextRSC: boolean
-  isViteSPA: boolean
-  isSupabase: boolean
-  hasAntiDebug: boolean
-  antiDebugDetails: string[]
-  apiEndpoints: string[]
-  cookies: string[]
-  recommendedShape: 'A (MacCMS JSON)' | 'B (Release Page)' | 'C (Dedicated Adapter)'
-}
 
 async function probe() {
   console.log(`\n======================================================`)
@@ -44,7 +31,7 @@ async function probe() {
   const u = new URL(targetUrl)
   const origin = u.origin
 
-  const fp: Fingerprint = {
+  const fp = {
     framework: 'Unknown',
     isMacCMS: false,
     isNextRSC: false,

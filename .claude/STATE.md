@@ -4,6 +4,25 @@
 
 ---
 
+## [2026-08-28] 清理 scripts/ 下无用临时测试脚本并规范化探查工具为 probe-source.mjs
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **彻底清理过时开发临时测试脚本**：
+     - 清理删除 5 个用于历史特定特性开发/调试的一次性脚本：`scripts/test-anibaka.ts`、`scripts/test-play-stats.ts`、`scripts/test-player-resume.ts`、`scripts/test-ip-access.ts`、`scripts/test-rate-limit.ts`；
+     - 彻底消除因无根目录 tsconfig / 单独打开脚本导致的 VS Code 满屏红色语法/类型报错。
+  2. **规范化视频源探查工具 (`scripts/probe-source.mjs`)**：
+     - 将 `scripts/probe-source.ts` 改写并规范化为原生 ES Module 脚本 `scripts/probe-source.mjs`；
+     - 消除对 `npx tsx` 的外部依赖，支持直接通过 `node scripts/probe-source.mjs <URL>` 零配置秒级执行，并在 VS Code 中 0 报红；
+     - 同步更新 `docs/video-source-integration.md` 中的工具调用说明。
+  3. **质量验证**：
+     - `pnpm typecheck` 全仓 3 个 workspace 0 报错通过；
+     - `pnpm build` 全量生产打包构建通过。
+- 涉及文件：scripts/test-anibaka.ts, scripts/test-play-stats.ts, scripts/test-player-resume.ts, scripts/test-ip-access.ts, scripts/test-rate-limit.ts, scripts/probe-source.ts, scripts/probe-source.mjs, docs/video-source-integration.md, .claude/STATE.md
+- 备注：scripts 目录彻底纯净化（全部为原生 .mjs 工具），VS Code 中 0 报红。
+
+---
+
 ## [2026-08-28] 实现 B 站弹幕全自动跨站映射同步、智能开闭决策与 O(1) 极速去重合并体系
 - 状态：已完成
 - 优先级：P0
