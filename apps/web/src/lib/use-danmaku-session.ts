@@ -12,6 +12,7 @@ import {
   extractBvid,
   parseBilibiliInput,
   matchDanmakuEpisode,
+  parseEpisodeNumber,
   parseDanmakuXml,
   deduplicateDanmakuIncremental,
   titleSimilarity,
@@ -33,15 +34,18 @@ import {
   type DanmakuPools,
   type DanmakuSourceChip,
 } from './danmaku-pools'
-import type { DanmakuPanelState } from '../player/VideoPlayer'
+import type { DanmakuPanelState } from '../player/types'
+import { useSourceBindingStore } from '../stores/source-bindings'
 
 export type UseDanmakuSessionOpts = {
   /** Bangumi subject id — used for auto-match */
   bangumiId: number
-  /** Episode number (1-based) for dandan episode pick */
+  /** Episode number (0-based or 1-based) for dandan episode pick */
   episode: number
   /** Primary title for search / status */
   title: string
+  /** Video source plugin name to isolate danmakuOffset per source */
+  pluginName?: string
   /**
    * Extra title refs for ranking (nameCn / name / aliases).
    * When set, uses bestTitleSimilarity; otherwise titleSimilarity(title).
@@ -90,11 +94,18 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
     bangumiId,
     episode,
     title,
+    pluginName = '',
     titleRefs,
     matchKey,
     initialKeyword,
     autoMatch = true,
   } = opts
+
+  const storedBinding = useSourceBindingStore(
+    (s) => (bangumiId && pluginName ? s.getBinding(bangumiId, pluginName) : undefined),
+  )
+  const danmakuOffset = storedBinding?.danmakuOffset ?? 0
+  const setStoreDanmakuOffset = useSourceBindingStore((s) => s.setDanmakuOffset)
 
   const [pools, setPools] = useState<DanmakuPools>(emptyDanmakuPools)
   const [status, setStatus] = useState('')
@@ -159,7 +170,7 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
         | AbortSignal,
     ) => {
       let signal: AbortSignal | undefined
-      let targetEpNum = episode
+      let targetEpNum = Math.max(0, episode + danmakuOffset)
       let targetBgmId = bangumiId
 
       if (opts instanceof AbortSignal) {
@@ -169,6 +180,7 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
         if (opts.targetEpNum !== undefined) targetEpNum = opts.targetEpNum
         if (opts.targetBgmId !== undefined) targetBgmId = opts.targetBgmId
       }
+      if (targetEpNum < 0) targetEpNum = 0
 
       // 1. Fetch Dandan comments and Bilibili auto comments in parallel
       const [dandanSettled, biliSettled] = await Promise.allSettled([
@@ -229,16 +241,21 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
 
       setEpisodeId(epId)
 
+      const offsetLabel =
+        danmakuOffset !== 0
+          ? ` · 偏移 (${danmakuOffset > 0 ? `+${danmakuOffset}` : danmakuOffset})`
+          : ''
+
       if (isBiliSignificant && incremental.length > 0) {
         setStatus(
-          `弹弹 (${dandanCount}) + B站 (+${incremental.length}) 已启用`,
+          `弹弹 (${dandanCount}) + B站 (+${incremental.length}) 已启用${offsetLabel}`,
         )
       } else if (biliComments.length > 0) {
         setStatus(
-          `弹弹 (${dandanCount}) 已启用 · B站 (${biliCount}) 待命`,
+          `弹弹 (${dandanCount}) 已启用 · B站 (${biliCount}) 待命${offsetLabel}`,
         )
       } else {
-        setStatus(`弹弹 · 已加载 ${dandanCount} 条`)
+        setStatus(`弹弹 · 已加载 ${dandanCount} 条${offsetLabel}`)
       }
 
       return {
@@ -247,7 +264,7 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
         incrementalCount: incremental.length,
       }
     },
-    [episode, bangumiId],
+    [episode, danmakuOffset, bangumiId],
   )
 
   function scoreAnimeLive(animeTitle: string): number {
@@ -352,17 +369,25 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
 
         if (signal.aborted || gen !== autoMatchGen.current) return
 
-        // 2. Pick target episode
+        // 2. Pick target episode with offset & bounds check
         if (!meta || (!meta.episodes.length && !meta.animeId)) {
           setStatus('未匹配到弹幕，点「设置」手动搜索或导入')
           return
         }
 
-        let matchedEp = matchDanmakuEpisode(meta.episodes, episode)
+        const parsedNums = (meta.episodes || [])
+          .map((e) => parseEpisodeNumber(e.episodeTitle).epNum)
+          .filter((n): n is number => n !== null && Number.isFinite(n))
+        const maxKnownEp = parsedNums.length > 0 ? Math.max(...parsedNums) : (meta.episodes.length || 999)
+
+        const rawTargetEp = episode + danmakuOffset
+        const effectiveTargetEp = Math.max(0, Math.min(maxKnownEp, rawTargetEp))
+
+        let matchedEp = matchDanmakuEpisode(meta.episodes, effectiveTargetEp)
 
         // 3. Fallback: If target episode is missing from cached episodes (e.g. newly aired episode within 12h cache TTL),
         // automatically trigger a bypass-cache refresh from dandan upstream.
-        if (!matchedEp && (episode > meta.episodes.length || !meta.episodes.some((e) => matchDanmakuEpisode([e], episode)))) {
+        if (!matchedEp && (effectiveTargetEp > meta.episodes.length || !meta.episodes.some((e) => matchDanmakuEpisode([e], effectiveTargetEp)))) {
           try {
             let refreshedEpisodes: DanmakuEpisode[] = []
             if (bangumiId) {
@@ -381,7 +406,7 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
               meta.episodes = refreshedEpisodes
               subjectMetaRef.current = meta
               setEpisodes(refreshedEpisodes)
-              matchedEp = matchDanmakuEpisode(refreshedEpisodes, episode)
+              matchedEp = matchDanmakuEpisode(refreshedEpisodes, effectiveTargetEp)
             }
           } catch {
             /* Keep previous matched attempt */
@@ -395,7 +420,7 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
         // Fallback for custom animeId without structured episodes
         if (!matchedEpisodeId && meta.animeId) {
           matchedEpisodeId = Number(
-            `${meta.animeId}${String(episode).padStart(4, '0')}`,
+            `${meta.animeId}${String(effectiveTargetEp).padStart(4, '0')}`,
           )
         }
 
@@ -404,7 +429,11 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
           return
         }
 
-        await loadCommentsByEpisodeId(matchedEpisodeId, signal)
+        await loadCommentsByEpisodeId(matchedEpisodeId, {
+          targetEpNum: effectiveTargetEp,
+          targetBgmId: bangumiId,
+          signal,
+        })
         if (signal.aborted || gen !== autoMatchGen.current) return
       } catch (e) {
         if (signal.aborted || gen !== autoMatchGen.current) return
@@ -422,19 +451,56 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
         /* ignore */
       }
     }
-  }, [autoMatch, bangumiId, episode, matchKey, loadCommentsByEpisodeId])
+  }, [autoMatch, bangumiId, episode, danmakuOffset, matchKey, loadCommentsByEpisodeId])
 
   const handleEpisodeChange = useCallback(
     async (epId: number) => {
       setStatus('加载弹幕中…')
       try {
-        await loadCommentsByEpisodeId(epId)
+        const targetEpObj = episodes.find((e) => e.episodeId === epId)
+        let resolvedTargetNum: number | undefined
+        if (targetEpObj) {
+          const parsed = parseEpisodeNumber(targetEpObj.episodeTitle)
+          if (parsed.epNum !== null && Number.isFinite(parsed.epNum)) {
+            resolvedTargetNum = parsed.epNum
+            if (bangumiId && pluginName) {
+              const newOffset = parsed.epNum - episode
+              setStoreDanmakuOffset(bangumiId, pluginName, newOffset)
+            }
+          }
+        }
+        await loadCommentsByEpisodeId(epId, {
+          targetEpNum: resolvedTargetNum ?? Math.max(0, episode + danmakuOffset),
+          targetBgmId: bangumiId,
+        })
       } catch (e) {
         setStatus(e instanceof Error ? e.message : '弹幕加载失败')
       }
     },
-    [loadCommentsByEpisodeId],
+    [episodes, episode, danmakuOffset, bangumiId, pluginName, setStoreDanmakuOffset, loadCommentsByEpisodeId],
   )
+
+  const handleResetOffset = useCallback(async () => {
+    if (bangumiId && pluginName) {
+      setStoreDanmakuOffset(bangumiId, pluginName, 0)
+      setStatus('已重置弹幕偏移')
+      const meta = subjectMetaRef.current
+      if (meta?.episodes?.length) {
+        const parsedNums = meta.episodes
+          .map((e) => parseEpisodeNumber(e.episodeTitle).epNum)
+          .filter((n): n is number => n !== null && Number.isFinite(n))
+        const maxKnownEp = parsedNums.length > 0 ? Math.max(...parsedNums) : meta.episodes.length
+        const targetEp = Math.max(0, Math.min(maxKnownEp, episode))
+        const ep = matchDanmakuEpisode(meta.episodes, targetEp)
+        if (ep) {
+          await loadCommentsByEpisodeId(ep.episodeId, {
+            targetEpNum: targetEp,
+            targetBgmId: bangumiId,
+          })
+        }
+      }
+    }
+  }, [bangumiId, pluginName, episode, setStoreDanmakuOffset, loadCommentsByEpisodeId])
 
   const handleAnimeChange = useCallback(
     async (id: number, list?: DanmakuAnime[]) => {
@@ -456,13 +522,18 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
             ? `${name} · ${eps.length} 集`
             : `找到 ${eps.length} 集`,
         )
-        const ep = matchDanmakuEpisode(eps, episode) || eps[0]
+        const parsedNums = eps
+          .map((e) => parseEpisodeNumber(e.episodeTitle).epNum)
+          .filter((n): n is number => n !== null && Number.isFinite(n))
+        const maxKnownEp = parsedNums.length > 0 ? Math.max(...parsedNums) : eps.length
+        const effectiveTargetEp = Math.max(0, Math.min(maxKnownEp, episode + danmakuOffset))
+        const ep = matchDanmakuEpisode(eps, effectiveTargetEp) || eps[0]
         if (ep) await handleEpisodeChange(ep.episodeId)
       } catch (e) {
         setStatus(e instanceof Error ? e.message : '剧集加载失败')
       }
     },
-    [animes, episode, handleEpisodeChange],
+    [animes, episode, danmakuOffset, handleEpisodeChange],
   )
 
   const handleSearch = useCallback(async () => {
@@ -574,6 +645,8 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
       onLoadXmlFile: (f: File) => void handleLoadXmlFile(f),
       sources: chips,
       onToggleSource: toggleSource,
+      danmakuOffset,
+      onResetOffset: () => void handleResetOffset(),
     }),
     [
       status,
@@ -596,6 +669,8 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
       handleLoadBilibili,
       handleLoadXmlFile,
       toggleSource,
+      danmakuOffset,
+      handleResetOffset,
     ],
   )
 

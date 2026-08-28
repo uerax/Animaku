@@ -47,6 +47,9 @@ interface Props {
   /** Multi-source chips under panel content */
   sources?: DanmakuSourceChip[]
   onToggleSource?: (id: DanmakuPoolId) => void
+  /** Relative offset for danmaku episode alignment (e.g. -1 for prologue shift) */
+  danmakuOffset?: number
+  onResetOffset?: () => void
   /** Bottom offset so desktop panel sits above player controls */
   bottomOffset?: number
   /**
@@ -489,6 +492,27 @@ function SearchTab({ compact, ...props }: Props & { compact: boolean }) {
           />
         </label>
 
+        {props.danmakuOffset !== undefined && props.danmakuOffset !== 0 ? (
+          <div className="flex items-center justify-between rounded-lg bg-amber-500/10 border border-amber-500/25 px-2.5 py-1.5 text-xs text-amber-600 dark:text-amber-400">
+            <span className="flex items-center gap-1 font-medium">
+              <span>⚡</span>
+              <span>
+                已校准偏移: {props.danmakuOffset > 0 ? `+${props.danmakuOffset}` : props.danmakuOffset} 集
+              </span>
+            </span>
+            {props.onResetOffset && (
+              <button
+                type="button"
+                onClick={props.onResetOffset}
+                className="cursor-pointer rounded border border-amber-500/30 bg-amber-500/20 px-1.5 py-0.5 text-[10.5px] font-medium text-amber-700 hover:bg-amber-500/30 dark:text-amber-300 transition-colors"
+                title="重置当前源弹幕偏移为 0"
+              >
+                重置偏移
+              </button>
+            )}
+          </div>
+        ) : null}
+
         <p className="kz-dm-hint">
           弹弹写入「弹弹」源；B 站 / XML 默认追加。可在面板底部开关各源。
         </p>
@@ -546,6 +570,27 @@ function SearchTab({ compact, ...props }: Props & { compact: boolean }) {
           onChange={(val) => props.onEpisodeChange(val as number)}
         />
       </label>
+
+      {props.danmakuOffset !== undefined && props.danmakuOffset !== 0 ? (
+        <div className="flex items-center justify-between rounded-lg bg-amber-500/10 border border-amber-500/25 px-2.5 py-1.5 text-xs text-amber-600 dark:text-amber-400">
+          <span className="flex items-center gap-1 font-medium">
+            <span>⚡</span>
+            <span>
+              已校准偏移: {props.danmakuOffset > 0 ? `+${props.danmakuOffset}` : props.danmakuOffset} 集
+            </span>
+          </span>
+          {props.onResetOffset && (
+            <button
+              type="button"
+              onClick={props.onResetOffset}
+              className="cursor-pointer rounded border border-amber-500/30 bg-amber-500/20 px-2 py-0.5 text-[11px] font-medium text-amber-700 hover:bg-amber-500/30 dark:text-amber-300 transition-colors"
+              title="重置当前源弹幕偏移为 0"
+            >
+              重置偏移
+            </button>
+          )}
+        </div>
+      ) : null}
 
       <p className="text-[11px] leading-relaxed text-[var(--kz-fg-muted)]">
         弹弹play 匹配会写入「弹弹」源。B 站 / XML 导入默认追加，不会覆盖弹弹；可在面板底部开关各源。

@@ -435,8 +435,11 @@ bangumiRoutes.get('/subjects/:id/episodes', async (c) => {
   const id = c.req.param('id')
   const url = new URL(`${apiUrl}/v0/episodes`)
   url.searchParams.set('subject_id', id)
-  url.searchParams.set('limit', c.req.query('limit') || '100')
+  url.searchParams.set('limit', c.req.query('limit') || '200')
   url.searchParams.set('offset', c.req.query('offset') || '0')
+  if (c.req.query('type')) {
+    url.searchParams.set('type', c.req.query('type')!)
+  }
   const res = await bangumiFetch(url.toString())
   if (!res.ok) {
     return c.json({ error: 'upstream', message: await res.text() }, 502)

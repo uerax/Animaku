@@ -25,20 +25,21 @@ export interface DanmakuEpisode {
 
 /**
  * Smart episode matching for Danmaku episodes.
- * 1. Matches numeric episode pattern in episodeTitle (e.g. "第1话", "01", "Episode 1", "E01").
- * 2. Falls back to 0-based array index (episode - 1).
+ * 1. Matches numeric episode pattern in episodeTitle (e.g. "第0话", "00 PROLOGUE", "第1话", "01", "Episode 1", "E01").
+ * 2. Strict guard against NaN, Infinity, and negative numbers.
+ * 3. Falls back to 0-based array index (episode - 1) for episode >= 1, or episodes[0] for episode === 0.
  */
 export function matchDanmakuEpisode(
   episodes: DanmakuEpisode[],
   targetEpisode: number,
 ): DanmakuEpisode | undefined {
   if (!episodes || episodes.length === 0) return undefined
-  if (targetEpisode <= 0) return episodes[0]
+  if (!Number.isFinite(targetEpisode) || targetEpisode < 0) return episodes[0]
 
-  // 1. Try regex pattern match on episodeTitle
+  // 1. Try regex pattern match on episodeTitle (supports episode 0, e.g. "第00话", "00", "EP0")
   for (const ep of episodes) {
     const title = (ep.episodeTitle || '').trim()
-    // Match "第1集", "第 01 话", "EP01", "E1", " 01 ", "01."
+    // Match "第1集", "第 01 话", "EP01", "E1", " 01 ", "01.", "第00话", "00"
     const m =
       title.match(/(?:第|ep|e)\s*0*(\d+)\s*(?:话|集|期)?/i) ||
       title.match(/^0*(\d+)(?:\s|$|[-_.、:])/i) ||
@@ -48,8 +49,13 @@ export function matchDanmakuEpisode(
     }
   }
 
-  // 2. Fallback to 0-based array index
-  return episodes[Math.max(0, targetEpisode - 1)] || episodes[0]
+  // 2. Fallback:
+  // For targetEpisode === 0: if no "0" found in titles, fallback to first episode
+  // For targetEpisode >= 1: fallback to 0-based index (targetEpisode - 1)
+  if (targetEpisode === 0) {
+    return episodes[0]
+  }
+  return episodes[targetEpisode - 1] || episodes[0]
 }
 
 export interface DanmakuSettings {

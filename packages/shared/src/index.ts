@@ -1,5 +1,6 @@
 export * from './plugin'
 export * from './episode'
+export * from './episode-alignment'
 export * from './bangumi'
 export * from './bangumi-endpoint'
 export * from './bangumi-image'

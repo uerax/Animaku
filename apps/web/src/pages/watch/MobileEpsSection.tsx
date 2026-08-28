@@ -37,6 +37,7 @@ export function MobileEpsSection({
   activeRoadIndex,
   playingRoad,
   playingEpisode,
+  playingPageUrl,
   epCount,
   listExpanded,
   roadLoading,
@@ -51,8 +52,10 @@ export function MobileEpsSection({
   roads: MobileEpsRoad[]
   activeRoadIndex: number
   playingRoad?: number | null
-  /** 1-based episode number currently playing on playingRoad */
+  /** Episode number currently playing on playingRoad */
   playingEpisode?: number | null
+  /** Exact pageUrl currently playing */
+  playingPageUrl?: string | null
   epCount: number
   listExpanded: boolean
   roadLoading?: boolean
@@ -74,6 +77,18 @@ export function MobileEpsSection({
   const rangeTabsRef = useRef<HTMLDivElement>(null)
 
   const rawCount = activeRoad?.identifier?.length ?? epCount
+
+  const playingIndex = useMemo(() => {
+    if (playingRoad !== activeRoadIndex) return -1
+    if (activeRoad?.data && playingPageUrl) {
+      const idx = activeRoad.data.indexOf(playingPageUrl)
+      if (idx >= 0) return idx
+    }
+    if (typeof playingEpisode === 'number') {
+      return playingEpisode === 0 ? 0 : playingEpisode - 1
+    }
+    return -1
+  }, [playingRoad, activeRoadIndex, activeRoad?.data, playingPageUrl, playingEpisode])
 
   // Build range buckets for long anime (> 40 eps)
   const isMultiRange = rawCount > 40
@@ -106,13 +121,12 @@ export function MobileEpsSection({
 
   // Auto-align selected range to playingEpisode when playing on this road
   useEffect(() => {
-    if (!isMultiRange || !playingEpisode || playingEpisode < 1) return
-    if (playingRoad !== activeRoadIndex) return
-    const targetBucketIdx = Math.floor((playingEpisode - 1) / RANGE_SIZE)
+    if (!isMultiRange || playingIndex < 0) return
+    const targetBucketIdx = Math.floor(playingIndex / RANGE_SIZE)
     if (targetBucketIdx >= 0 && targetBucketIdx < rangeBuckets.length) {
       setSelectedRangeIndex(targetBucketIdx)
     }
-  }, [isMultiRange, playingEpisode, playingRoad, activeRoadIndex, rangeBuckets.length])
+  }, [isMultiRange, playingIndex, rangeBuckets.length])
 
   // Scroll active range tab into view
   useEffect(() => {
@@ -153,19 +167,18 @@ export function MobileEpsSection({
   // Scroll playing card into view in horizontal strip
   useEffect(() => {
     if (listExpanded) return
-    if (playingRoad !== activeRoadIndex) return
-    if (!playingEpisode || playingEpisode < 1) return
+    if (playingIndex < 0) return
     const root = stripRef.current
     if (!root) return
     const card = root.querySelector<HTMLElement>(
-      `[data-ep-index="${playingEpisode - 1}"]`,
+      `[data-ep-index="${playingIndex}"]`,
     )
     card?.scrollIntoView({
       behavior: 'smooth',
       inline: 'center',
       block: 'nearest',
     })
-  }, [listExpanded, playingRoad, playingEpisode, activeRoadIndex, visibleEpisodes])
+  }, [listExpanded, playingIndex, visibleEpisodes])
 
   // Keep active road pill in view when many lines overflow horizontally
   useEffect(() => {
@@ -308,12 +321,8 @@ export function MobileEpsSection({
           {displayedBuckets.map((bucket) => {
             const active = bucket.rangeIndex === selectedRangeIndex
             const containsPlaying =
-              playingRoad === activeRoadIndex &&
-              Boolean(
-                playingEpisode &&
-                  playingEpisode >= bucket.startEp &&
-                  playingEpisode <= bucket.endEp,
-              )
+              playingIndex >= bucket.startEp - 1 &&
+              playingIndex < bucket.endEp
             return (
               <button
                 key={`range-${bucket.rangeIndex}`}
@@ -373,7 +382,9 @@ export function MobileEpsSection({
               const epIndex = item.actualIndex
               const playing =
                 playingRoad === activeRoadIndex &&
-                playingEpisode === epIndex + 1
+                (playingPageUrl
+                  ? activeRoad.data[epIndex] === playingPageUrl
+                  : playingIndex === epIndex)
               return (
                 <button
                   key={activeRoad.data[epIndex] + item.title + epIndex}

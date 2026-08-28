@@ -130,5 +130,5 @@
 - 简繁转换 (OpenCC S2T)：`apps/server/src/lib/opencc-s2t.ts`
 - HTTP 请求封装与伪装头：`apps/server/src/lib/http.ts`
 - 版本检查与发版信息：`apps/server/src/lib/release.ts`, `packages/shared/src/version.ts`
-- 剧集解析与处理工具：`packages/shared/src/episode.ts`
+- 剧集解析与权威位置对齐工具：`packages/shared/src/episode.ts`, `packages/shared/src/episode-alignment.ts`
 - 站点品牌与文案配置：`apps/web/src/lib/site-branding.ts`

@@ -145,7 +145,11 @@ bilibiliDanmakuRoutes.get('/bilibili', async (c) => {
 
   let target = parseBilibiliInput(rawInput)
 
-  const queryPage = Number(c.req.query('p') || c.req.query('page') || '0')
+  const rawPageParam = c.req.query('p') ?? c.req.query('page')
+  const queryPage =
+    rawPageParam !== undefined && rawPageParam.trim() !== ''
+      ? Number(rawPageParam)
+      : -1
   const queryEpId = Number(c.req.query('epid') || c.req.query('ep') || '0')
   const querySsId = Number(c.req.query('ssid') || c.req.query('ss') || '0')
   const queryMdId = Number(c.req.query('mdid') || c.req.query('md') || c.req.query('mediaId') || '0')
@@ -191,11 +195,19 @@ bilibiliDanmakuRoutes.get('/bilibili', async (c) => {
     }
     const parsedMapped = parseBilibiliInput(mapped.targetId)
     if (parsedMapped && parsedMapped.type !== 'bgm') {
-      target = { ...parsedMapped, page: queryPage || parsedMapped.page || target.page }
+      target = {
+        ...parsedMapped,
+        page: queryPage >= 0 ? queryPage : parsedMapped.page ?? target.page,
+      }
     } else {
       const numId = parseInt(mapped.targetId, 10)
       if (Number.isFinite(numId) && numId > 0) {
-        target = { type: 'md', mediaId: numId, page: queryPage || target.page, raw: `md${numId}` }
+        target = {
+          type: 'md',
+          mediaId: numId,
+          page: queryPage >= 0 ? queryPage : target.page,
+          raw: `md${numId}`,
+        }
       } else {
         return c.json(
           { error: 'not_found', message: `Bangumi ID ${target.bangumiId} 对应的 B 站映射标识格式无法识别` },
@@ -230,7 +242,11 @@ bilibiliDanmakuRoutes.get('/bilibili', async (c) => {
   }
 
   const page =
-    queryPage > 0 ? queryPage : target.page && target.page > 0 ? target.page : 1
+    Number.isFinite(queryPage) && queryPage >= 0
+      ? queryPage
+      : target.page !== undefined && target.page >= 0
+        ? target.page
+        : 1
   const bypass = wantsCacheBypass(c)
 
   let cacheKey = ''
@@ -329,7 +345,28 @@ bilibiliDanmakuRoutes.get('/bilibili', async (c) => {
               (e) => e.id === target.epId || e.ep_id === target.epId,
             )
           } else {
-            matchedEp = mainEps[page - 1] || allEps[0]
+            // 1. Try smart matching by episode title / show_title (supports 0-episode e.g. "00", "0")
+            const targetNumStr = String(page)
+            const targetPaddedStr = page < 10 ? `0${page}` : String(page)
+
+            matchedEp = allEps.find((e) => {
+              const t = (e.title || '').trim()
+              const st = (e.show_title || '').trim()
+              return (
+                t === targetNumStr ||
+                t === targetPaddedStr ||
+                st === targetNumStr ||
+                st === targetPaddedStr
+              )
+            })
+
+            // 2. Fallback to index in mainEps if title match failed
+            if (!matchedEp) {
+              console.warn(
+                `[bilibili-danmaku] Title match missed for page ${page} in ${title || target.seasonId}, falling back to index ${page === 0 ? 0 : page - 1}`,
+              )
+              matchedEp = page === 0 ? mainEps[0] : (mainEps[page - 1] || allEps[0])
+            }
           }
 
           if (!matchedEp && allEps.length > 0) {

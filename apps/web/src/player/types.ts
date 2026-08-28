@@ -34,6 +34,9 @@ export interface DanmakuPanelState {
   onLoadXmlFile: (file: File) => void
   sources?: DanmakuSourceChip[]
   onToggleSource?: (id: DanmakuPoolId) => void
+  /** Relative offset for danmaku episode alignment (e.g. -1 for prologue shift) */
+  danmakuOffset?: number
+  onResetOffset?: () => void
 }
 
 export interface VideoPlayerProps {

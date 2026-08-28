@@ -9,6 +9,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "test": "node --experimental-strip-types --test src/*.test.ts",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit"
   },

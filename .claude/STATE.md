@@ -4,6 +4,92 @@
 
 ---
 
+## [2026-08-29] 修复选集列表第 0 集在播高亮失效与选集后跳回第 0 集死循环 Bug
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **排查根本原因**：
+     - **在播高亮与动画失效**：`MobileEpsSection.tsx` 原逻辑依赖硬编码的 `playingEpisode === epIndex + 1` 与 `[data-ep-index="${playingEpisode - 1}"]`，当 `playingEpisode === 0` 时计算为 `-1`，导致第 0 集无法匹配高亮、在播跳动音符（bars）不显示且滚动定位失败；
+     - **选集后跳回第 0 集**：
+       - `useWatchSession` 中 `qEp` 原解析为 `Number(params.get('ep') || '0')`，导致 URL 中无 `ep` 参数时也被强制判定为 `0`；
+       - `pickEpisode` 在设置 URL 参数后未同步锁定 `resumeDoneFor.current` 键，触发深层链接续播 `useEffect`；
+       - 续播 `useEffect` 内部存在 `Math.max(0, (qEp || 1) - 1)` 假值短路与固定减 1 逻辑，对于 `qEp = 1` 计算出 `epIdx = 0`，将当前播放集数强制重置为 `roads[0].data[0]`（即第 0 集）；随后权威位置对齐 Effect 探测到下标 0 对应集数 0，又将 `episode` 修正为 0，陷入跳转死循环。
+  2. **全面修复与严格对齐**：
+     - **选集组件真下标与 URL 双模态对齐 (`MobileEpsSection.tsx` & `WatchPage.tsx`)**：
+       - 引入 `playingPageUrl` 并在组件内部计算 `playingIndex`（优先取 `activeRoad.data.indexOf(playingPageUrl)`）；
+       - 选集高亮状态判定重构为 `playingPageUrl ? activeRoad.data[epIndex] === playingPageUrl : playingIndex === epIndex`，彻底解耦 0-based 与 1-based 集数逻辑，第 0 集秒级正常高亮并展示跳动音符；
+       - 选集滚动定位与多区间（Range Tabs）对齐均基于 `playingIndex` 精确决断。
+     - **会话层状态互锁与深层链接对齐修复 (`use-watch-session.ts`)**：
+       - `qEp` 严格解析为 `undefined`（当 URL 未携带 `ep` 时），避免无参时被误判为 `ep=0`；
+       - `pickEpisode` 在修改 URL 前显式写入 `resumeDoneFor.current = key`，阻断深层链接续播 Effect 误触发；
+       - 深层链接续播 Effect 与分集解析统一使用 `alignSourceToOfficial` 将 `qEp` 权威对齐至对应的 `sourceIndex`（如 `qEp=0` $\to$ `epIdx=0`, `qEp=1` $\to$ `epIdx=1`），彻底消灭死循环回跳。
+  3. **测试与质量验证**：
+     - `pnpm typecheck` 全仓 3 个 workspace 0 报错通过；
+     - `pnpm build` 全量生产打包构建成功。
+- 涉及文件：apps/web/src/pages/watch/MobileEpsSection.tsx, apps/web/src/pages/WatchPage.tsx, apps/web/src/lib/use-watch-session.ts, .claude/STATE.md
+- 备注：第 0 集高亮显示与选集任意切集均完美恢复正常。
+
+---
+
+## [2026-08-29] 落地基于 Bangumi 结构化元数据的权威位置对齐体系 (Positional Mapping)
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **架构范式升级 (From Regex Heuristics to Bangumi Authoritative Positional Mapping)**：
+     - 彻底摒弃不可靠的“标题数字猜测”方法论，绕开“第十天恶魔”、“86 不存在的战区”、“100万的命”等所有副标题数字干扰；
+     - 构建三层严密体系：第一层（Bangumi 官方位置对齐主路径） -> 第二层（epIndex+1 最小侵入式兜底） -> 第三层（storedOffset 用户单次校准全剧自愈）。
+  2. **共享层位置对齐引擎与粗筛工具 (`packages/shared/src/episode-alignment.ts`, `packages/shared/src/index.ts`)**：
+     - 实现 `filterOutObviousNonMainContent`：仅按关键词粗筛非正片（PV/预告/花絮/OVA/SP/特别篇/特典/特报/NC[OE]D/EXTRA），不猜测具体集数；
+     - 实现 `alignSourceToOfficial`：提取 Bangumi 官方正片本篇（`type === 0`，按 `sort` 升序排列），当官方数量能覆盖源站粗筛列表时（`officialMain.length >= filteredSource.length`），将源站正片下标 1:1 权威映射到 `officialMain[i].sort`；
+     - 提供严格安全阀：当源站数量溢出或 Bangumi 收录滞后时安全返回 `null` 并触发平滑降级。
+  3. **服务端 Bangumi 分集路由支持与上限放宽 (`apps/server/src/routes/bangumi.ts`)**：
+     - `/api/bangumi/subjects/:id/episodes` 支持 `type` 过滤参数，并将默认拉取上限放宽至 `limit=200`，单次请求即可从容覆盖绝大部分季番与半年番本篇。
+  4. **播放会话层异步挂载与静默自愈 (`apps/web/src/lib/use-watch-session.ts`)**：
+     - 挂载 `bangumi-episodes` 查询并在 `resolveSourceEpisodeNumber` 中优先尝试权威位置对齐；
+     - `pickEpisode` 与 `pickSource` 统一使用 `resolveSourceEpisodeNumber` 决断真实集数；
+     - 添加权威分集到达时的静默自愈 `useEffect`：在后台异步分集数据就绪后自动修正当前 `episode.episode` 与 URL 参数，确保无需用户干预即可对齐第 0 话。
+  5. **测试与质量验证**：
+     - 编写多场景测试套件验证《Fate UBW》(100403)、副标题带数字("第十天恶魔/86/100万")、PV/SP前缀过滤、全纯文本标题及数量不符安全阀降级 100% 通过；
+     - `pnpm typecheck` 全仓 3 个 workspace 0 报错通过；
+     - `pnpm build` 全量生产打包构建成功。
+- 涉及文件：packages/shared/src/episode-alignment.ts, packages/shared/src/index.ts, apps/server/src/routes/bangumi.ts, apps/web/src/lib/use-watch-session.ts, .claude/feature-map.md, .claude/STATE.md
+- 备注：彻底解决各类番剧（含 0 话、纯文本、副标题带数字）的分集精准对齐。
+
+---
+
+## [2026-08-29] 落地弹幕全链路第 0 集匹配与相对偏移量 (Episode Shift Offset) 自愈体系
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **共享层 `matchDanmakuEpisode` 健壮性改造 (`packages/shared/src/danmaku.ts`)**：
+     - 前置 `Number.isFinite` 严格防御 `NaN`、`Infinity`、负数等非法值；
+     - 移除 `<= 0` 粗暴拦截，允许 `0` 参与全局正则扫描，精准支持第 00 话（"第00话"、"00 PROLOGUE"、"EP0" 等）；
+     - 稳健双向兜底：`targetEpisode === 0` 兜底 `episodes[0]`，`targetEpisode >= 1` 兜底 `episodes[targetEpisode - 1]`。
+  2. **播放会话层假值修复与 0 话智能提取 (`apps/web/src/lib/use-watch-session.ts`)**：
+     - 修复 `episode: episode?.episode ?? (qEp !== undefined && qEp >= 0 ? qEp : 1)`，彻底消除 JS `0 || 1` 假值短路问题；
+     - `pickEpisode` 优先通过 `parseEpisodeNumber(road.identifier[epIndex])` 提取 `.epNum === 0`，设置真实集数 `episode: 0`；
+     - 连播与前后切集使用 `road.data` 物理下标对齐，免疫非标准集号。
+  3. **弹幕会话层相对偏移量记忆与多源隔离持久化 (`apps/web/src/stores/source-bindings.ts`, `apps/web/src/lib/use-danmaku-session.ts`)**：
+     - `SourceBindingEntry` 扩展 `danmakuOffset?: number` 字段，以 `${bangumiId}:${pluginName}` 维度持久化至 LocalStorage，各源严格隔离；
+     - 用户在弹幕面板手动切换单集时，自动计算 `offset = M(手动集数) - N(源站集数)` 并写入持久化；
+     - 双向钳位防护：`effectiveTargetEp = Math.max(0, Math.min(maxKnownEp, episode + offset))`，基于真实解析集数编号精确钳位；
+     - 连播/切集自动应用 offset，实现“一次校准，全剧 24 集自动对齐”。
+  4. **三方元数据统一同步与 B 站反代服务端升级 (`apps/server/src/routes/bilibili-danmaku.ts`)**：
+     - 服务端放行 `queryPage >= 0`；
+     - PGC 番剧分集优先按 `title` / `show_title`（如 `"00"`、`"0"`、`"01"`）智能匹配，打破单调下标回退；
+     - `effectiveTargetEp` 同时驱动弹弹、B 站反代和 `bangumi-oped` 片头片尾跳过，彻底根除双源串味与 OP/ED 错位跳过。
+  5. **弹幕面板 UI 状态展示与显式重置 (`apps/web/src/player/DanmakuPanel.tsx`, `apps/web/src/player/types.ts`)**：
+     - 当 `danmakuOffset !== 0` 时，展示醒目的 `⚡ 已校准偏移: ±N 集` 徽标；
+     - 提供显式的 `[重置偏移]` 按钮，消除隐式自动清零的误操作风险。
+  6. **质量验证**：
+     - 编写多场景单测覆盖标准第 0 话、PV 前缀、末尾 00 话、非法值防御、双向钳位与 B 站 PGC 匹配 100% 通过；
+     - `pnpm typecheck` 全仓 3 个 workspace 0 报错通过；
+     - `pnpm build` 全量生产打包构建通过。
+- 涉及文件：packages/shared/src/danmaku.ts, apps/web/src/stores/source-bindings.ts, apps/server/src/routes/bilibili-danmaku.ts, apps/web/src/lib/use-watch-session.ts, apps/web/src/lib/use-danmaku-session.ts, apps/web/src/player/DanmakuPanel.tsx, apps/web/src/player/types.ts, .claude/STATE.md
+- 备注：彻底解决第 0 集与源站错标导致的弹幕及 OP/ED 错位，实现全剧自愈。
+
+---
+
 ## [2026-08-28] 清理 scripts/ 下无用临时测试脚本并规范化探查工具为 probe-source.mjs
 - 状态：已完成
 - 优先级：P2

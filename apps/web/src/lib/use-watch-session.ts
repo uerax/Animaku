@@ -22,7 +22,11 @@ import {
   isOldAnime,
   resolvePluginDefaultKeyword,
   findMatchingEpisodeIndex,
+  parseEpisodeNumber,
+  alignSourceToOfficial,
+  resolveAlignedEpisodeNumber,
   type BangumiItem,
+  type BangumiEpisode,
   type PluginMeta,
   type SearchItem,
   type Road,
@@ -296,8 +300,16 @@ export function useWatchSession(bangumiId: number): WatchSession {
 
   const qPlugin = params.get('plugin') || ''
   const qPageUrl = params.get('pageUrl') || ''
-  const qEp = Number(params.get('ep') || '0')
-  const qRoad = Number(params.get('road') || '0')
+  const rawQEp = params.get('ep')
+  const qEp =
+    rawQEp !== null && rawQEp !== '' && !Number.isNaN(Number(rawQEp))
+      ? Number(rawQEp)
+      : undefined
+  const rawQRoad = params.get('road')
+  const qRoad =
+    rawQRoad !== null && rawQRoad !== '' && !Number.isNaN(Number(rawQRoad))
+      ? Number(rawQRoad)
+      : 0
   const qTitle = params.get('title') || ''
   const qCover = params.get('cover') || ''
 
@@ -332,6 +344,39 @@ export function useWatchSession(bangumiId: number): WatchSession {
   })
   const item = subject.data?.data
   const isOld = useMemo(() => isOldAnime(item?.airDate), [item?.airDate])
+
+  const bgmEpisodesQuery = useQuery({
+    queryKey: ['bangumi-episodes', bangumiId],
+    queryFn: ({ signal }) => bangumiApi.episodes(bangumiId, { signal }),
+    enabled: Number.isFinite(bangumiId) && bangumiId > 0,
+    staleTime: 60 * 60_000,
+    gcTime: 6 * 60 * 60_000,
+  })
+
+  const resolveSourceEpisodeNumber = useCallback(
+    (
+      roads: Array<{ data: string[]; identifier?: string[] }>,
+      roadIndex: number,
+      epIndex: number,
+    ): number => {
+      // Layer 2 fallback: pure 1-based index (no brittle number parsing)
+      let epNum = epIndex + 1
+
+      // Layer 1: Authoritative Bangumi Positional Alignment
+      const bgmEps = bgmEpisodesQuery.data?.data
+      const road = roads[roadIndex] || roads[0]
+      const identifiers = road?.identifier
+      if (bgmEps?.length && identifiers?.length) {
+        const aligned = alignSourceToOfficial(identifiers, bgmEps)
+        const match = resolveAlignedEpisodeNumber(aligned, epIndex)
+        if (match !== null) {
+          epNum = match
+        }
+      }
+      return epNum
+    },
+    [bgmEpisodesQuery.data?.data],
+  )
 
   const plugins = useMemo(() => {
     const list = allPlugins.filter((p) => {
@@ -508,8 +553,9 @@ export function useWatchSession(bangumiId: number): WatchSession {
 
   const dm = useDanmakuSession({
     bangumiId,
-    episode: episode?.episode || qEp || 1,
+    episode: episode?.episode ?? (qEp !== undefined && qEp >= 0 ? qEp : 1),
     title,
+    pluginName: selection?.plugin.name || qPlugin || undefined,
     titleRefs,
     matchKey: episode
       ? `${selection?.plugin.name || qPlugin}|${episode.pageUrl}|${episode.episode}`
@@ -709,26 +755,46 @@ export function useWatchSession(bangumiId: number): WatchSession {
         let targetRoadIdx = 0
         let targetEpIdx: number | null = null
 
-        if (prevEpisode && roads[0]?.identifier?.length) {
-          const matchIdx = findMatchingEpisodeIndex(
-            prevEpTitle || `第${prevEpisode.episode}集`,
-            roads[0].identifier,
-            prevEpisode.episode - 1,
-          )
-          if (matchIdx >= 0) {
-            targetEpIdx = matchIdx
-          } else {
+        if (prevEpisode) {
+          const bgmEps = bgmEpisodesQuery.data?.data
+          if (bgmEps?.length && roads[0]?.identifier?.length) {
+            const aligned = alignSourceToOfficial(roads[0].identifier, bgmEps)
+            const matchedSource = aligned?.find((a) => a.episode === prevEpisode.episode)
+            if (matchedSource !== undefined) {
+              targetEpIdx = matchedSource.sourceIndex
+            }
+          }
+          if (targetEpIdx === null && roads[0]?.identifier?.length) {
+            const matchIdx = findMatchingEpisodeIndex(
+              prevEpTitle || `第${prevEpisode.episode}集`,
+              roads[0].identifier,
+              prevEpisode.episode - 1,
+            )
+            if (matchIdx >= 0) {
+              targetEpIdx = matchIdx
+            } else {
+              targetEpIdx = Math.max(
+                0,
+                Math.min(prevEpisode.episode - 1, (roads[0]?.data?.length || 1) - 1),
+              )
+            }
+          }
+        } else if (qEp !== undefined && qEp >= 0) {
+          // Explicit deep-link episode specified in URL (including episode 0)
+          const bgmEps = bgmEpisodesQuery.data?.data
+          if (bgmEps?.length && roads[0]?.identifier?.length) {
+            const aligned = alignSourceToOfficial(roads[0].identifier, bgmEps)
+            const matchedSource = aligned?.find((a) => a.episode === qEp)
+            if (matchedSource !== undefined) {
+              targetEpIdx = matchedSource.sourceIndex
+            }
+          }
+          if (targetEpIdx === null) {
             targetEpIdx = Math.max(
               0,
-              Math.min(prevEpisode.episode - 1, (roads[0]?.data?.length || 1) - 1),
+              Math.min(qEp === 0 ? 0 : qEp - 1, (roads[0]?.data?.length || 1) - 1),
             )
           }
-        } else if (qEp && qEp > 0) {
-          // Explicit deep-link episode specified in URL
-          targetEpIdx = Math.max(
-            0,
-            Math.min(qEp - 1, (roads[0]?.data?.length || 1) - 1),
-          )
           if (qRoad && qRoad >= 0 && qRoad < roads.length) {
             targetRoadIdx = qRoad
           }
@@ -740,7 +806,11 @@ export function useWatchSession(bangumiId: number): WatchSession {
         setRoadError('')
 
         if (targetEpIdx !== null) {
-          const targetEpNum = targetEpIdx + 1
+          const targetEpNum = resolveSourceEpisodeNumber(
+            roads,
+            targetRoadIdx,
+            targetEpIdx,
+          )
           const targetPageUrl = roads[targetRoadIdx]?.data[targetEpIdx] || ''
 
           const inheritPos =
@@ -1141,7 +1211,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     if (selectionRef.current) return
 
     // If deep-link with specific episode/pageUrl, deep-link resume handler will take care of it
-    if (qPlugin && (qPageUrl || qEp)) {
+    if (qPlugin && (qPageUrl || qEp !== undefined)) {
       defaultSearchDoneFor.current = bangumiId
       const target =
         plugins.find((p) => p.name.toLowerCase() === qPlugin.toLowerCase()) ||
@@ -1225,8 +1295,8 @@ export function useWatchSession(bangumiId: number): WatchSession {
 
   // Resume from deep-link query (history / home / shared clean link)
   useEffect(() => {
-    if (!Number.isFinite(bangumiId) || !qPlugin || (!qPageUrl && !qEp)) return
-    const key = `${bangumiId}|${qPlugin}|${qPageUrl}|${qEp}|${qRoad}`
+    if (!Number.isFinite(bangumiId) || !qPlugin || (!qPageUrl && qEp === undefined)) return
+    const key = `${bangumiId}|${qPlugin}|${qPageUrl}|${qEp ?? ''}|${qRoad}`
     if (resumeDoneFor.current === key) return
 
     // If selection already matches target plugin and has loaded roads, sync state instantly without refetching
@@ -1239,9 +1309,25 @@ export function useWatchSession(bangumiId: number): WatchSession {
       resumeDoneFor.current = key
       setRoadError('')
       const roadIdx = Math.max(0, Math.min(qRoad, currentSel.roads.length - 1))
-      const epIdx = Math.max(0, (qEp || 1) - 1)
-      const targetPageUrl = currentSel.roads[roadIdx]?.data[epIdx] || qPageUrl
-      const epNum = epIdx + 1
+      const targetRoad = currentSel.roads[roadIdx] || currentSel.roads[0]
+      let epIdx = 0
+      if (qPageUrl && targetRoad?.data?.length) {
+        const found = targetRoad.data.indexOf(qPageUrl)
+        if (found >= 0) epIdx = found
+      } else if (qEp !== undefined && targetRoad?.identifier?.length && bgmEpisodesQuery.data?.data?.length) {
+        const aligned = alignSourceToOfficial(targetRoad.identifier, bgmEpisodesQuery.data.data)
+        const matched = aligned?.find((a) => a.episode === qEp)
+        if (matched !== undefined) {
+          epIdx = matched.sourceIndex
+        } else {
+          epIdx = Math.max(0, Math.min(qEp === 0 ? 0 : qEp - 1, targetRoad.data.length - 1))
+        }
+      } else if (qEp !== undefined) {
+        epIdx = Math.max(0, Math.min(qEp === 0 ? 0 : qEp - 1, (targetRoad?.data?.length || 1) - 1))
+      }
+
+      const targetPageUrl = targetRoad?.data[epIdx] || qPageUrl
+      const epNum = resolveSourceEpisodeNumber(currentSel.roads, roadIdx, epIdx)
       if (
         episodeRef.current?.episode !== epNum ||
         episodeRef.current?.road !== roadIdx ||
@@ -1363,7 +1449,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
           src: sourceUrl || qPageUrl,
         }
         let roadIdx = Math.max(0, qRoad)
-        let epIdx = Math.max(0, (qEp || 1) - 1)
+        let epIdx = 0
         if (qPageUrl) {
           for (let ri = 0; ri < roads.length; ri++) {
             const r = roads[ri]
@@ -1378,9 +1464,22 @@ export function useWatchSession(bangumiId: number): WatchSession {
               break
             }
           }
+        } else if (qEp !== undefined && qEp >= 0) {
+          const targetRoad = roads[roadIdx] || roads[0]
+          if (targetRoad?.identifier?.length && bgmEpisodesQuery.data?.data?.length) {
+            const aligned = alignSourceToOfficial(targetRoad.identifier, bgmEpisodesQuery.data.data)
+            const matched = aligned?.find((a) => a.episode === qEp)
+            if (matched !== undefined) {
+              epIdx = matched.sourceIndex
+            } else {
+              epIdx = Math.max(0, Math.min(qEp === 0 ? 0 : qEp - 1, targetRoad.data.length - 1))
+            }
+          } else {
+            epIdx = Math.max(0, Math.min(qEp === 0 ? 0 : qEp - 1, (targetRoad?.data?.length || 1) - 1))
+          }
         }
 
-        const epNum = epIdx + 1
+        const epNum = resolveSourceEpisodeNumber(roads, roadIdx, epIdx)
         // Sync resume before episode/selection commit so first player mount seeks
         const pos = lookupResumePosition(bangumiId, qPlugin, epNum, roadIdx)
         resumeOverrideRef.current = null
@@ -1490,7 +1589,15 @@ export function useWatchSession(bangumiId: number): WatchSession {
     const pageUrl = road?.data[epIndex]
     if (!pageUrl) return
     if (roadIndex !== visibleRoad) setVisibleRoad(roadIndex)
-    const epNum = epIndex + 1
+    const epNum = resolveSourceEpisodeNumber(
+      selection.roads,
+      roadIndex,
+      epIndex,
+    )
+    // Lock resume key so deep-link query watcher doesn't clobber the user's pick
+    const key = `${bangumiId}|${selection.plugin.name}||${epNum}|${roadIndex}`
+    resumeDoneFor.current = key
+
     // Synchronous history read so VideoPlayer first mount gets correct initialTime
     const pos = lookupResumePosition(
       bangumiId,
@@ -1518,12 +1625,40 @@ export function useWatchSession(bangumiId: number): WatchSession {
     safeSetParams(q, { replace: true })
   }
 
+  // Auto-sync episode number when authoritative Bangumi episodes finish loading
+  useEffect(() => {
+    if (!selection || !episode) return
+    const road = selection.roads[episode.road]
+    if (!road?.identifier?.length || !bgmEpisodesQuery.data?.data?.length) return
+    const epIndex = road.data.indexOf(episode.pageUrl)
+    if (epIndex < 0) return
+    const aligned = alignSourceToOfficial(road.identifier, bgmEpisodesQuery.data.data)
+    const match = resolveAlignedEpisodeNumber(aligned, epIndex)
+    if (match !== null && match !== episode.episode) {
+      setEpisode((prev) => (prev ? { ...prev, episode: match } : null))
+      const key = `${bangumiId}|${selection.plugin.name}||${match}|${episode.road}`
+      resumeDoneFor.current = key
+      const q = new URLSearchParams(paramsRef.current)
+      q.set('ep', String(match))
+      safeSetParams(q, { replace: true })
+    }
+  }, [
+    bgmEpisodesQuery.data?.data,
+    selection,
+    episode?.road,
+    episode?.pageUrl,
+    episode?.episode,
+    safeSetParams,
+  ])
+
   function goAdjacentEpisode(delta: number) {
     if (!selection || !episode) return
     const roadIndex = episode.road
     const road = selection.roads[roadIndex]
     if (!road?.data?.length) return
-    const nextIdx = episode.episode - 1 + delta
+    const curIdx = road.data.indexOf(episode.pageUrl)
+    const currentIdx = curIdx >= 0 ? curIdx : Math.max(0, episode.episode === 0 ? 0 : episode.episode - 1)
+    const nextIdx = currentIdx + delta
     if (nextIdx < 0 || nextIdx >= road.data.length) return
     pickEpisode(nextIdx, roadIndex)
   }
@@ -1686,19 +1821,25 @@ export function useWatchSession(bangumiId: number): WatchSession {
   const preferBangumiOped = Boolean(playerSettings.preferBangumiOped)
   const bgmOpedQuery = useBangumiOpedData(bangumiId, preferBangumiOped)
   const episodeDurationMap = useBangumiEpisodesDuration(bangumiId, preferBangumiOped)
-  const currentEp = episode?.episode ?? 0
+  const activePluginName =
+    selection?.plugin.name || qPlugin || activeTargetPlugin?.name || ''
+  const storedOffset = useSourceBindingStore(
+    (s) => (bangumiId && activePluginName ? s.getBinding(bangumiId, activePluginName)?.danmakuOffset ?? 0 : 0),
+  )
+  const rawEp = episode?.episode ?? (qEp !== undefined && qEp >= 0 ? qEp : 0)
+  const effectiveOpedEp = Math.max(0, rawEp + storedOffset)
   const localMark = useCustomOpedStore((s) =>
-    bangumiId > 0 && currentEp > 0
-      ? s.subjects[bangumiId]?.episodes[currentEp]
+    bangumiId > 0 && effectiveOpedEp > 0
+      ? s.subjects[bangumiId]?.episodes[effectiveOpedEp]
       : undefined,
   )
   const episodeDurationSeconds = useMemo(() => {
-    if (!episodeDurationMap || currentEp <= 0) return undefined
-    return episodeDurationMap.get(currentEp)
-  }, [episodeDurationMap, currentEp])
+    if (!episodeDurationMap || effectiveOpedEp <= 0) return undefined
+    return episodeDurationMap.get(effectiveOpedEp)
+  }, [episodeDurationMap, effectiveOpedEp])
   const opedSkip = useResolvedOpedSkip(
     preferBangumiOped ? bgmOpedQuery.data : null,
-    currentEp,
+    effectiveOpedEp,
     playerSettings.skipOp,
     playerSettings.skipEd,
     episodeDurationSeconds,

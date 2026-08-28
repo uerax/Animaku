@@ -341,6 +341,7 @@ export function WatchPage() {
       activeRoadIndex={activeRoadIndex}
       playingRoad={w.episode?.road}
       playingEpisode={w.episode?.episode}
+      playingPageUrl={w.episode?.pageUrl}
       epCount={epCount}
       listExpanded={epsListExpanded}
       roadLoading={w.roadLoading}

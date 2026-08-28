@@ -18,6 +18,8 @@ export interface SourceBindingEntry {
   title: string
   similarity?: number
   isManual?: boolean
+  /** Relative offset for danmaku episode alignment (e.g. -1 for prologue shift) */
+  danmakuOffset?: number
   updatedAt: number
 }
 
@@ -27,10 +29,15 @@ export interface SourceBindingState {
   setBinding: (
     bangumiId: number,
     pluginName: string,
-    entry: { sourceUrl: string; title: string; similarity?: number; isManual?: boolean },
+    entry: { sourceUrl: string; title: string; similarity?: number; isManual?: boolean; danmakuOffset?: number },
     referenceTitles?: Array<string | null | undefined>,
     isManual?: boolean,
   ) => boolean
+  setDanmakuOffset: (
+    bangumiId: number,
+    pluginName: string,
+    offset: number,
+  ) => void
   removeBinding: (bangumiId: number, pluginName: string) => void
   clearBindings: () => void
 }
@@ -97,6 +104,7 @@ export const useSourceBindingStore = create<SourceBindingState>()(
         }
 
         const key = makeKey(bangumiId, pluginName)
+        const existing = get().bindings[key]
         const newEntry: SourceBindingEntry = {
           bangumiId,
           pluginName,
@@ -104,6 +112,7 @@ export const useSourceBindingStore = create<SourceBindingState>()(
           title: entry.title.trim(),
           similarity: sim,
           isManual: manual,
+          danmakuOffset: entry.danmakuOffset !== undefined ? entry.danmakuOffset : existing?.danmakuOffset,
           updatedAt: Date.now(),
         }
 
@@ -118,6 +127,42 @@ export const useSourceBindingStore = create<SourceBindingState>()(
         })
 
         return true
+      },
+
+      setDanmakuOffset: (bangumiId, pluginName, offset) => {
+        if (!Number.isFinite(bangumiId) || !pluginName) return
+        const key = makeKey(bangumiId, pluginName)
+        const existing = get().bindings[key]
+
+        if (!existing && (!offset || offset === 0)) {
+          return
+        }
+
+        const newEntry: SourceBindingEntry = existing
+          ? {
+              ...existing,
+              danmakuOffset: offset !== 0 ? offset : undefined,
+              updatedAt: Date.now(),
+            }
+          : {
+              bangumiId,
+              pluginName,
+              sourceUrl: '',
+              title: '',
+              isManual: true,
+              danmakuOffset: offset !== 0 ? offset : undefined,
+              updatedAt: Date.now(),
+            }
+
+        set((state) => {
+          const updated = {
+            ...state.bindings,
+            [key]: newEntry,
+          }
+          return {
+            bindings: enforceLRU(updated, MAX_BINDINGS),
+          }
+        })
       },
 
       removeBinding: (bangumiId, pluginName) => {
