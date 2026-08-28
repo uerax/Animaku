@@ -4,6 +4,47 @@
 
 ---
 
+## [2026-08-29] 落地基于 Bangumi 主权的 PlayableSlot 统一槽位体系与 Layer 2 源站自决引擎
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **架构范式升级 (Bangumi-Centric SSOT & PlayableSlot Engine)**：
+     - 将播放页从“源站驱动 + 事后向 Bangumi 纠偏”彻底重构为“以 Bangumi 官方分集为唯一权威数据源（Single Source of Truth, SSOT）”，视频源降级为纯流媒体提供者；
+     - 彻底删除全仓所有脆弱的 `episode - 1` 算术加减换算，解耦物理下标（`sourceIndex`，始终为 $\ge 0$）与业务逻辑集数（`canonicalEp`），从根源杜绝 `-1` 越界；
+     - 全面清除 `||` 假值短路，统一使用空值合并与显式 `>= 0` 类型守卫，天然免疫第 0 话；
+  2. **共享层抽象与双层槽位构建器 (`packages/shared/src/episode-alignment.ts`)**：
+     - 定义统一的 `PlayableSlot` 模型（`canonicalEp`, `officialTitle`, `displayTitle`, `sourceIndex`, `pageUrl`, `sourceTitle`, `isLayer2`）；
+     - 实现 `buildPlayableSlots`：
+       - **Layer 1（Bangumi 权威对齐）**：当 Bangumi 官方本篇（`type === 0`）能覆盖源站粗筛正片时，1:1 映射并清洗展示工整的标准集数标签（如 `第00话`、`第01话`、`第02话`），不拼接副标题，排版整洁对称，彻底剔除源站压制广告文本；
+       - **Layer 2（源站自决保守提取模式）**：当源站数量溢出（合集/拆季）或离线/未收录时，平滑降级为源站自决模式，采用保守匹配提取明确编号（支持阿拉伯数字与中文汉字一~九十九，支持首项 0 话自适应回退），如实呈现源站真实标题，不张冠李戴；
+  3. **播放会话层彻底重构与历史死角修复 (`apps/web/src/lib/use-watch-session.ts`)**：
+     - 以 `PlayableSlot` 为唯一选集状态源，提供 `slots` 与 `pickSlot(slot)`；
+     - 修复 `refreshChapters` 刷新选集时硬编码 `curEp.episode - 1` 导致第 0 集越界与下标假设错误的缺陷，改为基于新旧 slots 精确对齐；
+     - 修复 `pickSource` 换源时捕获前一集标题时 `episode === 0` 假值短路问题，换源基于 `canonicalEp` 在新源 slots 中 100% 精准对齐不串集；
+     - 修复深层链接与异步获取章节后的槽位检索，支持通过 `canonicalEp` 或 `pageUrl` 秒级匹配；
+     - 优化 Bangumi 元数据异步到达时的 Hydration 自愈 Effect。
+  4. **选集 UI 交互层升级 (`MobileEpsSection.tsx` & `WatchPage.tsx`)**：
+     - 选集方块纯净显示 `slot.canonicalEp`，展开列表呈现 Bangumi 官方清洗副标题；
+     - 修复头部在播计数 `countLabel`：正确覆盖第 0 集（显示 `(0/25)` 而非 `(25)`）；
+     - 点击事件直传 `onPickSlot`，在播高亮与跳动音符动画 100% 精确对齐。
+  5. **弹幕会话层接入 Slot 权威集数与客户端内存缓存优化 (`use-danmaku-session.ts`)**：
+     - 弹弹 play 与 B 站映射直传 `slot.canonicalEp`，弹幕匹配零开销命中；
+     - 激活 `commentsCacheRef` 客户端内存缓存（以 `targetBgmId:epId:targetEpNum` 为键），用户在同一番剧来回切集实现 **0ms 瞬间还原**；
+     - 移除无效的 `animeId * 10000 + ep` 假 ID 拼接；
+     - 增加 `manualOpGen` 序列号守卫，彻底消灭手动快速切集时的网络乱序覆盖竞态。
+  6. **升级弹幕面板番剧与章节下拉菜单为 React Portal 全局浮层 (`DanmakuPanel.tsx`)**：
+     - `CustomSelect` 彻底脱离面板内 `overflow-y-auto` 容器裁剪限制，利用 `createPortal` 将下拉菜单直接挂载至 `document.fullscreenElement || document.body`；
+     - 基于触发按钮绝对屏幕坐标精准定位（`fixed`），支持智能感知视口上下方剩余空间自适应翻转（`openUp`），并在滚动/缩放时动态同步；
+     - 下拉菜单可自由超出弹幕面板边界悬浮展示，彻底杜绝被底部「弹幕源」或面板边框裁切遮挡的问题。
+  7. **测试与质量验证**：
+     - 编写多场景测试套件验证《Fate UBW》(0话)、副标题带数字("第十天恶魔/86/100万")、PV/SP粗筛过滤、源站溢出降级 Layer 2、中文汉字数字与离线模式 100% 覆盖通过；
+     - `pnpm typecheck` 全仓 3 个 workspace 0 报错通过；
+     - `pnpm build` 全量生产打包构建成功。
+- 涉及文件：packages/shared/src/episode-alignment.ts, apps/web/src/lib/use-watch-session.ts, apps/web/src/pages/watch/MobileEpsSection.tsx, apps/web/src/pages/WatchPage.tsx, apps/web/src/lib/use-danmaku-session.ts, .claude/feature-map.md, .claude/BUGS.md, .claude/STATE.md
+- 备注：彻底完成从源站驱动到 Bangumi 主权的范式升级，彻底根除第 0 集、数字标题、换源串集与弹幕错位。
+
+---
+
 ## [2026-08-29] 修复选集列表第 0 集在播高亮失效与选集后跳回第 0 集死循环 Bug
 - 状态：已完成
 - 优先级：P0

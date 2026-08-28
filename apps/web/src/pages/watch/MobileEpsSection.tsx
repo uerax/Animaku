@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
+import type { PlayableSlot } from '@animaku/shared'
 
 export type MobileEpsRoad = {
   name?: string
@@ -11,7 +12,10 @@ const RANGE_SIZE = 50
 
 type EpisodeItem = {
   actualIndex: number // 0-based index in road.data
+  canonicalEp: number
   title: string
+  shortTitle: string
+  slot?: PlayableSlot
 }
 
 type RangeBucket = {
@@ -29,11 +33,12 @@ type RangeBucket = {
  *  [多集区间分页 pills (如 1-50, 51-100...)]
  *  [横向圆角集卡 | 全量网格]
  *
- * 集卡形状：横向圆角矩形，保证「第01集」可读。
+ * 集卡形状：横向圆角矩形，保证「第01集 / 官方副标题」可读。
  * 行为钩子保留：listExpanded / data-ep-index；展开与折叠横条均为约 4 列。
  */
 export function MobileEpsSection({
   roads,
+  slots,
   activeRoadIndex,
   playingRoad,
   playingEpisode,
@@ -46,10 +51,12 @@ export function MobileEpsSection({
   hasSelection,
   onToggleList,
   onSelectRoad,
+  onPickSlot,
   onPickEpisode,
   onRefreshChapters,
 }: {
   roads: MobileEpsRoad[]
+  slots?: PlayableSlot[]
   activeRoadIndex: number
   playingRoad?: number | null
   /** Episode number currently playing on playingRoad */
@@ -64,6 +71,7 @@ export function MobileEpsSection({
   hasSelection: boolean
   onToggleList: () => void
   onSelectRoad: (index: number) => void
+  onPickSlot?: (slot: PlayableSlot, roadIndex: number) => void
   onPickEpisode: (epIndex: number, roadIndex: number) => void
   onRefreshChapters?: () => void
 }) {
@@ -76,7 +84,10 @@ export function MobileEpsSection({
   const roadsRef = useRef<HTMLDivElement>(null)
   const rangeTabsRef = useRef<HTMLDivElement>(null)
 
-  const rawCount = activeRoad?.identifier?.length ?? epCount
+  const rawCount =
+    slots && slots.length > 0
+      ? slots.length
+      : (activeRoad?.identifier?.length ?? epCount)
 
   const playingIndex = useMemo(() => {
     if (playingRoad !== activeRoadIndex) return -1
@@ -84,17 +95,21 @@ export function MobileEpsSection({
       const idx = activeRoad.data.indexOf(playingPageUrl)
       if (idx >= 0) return idx
     }
-    if (typeof playingEpisode === 'number') {
+    if (typeof playingEpisode === 'number' && playingEpisode >= 0) {
+      if (slots?.length) {
+        const found = slots.find((s) => s.canonicalEp === playingEpisode)
+        if (found) return found.sourceIndex
+      }
       return playingEpisode === 0 ? 0 : playingEpisode - 1
     }
     return -1
-  }, [playingRoad, activeRoadIndex, activeRoad?.data, playingPageUrl, playingEpisode])
+  }, [playingRoad, activeRoadIndex, activeRoad?.data, playingPageUrl, playingEpisode, slots])
 
   // Build range buckets for long anime (> 40 eps)
   const isMultiRange = rawCount > 40
   const rangeBuckets = useMemo(() => {
     if (!activeRoad || rawCount <= 0) return []
-    const total = activeRoad.identifier.length
+    const total = slots && slots.length > 0 ? slots.length : activeRoad.identifier.length
     const buckets: RangeBucket[] = []
     const numBuckets = Math.ceil(total / RANGE_SIZE)
 
@@ -103,10 +118,23 @@ export function MobileEpsSection({
       const endIdx = Math.min(total, (b + 1) * RANGE_SIZE)
       const items: EpisodeItem[] = []
       for (let i = startIdx; i < endIdx; i++) {
-        items.push({
-          actualIndex: i,
-          title: activeRoad.identifier[i]?.trim() || String(i + 1),
-        })
+        if (slots && slots[i]) {
+          const slot = slots[i]
+          items.push({
+            actualIndex: slot.sourceIndex,
+            canonicalEp: slot.canonicalEp,
+            title: slot.displayTitle,
+            shortTitle: String(slot.canonicalEp),
+            slot,
+          })
+        } else {
+          items.push({
+            actualIndex: i,
+            canonicalEp: i + 1,
+            title: activeRoad.identifier[i]?.trim() || String(i + 1),
+            shortTitle: String(i + 1),
+          })
+        }
       }
       buckets.push({
         rangeIndex: b,
@@ -117,7 +145,7 @@ export function MobileEpsSection({
       })
     }
     return buckets
-  }, [activeRoad, rawCount])
+  }, [activeRoad, rawCount, slots])
 
   // Auto-align selected range to playingEpisode when playing on this road
   useEffect(() => {
@@ -153,16 +181,29 @@ export function MobileEpsSection({
   const visibleEpisodes = useMemo(() => {
     if (!activeRoad) return []
     if (!isMultiRange) {
-      const items: EpisodeItem[] = activeRoad.identifier.map((name, i) => ({
-        actualIndex: i,
-        title: name?.trim() || String(i + 1),
-      }))
+      let items: EpisodeItem[]
+      if (slots && slots.length > 0) {
+        items = slots.map((s) => ({
+          actualIndex: s.sourceIndex,
+          canonicalEp: s.canonicalEp,
+          title: s.displayTitle,
+          shortTitle: String(s.canonicalEp),
+          slot: s,
+        }))
+      } else {
+        items = activeRoad.identifier.map((name, i) => ({
+          actualIndex: i,
+          canonicalEp: i + 1,
+          title: name?.trim() || String(i + 1),
+          shortTitle: String(i + 1),
+        }))
+      }
       return isDescOrder ? items.reverse() : items
     }
     const bucket = rangeBuckets.find((b) => b.rangeIndex === selectedRangeIndex) || rangeBuckets[0]
     if (!bucket) return []
     return isDescOrder ? [...bucket.items].reverse() : bucket.items
-  }, [activeRoad, isMultiRange, rangeBuckets, selectedRangeIndex, isDescOrder])
+  }, [activeRoad, isMultiRange, slots, rangeBuckets, selectedRangeIndex, isDescOrder])
 
   // Scroll playing card into view in horizontal strip
   useEffect(() => {
@@ -196,7 +237,7 @@ export function MobileEpsSection({
 
   const countLabel =
     rawCount > 0
-      ? playingEpisode && playingEpisode > 0
+      ? typeof playingEpisode === 'number' && playingEpisode >= 0
         ? `(${playingEpisode}/${rawCount})`
         : `(${rawCount})`
       : ''
@@ -390,7 +431,13 @@ export function MobileEpsSection({
                   key={activeRoad.data[epIndex] + item.title + epIndex}
                   type="button"
                   data-ep-index={epIndex}
-                  onClick={() => onPickEpisode(epIndex, activeRoadIndex)}
+                  onClick={() => {
+                    if (onPickSlot && item.slot) {
+                      onPickSlot(item.slot, activeRoadIndex)
+                    } else {
+                      onPickEpisode(epIndex, activeRoadIndex)
+                    }
+                  }}
                   title={item.title}
                   className={clsx(
                     'kz-watch-ep-card kz-bili-ep',

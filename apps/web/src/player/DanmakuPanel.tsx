@@ -355,30 +355,79 @@ function CustomSelect<T extends number | string>({
   onChange: (val: T) => void
 }) {
   const [open, setOpen] = useState(false)
-  const wrapRef = useRef<HTMLDivElement>(null)
+  const [coords, setCoords] = useState<{
+    top: number
+    left: number
+    width: number
+    openUp: boolean
+  }>({ top: 0, left: 0, width: 0, openUp: false })
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  const updateCoords = () => {
+    if (!buttonRef.current) return
+    const rect = buttonRef.current.getBoundingClientRect()
+    const spaceBelow = window.innerHeight - rect.bottom
+    const openUp = spaceBelow < 160 && rect.top > spaceBelow
+    setCoords({
+      top: openUp ? rect.top - 4 : rect.bottom + 4,
+      left: rect.left,
+      width: rect.width,
+      openUp,
+    })
+  }
+
+  const handleToggle = () => {
+    if (!open) {
+      updateCoords()
+      setOpen(true)
+    } else {
+      setOpen(false)
+    }
+  }
 
   useEffect(() => {
     if (!open) return
     const onDocDismiss = (e: Event) => {
-      if (!wrapRef.current?.contains(e.target as Node)) {
+      const target = e.target as Node
+      if (
+        !buttonRef.current?.contains(target) &&
+        !dropdownRef.current?.contains(target)
+      ) {
         setOpen(false)
       }
     }
+    const onScrollOrResize = () => {
+      updateCoords()
+    }
     window.addEventListener('click', onDocDismiss, true)
     window.addEventListener('pointerdown', onDocDismiss, true)
+    window.addEventListener('scroll', onScrollOrResize, true)
+    window.addEventListener('resize', onScrollOrResize, true)
     return () => {
       window.removeEventListener('click', onDocDismiss, true)
       window.removeEventListener('pointerdown', onDocDismiss, true)
+      window.removeEventListener('scroll', onScrollOrResize, true)
+      window.removeEventListener('resize', onScrollOrResize, true)
     }
   }, [open])
 
   const selectedOpt = options.find((o) => o.value === value)
 
+  const portalTarget =
+    typeof document !== 'undefined'
+      ? document.fullscreenElement ||
+        (document as unknown as { webkitFullscreenElement?: Element })
+          .webkitFullscreenElement ||
+        document.body
+      : null
+
   return (
-    <div ref={wrapRef} className="relative w-full">
+    <div className="relative w-full">
       <button
+        ref={buttonRef}
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={handleToggle}
         className="flex items-center justify-between w-full h-8.5 px-3 rounded-lg bg-[var(--kz-bg-soft)] border border-[var(--kz-border)] text-[var(--kz-fg)] text-xs font-medium outline-none hover:border-[var(--kz-accent)] hover:bg-[var(--kz-bg-hover)] active:scale-[0.99] transition-all cursor-pointer text-left"
       >
         <span className="truncate min-w-0 flex-1">
@@ -399,42 +448,63 @@ function CustomSelect<T extends number | string>({
         </svg>
       </button>
 
-      {open && (
-        <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-[100000] max-h-36 overflow-y-auto overscroll-contain py-1 rounded-xl bg-[var(--kz-bg-elevated)] border border-[var(--kz-border)] shadow-2xl backdrop-blur-xl animate-in fade-in-50 duration-100">
-          <button
-            type="button"
-            onClick={() => {
-              onChange('' as T)
-              setOpen(false)
+      {open &&
+        portalTarget &&
+        createPortal(
+          <div
+            ref={dropdownRef}
+            style={{
+              position: 'fixed',
+              left: `${coords.left}px`,
+              width: `${coords.width}px`,
+              top: coords.openUp ? 'auto' : `${coords.top}px`,
+              bottom: coords.openUp
+                ? `${window.innerHeight - coords.top}px`
+                : 'auto',
+              zIndex: 999999,
             }}
-            className="w-full px-3 py-1.5 text-left text-xs text-[var(--kz-fg-muted)] hover:bg-[var(--kz-bg-soft)] transition-colors border-0 bg-transparent cursor-pointer"
+            className="max-h-44 overflow-y-auto overscroll-contain py-1 rounded-xl bg-[var(--kz-bg-elevated)]/98 border border-[var(--kz-border)] shadow-2xl backdrop-blur-2xl text-[var(--kz-fg)] animate-in fade-in-50 zoom-in-95 duration-100"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
           >
-            {placeholder}
-          </button>
-          {options.map((opt) => {
-            const active = opt.value === value
-            return (
-              <button
-                key={String(opt.value)}
-                type="button"
-                title={opt.label}
-                onClick={() => {
-                  onChange(opt.value)
-                  setOpen(false)
-                }}
-                className={`flex items-center justify-between w-full px-3 py-2 text-left text-xs transition-colors border-0 cursor-pointer ${
-                  active
-                    ? 'bg-[var(--kz-accent-soft)] text-[var(--kz-accent)] font-bold'
-                    : 'text-[var(--kz-fg)] hover:bg-[var(--kz-bg-soft)]'
-                }`}
-              >
-                <span className="truncate min-w-0 flex-1">{opt.label}</span>
-                {active && <span className="ml-2 text-xs text-[var(--kz-accent)]">✓</span>}
-              </button>
-            )
-          })}
-        </div>
-      )}
+            <button
+              type="button"
+              onClick={() => {
+                onChange('' as T)
+                setOpen(false)
+              }}
+              className="w-full px-3 py-1.5 text-left text-xs text-[var(--kz-fg-muted)] hover:bg-[var(--kz-bg-soft)] transition-colors border-0 bg-transparent cursor-pointer"
+            >
+              {placeholder}
+            </button>
+            {options.map((opt) => {
+              const active = opt.value === value
+              return (
+                <button
+                  key={String(opt.value)}
+                  type="button"
+                  title={opt.label}
+                  onClick={() => {
+                    onChange(opt.value)
+                    setOpen(false)
+                  }}
+                  className={`flex items-center justify-between w-full px-3 py-2 text-left text-xs transition-colors border-0 cursor-pointer ${
+                    active
+                      ? 'bg-[var(--kz-accent-soft)] text-[var(--kz-accent)] font-bold'
+                      : 'text-[var(--kz-fg)] hover:bg-[var(--kz-bg-soft)]'
+                  }`}
+                >
+                  <span className="truncate min-w-0 flex-1">{opt.label}</span>
+                  {active && (
+                    <span className="ml-2 text-xs text-[var(--kz-accent)]">✓</span>
+                  )}
+                </button>
+              )
+            })}
+          </div>,
+          portalTarget,
+        )}
     </div>
   )
 }

@@ -338,6 +338,7 @@ export function WatchPage() {
   const epsPanel = (
     <MobileEpsSection
       roads={w.selection?.roads ?? []}
+      slots={w.slots}
       activeRoadIndex={activeRoadIndex}
       playingRoad={w.episode?.road}
       playingEpisode={w.episode?.episode}
@@ -350,6 +351,7 @@ export function WatchPage() {
       hasSelection={Boolean(w.selection)}
       onToggleList={() => startTransition(() => setEpsListExpanded((v) => !v))}
       onSelectRoad={(ri) => startTransition(() => w.setVisibleRoad(ri))}
+      onPickSlot={(slot, rd) => startTransition(() => w.pickSlot(slot, rd))}
       onPickEpisode={(ep, rd) => startTransition(() => w.pickEpisode(ep, rd))}
       onRefreshChapters={() => startTransition(() => void w.refreshChapters())}
     />

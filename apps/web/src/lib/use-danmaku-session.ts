@@ -85,6 +85,14 @@ type SubjectMeta = {
   episodes: DanmakuEpisode[]
 }
 
+type CachedCommentsPayload = {
+  dandan: DanmakuComment[]
+  dandanCount: number
+  bili: DanmakuComment[]
+  biliCount: number
+  biliPart: string
+}
+
 /**
  * Shared danmaku panel + auto-match used by PlayPage and SubjectPage.
  * Keeps pools / search / BV / XML / generation cancel in one place.
@@ -120,6 +128,7 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
   const [bilibiliBusy, setBilibiliBusy] = useState(false)
   const autoMatchGen = useRef(0)
   const autoMatchAbort = useRef<AbortController | null>(null)
+  const manualOpGen = useRef(0)
   /** Live title/refs for scoring — avoid re-running match when only display title refines */
   const titleRef = useRef(title)
   titleRef.current = title
@@ -129,8 +138,8 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
   /** Cached subject resolution metadata (bangumiId -> animeId + episodes) to avoid re-fetch on episode switch */
   const subjectMetaRef = useRef<SubjectMeta | null>(null)
   const currentBangumiKeyRef = useRef<string>('')
-  /** Client-side episode comments in-memory cache to make back-and-forth episode switching instant */
-  const commentsCacheRef = useRef<Map<number, { data: DanmakuComment[]; count: number }>>(new Map())
+  /** Client-side episode comments in-memory cache to make back-and-forth episode switching instant (0ms) */
+  const commentsCacheRef = useRef<Map<string, CachedCommentsPayload>>(new Map())
 
   // Keep keyword in sync when title changes (new subject / deep link)
   useEffect(() => {
@@ -166,12 +175,14 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
             targetEpNum?: number
             targetBgmId?: number
             signal?: AbortSignal
+            refresh?: boolean
           }
         | AbortSignal,
     ) => {
       let signal: AbortSignal | undefined
       let targetEpNum = Math.max(0, episode + danmakuOffset)
       let targetBgmId = bangumiId
+      let bypassClient = false
 
       if (opts instanceof AbortSignal) {
         signal = opts
@@ -179,31 +190,53 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
         signal = opts.signal
         if (opts.targetEpNum !== undefined) targetEpNum = opts.targetEpNum
         if (opts.targetBgmId !== undefined) targetBgmId = opts.targetBgmId
+        if (opts.refresh) bypassClient = true
       }
       if (targetEpNum < 0) targetEpNum = 0
 
-      // 1. Fetch Dandan comments and Bilibili auto comments in parallel
-      const [dandanSettled, biliSettled] = await Promise.allSettled([
-        danmakuApi.comments(epId, { signal }),
-        targetBgmId > 0
-          ? danmakuApi.bilibili(`bgm${targetBgmId}`, targetEpNum, { signal })
-          : Promise.resolve(null),
-      ])
+      const cacheKey = `${targetBgmId}:${epId}:${targetEpNum}`
+      const cached = !bypassClient ? commentsCacheRef.current.get(cacheKey) : undefined
 
       let dandanComments: DanmakuComment[] = []
       let dandanCount = 0
-      if (dandanSettled.status === 'fulfilled') {
-        dandanComments = dandanSettled.value.data || []
-        dandanCount = dandanSettled.value.count || dandanComments.length
-      }
-
       let biliComments: DanmakuComment[] = []
       let biliCount = 0
       let biliPart = ''
-      if (biliSettled.status === 'fulfilled' && biliSettled.value?.data) {
-        biliComments = biliSettled.value.data || []
-        biliCount = biliSettled.value.count || biliComments.length
-        biliPart = biliSettled.value.meta?.part || `P${targetEpNum}`
+
+      if (cached) {
+        dandanComments = cached.dandan
+        dandanCount = cached.dandanCount
+        biliComments = cached.bili
+        biliCount = cached.biliCount
+        biliPart = cached.biliPart
+      } else {
+        // 1. Fetch Dandan comments and Bilibili auto comments in parallel
+        const [dandanSettled, biliSettled] = await Promise.allSettled([
+          danmakuApi.comments(epId, { signal, refresh: bypassClient }),
+          targetBgmId > 0
+            ? danmakuApi.bilibili(`bgm${targetBgmId}`, targetEpNum, { signal, refresh: bypassClient })
+            : Promise.resolve(null),
+        ])
+
+        if (dandanSettled.status === 'fulfilled') {
+          dandanComments = dandanSettled.value.data || []
+          dandanCount = dandanSettled.value.count || dandanComments.length
+        }
+
+        if (biliSettled.status === 'fulfilled' && biliSettled.value?.data) {
+          biliComments = biliSettled.value.data || []
+          biliCount = biliSettled.value.count || biliComments.length
+          biliPart = biliSettled.value.meta?.part || `P${targetEpNum}`
+        }
+
+        // Cache in client-side memory for instant back-and-forth switching
+        commentsCacheRef.current.set(cacheKey, {
+          dandan: dandanComments,
+          dandanCount,
+          bili: biliComments,
+          biliCount,
+          biliPart,
+        })
       }
 
       // 2. Perform O(1) deduplication
@@ -415,14 +448,7 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
 
         if (signal.aborted || gen !== autoMatchGen.current) return
 
-        let matchedEpisodeId = matchedEp?.episodeId || 0
-
-        // Fallback for custom animeId without structured episodes
-        if (!matchedEpisodeId && meta.animeId) {
-          matchedEpisodeId = Number(
-            `${meta.animeId}${String(effectiveTargetEp).padStart(4, '0')}`,
-          )
-        }
+        const matchedEpisodeId = matchedEp?.episodeId || 0
 
         if (!matchedEpisodeId) {
           setStatus('未匹配到弹幕，点「设置」手动搜索或导入')
@@ -455,6 +481,7 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
 
   const handleEpisodeChange = useCallback(
     async (epId: number) => {
+      const gen = ++manualOpGen.current
       setStatus('加载弹幕中…')
       try {
         const targetEpObj = episodes.find((e) => e.episodeId === epId)
@@ -473,7 +500,9 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
           targetEpNum: resolvedTargetNum ?? Math.max(0, episode + danmakuOffset),
           targetBgmId: bangumiId,
         })
+        if (gen !== manualOpGen.current) return
       } catch (e) {
+        if (gen !== manualOpGen.current) return
         setStatus(e instanceof Error ? e.message : '弹幕加载失败')
       }
     },
@@ -481,6 +510,7 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
   )
 
   const handleResetOffset = useCallback(async () => {
+    const gen = ++manualOpGen.current
     if (bangumiId && pluginName) {
       setStoreDanmakuOffset(bangumiId, pluginName, 0)
       setStatus('已重置弹幕偏移')
@@ -497,6 +527,7 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
             targetEpNum: targetEp,
             targetBgmId: bangumiId,
           })
+          if (gen !== manualOpGen.current) return
         }
       }
     }
@@ -504,10 +535,12 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
 
   const handleAnimeChange = useCallback(
     async (id: number, list?: DanmakuAnime[]) => {
+      const gen = ++manualOpGen.current
       setAnimeId(id)
       setStatus('正在搜索剧集…')
       try {
         const info = await danmakuApi.bangumi(id)
+        if (gen !== manualOpGen.current) return
         const eps = info.data.episodes || []
         setEpisodes(eps)
         subjectMetaRef.current = {
@@ -530,6 +563,7 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
         const ep = matchDanmakuEpisode(eps, effectiveTargetEp) || eps[0]
         if (ep) await handleEpisodeChange(ep.episodeId)
       } catch (e) {
+        if (gen !== manualOpGen.current) return
         setStatus(e instanceof Error ? e.message : '剧集加载失败')
       }
     },

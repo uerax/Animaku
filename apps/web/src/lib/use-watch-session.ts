@@ -25,6 +25,8 @@ import {
   parseEpisodeNumber,
   alignSourceToOfficial,
   resolveAlignedEpisodeNumber,
+  buildPlayableSlots,
+  type PlayableSlot,
   type BangumiItem,
   type BangumiEpisode,
   type PluginMeta,
@@ -82,6 +84,11 @@ export type EpisodePlay = {
   pageUrl: string
   episode: number
   road: number
+  sourceIndex?: number
+  officialTitle?: string
+  displayTitle?: string
+  sourceTitle?: string
+  isLayer2?: boolean
 }
 
 /**
@@ -255,6 +262,8 @@ export type WatchSession = {
   reSearchCurrentSource: (keyword: string) => Promise<void>
   switchToPlugin: (plugin: PluginMeta, targetItem?: SearchItem) => Promise<void>
   pickSource: (plugin: PluginMeta, item: SearchItem) => Promise<void>
+  slots: PlayableSlot[]
+  pickSlot: (slot: PlayableSlot, roadIndex?: number) => void
   pickEpisode: (epIndex: number, roadIndex?: number) => void
   goAdjacentEpisode: (delta: number) => void
   onProgress: (position: number, duration: number) => void
@@ -689,10 +698,14 @@ export function useWatchSession(bangumiId: number): WatchSession {
       const prevEpisode = episodeRef.current
       const prevSelection = selectionRef.current
       const prevRoad = prevSelection?.roads[visibleRoadRef.current]
+      const prevIdx =
+        prevRoad?.data && prevEpisode?.pageUrl
+          ? prevRoad.data.indexOf(prevEpisode.pageUrl)
+          : prevEpisode?.sourceIndex ?? -1
       const prevEpTitle =
-        prevRoad?.identifier && prevEpisode?.episode
-          ? prevRoad.identifier[prevEpisode.episode - 1] || ''
-          : ''
+        prevRoad?.identifier && prevIdx >= 0
+          ? prevRoad.identifier[prevIdx] || ''
+          : prevEpisode?.displayTitle || ''
       const currentPosition =
         currentPlaybackPositionRef.current || resumePosition || 0
 
@@ -751,52 +764,47 @@ export function useWatchSession(bangumiId: number): WatchSession {
             opts?.isManual ?? true,
           )
 
-        // Episode alignment & seamless progress inheritance
+        // Episode alignment & seamless progress inheritance via PlayableSlot
         let targetRoadIdx = 0
-        let targetEpIdx: number | null = null
+        if (qRoad && qRoad >= 0 && qRoad < roads.length) {
+          targetRoadIdx = qRoad
+        }
+
+        const targetRoad = roads[targetRoadIdx] || roads[0]
+        const bgmEps = bgmEpisodesQuery.data?.data
+        const roadSlots = buildPlayableSlots(targetRoad, bgmEps)
+        let targetSlot: PlayableSlot | null = null
 
         if (prevEpisode) {
-          const bgmEps = bgmEpisodesQuery.data?.data
-          if (bgmEps?.length && roads[0]?.identifier?.length) {
-            const aligned = alignSourceToOfficial(roads[0].identifier, bgmEps)
-            const matchedSource = aligned?.find((a) => a.episode === prevEpisode.episode)
-            if (matchedSource !== undefined) {
-              targetEpIdx = matchedSource.sourceIndex
-            }
-          }
-          if (targetEpIdx === null && roads[0]?.identifier?.length) {
+          // 1. Try matching by canonicalEp first (100% immune to title & index differences)
+          targetSlot = roadSlots.find((s) => s.canonicalEp === prevEpisode.episode) ?? null
+
+          // 2. Fallback to title matching if canonicalEp missed
+          if (!targetSlot && prevEpTitle) {
             const matchIdx = findMatchingEpisodeIndex(
-              prevEpTitle || `第${prevEpisode.episode}集`,
-              roads[0].identifier,
-              prevEpisode.episode - 1,
+              prevEpTitle,
+              targetRoad?.identifier || [],
+              -1,
             )
             if (matchIdx >= 0) {
-              targetEpIdx = matchIdx
-            } else {
-              targetEpIdx = Math.max(
-                0,
-                Math.min(prevEpisode.episode - 1, (roads[0]?.data?.length || 1) - 1),
-              )
+              targetSlot = roadSlots.find((s) => s.sourceIndex === matchIdx) ?? null
             }
+          }
+
+          // 3. Fallback to physical index within bounds
+          if (!targetSlot && roadSlots.length > 0) {
+            const prevPhysical =
+              prevEpisode.sourceIndex ??
+              (prevEpisode.episode === 0 ? 0 : Math.max(0, prevEpisode.episode - 1))
+            const fallbackIdx = Math.max(0, Math.min(prevPhysical, roadSlots.length - 1))
+            targetSlot = roadSlots[fallbackIdx] || roadSlots[0]
           }
         } else if (qEp !== undefined && qEp >= 0) {
-          // Explicit deep-link episode specified in URL (including episode 0)
-          const bgmEps = bgmEpisodesQuery.data?.data
-          if (bgmEps?.length && roads[0]?.identifier?.length) {
-            const aligned = alignSourceToOfficial(roads[0].identifier, bgmEps)
-            const matchedSource = aligned?.find((a) => a.episode === qEp)
-            if (matchedSource !== undefined) {
-              targetEpIdx = matchedSource.sourceIndex
-            }
-          }
-          if (targetEpIdx === null) {
-            targetEpIdx = Math.max(
-              0,
-              Math.min(qEp === 0 ? 0 : qEp - 1, (roads[0]?.data?.length || 1) - 1),
-            )
-          }
-          if (qRoad && qRoad >= 0 && qRoad < roads.length) {
-            targetRoadIdx = qRoad
+          // Explicit deep-link episode specified in URL (e.g. ?ep=0 or ?ep=1)
+          targetSlot = roadSlots.find((s) => s.canonicalEp === qEp) ?? null
+          if (!targetSlot && roadSlots.length > 0) {
+            const fallbackIdx = Math.max(0, Math.min(qEp === 0 ? 0 : qEp - 1, roadSlots.length - 1))
+            targetSlot = roadSlots[fallbackIdx] || roadSlots[0]
           }
         }
 
@@ -805,13 +813,9 @@ export function useWatchSession(bangumiId: number): WatchSession {
         setPendingSource(null)
         setRoadError('')
 
-        if (targetEpIdx !== null) {
-          const targetEpNum = resolveSourceEpisodeNumber(
-            roads,
-            targetRoadIdx,
-            targetEpIdx,
-          )
-          const targetPageUrl = roads[targetRoadIdx]?.data[targetEpIdx] || ''
+        if (targetSlot) {
+          const targetEpNum = targetSlot.canonicalEp
+          const targetPageUrl = targetSlot.pageUrl
 
           const inheritPos =
             prevEpisode && currentPosition > 5 ? currentPosition : 0
@@ -833,6 +837,11 @@ export function useWatchSession(bangumiId: number): WatchSession {
               pageUrl: targetPageUrl,
               episode: targetEpNum,
               road: targetRoadIdx,
+              sourceIndex: targetSlot.sourceIndex,
+              officialTitle: targetSlot.officialTitle,
+              displayTitle: targetSlot.displayTitle,
+              sourceTitle: targetSlot.sourceTitle,
+              isLayer2: targetSlot.isLayer2,
             })
 
             if (prevEpisode) {
@@ -1310,38 +1319,51 @@ export function useWatchSession(bangumiId: number): WatchSession {
       setRoadError('')
       const roadIdx = Math.max(0, Math.min(qRoad, currentSel.roads.length - 1))
       const targetRoad = currentSel.roads[roadIdx] || currentSel.roads[0]
-      let epIdx = 0
-      if (qPageUrl && targetRoad?.data?.length) {
-        const found = targetRoad.data.indexOf(qPageUrl)
-        if (found >= 0) epIdx = found
-      } else if (qEp !== undefined && targetRoad?.identifier?.length && bgmEpisodesQuery.data?.data?.length) {
-        const aligned = alignSourceToOfficial(targetRoad.identifier, bgmEpisodesQuery.data.data)
-        const matched = aligned?.find((a) => a.episode === qEp)
-        if (matched !== undefined) {
-          epIdx = matched.sourceIndex
-        } else {
-          epIdx = Math.max(0, Math.min(qEp === 0 ? 0 : qEp - 1, targetRoad.data.length - 1))
-        }
-      } else if (qEp !== undefined) {
-        epIdx = Math.max(0, Math.min(qEp === 0 ? 0 : qEp - 1, (targetRoad?.data?.length || 1) - 1))
+      const bgmEps = bgmEpisodesQuery.data?.data
+      const slots = buildPlayableSlots(targetRoad, bgmEps)
+
+      let targetSlot: PlayableSlot | undefined
+      if (qPageUrl) {
+        targetSlot = slots.find(
+          (s) =>
+            s.pageUrl === qPageUrl ||
+            s.pageUrl.replace(/\/$/, '') === qPageUrl.replace(/\/$/, ''),
+        )
+      } else if (qEp !== undefined && qEp >= 0) {
+        targetSlot = slots.find((s) => s.canonicalEp === qEp)
       }
 
-      const targetPageUrl = targetRoad?.data[epIdx] || qPageUrl
-      const epNum = resolveSourceEpisodeNumber(currentSel.roads, roadIdx, epIdx)
-      if (
-        episodeRef.current?.episode !== epNum ||
-        episodeRef.current?.road !== roadIdx ||
-        episodeRef.current?.pageUrl !== targetPageUrl
-      ) {
-        const pos = lookupResumePosition(bangumiId, qPlugin, epNum, roadIdx)
-        resumeOverrideRef.current = null
-        setResumePosition(pos)
-        setVisibleRoad(roadIdx)
-        setEpisode({
-          pageUrl: targetPageUrl,
-          episode: epNum,
-          road: roadIdx,
-        })
+      if (!targetSlot && slots.length > 0) {
+        const fallbackIdx =
+          qEp !== undefined && qEp >= 0
+            ? Math.max(0, Math.min(qEp === 0 ? 0 : qEp - 1, slots.length - 1))
+            : 0
+        targetSlot = slots[fallbackIdx] || slots[0]
+      }
+
+      if (targetSlot) {
+        const epNum = targetSlot.canonicalEp
+        const targetPageUrl = targetSlot.pageUrl
+        if (
+          episodeRef.current?.episode !== epNum ||
+          episodeRef.current?.road !== roadIdx ||
+          episodeRef.current?.pageUrl !== targetPageUrl
+        ) {
+          const pos = lookupResumePosition(bangumiId, qPlugin, epNum, roadIdx)
+          resumeOverrideRef.current = null
+          setResumePosition(pos)
+          setVisibleRoad(roadIdx)
+          setEpisode({
+            pageUrl: targetPageUrl,
+            episode: epNum,
+            road: roadIdx,
+            sourceIndex: targetSlot.sourceIndex,
+            officialTitle: targetSlot.officialTitle,
+            displayTitle: targetSlot.displayTitle,
+            sourceTitle: targetSlot.sourceTitle,
+            isLayer2: targetSlot.isLayer2,
+          })
+        }
       }
       return
     }
@@ -1449,37 +1471,32 @@ export function useWatchSession(bangumiId: number): WatchSession {
           src: sourceUrl || qPageUrl,
         }
         let roadIdx = Math.max(0, qRoad)
-        let epIdx = 0
+        const targetRoad = roads[roadIdx] || roads[0]
+        const bgmEps = bgmEpisodesQuery.data?.data
+        const slots = buildPlayableSlots(targetRoad, bgmEps)
+        let targetSlot: PlayableSlot | undefined
+
         if (qPageUrl) {
-          for (let ri = 0; ri < roads.length; ri++) {
-            const r = roads[ri]
-            const found = r.data.findIndex(
-              (u) =>
-                u === qPageUrl ||
-                u.replace(/\/$/, '') === qPageUrl.replace(/\/$/, ''),
-            )
-            if (found >= 0) {
-              roadIdx = ri
-              epIdx = found
-              break
-            }
-          }
+          targetSlot = slots.find(
+            (s) =>
+              s.pageUrl === qPageUrl ||
+              s.pageUrl.replace(/\/$/, '') === qPageUrl.replace(/\/$/, ''),
+          )
         } else if (qEp !== undefined && qEp >= 0) {
-          const targetRoad = roads[roadIdx] || roads[0]
-          if (targetRoad?.identifier?.length && bgmEpisodesQuery.data?.data?.length) {
-            const aligned = alignSourceToOfficial(targetRoad.identifier, bgmEpisodesQuery.data.data)
-            const matched = aligned?.find((a) => a.episode === qEp)
-            if (matched !== undefined) {
-              epIdx = matched.sourceIndex
-            } else {
-              epIdx = Math.max(0, Math.min(qEp === 0 ? 0 : qEp - 1, targetRoad.data.length - 1))
-            }
-          } else {
-            epIdx = Math.max(0, Math.min(qEp === 0 ? 0 : qEp - 1, (targetRoad?.data?.length || 1) - 1))
-          }
+          targetSlot = slots.find((s) => s.canonicalEp === qEp)
         }
 
-        const epNum = resolveSourceEpisodeNumber(roads, roadIdx, epIdx)
+        if (!targetSlot && slots.length > 0) {
+          const fallbackIdx =
+            qEp !== undefined && qEp >= 0
+              ? Math.max(0, Math.min(qEp === 0 ? 0 : qEp - 1, slots.length - 1))
+              : 0
+          targetSlot = slots[fallbackIdx] || slots[0]
+        }
+
+        const epNum = targetSlot?.canonicalEp ?? 1
+        const targetPageUrl = targetSlot?.pageUrl || targetRoad?.data[0] || qPageUrl
+
         // Sync resume before episode/selection commit so first player mount seeks
         const pos = lookupResumePosition(bangumiId, qPlugin, epNum, roadIdx)
         resumeOverrideRef.current = null
@@ -1488,7 +1505,6 @@ export function useWatchSession(bangumiId: number): WatchSession {
         if (!isWatchPage()) return
         if (cancelled) return
 
-        const targetPageUrl = roads[roadIdx]?.data[epIdx] || qPageUrl
         setSelection({ plugin, source, roads })
         setVisibleRoad(roadIdx)
         setRoadError('')
@@ -1496,6 +1512,11 @@ export function useWatchSession(bangumiId: number): WatchSession {
           pageUrl: targetPageUrl,
           episode: epNum,
           road: roadIdx,
+          sourceIndex: targetSlot?.sourceIndex ?? 0,
+          officialTitle: targetSlot?.officialTitle,
+          displayTitle: targetSlot?.displayTitle,
+          sourceTitle: targetSlot?.sourceTitle,
+          isLayer2: targetSlot?.isLayer2,
         })
 
         if (source.src) {
@@ -1583,63 +1604,105 @@ export function useWatchSession(bangumiId: number): WatchSession {
     setResumePosition(pos)
   }, [selection, episode, bangumiId])
 
-  function pickEpisode(epIndex: number, roadIndex = visibleRoad) {
-    if (!selection) return
-    const road = selection.roads[roadIndex]
-    const pageUrl = road?.data[epIndex]
-    if (!pageUrl) return
-    if (roadIndex !== visibleRoad) setVisibleRoad(roadIndex)
-    const epNum = resolveSourceEpisodeNumber(
-      selection.roads,
-      roadIndex,
-      epIndex,
-    )
-    // Lock resume key so deep-link query watcher doesn't clobber the user's pick
-    const key = `${bangumiId}|${selection.plugin.name}||${epNum}|${roadIndex}`
-    resumeDoneFor.current = key
+  const pickSlot = useCallback(
+    (slot: PlayableSlot, roadIndex = visibleRoad) => {
+      if (!selection) return
+      const road = selection.roads[roadIndex]
+      if (!road?.data?.length) return
+      if (roadIndex !== visibleRoad) setVisibleRoad(roadIndex)
 
-    // Synchronous history read so VideoPlayer first mount gets correct initialTime
-    const pos = lookupResumePosition(
-      bangumiId,
-      selection.plugin.name,
-      epNum,
-      roadIndex,
-    )
-    resumeOverrideRef.current = null
-    setResumePosition(pos)
-    setEpisode({
-      pageUrl,
-      road: roadIndex,
-      episode: epNum,
-    })
-    const q = new URLSearchParams(paramsRef.current)
-    q.set('plugin', selection.plugin.name)
-    q.set('ep', String(epNum))
-    if (roadIndex > 0) q.set('road', String(roadIndex))
-    else q.delete('road')
-    // Clean redundant metadata parameters
-    q.delete('pageUrl')
-    q.delete('title')
-    q.delete('cover')
-    q.delete('source')
-    safeSetParams(q, { replace: true })
-  }
+      const epNum = slot.canonicalEp
+      // Synchronous history read so VideoPlayer first mount gets correct initialTime
+      const pos = lookupResumePosition(
+        bangumiId,
+        selection.plugin.name,
+        epNum,
+        roadIndex,
+      )
+      resumeOverrideRef.current = null
+      setResumePosition(pos)
+      setEpisode({
+        pageUrl: slot.pageUrl,
+        road: roadIndex,
+        episode: epNum,
+        sourceIndex: slot.sourceIndex,
+        officialTitle: slot.officialTitle,
+        displayTitle: slot.displayTitle,
+        sourceTitle: slot.sourceTitle,
+        isLayer2: slot.isLayer2,
+      })
 
-  // Auto-sync episode number when authoritative Bangumi episodes finish loading
+      // Lock resume key synchronously so deep-link query watcher doesn't clobber the user's pick
+      const key = `${bangumiId}|${selection.plugin.name}||${epNum}|${roadIndex}`
+      resumeDoneFor.current = key
+
+      const q = new URLSearchParams(paramsRef.current)
+      q.set('plugin', selection.plugin.name)
+      q.set('ep', String(epNum))
+      if (roadIndex > 0) q.set('road', String(roadIndex))
+      else q.delete('road')
+      // Clean redundant metadata parameters
+      q.delete('pageUrl')
+      q.delete('title')
+      q.delete('cover')
+      q.delete('source')
+      safeSetParams(q, { replace: true })
+    },
+    [selection, visibleRoad, bangumiId, safeSetParams],
+  )
+
+  const pickEpisode = useCallback(
+    (epIndex: number, roadIndex = visibleRoad) => {
+      if (!selection) return
+      const road = selection.roads[roadIndex]
+      if (!road?.data?.length) return
+      const slots = buildPlayableSlots(road, bgmEpisodesQuery.data?.data)
+      const slot =
+        slots.find((s) => s.sourceIndex === epIndex) ||
+        slots[epIndex] ||
+        slots[0]
+      if (slot) {
+        pickSlot(slot, roadIndex)
+      }
+    },
+    [selection, visibleRoad, bgmEpisodesQuery.data?.data, pickSlot],
+  )
+
+  // Auto-sync episode metadata when authoritative Bangumi episodes finish loading
   useEffect(() => {
     if (!selection || !episode) return
     const road = selection.roads[episode.road]
-    if (!road?.identifier?.length || !bgmEpisodesQuery.data?.data?.length) return
-    const epIndex = road.data.indexOf(episode.pageUrl)
-    if (epIndex < 0) return
-    const aligned = alignSourceToOfficial(road.identifier, bgmEpisodesQuery.data.data)
-    const match = resolveAlignedEpisodeNumber(aligned, epIndex)
-    if (match !== null && match !== episode.episode) {
-      setEpisode((prev) => (prev ? { ...prev, episode: match } : null))
-      const key = `${bangumiId}|${selection.plugin.name}||${match}|${episode.road}`
+    if (!road?.data?.length || !bgmEpisodesQuery.data?.data?.length) return
+    const slots = buildPlayableSlots(road, bgmEpisodesQuery.data.data)
+    if (!slots.length) return
+
+    // Find current slot by pageUrl or sourceIndex
+    const currentSlot =
+      slots.find((s) => s.pageUrl === episode.pageUrl) ||
+      (episode.sourceIndex !== undefined
+        ? slots.find((s) => s.sourceIndex === episode.sourceIndex)
+        : undefined)
+
+    if (
+      currentSlot &&
+      (currentSlot.canonicalEp !== episode.episode ||
+        episode.isLayer2 ||
+        !episode.officialTitle)
+    ) {
+      setEpisode({
+        pageUrl: currentSlot.pageUrl,
+        episode: currentSlot.canonicalEp,
+        road: episode.road,
+        sourceIndex: currentSlot.sourceIndex,
+        officialTitle: currentSlot.officialTitle,
+        displayTitle: currentSlot.displayTitle,
+        sourceTitle: currentSlot.sourceTitle,
+        isLayer2: currentSlot.isLayer2,
+      })
+      const key = `${bangumiId}|${selection.plugin.name}||${currentSlot.canonicalEp}|${episode.road}`
       resumeDoneFor.current = key
       const q = new URLSearchParams(paramsRef.current)
-      q.set('ep', String(match))
+      q.set('ep', String(currentSlot.canonicalEp))
       safeSetParams(q, { replace: true })
     }
   }, [
@@ -1648,7 +1711,11 @@ export function useWatchSession(bangumiId: number): WatchSession {
     episode?.road,
     episode?.pageUrl,
     episode?.episode,
+    episode?.sourceIndex,
+    episode?.isLayer2,
+    episode?.officialTitle,
     safeSetParams,
+    bangumiId,
   ])
 
   function goAdjacentEpisode(delta: number) {
@@ -1656,11 +1723,18 @@ export function useWatchSession(bangumiId: number): WatchSession {
     const roadIndex = episode.road
     const road = selection.roads[roadIndex]
     if (!road?.data?.length) return
-    const curIdx = road.data.indexOf(episode.pageUrl)
-    const currentIdx = curIdx >= 0 ? curIdx : Math.max(0, episode.episode === 0 ? 0 : episode.episode - 1)
-    const nextIdx = currentIdx + delta
-    if (nextIdx < 0 || nextIdx >= road.data.length) return
-    pickEpisode(nextIdx, roadIndex)
+    const slots = buildPlayableSlots(road, bgmEpisodesQuery.data?.data)
+    if (!slots.length) return
+
+    const currentSlotIdx = slots.findIndex((s) => s.pageUrl === episode.pageUrl)
+    const curIdx =
+      currentSlotIdx >= 0 ? currentSlotIdx : (episode.sourceIndex ?? 0)
+    const nextIdx = curIdx + delta
+    if (nextIdx < 0 || nextIdx >= slots.length) return
+    const nextSlot = slots[nextIdx]
+    if (nextSlot) {
+      pickSlot(nextSlot, roadIndex)
+    }
   }
 
   const onProgress = useCallback(
@@ -1785,16 +1859,29 @@ export function useWatchSession(bangumiId: number): WatchSession {
       if (roads.length && roads[0]?.data?.length) {
         writeRoadsForSource(bangumiId, plugin.name, source.src, roads)
         setSelection((prev) => (prev ? { ...prev, roads } : null))
-        // Align currently active episode url if still in bounds
+        // Align currently active episode url via PlayableSlot (100% immune to ep0 / index shift)
         if (episodeRef.current) {
           const curEp = episodeRef.current
           const road = roads[curEp.road] || roads[0]
-          const targetEpIdx = curEp.episode - 1
-          if (road?.data[targetEpIdx]) {
+          const newSlots = buildPlayableSlots(road, bgmEpisodesQuery.data?.data)
+          const targetSlot =
+            newSlots.find((s) => s.pageUrl === curEp.pageUrl) ||
+            newSlots.find((s) => s.canonicalEp === curEp.episode) ||
+            (curEp.sourceIndex !== undefined
+              ? newSlots.find((s) => s.sourceIndex === curEp.sourceIndex)
+              : undefined) ||
+            newSlots[0]
+
+          if (targetSlot) {
             setEpisode({
-              pageUrl: road.data[targetEpIdx],
-              episode: curEp.episode,
+              pageUrl: targetSlot.pageUrl,
+              episode: targetSlot.canonicalEp,
               road: curEp.road,
+              sourceIndex: targetSlot.sourceIndex,
+              officialTitle: targetSlot.officialTitle,
+              displayTitle: targetSlot.displayTitle,
+              sourceTitle: targetSlot.sourceTitle,
+              isLayer2: targetSlot.isLayer2,
             })
           }
         }
@@ -1854,6 +1941,12 @@ export function useWatchSession(bangumiId: number): WatchSession {
     [playerSettings, opedSkip],
   )
 
+  const activeRoadForSlots = selection?.roads[visibleRoad]
+  const slots = useMemo(() => {
+    if (!activeRoadForSlots) return []
+    return buildPlayableSlots(activeRoadForSlots, bgmEpisodesQuery.data?.data)
+  }, [activeRoadForSlots, bgmEpisodesQuery.data?.data])
+
   return {
     bangumiId,
     title,
@@ -1870,6 +1963,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     defaultSourceName: findDefaultSourcePlugin(plugins, pluginOrder, isOld)?.name || plugins[0]?.name || '',
     selection,
     episode,
+    slots,
     visibleRoad,
     setVisibleRoad,
     roadLoading,
@@ -1899,6 +1993,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     reSearchCurrentSource,
     switchToPlugin,
     pickSource,
+    pickSlot,
     pickEpisode,
     goAdjacentEpisode,
     onProgress,
