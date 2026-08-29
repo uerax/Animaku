@@ -4,6 +4,28 @@
 
 ---
 
+## [2026-08-30] 升级多源弹幕全链路去重与双源默认并发开启机制 (Multi-Source Progressive Deduplication)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **解除 B 站自动源 1.5 倍数量开启限制 (`apps/web/src/lib/use-danmaku-session.ts`)**：
+     - 彻底移除 `biliCount >= 300 && biliCount > dandanCount * 1.5` 的保守限制；
+     - 当同时探测到弹弹和 B 站源时，默认直接全量双源并发开启，并通过渐进式去重机制确保不产生重复弹幕。
+  2. **多源渐进式跨源去重引擎 (`apps/web/src/lib/danmaku-pools.ts`)**：
+     - 重构 `flattenEnabledPools`：当用户开启多个源（弹弹、B站自动、BV手动导入、本地XML上传）时，在打平出口处自动以先启用的源为基准，对后续源执行 $O(1)$ 增量去重；
+     - 去重在应用各源独立时移 `timeOffset` 之后执行，即使各源时间轴被单独微调也能在对齐后的时间轴上准确消除重影；
+     - 若只开启单一源则 0 开销原样输出。
+  3. **实时活跃弹幕计数精准呈现**：
+     - `visibleCount` 绑定 `visibleComments.length`，准确反映去重合并后的实际可渲染弹幕数。
+  4. **质量验证**：
+     - `pnpm typecheck` 全仓 3 个 workspace 0 报错通过；
+     - `@animaku/shared` 13 个单测 100% 全部通过；
+     - `pnpm build` 全量生产打包构建成功。
+- 涉及文件：apps/web/src/lib/use-danmaku-session.ts, apps/web/src/lib/danmaku-pools.ts, .claude/STATE.md
+- 备注：双源并发开箱即用，所有导入与手动源全部自动享受多源去重。
+
+---
+
 ## [2026-08-30] 实现弹幕同屏实时动态合体计数体系 (In-Flight Real-Time ×N Merging)
 - 状态：已完成
 - 优先级：P1

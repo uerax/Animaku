@@ -1,4 +1,4 @@
-import type { DanmakuComment } from '@animaku/shared'
+import { deduplicateDanmakuIncremental, type DanmakuComment } from '@animaku/shared'
 
 /** Independent comment pools that can be shown / hidden without reloading */
 export type DanmakuPoolId = 'dandan' | 'bilibili_auto' | 'bilibili_manual' | 'upload'
@@ -141,25 +141,41 @@ export function togglePool(
   }
 }
 
-/** Comments actually drawn on the player (enabled pools only, with per-pool timeOffset applied) */
+/** Comments actually drawn on the player (enabled pools only, with per-pool timeOffset applied and progressive multi-source deduplication) */
 export function flattenEnabledPools(pools: DanmakuPools): DanmakuComment[] {
-  const out: DanmakuComment[] = []
+  const enabledSlices: DanmakuComment[][] = []
   for (const id of DANMAKU_POOL_ORDER) {
     const slice = pools[id]
     if (!slice.enabled || !slice.comments.length) continue
     const offset = slice.timeOffset ?? 0
     if (offset === 0) {
-      out.push(...slice.comments)
+      enabledSlices.push(slice.comments)
     } else {
-      for (const c of slice.comments) {
-        out.push({
+      enabledSlices.push(
+        slice.comments.map((c) => ({
           ...c,
           time: Math.max(0, c.time + offset),
-        })
-      }
+        })),
+      )
     }
   }
-  return out.sort((a, b) => a.time - b.time)
+
+  if (enabledSlices.length === 0) return []
+  if (enabledSlices.length === 1) {
+    return [...enabledSlices[0]].sort((a, b) => a.time - b.time)
+  }
+
+  // Progressive O(1) cross-source deduplication across multiple enabled pools
+  const result: DanmakuComment[] = [...enabledSlices[0]]
+  for (let i = 1; i < enabledSlices.length; i++) {
+    const { incremental } = deduplicateDanmakuIncremental(
+      result,
+      enabledSlices[i],
+    )
+    result.push(...incremental)
+  }
+
+  return result.sort((a, b) => a.time - b.time)
 }
 
 export function totalLoadedCount(pools: DanmakuPools): number {

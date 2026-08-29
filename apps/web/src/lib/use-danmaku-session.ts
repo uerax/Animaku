@@ -150,7 +150,7 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
 
   const visibleComments = useMemo(() => flattenEnabledPools(pools), [pools])
   const loadedCount = useMemo(() => totalLoadedCount(pools), [pools])
-  const visibleCount = useMemo(() => enabledCount(pools), [pools])
+  const visibleCount = useMemo(() => visibleComments.length, [visibleComments])
   const chips = useMemo(() => sourceChips(pools), [pools])
 
   const toggleSource = useCallback((id: DanmakuPoolId) => {
@@ -261,11 +261,6 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
         biliComments,
       )
 
-      // 3. Determine whether Bilibili auto source should be enabled by default
-      const isBiliSignificant =
-        biliCount >= 300 &&
-        (biliCount > dandanCount * 1.5 || dandanCount < 50)
-
       setPools((p) => {
         let next = writePool(
           p,
@@ -279,10 +274,10 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
           next = writePool(
             next,
             'bilibili_auto',
-            incremental,
+            biliComments,
             'replace',
             biliPart,
-            isBiliSignificant,
+            true,
           )
         }
         return next
@@ -295,13 +290,13 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
           ? ` · 偏移 (${danmakuOffset > 0 ? `+${danmakuOffset}` : danmakuOffset})`
           : ''
 
-      if (isBiliSignificant && incremental.length > 0) {
+      if (biliComments.length > 0 && incremental.length > 0) {
         setStatus(
           `弹弹 (${dandanCount}) + B站 (+${incremental.length}) 已启用${offsetLabel}`,
         )
       } else if (biliComments.length > 0) {
         setStatus(
-          `弹弹 (${dandanCount}) 已启用 · B站 (${biliCount}) 待命${offsetLabel}`,
+          `弹弹 (${dandanCount}) + B站 (已去重) 已启用${offsetLabel}`,
         )
       } else {
         setStatus(`弹弹 · 已加载 ${dandanCount} 条${offsetLabel}`)
