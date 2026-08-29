@@ -141,10 +141,15 @@ export function findMatchingEpisodeIndex(
   )
   if (rawMatch !== -1) return rawMatch
 
-  // 3. Fallback to index if within bounds
+  // 3. Fallback to caller-supplied index if it's within bounds.
+  //    IMPORTANT: when fallbackIndex is not a valid in-bounds index (e.g. the
+  //    default -1, meaning "caller has no fallback"), this function MUST
+  //    return -1 ("no match found") rather than 0. Returning 0 here is
+  //    indistinguishable from "matched candidate at index 0" to any caller
+  //    that checks `result >= 0`, causing silent wrong-episode jumps.
   if (fallbackIndex >= 0 && fallbackIndex < candidateTitles.length) {
     return fallbackIndex
   }
 
-  return 0
+  return -1
 }

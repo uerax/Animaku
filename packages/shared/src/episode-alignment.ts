@@ -232,8 +232,12 @@ export function buildPlayableSlots(
     sourceItems[0]?.title ||
     identifiers[sourceItems[0]?.originalIndex ?? 0] ||
     ''
+  // 用 -1 作为哨兵值（不能用 0！），使"未能从标题提取到数字"与"显式匹配到
+  // 0 集模式（如「第00话」「序章」）"这两种完全不同的语义不再共用同一个
+  // 返回值。此前复用 0 作为 fallback 导致纯文本首集标题（如"刽子手"）被
+  // 误判为 0-based，造成后续所有集数整体左移 1 位。
   const firstIsZero =
-    extractConservativeEpisodeNumber(firstRawTitle, 0, true) === 0
+    extractConservativeEpisodeNumber(firstRawTitle, -1, true) === 0
 
   return sourceItems.map((item, i) => {
     const rawTitle = item.title || identifiers[item.originalIndex] || ''

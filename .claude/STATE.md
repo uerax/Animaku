@@ -4,6 +4,31 @@
 
 ---
 
+## [2026-08-30] 修复集数对齐与换源匹配中的哨兵值语义碰撞问题（TASK 1, 2, 3, 4, 5）
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **TASK 1：修复 `episode-alignment.ts` 的 `firstIsZero` 哨兵值碰撞 (`packages/shared/src/episode-alignment.ts`)**：
+     - 将 `buildPlayableSlots` 中判断首集是否为第 0 话的 fallback 传入值由 `0` 改为哨兵值 `-1`；
+     - 彻底消除未能从标题提取到数字（如纯文本《刽子手》）与显式匹配到 0 话模式（如《第00话 序章》）共用返回值 `0` 的歧义；
+     - 纯文本标题番剧在 Layer 2 下准确编号为 `1, 2, 3, 4`，修复深层链接 `ep=3` 错位命中第 4 集及 Auto-sync Effect 误跳变问题。
+  2. **TASK 2：修复 `episode.ts` 的 `findMatchingEpisodeIndex` 哨兵值 Bug (`packages/shared/src/episode.ts`)**：
+     - 将未匹配到任何候选项且无合法 `fallbackIndex` 时的返回值由 `0` 改为 `-1`；
+     - 消除未匹配与匹配到索引 0 的歧义，修复旧源换新源且新源标题完全无法匹配时误判为“命中第 0 项”导致用户被静默重置到第 1 集的缺陷；
+     - 排查调用方 `apps/web/src/lib/use-watch-session.ts:784`，确认 `matchIdx === -1` 时自然流转至第三级保留下标/集数逻辑。
+  3. **TASK 3：补全并扩充回归测试套件 (`packages/shared/src/episode-alignment.test.ts`, `packages/shared/src/episode.test.ts`)**：
+     - 在 `episode-alignment.test.ts` 中新增纯文本标题 Layer 2 映射（Scenario 6）与第 0 话模式（Scenario 7）等用例；
+     - 新建 `packages/shared/src/episode.test.ts` 覆盖基础正则解析、SP 判定及 `findMatchingEpisodeIndex` 未匹配返回 `-1` 等用例；
+     - 13 个单测 100% 全部 pass，并完成故障注入自检。
+  4. **TASK 4：用户决策确认方案 C**：
+     - 用户确认采用方案 C，历史 `danmakuOffset` 数据在下次手动切换分集时自然覆盖修正，不修改 schema。
+  5. **TASK 5：记录三套集数提取逻辑收敛技术债 (`docs/TODO.md`)**：
+     - 在 `docs/TODO.md` 架构演进与技术债清单中登记将 `episode.ts`、`episode-alignment.ts`、`danmaku.ts` 三套集数提取逻辑收敛为一套共享实现的任务。
+- 涉及文件：packages/shared/src/episode-alignment.ts, packages/shared/src/episode.ts, packages/shared/src/episode-alignment.test.ts, packages/shared/src/episode.test.ts, docs/TODO.md, .claude/BUGS.md, .claude/STATE.md
+- 备注：全任务闭环完成，全量单测与全仓构建通过。
+
+---
+
 ## [2026-08-29] 落地基于 Bangumi 主权的 PlayableSlot 统一槽位体系与 Layer 2 源站自决引擎
 - 状态：已完成
 - 优先级：P0

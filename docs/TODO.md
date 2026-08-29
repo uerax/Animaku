@@ -25,9 +25,10 @@
 
 ## 💡 架构演进与性能备忘 (Architectural Notes)
 
-1. **DNS 与 CDN 延迟优化**：针对部分海外媒体源（如 Cloudflare R2 / AWS CloudFront），持续探索更优的 DNS 解析与直连路由策略；
-2. **WebGPU 超分着色器调优**：持续跟进 Anime4K WebGPU 上游优化，在低功耗集显与移动端上实现更低的显存占用；
-3. **SQLite 缓存生命周期治理**：定期维护 `plugin_search_cache` 与 `plugin_chapters_cache` 的 WAL 清理与过期索引压缩。
+1. **三套集数提取逻辑收敛重构**：当前仓库内存在 3 套独立实现、规则互不一致的标题集数提取逻辑（`episode.ts:parseEpisodeNumber`、`episode-alignment.ts:extractConservativeEpisodeNumber`、`danmaku.ts:matchDanmakuEpisode` 内联正则），需评估收敛为一套统一的共享实现，避免视频对齐与弹幕对齐在极端标题下产生集数分歧；
+2. **DNS 与 CDN 延迟优化**：针对部分海外媒体源（如 Cloudflare R2 / AWS CloudFront），持续探索更优的 DNS 解析与直连路由策略；
+3. **WebGPU 超分着色器调优**：持续跟进 Anime4K WebGPU 上游优化，在低功耗集显与移动端上实现更低的显存占用；
+4. **SQLite 缓存生命周期治理**：定期维护 `plugin_search_cache` 与 `plugin_chapters_cache` 的 WAL 清理与过期索引压缩。
 
 ---
 

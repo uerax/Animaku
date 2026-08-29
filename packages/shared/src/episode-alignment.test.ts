@@ -4,6 +4,8 @@ import {
   alignSourceToOfficial,
   resolveAlignedEpisodeNumber,
   filterOutObviousNonMainContent,
+  extractConservativeEpisodeNumber,
+  buildPlayableSlots,
 } from './episode-alignment.ts'
 
 test('Scenario 1: Fate/stay night [UBW] (Subject 100403: 00 PROLOGUE + pure titles)', () => {
@@ -105,3 +107,48 @@ test('Scenario 5: Safety valve on count mismatch (Source > Official)', () => {
   const overflowAligned = alignSourceToOfficial(overflowSource, underflowOfficial)
   assert.equal(overflowAligned, null, 'Count overflow should trigger safety valve and return null')
 })
+
+// --- Regression tests for b9cc86f Layer 2 firstIsZero fallback-collision bug ---
+
+test('extractConservativeEpisodeNumber: fallback sentinel is never confused with explicit 0-match', () => {
+  // No digits at all -> must return the caller-supplied fallback verbatim, not 0.
+  assert.equal(extractConservativeEpisodeNumber('刽子手', -1, true), -1)
+  assert.equal(extractConservativeEpisodeNumber('迷途猫', -1, false), -1)
+  // Explicit 0-patterns must still resolve to 0 regardless of fallback value.
+  assert.equal(extractConservativeEpisodeNumber('第00话 序章', -1, true), 0)
+  assert.equal(extractConservativeEpisodeNumber('EP00', -1, true), 0)
+  assert.equal(extractConservativeEpisodeNumber('序章', -1, true), 0, 'isFirstItem prologue keyword should still match 0')
+  assert.equal(extractConservativeEpisodeNumber('序章', -1, false), -1, 'non-first-item prologue keyword must NOT match 0')
+})
+
+test('Scenario 6 (Layer 2 regression): pure-text titles must NOT be misread as 0-based ("浪客剑心 追忆篇")', () => {
+  // Bangumi offline / no usable officialMain -> forces Layer 2.
+  const road = {
+    data: ['play/40791', 'play/40792', 'play/40793', 'play/40794'],
+    identifier: ['刽子手', '迷途猫', '宵里山', '十字伤'],
+  }
+  const slots = buildPlayableSlots(road, null)
+  assert.equal(slots.length, 4)
+  assert.equal(slots[0].canonicalEp, 1, '刽子手 should be canonical episode 1, not 0')
+  assert.equal(slots[1].canonicalEp, 2, '迷途猫 should be canonical episode 2, not 1')
+  assert.equal(slots[2].canonicalEp, 3, '宵里山 should be canonical episode 3, not 2')
+  assert.equal(slots[3].canonicalEp, 4, '十字伤 should be canonical episode 4, not 3')
+
+  // Deep link ep=3 must resolve to '宵里山', not '十字伤'.
+  const deepLinkTarget = slots.find((s) => s.canonicalEp === 3)
+  assert.equal(deepLinkTarget?.sourceTitle, '宵里山')
+  assert.equal(deepLinkTarget?.pageUrl, 'play/40793')
+})
+
+test('Scenario 7 (Layer 2 regression): true 0-based anime must still preserve episode 0 ("第00话 序章")', () => {
+  const road = {
+    data: ['play/1', 'play/2', 'play/3'],
+    identifier: ['第00话 序章', '第01话 冬之日', '第02话 开幕'],
+  }
+  const slots = buildPlayableSlots(road, null)
+  assert.equal(slots.length, 3)
+  assert.equal(slots[0].canonicalEp, 0, '第00话 should remain canonical episode 0')
+  assert.equal(slots[1].canonicalEp, 1)
+  assert.equal(slots[2].canonicalEp, 2)
+})
+
