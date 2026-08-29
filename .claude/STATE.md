@@ -4,6 +4,39 @@
 
 ---
 
+## [2026-08-30] 落地多源弹幕独立时移体系与弹幕面板整体 UI 重构美化
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **多源独立时间偏移（Per-Source Time Offset）池化体系 (`apps/web/src/lib/danmaku-pools.ts`, `apps/web/src/lib/use-danmaku-session.ts`, `apps/web/src/player/types.ts`)**：
+     - `DanmakuPoolSlice` 扩充 `timeOffset?: number` 独立字段，将弹幕时移控制由单一全局解耦为各源（`dandan` 基准源、`bilibili_auto` B站自动源、`bilibili_manual` BV/链接手动源、`upload` 本地 XML 上传源）独立管控；
+     - 重构 `flattenEnabledPools`，在池化打平时按源分别计算并钳位有效时间（`Math.max(0, c.time + offset)`），彻底终结“调整 B 站导致弹弹弹幕错位”的相互影响问题；
+     - `useDanmakuSession` 暴露 `poolOffsets` 与 `onSetPoolOffset(poolId, offset)` 状态机，并在 `DanmakuPanelState` 与 `VideoPlayer` 中完成全链路透传。
+  2. **弹幕面板整体 UI 现代化重构、交互调优与小屏幕自适应 (`apps/web/src/player/DanmakuPanel.tsx`)**：
+     - **Tab 布局规范**：恢复 `[弹弹搜索]` 为面板首位 Tab，保持 `弹弹搜索 -> 弹幕设置 -> 导入/屏蔽` 的经典心智顺序；
+     - **弹幕设置 (SettingsTab)**：
+       - 实现时间轴校准中心卡片，集成动态感知已加载源的 Segmented Tabs（`[全局 0s]`、`[弹弹(基准)]`、`[B站 +4.5s]`、`[BV:P2 -2s]`、`[XML -1.5s]`），选中项赋予高对比度主题色底色（`bg-[var(--kz-accent)] text-white`）与白色偏移微标，未选中项保持清爽对比，并支持「全部归零」；
+       - 实现触控友好的高精微调步进器（`[-1s]`、`[-0.5s]`、双击/长按重置数值展示框、`[+0.5s]`、`[+1s]`）；
+       - 净化弹幕精简选项：移除下方冗余描述小字，保持整洁统一的单行 Switch 规范；
+       - 重构外观滑块（不透明度、字号、速度、区域）与类型过滤药丸按钮（滚动/顶部/底部/彩色）。
+     - **导入与屏蔽 (ImportTab)**：
+       - 分层卡片化：B 站导入卡片（BV号/链接/分P + 专属即时时移步进器）、本地 XML 导入卡片（文件选择 + 专属即时时移步进器）及屏蔽词管理卡片；
+       - 实现用户导入 BV 视频或上传 XML 时“即导即调”，无需切页找设置。
+     - **搜索面板 (SearchTab)**：
+       - 优化弹弹play 搜索与剧集选择，紧凑布局并保留 Portal 浮层机制；
+     - **移动端无遮挡透明悬浮体验 (`MobileSheet`)**：
+       - 彻底移除背景半透明黑色遮罩，避免遮挡视频画面；同时挂载全局 Click-Outside 外部点击与触摸监听，保持丝滑退出；
+     - **响应式与小屏幕适配**：
+       - 桌面端与移动端模态卡宽度锁定 `w-[min(23rem,calc(100vw-2rem))]` 与 `w-[90%] max-w-[23rem]`，全内容自适应收缩，杜绝横向滚动溢出与窄屏撑爆。
+  3. **质量验证**：
+     - `pnpm typecheck` 全仓 3 个 workspace 0 报错通过；
+     - `@animaku/shared` 13 个单测 100% 全部通过；
+     - `pnpm build` 全量生产打包构建成功。
+- 涉及文件：apps/web/src/lib/danmaku-pools.ts, apps/web/src/lib/use-danmaku-session.ts, apps/web/src/player/types.ts, apps/web/src/player/DanmakuPanel.tsx, apps/web/src/player/VideoPlayer.tsx, .claude/STATE.md
+- 备注：彻底解决弹弹与 B 站弹幕错位调节相互干扰的问题，全面提升弹幕面板视觉与操作体验。
+
+---
+
 ## [2026-08-30] 修复集数对齐与换源匹配中的哨兵值语义碰撞问题（TASK 1, 2, 3, 4, 5）
 - 状态：已完成
 - 优先级：P0

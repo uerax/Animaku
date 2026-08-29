@@ -1,12 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import type {
   DanmakuAnime,
   DanmakuEpisode,
   DanmakuSettings,
 } from '@animaku/shared'
-import type { DanmakuSourceChip } from '../lib/danmaku-pools'
-import type { DanmakuPoolId } from '../lib/danmaku-pools'
+import {
+  type DanmakuPoolId,
+  type DanmakuSourceChip,
+} from '../lib/danmaku-pools'
 import type { PointerMode } from './chrome/usePointerMode'
 
 export type DanmakuPanelTab = 'search' | 'settings' | 'import'
@@ -47,6 +49,10 @@ interface Props {
   /** Multi-source chips under panel content */
   sources?: DanmakuSourceChip[]
   onToggleSource?: (id: DanmakuPoolId) => void
+  /** Per-pool time offsets map */
+  poolOffsets?: Record<DanmakuPoolId, number>
+  /** Callback to set per-pool time offset */
+  onSetPoolOffset?: (id: DanmakuPoolId, offset: number) => void
   /** Relative offset for danmaku episode alignment (e.g. -1 for prologue shift) */
   danmakuOffset?: number
   onResetOffset?: () => void
@@ -60,9 +66,9 @@ interface Props {
 }
 
 const TABS = [
-  ['search', '搜索'],
-  ['settings', '弹幕'],
-  ['import', '导入'],
+  ['search', '弹弹搜索'],
+  ['settings', '弹幕设置'],
+  ['import', '导入/屏蔽'],
 ] as const
 
 export function DanmakuPanel(props: Props) {
@@ -73,7 +79,8 @@ export function DanmakuPanel(props: Props) {
     if (typeof document !== 'undefined') {
       const portalTarget =
         document.fullscreenElement ||
-        (document as unknown as { webkitFullscreenElement?: Element }).webkitFullscreenElement ||
+        (document as unknown as { webkitFullscreenElement?: Element })
+          .webkitFullscreenElement ||
         document.body
       return createPortal(<MobileSheet {...props} />, portalTarget)
     }
@@ -82,7 +89,7 @@ export function DanmakuPanel(props: Props) {
   return <DesktopCard {...props} />
 }
 
-/* ─── Desktop floating card (unchanged interaction model) ─── */
+/* ─── Desktop floating card ─── */
 
 function DesktopCard(props: Props) {
   const {
@@ -103,9 +110,9 @@ function DesktopCard(props: Props) {
 
   return (
     <div
-      className="kz-danmaku-panel kz-danmaku-panel--desktop absolute z-[85] flex w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)]/95 text-[var(--kz-fg)] shadow-2xl backdrop-blur-2xl"
+      className="kz-danmaku-panel kz-danmaku-panel--desktop absolute z-[85] flex w-[min(23rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)]/95 text-[var(--kz-fg)] shadow-2xl backdrop-blur-2xl"
       style={{
-        maxHeight: 'min(26rem, calc(100dvh - 6rem))',
+        maxHeight: 'min(27rem, calc(100dvh - 6rem))',
       }}
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
@@ -114,14 +121,15 @@ function DesktopCard(props: Props) {
       aria-label="弹幕面板"
       data-player-chrome
     >
+      {/* Header Tabs */}
       <div className="flex shrink-0 items-center justify-between border-b border-[var(--kz-border)] px-3 py-2 bg-[var(--kz-bg-soft)]/60">
-        <div className="flex gap-1">
+        <div className="flex gap-1 bg-[var(--kz-bg)]/80 p-0.5 rounded-xl border border-[var(--kz-border)]/60">
           {TABS.map(([id, label]) => (
             <button
               key={id}
               type="button"
               data-active={tab === id}
-              className="rounded-md px-2.5 py-1 text-xs font-medium transition-colors data-[active=true]:bg-[var(--kz-accent)] data-[active=true]:text-white data-[active=true]:shadow-sm data-[active=false]:text-[var(--kz-fg-muted)] data-[active=false]:hover:bg-[var(--kz-bg-soft)] data-[active=false]:hover:text-[var(--kz-fg)] border-0 bg-transparent cursor-pointer"
+              className="rounded-lg px-2.5 py-1 text-xs font-semibold transition-all duration-150 data-[active=true]:bg-[var(--kz-accent)] data-[active=true]:text-white data-[active=true]:shadow-xs data-[active=false]:text-[var(--kz-fg-muted)] data-[active=false]:hover:bg-[var(--kz-bg-soft)] data-[active=false]:hover:text-[var(--kz-fg)] border-0 bg-transparent cursor-pointer select-none"
               onClick={() => onTabChange(id)}
             >
               {label}
@@ -131,27 +139,30 @@ function DesktopCard(props: Props) {
         <button
           type="button"
           onClick={onClose}
-          className="rounded-md px-2 py-1 text-xs text-[var(--kz-fg-muted)] hover:bg-[var(--kz-bg-soft)] hover:text-[var(--kz-fg)] transition-colors border-0 bg-transparent cursor-pointer"
+          className="w-6 h-6 flex items-center justify-center rounded-lg text-xs text-[var(--kz-fg-muted)] hover:bg-[var(--kz-bg-soft)] hover:text-[var(--kz-fg)] transition-colors border-0 bg-transparent cursor-pointer"
           aria-label="关闭弹幕面板"
         >
           ✕
         </button>
       </div>
 
+      {/* Status Bar */}
+      <div className="shrink-0 border-b border-[var(--kz-border)] px-3.5 py-1.5 text-[11.5px] leading-snug text-[var(--kz-fg-muted)] bg-[var(--kz-bg-soft)]/30 flex items-center justify-between gap-2">
+        <span className="truncate min-w-0 flex-1">{status || '—'}</span>
+        {commentsCount > 0 ? (
+          <span className="shrink-0 text-[var(--kz-accent)] font-medium font-mono text-[11px]">
+            {shown !== commentsCount ? `${shown}/${commentsCount}条` : `${commentsCount}条`}
+          </span>
+        ) : null}
+      </div>
+
+      {/* Tab Body */}
       <div className="kz-danmaku-panel-body flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div className="shrink-0 border-b border-[var(--kz-border)] px-3 py-2 text-xs leading-snug text-[var(--kz-fg-muted)] bg-[var(--kz-bg-soft)]/30">
-          {status || '—'}
-          {commentsCount > 0 ? (
-            <span className="ml-2 text-[var(--kz-accent)] font-medium">
-              · 共 {commentsCount} 条
-              {shown !== commentsCount ? ` · 显示 ${shown}` : ''}
-            </span>
-          ) : null}
-        </div>
-        <div className="kz-danmaku-panel-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 text-sm text-[var(--kz-fg)]">
+        <div className="kz-danmaku-panel-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 text-sm text-[var(--kz-fg)] space-y-3">
           {tab === 'search' && <SearchTab {...props} compact={false} />}
           {tab === 'settings' && (
             <SettingsTab
+              {...props}
               danmaku={danmaku}
               onDanmakuChange={onDanmakuChange}
               compact={false}
@@ -161,12 +172,13 @@ function DesktopCard(props: Props) {
         </div>
       </div>
 
+      {/* Sources Footer */}
       <SourcesFooter sources={sources} onToggleSource={onToggleSource} compact={false} />
     </div>
   )
 }
 
-/* ─── Mobile bottom sheet: dense, touch-first ─── */
+/* ─── Mobile centered modal (No dark overlay backdrop) ─── */
 
 function MobileSheet(props: Props) {
   const {
@@ -185,83 +197,100 @@ function MobileSheet(props: Props) {
   const shown =
     typeof visibleCount === 'number' ? visibleCount : commentsCount
 
+  const modalRef = useRef<HTMLDivElement>(null)
+
+  // Listen for outside clicks to close without dark backdrop overlay
+  useEffect(() => {
+    const handleGlobalPointer = (e: MouseEvent | TouchEvent) => {
+      if (!modalRef.current) return
+      const target = e.target as Node
+      if (!modalRef.current.contains(target)) {
+        onClose()
+      }
+    }
+    const timer = setTimeout(() => {
+      window.addEventListener('mousedown', handleGlobalPointer, true)
+      window.addEventListener('touchstart', handleGlobalPointer, true)
+    }, 60)
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('mousedown', handleGlobalPointer, true)
+      window.removeEventListener('touchstart', handleGlobalPointer, true)
+    }
+  }, [onClose])
+
   return (
-    <>
-      {/* Fullscreen dimmed backdrop — tap closes */}
-      <button
-        type="button"
-        className="fixed inset-0 z-[99998] bg-black/65 backdrop-blur-sm cursor-pointer border-0 p-0 m-0"
-        aria-label="关闭弹幕面板"
-        onClick={onClose}
-        onMouseDown={(e) => e.stopPropagation()}
-        onPointerDown={(e) => e.stopPropagation()}
-      />
-      {/* Centered Modal Card: 88% width, 65dvh height, centered with margin auto */}
-      <div
-        className="fixed inset-0 z-[99999] m-auto flex flex-col w-[88%] max-w-[22rem] h-[65dvh] max-h-[26rem] bg-[var(--kz-bg-elevated)]/95 text-[var(--kz-fg)] backdrop-blur-2xl border border-[var(--kz-border)] rounded-2xl shadow-2xl overflow-hidden pointer-events-auto animate-in zoom-in-95 duration-150"
-        onMouseDown={(e) => e.stopPropagation()}
-        onClick={(e) => e.stopPropagation()}
-        onPointerDown={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-label="弹幕面板"
-        data-player-chrome
-      >
-        <div className="flex items-center gap-2 px-3.5 py-2.5 shrink-0 border-b border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/60">
-          <div className="flex-1 flex gap-1 p-1 rounded-xl bg-[var(--kz-bg)] border border-[var(--kz-border)] min-w-0" role="tablist">
-            {TABS.map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                aria-selected={tab === id}
-                onClick={() => onTabChange(id)}
-                className={
-                  tab === id
-                    ? 'flex-1 h-7 rounded-lg text-xs font-semibold bg-[var(--kz-accent)] text-white shadow-md transition-all border-0 cursor-pointer'
-                    : 'flex-1 h-7 rounded-lg text-xs font-semibold text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] transition-all border-0 bg-transparent cursor-pointer'
-                }
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] rounded-lg hover:bg-[var(--kz-bg-soft)] transition-colors text-sm border-0 bg-transparent cursor-pointer"
-            aria-label="关闭"
-          >
-            ✕
-          </button>
+    <div
+      ref={modalRef}
+      className="fixed inset-0 z-[99999] m-auto flex flex-col w-[90%] max-w-[23rem] h-[68dvh] max-h-[28rem] bg-[var(--kz-bg-elevated)]/95 text-[var(--kz-fg)] backdrop-blur-2xl border border-[var(--kz-border)] rounded-2xl shadow-2xl overflow-hidden pointer-events-auto animate-in zoom-in-95 duration-150"
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-label="弹幕面板"
+      data-player-chrome
+    >
+      {/* Header Tabs */}
+      <div className="flex items-center justify-between gap-2 px-3 py-2 shrink-0 border-b border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/60">
+        <div className="flex-1 flex gap-1 p-0.5 rounded-xl bg-[var(--kz-bg)] border border-[var(--kz-border)]/60 min-w-0" role="tablist">
+          {TABS.map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={tab === id}
+              onClick={() => onTabChange(id)}
+              className={
+                tab === id
+                  ? 'flex-1 h-7 rounded-lg text-xs font-semibold bg-[var(--kz-accent)] text-white shadow-xs transition-all border-0 cursor-pointer'
+                  : 'flex-1 h-7 rounded-lg text-xs font-semibold text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] transition-all border-0 bg-transparent cursor-pointer'
+              }
+            >
+              {label}
+            </button>
+          ))}
         </div>
-
-        <div className="shrink-0 border-b border-[var(--kz-border)] px-3.5 py-1.5 text-xs leading-snug text-[var(--kz-fg-muted)] bg-[var(--kz-bg-soft)]/30 flex items-center justify-between">
-          <span className="truncate min-w-0 flex-1">{status || '—'}</span>
-          {commentsCount > 0 ? (
-            <span className="ml-2 text-[var(--kz-accent)] font-medium shrink-0">
-              · 共 {commentsCount} 条
-              {shown !== commentsCount ? ` · 显示 ${shown}` : ''}
-            </span>
-          ) : null}
-        </div>
-
-        <div className="flex-1 min-h-0 h-full overflow-y-auto overscroll-contain p-3.5 space-y-3 text-sm text-[var(--kz-fg)]">
-          {tab === 'search' && <SearchTab {...props} compact />}
-          {tab === 'settings' && (
-            <SettingsTab
-              danmaku={danmaku}
-              onDanmakuChange={onDanmakuChange}
-              compact
-            />
-          )}
-          {tab === 'import' && <ImportTab {...props} compact />}
-        </div>
-
-        <SourcesFooter sources={sources} onToggleSource={onToggleSource} compact />
+        <button
+          type="button"
+          onClick={onClose}
+          className="w-7 h-7 flex items-center justify-center text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] rounded-lg hover:bg-[var(--kz-bg-soft)] transition-colors text-sm border-0 bg-transparent cursor-pointer shrink-0"
+          aria-label="关闭"
+        >
+          ✕
+        </button>
       </div>
-    </>
+
+      {/* Status Bar */}
+      <div className="shrink-0 border-b border-[var(--kz-border)] px-3.5 py-1.5 text-[11.5px] leading-snug text-[var(--kz-fg-muted)] bg-[var(--kz-bg-soft)]/30 flex items-center justify-between gap-2">
+        <span className="truncate min-w-0 flex-1">{status || '—'}</span>
+        {commentsCount > 0 ? (
+          <span className="ml-2 text-[var(--kz-accent)] font-medium font-mono text-[11px] shrink-0">
+            {shown !== commentsCount ? `${shown}/${commentsCount}条` : `${commentsCount}条`}
+          </span>
+        ) : null}
+      </div>
+
+      {/* Content Body */}
+      <div className="flex-1 min-h-0 h-full overflow-y-auto overscroll-contain p-3.5 space-y-3 text-sm text-[var(--kz-fg)]">
+        {tab === 'search' && <SearchTab {...props} compact />}
+        {tab === 'settings' && (
+          <SettingsTab
+            {...props}
+            danmaku={danmaku}
+            onDanmakuChange={onDanmakuChange}
+            compact
+          />
+        )}
+        {tab === 'import' && <ImportTab {...props} compact />}
+      </div>
+
+      {/* Sources Footer */}
+      <SourcesFooter sources={sources} onToggleSource={onToggleSource} compact />
+    </div>
   )
 }
+
+/* ─── Sources Footer (Clean & Minimal) ─── */
 
 function SourcesFooter({
   sources,
@@ -278,13 +307,13 @@ function SourcesFooter({
     <div
       className={
         compact
-          ? 'kz-danmaku-panel-sources shrink-0 border-t border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/60 px-3 py-2 text-[var(--kz-fg-muted)]'
+          ? 'kz-danmaku-panel-sources shrink-0 border-t border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/60 px-3 py-1.5 text-[var(--kz-fg-muted)]'
           : 'kz-danmaku-panel-sources shrink-0 border-t border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/60 px-3 py-1.5 text-[var(--kz-fg-muted)]'
       }
     >
       <div className="mb-1 flex items-center justify-between text-[10.5px] font-medium text-[var(--kz-fg-muted)]">
-        <span>弹幕源</span>
-        <span className="text-[10px] opacity-70">点击可单独开/关</span>
+        <span>弹幕源池</span>
+        <span className="text-[10px] opacity-70">点击可独立开/关</span>
       </div>
       <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 scroll-smooth">
         {loaded.map((s) => {
@@ -320,7 +349,7 @@ function SourcesFooter({
               className={`group inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10.5px] leading-tight transition-all duration-150 cursor-pointer select-none ${
                 s.enabled
                   ? `${activeClass} shadow-xs`
-                  : 'border-[var(--kz-border)] bg-[var(--kz-bg-soft)] text-[var(--kz-fg-muted)] opacity-70 hover:opacity-100 hover:border-[var(--kz-border-hover)]'
+                  : 'border-[var(--kz-border)] bg-[var(--kz-bg-soft)] text-[var(--kz-fg-muted)] opacity-60 hover:opacity-100 hover:border-[var(--kz-border-hover)]'
               }`}
             >
               <span>{s.label}</span>
@@ -341,7 +370,604 @@ function SourcesFooter({
   )
 }
 
-/* ─── Custom Select component (Lock 100% width, no OS popup overflow) ─── */
+/* ─── Offset Stepper Widget (Reusable & Touch-friendly) ─── */
+
+function OffsetStepper({
+  value,
+  onChange,
+  onReset,
+  label,
+  subLabel,
+}: {
+  value: number
+  onChange: (next: number) => void
+  onReset: () => void
+  label?: string
+  subLabel?: string
+}) {
+  const [editing, setEditing] = useState(false)
+  const [inputStr, setInputStr] = useState(String(value))
+
+  useEffect(() => {
+    setInputStr(String(value))
+  }, [value])
+
+  const commitInput = () => {
+    const parsed = Number(inputStr)
+    if (Number.isFinite(parsed)) {
+      onChange(Math.round(parsed * 10) / 10)
+    } else {
+      setInputStr(String(value))
+    }
+    setEditing(false)
+  }
+
+  const formatOffset = (v: number) => {
+    if (v === 0) return '0.0s'
+    return v > 0 ? `+${v.toFixed(1)}s` : `${v.toFixed(1)}s`
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {label ? (
+        <div className="flex items-center justify-between text-xs text-[var(--kz-fg-muted)]">
+          <span className="font-medium">{label}</span>
+          {subLabel ? <span className="text-[10px] opacity-75">{subLabel}</span> : null}
+        </div>
+      ) : null}
+
+      <div className="flex items-center justify-between gap-1 w-full bg-[var(--kz-bg-soft)]/70 border border-[var(--kz-border)] p-1 rounded-xl">
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => onChange(Math.round((value - 1) * 10) / 10)}
+            className="h-7 px-1.5 rounded-lg bg-[var(--kz-bg-elevated)] border border-[var(--kz-border)]/70 text-[11px] font-mono text-[var(--kz-fg)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] active:scale-95 transition-all cursor-pointer"
+            title="快退 1 秒"
+          >
+            -1s
+          </button>
+          <button
+            type="button"
+            onClick={() => onChange(Math.round((value - 0.5) * 10) / 10)}
+            className="h-7 px-1.5 rounded-lg bg-[var(--kz-bg-elevated)] border border-[var(--kz-border)]/70 text-[11px] font-mono text-[var(--kz-fg)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] active:scale-95 transition-all cursor-pointer"
+            title="微退 0.5 秒"
+          >
+            -0.5s
+          </button>
+        </div>
+
+        {/* Middle display / edit box */}
+        <div className="flex-1 flex items-center justify-center min-w-0 px-1">
+          {editing ? (
+            <input
+              autoFocus
+              type="number"
+              step={0.5}
+              value={inputStr}
+              onChange={(e) => setInputStr(e.target.value)}
+              onBlur={commitInput}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitInput()
+                if (e.key === 'Escape') {
+                  setInputStr(String(value))
+                  setEditing(false)
+                }
+              }}
+              className="w-16 h-7 text-center font-mono text-xs font-bold bg-[var(--kz-bg)] border border-[var(--kz-accent)] rounded-lg text-[var(--kz-fg)] outline-none"
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              onDoubleClick={onReset}
+              title="点击手动输入，双击重置为 0.0s"
+              className={`h-7 px-2 rounded-lg border flex items-center justify-center font-mono text-xs font-bold transition-all cursor-pointer truncate max-w-full ${
+                value !== 0
+                  ? 'border-[var(--kz-accent)]/50 bg-[var(--kz-accent-soft)] text-[var(--kz-accent)] shadow-2xs'
+                  : 'border-transparent bg-transparent text-[var(--kz-fg)] hover:bg-[var(--kz-bg-elevated)]'
+              }`}
+            >
+              {formatOffset(value)}
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => onChange(Math.round((value + 0.5) * 10) / 10)}
+            className="h-7 px-1.5 rounded-lg bg-[var(--kz-bg-elevated)] border border-[var(--kz-border)]/70 text-[11px] font-mono text-[var(--kz-fg)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] active:scale-95 transition-all cursor-pointer"
+            title="微进 0.5 秒"
+          >
+            +0.5s
+          </button>
+          <button
+            type="button"
+            onClick={() => onChange(Math.round((value + 1) * 10) / 10)}
+            className="h-7 px-1.5 rounded-lg bg-[var(--kz-bg-elevated)] border border-[var(--kz-border)]/70 text-[11px] font-mono text-[var(--kz-fg)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] active:scale-95 transition-all cursor-pointer"
+            title="快进 1 秒"
+          >
+            +1s
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ─── Settings Tab ─── */
+
+type OffsetTarget = 'global' | DanmakuPoolId
+
+function SettingsTab({
+  danmaku,
+  onDanmakuChange,
+  sources,
+  poolOffsets,
+  onSetPoolOffset,
+}: Props & { compact: boolean }) {
+  // Determine available offset tabs based on loaded sources
+  const availableTargets = useMemo(() => {
+    const list: Array<{ id: OffsetTarget; label: string; offset: number }> = [
+      { id: 'global', label: '全局', offset: danmaku.timeOffset || 0 },
+    ]
+    const loadedSources = (sources || []).filter((s) => s.loaded)
+
+    for (const s of loadedSources) {
+      const offset = poolOffsets?.[s.id] ?? s.timeOffset ?? 0
+      list.push({
+        id: s.id,
+        label: s.label,
+        offset,
+      })
+    }
+    return list
+  }, [sources, poolOffsets, danmaku.timeOffset])
+
+  const [selectedTarget, setSelectedTarget] = useState<OffsetTarget>('global')
+
+  // Keep target valid if active source disappears
+  useEffect(() => {
+    if (!availableTargets.some((t) => t.id === selectedTarget)) {
+      setSelectedTarget('global')
+    }
+  }, [availableTargets, selectedTarget])
+
+  const currentTargetObj = availableTargets.find((t) => t.id === selectedTarget) || availableTargets[0]
+  const currentOffset = currentTargetObj.offset
+
+  const handleOffsetChange = (nextOffset: number) => {
+    if (selectedTarget === 'global') {
+      onDanmakuChange({ timeOffset: nextOffset })
+    } else if (onSetPoolOffset) {
+      onSetPoolOffset(selectedTarget, nextOffset)
+    }
+  }
+
+  const handleResetCurrentOffset = () => {
+    handleOffsetChange(0)
+  }
+
+  return (
+    <div className="space-y-3.5">
+      {/* Group 1: Time Offset Alignment Center */}
+      <div className="rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/50 p-2.5 space-y-2.5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold text-[var(--kz-fg)]">时间轴校准 (Offset)</span>
+          <button
+            type="button"
+            onClick={() => {
+              onDanmakuChange({ timeOffset: 0 })
+              if (onSetPoolOffset) {
+                for (const t of availableTargets) {
+                  if (t.id !== 'global') onSetPoolOffset(t.id, 0)
+                }
+              }
+            }}
+            className="text-[10.5px] text-[var(--kz-fg-muted)] hover:text-[var(--kz-accent)] transition-colors border-0 bg-transparent cursor-pointer"
+          >
+            全部归零
+          </button>
+        </div>
+
+        {/* Dynamic Source Tabs with Distinct High-Contrast Accent Background on Active */}
+        <div className="flex items-center gap-1 p-1 rounded-xl bg-[var(--kz-bg)] border border-[var(--kz-border)] overflow-x-auto no-scrollbar">
+          {availableTargets.map((t) => {
+            const active = selectedTarget === t.id
+            const hasShift = t.offset !== 0
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setSelectedTarget(t.id)}
+                className={`flex-1 min-w-[3.5rem] py-1.5 px-2 rounded-lg text-xs transition-all flex items-center justify-center gap-1 border-0 cursor-pointer select-none truncate ${
+                  active
+                    ? 'bg-[var(--kz-accent)] text-white shadow-xs font-bold'
+                    : 'text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] hover:bg-[var(--kz-bg-soft)] bg-transparent font-medium'
+                }`}
+              >
+                <span className="truncate">{t.label}</span>
+                {hasShift ? (
+                  <span
+                    className={`text-[9px] font-mono px-1 py-0.2 rounded-full font-bold ${
+                      active
+                        ? 'bg-white/25 text-white'
+                        : 'bg-[var(--kz-accent-soft)] text-[var(--kz-accent)]'
+                    }`}
+                  >
+                    {t.offset > 0 ? `+${t.offset}` : t.offset}
+                  </span>
+                ) : null}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Offset Stepper for active target */}
+        <OffsetStepper
+          value={currentOffset}
+          onChange={handleOffsetChange}
+          onReset={handleResetCurrentOffset}
+          subLabel={
+            selectedTarget === 'global'
+              ? '作用于所有弹幕（修复视频自身片头）'
+              : `单独调节「${currentTargetObj.label}」源时间轴`
+          }
+        />
+      </div>
+
+      {/* Group 2: Danmaku Toggles */}
+      <div className="rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/50 p-2.5 space-y-2">
+        <label className="flex items-center justify-between gap-2 text-xs font-medium text-[var(--kz-fg)] cursor-pointer select-none">
+          <span>显示弹幕</span>
+          <input
+            type="checkbox"
+            checked={danmaku.enabled}
+            onChange={(e) => onDanmakuChange({ enabled: e.target.checked })}
+            className="w-4 h-4 rounded text-[var(--kz-accent)] accent-[var(--kz-accent)] cursor-pointer"
+          />
+        </label>
+
+        <label className="flex items-center justify-between gap-2 text-xs font-medium text-[var(--kz-fg)] cursor-pointer select-none">
+          <span>弹幕精简 (合并刷屏)</span>
+          <input
+            type="checkbox"
+            checked={Boolean(danmaku.simplify)}
+            onChange={(e) => onDanmakuChange({ simplify: e.target.checked })}
+            className="w-4 h-4 rounded text-[var(--kz-accent)] accent-[var(--kz-accent)] cursor-pointer"
+          />
+        </label>
+      </div>
+
+      {/* Group 3: Appearance Sliders */}
+      <div className="rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/50 p-2.5 space-y-2.5">
+        <RangeRow
+          label="不透明度"
+          value={danmaku.opacity}
+          min={0.1}
+          max={1}
+          step={0.05}
+          display={`${Math.round(danmaku.opacity * 100)}%`}
+          onChange={(v) => onDanmakuChange({ opacity: v })}
+        />
+        <RangeRow
+          label="弹幕字号"
+          value={danmaku.fontSize}
+          min={0.5}
+          max={2}
+          step={0.05}
+          display={`${danmaku.fontSize.toFixed(2)}×`}
+          onChange={(v) => onDanmakuChange({ fontSize: v })}
+        />
+        <RangeRow
+          label="弹幕速度"
+          value={danmaku.speed}
+          min={0.5}
+          max={2}
+          step={0.05}
+          display={`${danmaku.speed.toFixed(2)}×`}
+          onChange={(v) => onDanmakuChange({ speed: v })}
+        />
+        <RangeRow
+          label="显示区域"
+          value={danmaku.area}
+          min={0.2}
+          max={1}
+          step={0.05}
+          display={`${Math.round(danmaku.area * 100)}%`}
+          onChange={(v) => onDanmakuChange({ area: v })}
+        />
+      </div>
+
+      {/* Group 4: Danmaku Type Filter Chips */}
+      <div className="rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/50 p-2.5 space-y-1.5">
+        <div className="text-[11px] font-medium text-[var(--kz-fg-muted)]">弹幕类型过滤</div>
+        <div className="grid grid-cols-4 gap-1.5">
+          {(
+            [
+              ['showScroll', '滚动'],
+              ['showTop', '顶部'],
+              ['showBottom', '底部'],
+              ['showColor', '彩色'],
+            ] as const
+          ).map(([key, label]) => {
+            const active = Boolean(danmaku[key])
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => onDanmakuChange({ [key]: !active })}
+                className={`h-7.5 rounded-lg text-xs font-medium border transition-all flex items-center justify-center cursor-pointer select-none ${
+                  active
+                    ? 'bg-[var(--kz-accent-soft)] text-[var(--kz-accent)] border-[var(--kz-accent)]/50 font-bold shadow-2xs'
+                    : 'bg-[var(--kz-bg)] text-[var(--kz-fg-muted)] border-[var(--kz-border)] hover:border-[var(--kz-border-hover)]'
+                }`}
+              >
+                {active ? `✓ ${label}` : label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ─── Search Tab (Dandanplay) ─── */
+
+function SearchTab(props: Props & { compact: boolean }) {
+  return (
+    <div className="space-y-3">
+      {/* Search Input Box */}
+      <div className="space-y-1.5">
+        <span className="text-xs font-semibold text-[var(--kz-fg)]">弹弹play 番剧搜索</span>
+        <div className="flex gap-2">
+          <input
+            className="flex-1 min-w-0 rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-3 py-2 text-xs text-[var(--kz-fg)] placeholder:text-[var(--kz-fg-muted)] outline-none focus:border-[var(--kz-accent)] transition-all"
+            value={props.keyword}
+            onChange={(e) => props.onKeywordChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') props.onSearch()
+            }}
+            placeholder="搜索番剧名称…"
+          />
+          <button
+            type="button"
+            disabled={props.searchBusy}
+            onClick={props.onSearch}
+            className="shrink-0 rounded-xl bg-[var(--kz-accent)] px-3.5 py-2 text-xs font-semibold text-white hover:bg-[var(--kz-accent-hover)] active:scale-95 disabled:opacity-50 transition-all border-0 cursor-pointer shadow-xs"
+          >
+            {props.searchBusy ? '…' : '搜索'}
+          </button>
+        </div>
+      </div>
+
+      {/* Anime Pick */}
+      <div className="space-y-1">
+        <span className="text-xs text-[var(--kz-fg-muted)]">选择番剧</span>
+        <CustomSelect
+          value={props.animeId}
+          placeholder="选择番剧…"
+          options={props.animes.map((a) => ({
+            value: a.animeId,
+            label: `${a.animeTitle}${a.typeDescription ? ` (${a.typeDescription})` : ''}`,
+          }))}
+          onChange={(val) => props.onAnimeChange(val as number)}
+        />
+      </div>
+
+      {/* Episode Pick */}
+      <div className="space-y-1">
+        <span className="text-xs text-[var(--kz-fg-muted)]">选择章节</span>
+        <CustomSelect
+          value={props.episodeId}
+          placeholder="选择章节…"
+          options={props.episodes.map((ep) => ({
+            value: ep.episodeId,
+            label: ep.episodeTitle,
+          }))}
+          onChange={(val) => props.onEpisodeChange(val as number)}
+        />
+      </div>
+
+      {/* Episode Alignment Shift Info */}
+      {props.danmakuOffset !== undefined && props.danmakuOffset !== 0 ? (
+        <div className="flex items-center justify-between rounded-xl bg-amber-500/10 border border-amber-500/25 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
+          <span className="flex items-center gap-1.5 font-medium">
+            <span>⚡</span>
+            <span>
+              已校准集数偏移: {props.danmakuOffset > 0 ? `+${props.danmakuOffset}` : props.danmakuOffset} 集
+            </span>
+          </span>
+          {props.onResetOffset && (
+            <button
+              type="button"
+              onClick={props.onResetOffset}
+              className="cursor-pointer rounded-lg border border-amber-500/30 bg-amber-500/20 px-2 py-0.5 text-[11px] font-medium text-amber-700 hover:bg-amber-500/30 dark:text-amber-300 transition-colors"
+              title="重置当前源弹幕集数偏移为 0"
+            >
+              重置偏移
+            </button>
+          )}
+        </div>
+      ) : null}
+
+      <p className="text-[11px] leading-relaxed text-[var(--kz-fg-muted)]">
+        弹弹play 匹配写入「弹弹」基准源。可在底部开关各源，或在设置页对齐时间轴。
+      </p>
+    </div>
+  )
+}
+
+/* ─── Import & Filters Tab ─── */
+
+function ImportTab(props: Props & { compact: boolean }) {
+  const { poolOffsets, onSetPoolOffset } = props
+  const biliManualOffset = poolOffsets?.bilibili_manual ?? 0
+  const uploadOffset = poolOffsets?.upload ?? 0
+
+  return (
+    <div className="space-y-3.5">
+      {/* Card 1: Bilibili Manual Import */}
+      <div className="rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/50 p-2.5 space-y-2">
+        <div className="text-xs font-semibold text-[var(--kz-fg)]">Bilibili 视频 / 番剧链接</div>
+        <input
+          className="w-full rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-2 text-xs text-[var(--kz-fg)] placeholder:text-[var(--kz-fg-muted)] outline-none focus:border-[var(--kz-accent)] transition-all"
+          value={props.bvInput}
+          onChange={(e) => props.onBvInputChange(e.target.value)}
+          placeholder="BV号 / ep86012 / ss28277 / av号 / 完整链接"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') props.onLoadBilibili()
+          }}
+        />
+
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 text-xs text-[var(--kz-fg-muted)]">
+            <span className="font-medium">分P</span>
+            <input
+              type="number"
+              min={1}
+              inputMode="numeric"
+              value={props.bvPage}
+              onChange={(e) =>
+                props.onBvPageChange(Math.max(1, Number(e.target.value) || 1))
+              }
+              className="w-14 h-7.5 rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2 text-center text-xs font-mono font-bold text-[var(--kz-fg)] outline-none focus:border-[var(--kz-accent)]"
+            />
+          </div>
+          <button
+            type="button"
+            disabled={props.bilibiliBusy}
+            onClick={props.onLoadBilibili}
+            className="h-7.5 px-3.5 rounded-lg bg-[var(--kz-accent)] text-white text-xs font-semibold hover:bg-[var(--kz-accent-hover)] active:scale-95 disabled:opacity-50 transition-all border-0 cursor-pointer shadow-2xs"
+          >
+            {props.bilibiliBusy ? '拉取中…' : '追加 B 站弹幕'}
+          </button>
+        </div>
+
+        {/* Dedicated Stepper for Bilibili Manual */}
+        <OffsetStepper
+          value={biliManualOffset}
+          onChange={(v) => onSetPoolOffset?.('bilibili_manual', v)}
+          onReset={() => onSetPoolOffset?.('bilibili_manual', 0)}
+          label="BV源独立时移"
+          subLabel="解决剪辑/片头差异"
+        />
+      </div>
+
+      {/* Card 2: Local XML File Import */}
+      <div className="rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/50 p-2.5 space-y-2">
+        <div className="text-xs font-semibold text-[var(--kz-fg)]">本地 XML 弹幕文件</div>
+        <button
+          type="button"
+          onClick={props.onPickXmlFile}
+          className="flex items-center justify-between gap-2 w-full p-2.5 rounded-xl bg-[var(--kz-bg)] border border-dashed border-[var(--kz-border)] text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] transition-all cursor-pointer text-left"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-base">📁</span>
+            <span className="text-xs font-semibold">选择本地 XML 弹幕文件</span>
+          </div>
+          <span className="text-[10px] text-[var(--kz-fg-muted)]">B 站 / pakku</span>
+        </button>
+
+        {/* Dedicated Stepper for XML Upload */}
+        <OffsetStepper
+          value={uploadOffset}
+          onChange={(v) => onSetPoolOffset?.('upload', v)}
+          onReset={() => onSetPoolOffset?.('upload', 0)}
+          label="XML源独立时移"
+        />
+      </div>
+
+      {/* Card 3: Danmaku Filters List */}
+      <div className="rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/50 p-2.5 space-y-2">
+        <div className="text-xs font-semibold text-[var(--kz-fg)]">
+          屏蔽词列表 · {props.danmaku.filters.length} 条
+        </div>
+        <div className="flex gap-2">
+          <input
+            className="flex-1 min-w-0 rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-1.5 text-xs text-[var(--kz-fg)] placeholder:text-[var(--kz-fg-muted)] outline-none focus:border-[var(--kz-accent)] transition-all"
+            value={props.filterDraft}
+            onChange={(e) => props.onFilterDraftChange(e.target.value)}
+            placeholder="关键词 或 /regex/"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') props.onAddFilter()
+            }}
+          />
+          <button
+            type="button"
+            onClick={props.onAddFilter}
+            className="h-7.5 px-3 rounded-lg bg-[var(--kz-accent)] text-white text-xs font-semibold hover:bg-[var(--kz-accent-hover)] active:scale-95 transition-all cursor-pointer border-0 shrink-0 shadow-2xs"
+          >
+            添加
+          </button>
+        </div>
+        {props.danmaku.filters.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1 bg-[var(--kz-bg)]/80 rounded-xl border border-[var(--kz-border)]">
+            {props.danmaku.filters.map((rule) => (
+              <span
+                key={rule}
+                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-[var(--kz-bg-soft)] border border-[var(--kz-border)] text-xs text-[var(--kz-fg)] max-w-full truncate"
+              >
+                <span className="truncate font-mono">{rule}</span>
+                <button
+                  type="button"
+                  className="text-red-400 hover:text-red-300 border-0 bg-transparent cursor-pointer font-bold text-xs p-0 leading-none"
+                  onClick={() => props.onRemoveFilter(rule)}
+                  aria-label="删除屏蔽词"
+                >
+                  ✕
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ─── UI Helper: Slider Row ─── */
+
+function RangeRow({
+  label,
+  value,
+  min,
+  max,
+  step,
+  display,
+  onChange,
+}: {
+  label: string
+  value: number
+  min: number
+  max: number
+  step: number
+  display: string
+  onChange: (v: number) => void
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 text-xs">
+      <span className="text-[var(--kz-fg-muted)] font-medium shrink-0">{label}</span>
+      <div className="flex-1 flex items-center gap-2 min-w-0">
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="flex-1 h-1.5 bg-[var(--kz-bg)] rounded-full accent-[var(--kz-accent)] cursor-pointer"
+        />
+        <span className="w-11 text-right font-mono font-semibold text-[11px] text-[var(--kz-accent)] shrink-0">
+          {display}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+/* ─── Custom Select component (Portal based, no overflow clipping) ─── */
 
 function CustomSelect<T extends number | string>({
   value,
@@ -428,7 +1054,7 @@ function CustomSelect<T extends number | string>({
         ref={buttonRef}
         type="button"
         onClick={handleToggle}
-        className="flex items-center justify-between w-full h-8.5 px-3 rounded-lg bg-[var(--kz-bg-soft)] border border-[var(--kz-border)] text-[var(--kz-fg)] text-xs font-medium outline-none hover:border-[var(--kz-accent)] hover:bg-[var(--kz-bg-hover)] active:scale-[0.99] transition-all cursor-pointer text-left"
+        className="flex items-center justify-between w-full h-8.5 px-3 rounded-xl bg-[var(--kz-bg-soft)] border border-[var(--kz-border)] text-[var(--kz-fg)] text-xs font-medium outline-none hover:border-[var(--kz-accent)] hover:bg-[var(--kz-bg-hover)] active:scale-[0.99] transition-all cursor-pointer text-left"
       >
         <span className="truncate min-w-0 flex-1">
           {selectedOpt ? selectedOpt.label : placeholder}
@@ -506,643 +1132,5 @@ function CustomSelect<T extends number | string>({
           portalTarget,
         )}
     </div>
-  )
-}
-
-/* ─── Tab bodies ─── */
-
-function SearchTab({ compact, ...props }: Props & { compact: boolean }) {
-  if (compact) {
-    return (
-      <div className="kz-dm-form">
-        <div className="kz-dm-row">
-          <input
-            className="kz-dm-input"
-            value={props.keyword}
-            onChange={(e) => props.onKeywordChange(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') props.onSearch()
-            }}
-            placeholder="弹弹play 番名"
-            enterKeyHint="search"
-          />
-          <button
-            type="button"
-            disabled={props.searchBusy}
-            onClick={props.onSearch}
-            className="kz-dm-btn-primary"
-          >
-            {props.searchBusy ? '…' : '搜索'}
-          </button>
-        </div>
-
-        <label className="kz-dm-field">
-          <span className="kz-dm-label">番剧</span>
-          <CustomSelect
-            value={props.animeId}
-            placeholder="选择番剧…"
-            options={props.animes.map((a) => ({
-              value: a.animeId,
-              label: `${a.animeTitle}${a.typeDescription ? ` (${a.typeDescription})` : ''}`,
-            }))}
-            onChange={(val) => props.onAnimeChange(val as number)}
-          />
-        </label>
-
-        <label className="kz-dm-field">
-          <span className="kz-dm-label">章节</span>
-          <CustomSelect
-            value={props.episodeId}
-            placeholder="选择章节…"
-            options={props.episodes.map((ep) => ({
-              value: ep.episodeId,
-              label: ep.episodeTitle,
-            }))}
-            onChange={(val) => props.onEpisodeChange(val as number)}
-          />
-        </label>
-
-        {props.danmakuOffset !== undefined && props.danmakuOffset !== 0 ? (
-          <div className="flex items-center justify-between rounded-lg bg-amber-500/10 border border-amber-500/25 px-2.5 py-1.5 text-xs text-amber-600 dark:text-amber-400">
-            <span className="flex items-center gap-1 font-medium">
-              <span>⚡</span>
-              <span>
-                已校准偏移: {props.danmakuOffset > 0 ? `+${props.danmakuOffset}` : props.danmakuOffset} 集
-              </span>
-            </span>
-            {props.onResetOffset && (
-              <button
-                type="button"
-                onClick={props.onResetOffset}
-                className="cursor-pointer rounded border border-amber-500/30 bg-amber-500/20 px-1.5 py-0.5 text-[10.5px] font-medium text-amber-700 hover:bg-amber-500/30 dark:text-amber-300 transition-colors"
-                title="重置当前源弹幕偏移为 0"
-              >
-                重置偏移
-              </button>
-            )}
-          </div>
-        ) : null}
-
-        <p className="kz-dm-hint">
-          弹弹写入「弹弹」源；B 站 / XML 默认追加。可在面板底部开关各源。
-        </p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-2.5">
-      <label className="block space-y-1">
-        <span className="text-xs text-[var(--kz-fg-muted)]">弹弹play 番名</span>
-        <div className="flex gap-2">
-          <input
-            className="w-full rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-2.5 py-1.5 text-sm text-[var(--kz-fg)] placeholder:text-[var(--kz-fg-muted)] outline-none focus:border-[var(--kz-accent)]"
-            value={props.keyword}
-            onChange={(e) => props.onKeywordChange(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') props.onSearch()
-            }}
-            placeholder="搜索番剧名称…"
-          />
-          <button
-            type="button"
-            disabled={props.searchBusy}
-            onClick={props.onSearch}
-            className="shrink-0 rounded-lg bg-[var(--kz-accent)] px-3 py-1.5 text-sm font-medium text-white hover:bg-[var(--kz-accent-hover)] disabled:opacity-50 border-0 cursor-pointer"
-          >
-            {props.searchBusy ? '…' : '搜索'}
-          </button>
-        </div>
-      </label>
-
-      <label className="block space-y-1">
-        <span className="text-xs text-[var(--kz-fg-muted)]">番剧</span>
-        <CustomSelect
-          value={props.animeId}
-          placeholder="选择番剧…"
-          options={props.animes.map((a) => ({
-            value: a.animeId,
-            label: `${a.animeTitle}${a.typeDescription ? ` (${a.typeDescription})` : ''}`,
-          }))}
-          onChange={(val) => props.onAnimeChange(val as number)}
-        />
-      </label>
-
-      <label className="block space-y-1">
-        <span className="text-xs text-[var(--kz-fg-muted)]">章节</span>
-        <CustomSelect
-          value={props.episodeId}
-          placeholder="选择章节…"
-          options={props.episodes.map((ep) => ({
-            value: ep.episodeId,
-            label: ep.episodeTitle,
-          }))}
-          onChange={(val) => props.onEpisodeChange(val as number)}
-        />
-      </label>
-
-      {props.danmakuOffset !== undefined && props.danmakuOffset !== 0 ? (
-        <div className="flex items-center justify-between rounded-lg bg-amber-500/10 border border-amber-500/25 px-2.5 py-1.5 text-xs text-amber-600 dark:text-amber-400">
-          <span className="flex items-center gap-1 font-medium">
-            <span>⚡</span>
-            <span>
-              已校准偏移: {props.danmakuOffset > 0 ? `+${props.danmakuOffset}` : props.danmakuOffset} 集
-            </span>
-          </span>
-          {props.onResetOffset && (
-            <button
-              type="button"
-              onClick={props.onResetOffset}
-              className="cursor-pointer rounded border border-amber-500/30 bg-amber-500/20 px-2 py-0.5 text-[11px] font-medium text-amber-700 hover:bg-amber-500/30 dark:text-amber-300 transition-colors"
-              title="重置当前源弹幕偏移为 0"
-            >
-              重置偏移
-            </button>
-          )}
-        </div>
-      ) : null}
-
-      <p className="text-[11px] leading-relaxed text-[var(--kz-fg-muted)]">
-        弹弹play 匹配会写入「弹弹」源。B 站 / XML 导入默认追加，不会覆盖弹弹；可在面板底部开关各源。
-      </p>
-    </div>
-  )
-}
-
-function SettingsTab({
-  danmaku,
-  onDanmakuChange,
-  compact,
-}: {
-  danmaku: DanmakuSettings
-  onDanmakuChange: (partial: Partial<DanmakuSettings>) => void
-  compact: boolean
-}) {
-  if (compact) {
-    return (
-      <div className="kz-dm-form">
-        <button
-          type="button"
-          className="kz-dm-toggle-row"
-          onClick={() => onDanmakuChange({ enabled: !danmaku.enabled })}
-          aria-pressed={danmaku.enabled}
-        >
-          <span>显示弹幕</span>
-          <span
-            className={
-              danmaku.enabled ? 'kz-dm-switch kz-dm-switch--on' : 'kz-dm-switch'
-            }
-            aria-hidden
-          />
-        </button>
-
-        <button
-          type="button"
-          className="kz-dm-toggle-row"
-          onClick={() => onDanmakuChange({ simplify: !danmaku.simplify })}
-          aria-pressed={Boolean(danmaku.simplify)}
-        >
-          <div className="flex flex-col text-left">
-            <span>弹幕精简</span>
-            <span className="text-[10px] text-[var(--kz-fg-muted)]">智能合并重复刷屏 (xN)</span>
-          </div>
-          <span
-            className={
-              danmaku.simplify ? 'kz-dm-switch kz-dm-switch--on' : 'kz-dm-switch'
-            }
-            aria-hidden
-          />
-        </button>
-
-        <RangeRow
-          label="透明度"
-          value={danmaku.opacity}
-          min={0.1}
-          max={1}
-          step={0.05}
-          display={`${Math.round(danmaku.opacity * 100)}%`}
-          onChange={(v) => onDanmakuChange({ opacity: v })}
-          compact
-        />
-        <RangeRow
-          label="字号"
-          value={danmaku.fontSize}
-          min={0.5}
-          max={2}
-          step={0.05}
-          display={`${danmaku.fontSize.toFixed(2)}×`}
-          onChange={(v) => onDanmakuChange({ fontSize: v })}
-          compact
-        />
-        <RangeRow
-          label="速度"
-          value={danmaku.speed}
-          min={0.5}
-          max={2}
-          step={0.05}
-          display={`${danmaku.speed.toFixed(2)}×`}
-          onChange={(v) => onDanmakuChange({ speed: v })}
-          compact
-        />
-        <RangeRow
-          label="区域"
-          value={danmaku.area}
-          min={0.2}
-          max={1}
-          step={0.05}
-          display={`${Math.round(danmaku.area * 100)}%`}
-          onChange={(v) => onDanmakuChange({ area: v })}
-          compact
-        />
-
-        <label className="kz-dm-inline-num">
-          <span>时间偏移 (秒)</span>
-          <input
-            type="number"
-            step={0.5}
-            inputMode="decimal"
-            value={danmaku.timeOffset}
-            onChange={(e) =>
-              onDanmakuChange({ timeOffset: Number(e.target.value) || 0 })
-            }
-            className="kz-dm-num"
-          />
-        </label>
-
-        <div className="kz-dm-chip-toggles">
-          {(
-            [
-              ['showScroll', '滚动'],
-              ['showTop', '顶部'],
-              ['showBottom', '底部'],
-              ['showColor', '彩色'],
-            ] as const
-          ).map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              data-on={danmaku[key]}
-              className="kz-dm-type-chip"
-              onClick={() => onDanmakuChange({ [key]: !danmaku[key] })}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-3">
-      <label className="flex items-center justify-between gap-2 text-[var(--kz-fg)] cursor-pointer">
-        <span>显示弹幕 (D)</span>
-        <input
-          type="checkbox"
-          checked={danmaku.enabled}
-          onChange={(e) => onDanmakuChange({ enabled: e.target.checked })}
-        />
-      </label>
-
-      <label className="flex items-center justify-between gap-2 text-[var(--kz-fg)] cursor-pointer">
-        <div className="flex flex-col">
-          <span>弹幕精简 (合并刷屏)</span>
-          <span className="text-[11px] text-[var(--kz-fg-muted)]">
-            智能合并相邻重复弹幕并显示次数 (xN)
-          </span>
-        </div>
-        <input
-          type="checkbox"
-          checked={Boolean(danmaku.simplify)}
-          onChange={(e) => onDanmakuChange({ simplify: e.target.checked })}
-        />
-      </label>
-
-      <RangeRow
-        label="透明度"
-        value={danmaku.opacity}
-        min={0.1}
-        max={1}
-        step={0.05}
-        display={`${Math.round(danmaku.opacity * 100)}%`}
-        onChange={(v) => onDanmakuChange({ opacity: v })}
-        compact={false}
-      />
-      <RangeRow
-        label="字号"
-        value={danmaku.fontSize}
-        min={0.5}
-        max={2}
-        step={0.05}
-        display={`${danmaku.fontSize.toFixed(2)}×`}
-        onChange={(v) => onDanmakuChange({ fontSize: v })}
-        compact={false}
-      />
-      <RangeRow
-        label="速度"
-        value={danmaku.speed}
-        min={0.5}
-        max={2}
-        step={0.05}
-        display={`${danmaku.speed.toFixed(2)}×`}
-        onChange={(v) => onDanmakuChange({ speed: v })}
-        compact={false}
-      />
-      <RangeRow
-        label="显示区域"
-        value={danmaku.area}
-        min={0.2}
-        max={1}
-        step={0.05}
-        display={`${Math.round(danmaku.area * 100)}%`}
-        onChange={(v) => onDanmakuChange({ area: v })}
-        compact={false}
-      />
-      <label className="flex items-center justify-between gap-2 text-[var(--kz-fg)]">
-        <span>时间偏移 (秒)</span>
-        <input
-          type="number"
-          step={0.5}
-          value={danmaku.timeOffset}
-          onChange={(e) =>
-            onDanmakuChange({ timeOffset: Number(e.target.value) || 0 })
-          }
-          className="w-20 rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-2 py-1 text-right text-sm text-[var(--kz-fg)] outline-none focus:border-[var(--kz-accent)]"
-        />
-      </label>
-
-      <div className="flex flex-wrap gap-3 text-xs text-[var(--kz-fg-muted)]">
-        {(
-          [
-            ['showScroll', '滚动'],
-            ['showTop', '顶部'],
-            ['showBottom', '底部'],
-            ['showColor', '彩色'],
-          ] as const
-        ).map(([key, label]) => (
-          <label key={key} className="flex items-center gap-1.5 cursor-pointer text-[var(--kz-fg)]">
-            <input
-              type="checkbox"
-              checked={danmaku[key]}
-              onChange={(e) => onDanmakuChange({ [key]: e.target.checked })}
-            />
-            {label}
-          </label>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function ImportTab({ compact, ...props }: Props & { compact: boolean }) {
-  if (compact) {
-    return (
-      <div className="kz-dm-form">
-        <div className="kz-dm-section">
-          <div className="kz-dm-label">B 站视频 / 番剧链接</div>
-          <input
-            className="kz-dm-input"
-            value={props.bvInput}
-            onChange={(e) => props.onBvInputChange(e.target.value)}
-            placeholder="BV号 / ep86012 / ss季度 / 完整链接"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') props.onLoadBilibili()
-            }}
-          />
-          <div className="flex items-center justify-between gap-2 mt-1">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-[var(--kz-fg-muted)]">分P</span>
-              <input
-                type="number"
-                min={1}
-                inputMode="numeric"
-                value={props.bvPage}
-                onChange={(e) =>
-                  props.onBvPageChange(Math.max(1, Number(e.target.value) || 1))
-                }
-                className="w-16 h-8 px-2 rounded-lg bg-[var(--kz-bg-soft)] border border-[var(--kz-border)] text-[var(--kz-fg)] text-center text-xs font-bold outline-none focus:border-[var(--kz-accent)]"
-              />
-            </div>
-            <button
-              type="button"
-              disabled={props.bilibiliBusy}
-              onClick={props.onLoadBilibili}
-              className="h-8 px-3.5 rounded-lg bg-[var(--kz-accent)] text-white text-xs font-semibold hover:bg-[var(--kz-accent-hover)] active:scale-95 transition-all cursor-pointer border-0 shadow-sm disabled:opacity-50"
-            >
-              {props.bilibiliBusy ? '拉取中…' : '追加 B 站'}
-            </button>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={props.onPickXmlFile}
-          className="flex items-center justify-between gap-2 w-full p-2.5 rounded-xl bg-[var(--kz-bg-soft)] border border-dashed border-[var(--kz-border)] text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] transition-all cursor-pointer text-left"
-        >
-          <div className="flex items-center gap-2">
-            <span className="text-base">📁</span>
-            <span className="text-xs font-semibold">选择本地 XML 弹幕文件</span>
-          </div>
-          <span className="text-[11px] text-[var(--kz-fg-muted)]">B 站 / pakku</span>
-        </button>
-
-        <div className="kz-dm-section kz-dm-section--border">
-          <div className="kz-dm-label">
-            屏蔽词 · {props.danmaku.filters.length} 条
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              className="flex-1 min-w-0 h-8 px-2.5 rounded-lg bg-[var(--kz-bg-soft)] border border-[var(--kz-border)] text-[var(--kz-fg)] text-xs outline-none focus:border-[var(--kz-accent)] placeholder:text-[var(--kz-fg-muted)]"
-              value={props.filterDraft}
-              onChange={(e) => props.onFilterDraftChange(e.target.value)}
-              placeholder="关键词 或 /regex/"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') props.onAddFilter()
-              }}
-            />
-            <button
-              type="button"
-              onClick={props.onAddFilter}
-              className="h-8 px-3 rounded-lg bg-[var(--kz-accent)] text-white text-xs font-semibold hover:bg-[var(--kz-accent-hover)] active:scale-95 transition-all cursor-pointer border-0 shrink-0"
-            >
-              添加
-            </button>
-          </div>
-          {props.danmaku.filters.length > 0 && (
-            <ul className="kz-dm-filter-list">
-              {props.danmaku.filters.map((rule) => (
-                <li key={rule} className="kz-dm-filter-item">
-                  <span className="kz-dm-filter-rule">{rule}</span>
-                  <button
-                    type="button"
-                    className="kz-dm-filter-del"
-                    onClick={() => props.onRemoveFilter(rule)}
-                  >
-                    删
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="space-y-1.5">
-        <div className="text-xs text-[var(--kz-fg-muted)]">Bilibili 视频 / 番剧链接</div>
-        <input
-          className="w-full rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-2.5 py-1.5 text-sm text-[var(--kz-fg)] placeholder:text-[var(--kz-fg-muted)] outline-none focus:border-[var(--kz-accent)]"
-          value={props.bvInput}
-          onChange={(e) => props.onBvInputChange(e.target.value)}
-          placeholder="BV号 / ep86012 / ss28277 / av号 / 完整链接"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') props.onLoadBilibili()
-          }}
-        />
-        <div className="flex items-center gap-2">
-          <label className="flex items-center gap-1 text-xs text-[var(--kz-fg-muted)]">
-            分P
-            <input
-              type="number"
-              min={1}
-              value={props.bvPage}
-              onChange={(e) =>
-                props.onBvPageChange(Math.max(1, Number(e.target.value) || 1))
-              }
-              className="w-14 rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-2 py-1 text-sm text-[var(--kz-fg)] outline-none focus:border-[var(--kz-accent)] text-center"
-            />
-          </label>
-          <button
-            type="button"
-            disabled={props.bilibiliBusy}
-            onClick={props.onLoadBilibili}
-            className="rounded-lg bg-[var(--kz-accent)] px-3 py-1.5 text-sm font-medium text-white hover:bg-[var(--kz-accent-hover)] disabled:opacity-50 border-0 cursor-pointer"
-          >
-            {props.bilibiliBusy ? '拉取中…' : '追加 B 站弹幕'}
-          </button>
-        </div>
-        <p className="text-[11px] text-[var(--kz-fg-muted)]">
-          支持番剧 ep/ss、普通视频 BV/av 及短链，默认追加到现有弹幕。
-        </p>
-      </div>
-
-      <div className="space-y-1.5">
-        <div className="text-xs text-[var(--kz-fg-muted)]">本地弹幕文件</div>
-        <button
-          type="button"
-          onClick={props.onPickXmlFile}
-          className="w-full rounded-lg border border-dashed border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-3 py-3 text-xs text-[var(--kz-fg)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] hover:bg-[var(--kz-bg-hover)] transition-all cursor-pointer text-left"
-        >
-          选择 XML（B 站 / pakku 导出）
-          <div className="mt-1 text-[11px] text-[var(--kz-fg-muted)]">
-            默认追加 · 也可把 .xml 拖到播放器上
-          </div>
-        </button>
-      </div>
-
-      <div className="space-y-1.5 border-t border-[var(--kz-border)] pt-2">
-        <div className="text-xs text-[var(--kz-fg-muted)]">
-          屏蔽词（支持 /正则/）· {props.danmaku.filters.length} 条
-        </div>
-        <div className="flex gap-2">
-          <input
-            className="w-full rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-2.5 py-1.5 text-sm text-[var(--kz-fg)] placeholder:text-[var(--kz-fg-muted)] outline-none focus:border-[var(--kz-accent)]"
-            value={props.filterDraft}
-            onChange={(e) => props.onFilterDraftChange(e.target.value)}
-            placeholder="关键词 或 /regex/"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') props.onAddFilter()
-            }}
-          />
-          <button
-            type="button"
-            onClick={props.onAddFilter}
-            className="shrink-0 rounded-lg bg-[var(--kz-accent)] px-3 py-1.5 text-xs text-white hover:bg-[var(--kz-accent-hover)] border-0 cursor-pointer"
-          >
-            添加
-          </button>
-        </div>
-        {props.danmaku.filters.length > 0 && (
-          <ul className="max-h-28 space-y-1 overflow-y-auto m-0 p-0 list-none">
-            {props.danmaku.filters.map((rule) => (
-              <li
-                key={rule}
-                className="flex items-center justify-between gap-2 rounded-md bg-[var(--kz-bg-soft)] px-2 py-1 text-xs text-[var(--kz-fg)]"
-              >
-                <span className="truncate font-mono text-[var(--kz-fg)]">{rule}</span>
-                <button
-                  type="button"
-                  className="text-red-400 hover:text-red-300 border-0 bg-transparent cursor-pointer font-bold"
-                  onClick={() => props.onRemoveFilter(rule)}
-                >
-                  删
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function RangeRow({
-  label,
-  value,
-  min,
-  max,
-  step,
-  display,
-  onChange,
-  compact,
-}: {
-  label: string
-  value: number
-  min: number
-  max: number
-  step: number
-  display: string
-  onChange: (v: number) => void
-  compact: boolean
-}) {
-  if (compact) {
-    return (
-      <label className="kz-dm-range">
-        <div className="kz-dm-range-meta">
-          <span>{label}</span>
-          <span className="kz-dm-range-val">{display}</span>
-        </div>
-        <input
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={value}
-          onChange={(e) => onChange(Number(e.target.value))}
-          className="kz-dm-range-input"
-        />
-      </label>
-    )
-  }
-
-  return (
-    <label className="block space-y-1">
-      <div className="flex justify-between text-xs text-[var(--kz-fg-muted)]">
-        <span>{label}</span>
-        <span className="tabular-nums text-[var(--kz-accent)] font-semibold">{display}</span>
-      </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-[var(--kz-bg-soft)] accent-[var(--kz-accent)]"
-      />
-    </label>
   )
 }

@@ -30,6 +30,7 @@ import {
   totalLoadedCount,
   togglePool,
   writePool,
+  setPoolOffset as updatePoolOffset,
   type DanmakuPoolId,
   type DanmakuPools,
   type DanmakuSourceChip,
@@ -72,6 +73,7 @@ export type DanmakuSession = {
   visibleCount: number
   chips: DanmakuSourceChip[]
   toggleSource: (id: DanmakuPoolId) => void
+  setPoolOffset: (id: DanmakuPoolId, offset: number) => void
   resetPools: () => void
   /** Props bag for VideoPlayer `danmakuPanel` */
   panel: DanmakuPanelState
@@ -154,6 +156,20 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
   const toggleSource = useCallback((id: DanmakuPoolId) => {
     setPools((p) => togglePool(p, id))
   }, [])
+
+  const setPoolOffset = useCallback((id: DanmakuPoolId, offset: number) => {
+    setPools((p) => updatePoolOffset(p, id, offset))
+  }, [])
+
+  const poolOffsets = useMemo(
+    () => ({
+      dandan: pools.dandan.timeOffset ?? 0,
+      bilibili_auto: pools.bilibili_auto.timeOffset ?? 0,
+      bilibili_manual: pools.bilibili_manual.timeOffset ?? 0,
+      upload: pools.upload.timeOffset ?? 0,
+    }),
+    [pools],
+  )
 
   const resetPools = useCallback(() => {
     subjectMetaRef.current = null
@@ -679,6 +695,8 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
       onLoadXmlFile: (f: File) => void handleLoadXmlFile(f),
       sources: chips,
       onToggleSource: toggleSource,
+      poolOffsets,
+      onSetPoolOffset: setPoolOffset,
       danmakuOffset,
       onResetOffset: () => void handleResetOffset(),
     }),
@@ -703,6 +721,8 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
       handleLoadBilibili,
       handleLoadXmlFile,
       toggleSource,
+      poolOffsets,
+      setPoolOffset,
       danmakuOffset,
       handleResetOffset,
     ],
@@ -718,6 +738,7 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
     visibleCount,
     chips,
     toggleSource,
+    setPoolOffset,
     resetPools,
     panel,
     statusLine: status || poolsStatusLine(pools),

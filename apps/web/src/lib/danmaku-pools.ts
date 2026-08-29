@@ -22,6 +22,8 @@ export type DanmakuPoolSlice = {
   enabled: boolean
   /** short label e.g. file name / bvid */
   meta?: string
+  /** Per-source time offset in seconds (e.g. +3.5 to delay, -2 to advance) */
+  timeOffset?: number
 }
 
 export type DanmakuPools = Record<DanmakuPoolId, DanmakuPoolSlice>
@@ -34,14 +36,15 @@ export type DanmakuSourceChip = {
   /** has any comments loaded */
   loaded: boolean
   meta?: string
+  timeOffset: number
 }
 
 export function emptyDanmakuPools(): DanmakuPools {
   return {
-    dandan: { comments: [], enabled: true },
-    bilibili_auto: { comments: [], enabled: false },
-    bilibili_manual: { comments: [], enabled: true },
-    upload: { comments: [], enabled: true },
+    dandan: { comments: [], enabled: true, timeOffset: 0 },
+    bilibili_auto: { comments: [], enabled: false, timeOffset: 0 },
+    bilibili_manual: { comments: [], enabled: true, timeOffset: 0 },
+    upload: { comments: [], enabled: true, timeOffset: 0 },
   }
 }
 
@@ -94,6 +97,7 @@ export function writePool(
   mode: 'replace' | 'append',
   meta?: string,
   enabled?: boolean,
+  timeOffset?: number,
 ): DanmakuPools {
   const tagged = tagCommentsPool(comments, id)
   const prev = pools[id]
@@ -105,6 +109,23 @@ export function writePool(
       comments: nextComments,
       enabled: enabled !== undefined ? enabled : true,
       meta: meta !== undefined ? meta : prev.meta,
+      timeOffset:
+        timeOffset !== undefined ? timeOffset : (prev.timeOffset ?? 0),
+    },
+  }
+}
+
+export function setPoolOffset(
+  pools: DanmakuPools,
+  id: DanmakuPoolId,
+  offset: number,
+): DanmakuPools {
+  const slice = pools[id]
+  return {
+    ...pools,
+    [id]: {
+      ...slice,
+      timeOffset: Number.isFinite(offset) ? offset : 0,
     },
   }
 }
@@ -120,13 +141,23 @@ export function togglePool(
   }
 }
 
-/** Comments actually drawn on the player (enabled pools only) */
+/** Comments actually drawn on the player (enabled pools only, with per-pool timeOffset applied) */
 export function flattenEnabledPools(pools: DanmakuPools): DanmakuComment[] {
   const out: DanmakuComment[] = []
   for (const id of DANMAKU_POOL_ORDER) {
     const slice = pools[id]
     if (!slice.enabled || !slice.comments.length) continue
-    out.push(...slice.comments)
+    const offset = slice.timeOffset ?? 0
+    if (offset === 0) {
+      out.push(...slice.comments)
+    } else {
+      for (const c of slice.comments) {
+        out.push({
+          ...c,
+          time: Math.max(0, c.time + offset),
+        })
+      }
+    }
   }
   return out.sort((a, b) => a.time - b.time)
 }
@@ -155,6 +186,7 @@ export function sourceChips(pools: DanmakuPools): DanmakuSourceChip[] {
     enabled: pools[id].enabled,
     loaded: pools[id].comments.length > 0,
     meta: pools[id].meta,
+    timeOffset: pools[id].timeOffset ?? 0,
   }))
 }
 

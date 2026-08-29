@@ -2518,6 +2518,10 @@ export function VideoPlayer({
         }
         sources={danmakuPanel.sources}
         onToggleSource={danmakuPanel.onToggleSource}
+        poolOffsets={danmakuPanel.poolOffsets}
+        onSetPoolOffset={danmakuPanel.onSetPoolOffset}
+        danmakuOffset={danmakuPanel.danmakuOffset}
+        onResetOffset={danmakuPanel.onResetOffset}
         /* Desktop: clear the control bar. Mobile uses bottom-sheet layout. */
         bottomOffset={56}
         layout={pointerMode}
