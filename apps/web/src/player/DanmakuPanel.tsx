@@ -318,22 +318,22 @@ function SourcesFooter({
       <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 scroll-smooth">
         {loaded.map((s) => {
           let activeClass =
-            'border-emerald-500/40 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-semibold'
+            'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold'
           let badgeActive =
-            'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+            'bg-emerald-500 text-white font-bold'
 
           if (s.id === 'bilibili_auto') {
             activeClass =
-              'border-pink-500/40 bg-pink-500/15 text-pink-600 dark:text-pink-400 font-semibold'
-            badgeActive = 'bg-pink-500/20 text-pink-700 dark:text-pink-300'
+              'border-pink-500/40 bg-pink-500/10 text-pink-600 dark:text-pink-400 font-semibold'
+            badgeActive = 'bg-pink-500 text-white font-bold'
           } else if (s.id === 'bilibili_manual') {
             activeClass =
-              'border-purple-500/40 bg-purple-500/15 text-purple-600 dark:text-purple-400 font-semibold'
-            badgeActive = 'bg-purple-500/20 text-purple-700 dark:text-purple-300'
+              'border-purple-500/40 bg-purple-500/10 text-purple-600 dark:text-purple-400 font-semibold'
+            badgeActive = 'bg-purple-500 text-white font-bold'
           } else if (s.id === 'upload') {
             activeClass =
-              'border-sky-500/40 bg-sky-500/15 text-sky-600 dark:text-sky-400 font-semibold'
-            badgeActive = 'bg-sky-500/20 text-sky-700 dark:text-sky-300'
+              'border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400 font-semibold'
+            badgeActive = 'bg-sky-500 text-white font-bold'
           }
 
           return (
@@ -346,7 +346,7 @@ function SourcesFooter({
                   ? `点击关闭「${s.label}」${s.meta ? ` · ${s.meta}` : ''}`
                   : `点击显示「${s.label}」${s.meta ? ` · ${s.meta}` : ''}`
               }
-              className={`group inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10.5px] leading-tight transition-all duration-150 cursor-pointer select-none ${
+              className={`group inline-flex shrink-0 items-center gap-1.5 rounded-full border pl-2 pr-1 py-0.5 text-[10.5px] leading-tight transition-all duration-150 cursor-pointer select-none ${
                 s.enabled
                   ? `${activeClass} shadow-xs`
                   : 'border-[var(--kz-border)] bg-[var(--kz-bg-soft)] text-[var(--kz-fg-muted)] opacity-60 hover:opacity-100 hover:border-[var(--kz-border-hover)]'
@@ -354,10 +354,10 @@ function SourcesFooter({
             >
               <span>{s.label}</span>
               <span
-                className={`rounded-full px-1 py-0.2 text-[9.5px] font-mono leading-none tracking-tight ${
+                className={`rounded-full px-1.5 py-0.5 text-[9px] font-mono leading-none tracking-tight shadow-2xs ${
                   s.enabled
                     ? badgeActive
-                    : 'bg-black/10 dark:bg-white/10 text-[var(--kz-fg-muted)]'
+                    : 'bg-black/15 dark:bg-white/15 text-[var(--kz-fg-muted)] font-medium'
                 }`}
               >
                 {s.count}
