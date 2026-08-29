@@ -22,6 +22,7 @@ import {
   danmakuPixelSpeed,
   danmakuRealDuration,
   filterComments,
+  normalizeDanmakuText,
   type DanmakuLayoutHints,
 } from './danmaku-utils'
 
@@ -75,6 +76,10 @@ type Running = Prepared & {
   renderX: number
   renderY: number
   renderVisible: boolean
+  /** Base text before in-flight xN accumulation */
+  baseText: string
+  /** Current in-flight merge count */
+  count: number
 }
 
 type ScrollLaneState = {
@@ -792,7 +797,9 @@ export class CanvasDanmaku {
       if (p.time > t) break
       this.ensureMeasured(p)
       if (t - p.time <= p.duration) {
-        this.trySpawn(p, this.cursor, t, true)
+        if (!this.tryMergeInFlight(p, t)) {
+          this.trySpawn(p, this.cursor, t, true)
+        }
       }
       this.cursor++
     }
@@ -907,6 +914,10 @@ export class CanvasDanmaku {
         this.cursor++
         continue
       }
+      if (this.tryMergeInFlight(p, t)) {
+        this.cursor++
+        continue
+      }
       if (run.length < cap) {
         this.trySpawn(p, this.cursor, t, false)
       }
@@ -941,6 +952,71 @@ export class CanvasDanmaku {
     if (curExitTime < prevExitTime) return false
 
     return true
+  }
+
+  /**
+   * In-Flight Real-time Danmaku Merging (xN):
+   * If an identical danmaku is already active on screen, absorb the incoming one,
+   * increment the in-flight badge (e.g. "前方高能 x2"), update layout and avoid spawning a new lane.
+   */
+  private tryMergeInFlight(p: Prepared, now: number): boolean {
+    const normKey = normalizeDanmakuText(p.text)
+    if (!normKey) return false
+    const W = this.cssW || REF_WIDTH
+
+    for (let i = 0; i < this.running.length; i++) {
+      const r = this.running[i]
+      if (r.mode !== p.mode) continue
+      if (normalizeDanmakuText(r.baseText) !== normKey) continue
+
+      const age = now - r.time
+      if (age < 0 || age >= r.duration) continue
+
+      // For scrolling danmaku, make sure the tail hasn't fully exited the left edge
+      if (r.mode === 'rtl') {
+        const path = W + r.width
+        const currentX = W - (age / r.duration) * path
+        if (currentX + r.width < 10) continue
+      }
+
+      // Absorb incoming comment into active on-screen instance
+      r.count = (r.count || 1) + 1
+      r.text = `${r.baseText} ×${r.count}`
+
+      const mctx = this.measureCtx || this.ctx
+      mctx.font = this.font
+      const oldWidth = r.width
+      const newWidth = Math.ceil(mctx.measureText(r.text).width) || 1
+      r.width = newWidth
+
+      // Continuous position compensation: preserve head X position without snap
+      if (r.mode === 'rtl') {
+        const pathOld = W + oldWidth
+        const pathNew = W + newWidth
+        if (pathNew > 0 && pathOld > 0) {
+          const ageOld = now - r.time
+          const ageNew = ageOld * (pathOld / pathNew)
+          r.time = now - ageNew
+        }
+
+        const laneIdx = Math.round(r.y / this.laneH)
+        if (this.scrollLanes[laneIdx]) {
+          this.scrollLanes[laneIdx].lastWidth = Math.max(
+            this.scrollLanes[laneIdx].lastWidth,
+            newWidth,
+          )
+        }
+      }
+
+      // Adopt color if incoming comment is colored and lead was plain white
+      if (p.color && p.color !== '#ffffff' && r.color === '#ffffff') {
+        r.color = p.color
+      }
+
+      return true
+    }
+
+    return false
   }
 
   private trySpawn(
@@ -984,6 +1060,8 @@ export class CanvasDanmaku {
           renderX: 0,
           renderY: 0,
           renderVisible: false,
+          baseText: p.text,
+          count: 1,
         })
       }
       return true
@@ -1007,6 +1085,8 @@ export class CanvasDanmaku {
         renderX: 0,
         renderY: 0,
         renderVisible: false,
+        baseText: p.text,
+        count: 1,
       })
       return true
     }
@@ -1029,6 +1109,8 @@ export class CanvasDanmaku {
         renderX: 0,
         renderY: 0,
         renderVisible: false,
+        baseText: p.text,
+        count: 1,
       })
       return true
     }

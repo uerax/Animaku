@@ -156,7 +156,7 @@ function formatMergedComment(bucket: {
   const baseText = bucket.lead.text.trim()
   return {
     ...bucket.lead,
-    text: `${baseText} (x${bucket.count})`,
+    text: `${baseText} ×${bucket.count}`,
   }
 }
 
@@ -175,7 +175,7 @@ function throttleHighDensity(comments: DanmakuComment[]): DanmakuComment[] {
     } else {
       // Score each comment by information entropy / length / count
       const scored = secComments.map((c, idx) => {
-        const hasCount = /\(x\d+\)$/.test(c.text)
+        const hasCount = /(?:[xX×]\d+|\([xX×]\d+\))$/.test(c.text)
         const isStatic = c.mode === 'top' || c.mode === 'bottom'
         const len = c.text.length
         const score = (hasCount ? 100 : 0) + (isStatic ? 50 : 0) + Math.min(30, len * 2)

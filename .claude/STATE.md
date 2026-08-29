@@ -4,6 +4,29 @@
 
 ---
 
+## [2026-08-30] 实现弹幕同屏实时动态合体计数体系 (In-Flight Real-Time ×N Merging)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **同屏在播弹幕动态捕获与合体吸收 (`apps/web/src/player/media/canvas-danmaku.ts`, `apps/web/src/player/media/danmaku-utils.ts`)**：
+     - `Running` 类型扩充 `baseText: string` 与 `count: number` 字段，初始化发射时锁定基准文本与计数（`count: 1`）；
+     - 实现 `tryMergeInFlight(p, now)`：在发射循环与进度条拖拽（Seek）时，实时探测当前屏幕上是否已有同模式、同归一化文本（`normalizeDanmakuText`）且处于有效视口内的活跃弹幕；
+     - 命中时直接就地吸收新弹幕，递增计数并采用标准数学乘号符号动态格式化为 `${baseText} ×${count}`（如 `前方高能 ×2`、`前方高能 ×3`、`233 ×5`），排版工整无杂音，避免产生重复同名轨道行。
+  2. **连续物理时钟位置补偿（Zero-Snap Position Compensation）**：
+     - 依据运动学方程，在文本拓宽瞬间通过 $age_{new} = age_{old} \times \frac{W + w_{old}}{W + w_{new}}$ 严格补偿基准时间点 $r.time$；
+     - 弹幕文字头部在屏幕上的当前物理横坐标保持绝对 1:1 恒定，仅尾部向右自然延展，彻底消除合体瞬间的水平视觉跳跃或顿挫；
+     - 同步更新所在轨道的 `scrollLanes[laneIdx].lastWidth`，严格保障后车防追尾安全间距。
+  3. **样式与色彩继承**：
+     - 当后续合体弹幕携带高亮自定义彩色而首条为默认白字时，自动继承彩色高亮样式。
+  4. **质量验证**：
+     - `pnpm typecheck` 全仓 3 个 workspace 0 报错通过；
+     - `@animaku/shared` 13 个单测 100% 全部通过；
+     - `pnpm build` 全量生产打包构建成功。
+- 涉及文件：apps/web/src/player/media/canvas-danmaku.ts, apps/web/src/player/media/danmaku-utils.ts, .claude/STATE.md
+- 备注：同屏动态合体已生效，采用标准乘号 ×，大幅净化高能刷屏弹幕遮挡。
+
+---
+
 ## [2026-08-30] 落地多源弹幕独立时移体系与弹幕面板整体 UI 重构美化
 - 状态：已完成
 - 优先级：P0
