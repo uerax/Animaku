@@ -2520,6 +2520,9 @@ export function VideoPlayer({
         onToggleSource={danmakuPanel.onToggleSource}
         poolOffsets={danmakuPanel.poolOffsets}
         onSetPoolOffset={danmakuPanel.onSetPoolOffset}
+        globalTimeOffset={danmakuPanel.globalTimeOffset}
+        onSetGlobalTimeOffset={danmakuPanel.onSetGlobalTimeOffset}
+        onClearEpisodeTimeOffsets={danmakuPanel.onClearEpisodeTimeOffsets}
         danmakuOffset={danmakuPanel.danmakuOffset}
         onResetOffset={danmakuPanel.onResetOffset}
         /* Desktop: clear the control bar. Mobile uses bottom-sheet layout. */

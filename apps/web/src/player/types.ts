@@ -36,6 +36,9 @@ export interface DanmakuPanelState {
   onToggleSource?: (id: DanmakuPoolId) => void
   poolOffsets?: Record<DanmakuPoolId, number>
   onSetPoolOffset?: (id: DanmakuPoolId, offset: number) => void
+  globalTimeOffset?: number
+  onSetGlobalTimeOffset?: (offset: number) => void
+  onClearEpisodeTimeOffsets?: () => void
   /** Relative offset for danmaku episode alignment (e.g. -1 for prologue shift) */
   danmakuOffset?: number
   onResetOffset?: () => void

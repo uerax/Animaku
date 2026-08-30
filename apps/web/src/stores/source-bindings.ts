@@ -11,6 +11,11 @@ migrateLocalStorageKey('animaku-source-bindings', [
 const MAX_BINDINGS = 1000
 const MIN_PERSIST_SIMILARITY = 0.5
 
+export interface EpisodeDanmakuTimeOffset {
+  global?: number
+  pools?: Record<string, number>
+}
+
 export interface SourceBindingEntry {
   bangumiId: number
   pluginName: string
@@ -20,6 +25,8 @@ export interface SourceBindingEntry {
   isManual?: boolean
   /** Relative offset for danmaku episode alignment (e.g. -1 for prologue shift) */
   danmakuOffset?: number
+  /** Per-episode time offsets (in seconds) isolated to this [bangumiId : pluginName : episode] */
+  episodeTimeOffsets?: Record<number, EpisodeDanmakuTimeOffset>
   updatedAt: number
 }
 
@@ -37,6 +44,17 @@ export interface SourceBindingState {
     bangumiId: number,
     pluginName: string,
     offset: number,
+  ) => void
+  setEpisodeDanmakuTimeOffset: (
+    bangumiId: number,
+    pluginName: string,
+    episode: number,
+    update: { global?: number; poolId?: string; poolOffset?: number },
+  ) => void
+  clearEpisodeDanmakuTimeOffset: (
+    bangumiId: number,
+    pluginName: string,
+    episode: number,
   ) => void
   removeBinding: (bangumiId: number, pluginName: string) => void
   clearBindings: () => void
@@ -163,6 +181,87 @@ export const useSourceBindingStore = create<SourceBindingState>()(
             bindings: enforceLRU(updated, MAX_BINDINGS),
           }
         })
+      },
+
+      setEpisodeDanmakuTimeOffset: (bangumiId, pluginName, episode, update) => {
+        if (!Number.isFinite(bangumiId) || !pluginName || !Number.isFinite(episode)) return
+        const key = makeKey(bangumiId, pluginName)
+        const existing = get().bindings[key]
+        const curOffsets = existing?.episodeTimeOffsets || {}
+        const curEp = curOffsets[episode] || {}
+
+        const nextGlobal =
+          update.global !== undefined ? (update.global !== 0 ? update.global : undefined) : curEp.global
+        const nextPools = { ...(curEp.pools || {}) }
+        if (update.poolId) {
+          if (update.poolOffset !== undefined && update.poolOffset !== 0) {
+            nextPools[update.poolId] = update.poolOffset
+          } else {
+            delete nextPools[update.poolId]
+          }
+        }
+
+        const hasPools = Object.keys(nextPools).length > 0
+        const hasGlobal = nextGlobal !== undefined && nextGlobal !== 0
+
+        const nextEpOffsets = { ...curOffsets }
+        if (hasGlobal || hasPools) {
+          nextEpOffsets[episode] = {
+            ...(hasGlobal ? { global: nextGlobal } : {}),
+            ...(hasPools ? { pools: nextPools } : {}),
+          }
+        } else {
+          delete nextEpOffsets[episode]
+        }
+
+        const nextEpisodeTimeOffsets =
+          Object.keys(nextEpOffsets).length > 0 ? nextEpOffsets : undefined
+
+        const newEntry: SourceBindingEntry = existing
+          ? {
+              ...existing,
+              episodeTimeOffsets: nextEpisodeTimeOffsets,
+              updatedAt: Date.now(),
+            }
+          : {
+              bangumiId,
+              pluginName,
+              sourceUrl: '',
+              title: '',
+              isManual: true,
+              episodeTimeOffsets: nextEpisodeTimeOffsets,
+              updatedAt: Date.now(),
+            }
+
+        set((state) => {
+          const updated = {
+            ...state.bindings,
+            [key]: newEntry,
+          }
+          return {
+            bindings: enforceLRU(updated, MAX_BINDINGS),
+          }
+        })
+      },
+
+      clearEpisodeDanmakuTimeOffset: (bangumiId, pluginName, episode) => {
+        if (!Number.isFinite(bangumiId) || !pluginName || !Number.isFinite(episode)) return
+        const key = makeKey(bangumiId, pluginName)
+        const existing = get().bindings[key]
+        if (!existing?.episodeTimeOffsets || !(episode in existing.episodeTimeOffsets)) return
+        const nextEpOffsets = { ...existing.episodeTimeOffsets }
+        delete nextEpOffsets[episode]
+        const newEntry: SourceBindingEntry = {
+          ...existing,
+          episodeTimeOffsets: Object.keys(nextEpOffsets).length > 0 ? nextEpOffsets : undefined,
+          updatedAt: Date.now(),
+        }
+        set((state) => ({
+          bindings: {
+            ...state.bindings,
+            [key]: newEntry,
+          },
+        }))
       },
 
       removeBinding: (bangumiId, pluginName) => {

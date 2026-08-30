@@ -141,13 +141,17 @@ export function togglePool(
   }
 }
 
-/** Comments actually drawn on the player (enabled pools only, with per-pool timeOffset applied and progressive multi-source deduplication) */
-export function flattenEnabledPools(pools: DanmakuPools): DanmakuComment[] {
+/** Comments actually drawn on the player (enabled pools only, with per-pool timeOffset and episode-level globalOffset applied and progressive multi-source deduplication) */
+export function flattenEnabledPools(
+  pools: DanmakuPools,
+  globalOffset = 0,
+): DanmakuComment[] {
   const enabledSlices: DanmakuComment[][] = []
+  const global = Number.isFinite(globalOffset) ? globalOffset : 0
   for (const id of DANMAKU_POOL_ORDER) {
     const slice = pools[id]
     if (!slice.enabled || !slice.comments.length) continue
-    const offset = slice.timeOffset ?? 0
+    const offset = (slice.timeOffset ?? 0) + global
     if (offset === 0) {
       enabledSlices.push(slice.comments)
     } else {

@@ -53,6 +53,12 @@ interface Props {
   poolOffsets?: Record<DanmakuPoolId, number>
   /** Callback to set per-pool time offset */
   onSetPoolOffset?: (id: DanmakuPoolId, offset: number) => void
+  /** Episode-level global time offset in seconds */
+  globalTimeOffset?: number
+  /** Callback to set episode-level global time offset */
+  onSetGlobalTimeOffset?: (offset: number) => void
+  /** Callback to clear all time offsets for the current episode */
+  onClearEpisodeTimeOffsets?: () => void
   /** Relative offset for danmaku episode alignment (e.g. -1 for prologue shift) */
   danmakuOffset?: number
   onResetOffset?: () => void
@@ -505,11 +511,14 @@ function SettingsTab({
   sources,
   poolOffsets,
   onSetPoolOffset,
+  globalTimeOffset,
+  onSetGlobalTimeOffset,
+  onClearEpisodeTimeOffsets,
 }: Props & { compact: boolean }) {
   // Determine available offset tabs based on loaded sources
   const availableTargets = useMemo(() => {
     const list: Array<{ id: OffsetTarget; label: string; offset: number }> = [
-      { id: 'global', label: '全局', offset: danmaku.timeOffset || 0 },
+      { id: 'global', label: '全局', offset: globalTimeOffset ?? 0 },
     ]
     const loadedSources = (sources || []).filter((s) => s.loaded)
 
@@ -522,7 +531,7 @@ function SettingsTab({
       })
     }
     return list
-  }, [sources, poolOffsets, danmaku.timeOffset])
+  }, [sources, poolOffsets, globalTimeOffset])
 
   const [selectedTarget, setSelectedTarget] = useState<OffsetTarget>('global')
 
@@ -538,7 +547,7 @@ function SettingsTab({
 
   const handleOffsetChange = (nextOffset: number) => {
     if (selectedTarget === 'global') {
-      onDanmakuChange({ timeOffset: nextOffset })
+      onSetGlobalTimeOffset?.(nextOffset)
     } else if (onSetPoolOffset) {
       onSetPoolOffset(selectedTarget, nextOffset)
     }
@@ -557,10 +566,14 @@ function SettingsTab({
           <button
             type="button"
             onClick={() => {
-              onDanmakuChange({ timeOffset: 0 })
-              if (onSetPoolOffset) {
-                for (const t of availableTargets) {
-                  if (t.id !== 'global') onSetPoolOffset(t.id, 0)
+              if (onClearEpisodeTimeOffsets) {
+                onClearEpisodeTimeOffsets()
+              } else {
+                onSetGlobalTimeOffset?.(0)
+                if (onSetPoolOffset) {
+                  for (const t of availableTargets) {
+                    if (t.id !== 'global') onSetPoolOffset(t.id, 0)
+                  }
                 }
               }
             }}

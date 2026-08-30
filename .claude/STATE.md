@@ -4,6 +4,35 @@
 
 ---
 
+## [2026-08-30] 落地弹幕时间轴单集三维隔离与持久化自愈体系 (Per-Episode Danmaku Time Offset)
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **作用域解耦与三维隔离 (`apps/web/src/stores/source-bindings.ts`)**：
+     - 将弹幕时间轴偏移彻底从全局设置中解耦，严格收敛于 `[视频源 pluginName : 番剧 bangumiId : 集数 episode]` 三维唯一作用域；
+     - `SourceBindingEntry` 扩展 `episodeTimeOffsets?: Record<number, EpisodeDanmakuTimeOffset>` 单集持久化字典，分别记录作用于该集所有源的 `global` 总偏移与各源的特有微调 `pools`；
+     - 提供 `setEpisodeDanmakuTimeOffset` 与 `clearEpisodeDanmakuTimeOffset`。
+  2. **弹幕源池打平与联合时移计算 (`apps/web/src/lib/danmaku-pools.ts`)**：
+     - `flattenEnabledPools(pools, globalOffset)` 支持联合计算各源微调与单集全局总偏移（`effectiveTime = Math.max(0, c.time + (slice.timeOffset ?? 0) + global)`）；
+     - 渐进式多源去重在完全对齐后的时间轴上精准消除重影；
+     - 修复 `writePool` 切集时盲目复制 `prev.timeOffset` 导致的跨集污染问题。
+  3. **弹幕会话调度器与生命周期重构 (`apps/web/src/lib/use-danmaku-session.ts`, `apps/web/src/player/types.ts`)**：
+     - 切集/切番/换源时，自动从 `source-bindings` 读取当前集的持久化配置（未设置则全部为 0），彻底消灭跨集、跨番、跨源的内存残留污染；
+     - 增加单集 ContextKey 守卫，当前集内用户在面板微调步进器或输入时即调即显即存，中间数值实时刷新；
+     - 面板「全部归零」一键重置当前集的所有时间轴偏移。
+  4. **弹幕面板与播放器全链路透传 (`apps/web/src/player/VideoPlayer.tsx`, `apps/web/src/player/DanmakuPanel.tsx`)**：
+     - `VideoPlayer.tsx` 完整透传 `globalTimeOffset`、`onSetGlobalTimeOffset` 与 `onClearEpisodeTimeOffsets`；
+     - 面板 `SettingsTab` 中的 `[全局]` Tab 绑定当前集的 `globalTimeOffset` 并调用 `onSetGlobalTimeOffset`，彻底解绑全局 settings；
+     - 各源 Tab 绑定 `poolOffsets[id]` 并调用 `onSetPoolOffset`。
+  5. **质量验证**：
+     - `pnpm typecheck` 全仓 3 个 workspace 0 报错通过；
+     - `@animaku/shared` 13 个单测 100% 全部通过；
+     - `pnpm build` 全量生产打包构建成功。
+- 涉及文件：apps/web/src/stores/source-bindings.ts, apps/web/src/lib/danmaku-pools.ts, apps/web/src/lib/use-danmaku-session.ts, apps/web/src/player/types.ts, apps/web/src/player/VideoPlayer.tsx, apps/web/src/player/DanmakuPanel.tsx, .claude/STATE.md
+- 备注：彻底解决全局时间轴偏移污染其他番剧与切集残留问题，中间时间数值秒级响应。
+
+---
+
 ## [2026-08-30] 升级多源弹幕全链路去重与双源默认并发开启机制 (Multi-Source Progressive Deduplication)
 - 状态：已完成
 - 优先级：P1

@@ -31,6 +31,7 @@ import {
   togglePool,
   writePool,
   setPoolOffset as updatePoolOffset,
+  DANMAKU_POOL_ORDER,
   type DanmakuPoolId,
   type DanmakuPools,
   type DanmakuSourceChip,
@@ -116,7 +117,14 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
   )
   const danmakuOffset = storedBinding?.danmakuOffset ?? 0
   const setStoreDanmakuOffset = useSourceBindingStore((s) => s.setDanmakuOffset)
+  const setStoreEpisodeTimeOffset = useSourceBindingStore(
+    (s) => s.setEpisodeDanmakuTimeOffset,
+  )
+  const clearStoreEpisodeTimeOffset = useSourceBindingStore(
+    (s) => s.clearEpisodeDanmakuTimeOffset,
+  )
 
+  const [globalTimeOffset, setGlobalTimeOffset] = useState(0)
   const [pools, setPools] = useState<DanmakuPools>(emptyDanmakuPools)
   const [status, setStatus] = useState('')
   const [keyword, setKeyword] = useState(initialKeyword ?? title)
@@ -148,7 +156,32 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
     setKeyword(initialKeyword ?? title)
   }, [title, initialKeyword])
 
-  const visibleComments = useMemo(() => flattenEnabledPools(pools), [pools])
+  const hydratedKeyRef = useRef<string>('')
+  const currentContextKey = `${bangumiId}:${pluginName || ''}:${episode}`
+
+  // Hydrate episode-level time offsets only when switching episode / subject / source
+  useEffect(() => {
+    if (hydratedKeyRef.current === currentContextKey) return
+    hydratedKeyRef.current = currentContextKey
+
+    const epOffset = storedBinding?.episodeTimeOffsets?.[episode]
+    setGlobalTimeOffset(epOffset?.global ?? 0)
+    setPools((prev) => {
+      let next = prev
+      for (const id of DANMAKU_POOL_ORDER) {
+        const target = epOffset?.pools?.[id] ?? 0
+        if ((next[id].timeOffset ?? 0) !== target) {
+          next = updatePoolOffset(next, id, target)
+        }
+      }
+      return next
+    })
+  }, [currentContextKey, episode, storedBinding])
+
+  const visibleComments = useMemo(
+    () => flattenEnabledPools(pools, globalTimeOffset),
+    [pools, globalTimeOffset],
+  )
   const loadedCount = useMemo(() => totalLoadedCount(pools), [pools])
   const visibleCount = useMemo(() => visibleComments.length, [visibleComments])
   const chips = useMemo(() => sourceChips(pools), [pools])
@@ -157,9 +190,46 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
     setPools((p) => togglePool(p, id))
   }, [])
 
-  const setPoolOffset = useCallback((id: DanmakuPoolId, offset: number) => {
-    setPools((p) => updatePoolOffset(p, id, offset))
-  }, [])
+  const setPoolOffset = useCallback(
+    (id: DanmakuPoolId, offset: number) => {
+      setPools((p) => updatePoolOffset(p, id, offset))
+      if (bangumiId && pluginName) {
+        setStoreEpisodeTimeOffset(bangumiId, pluginName, episode, {
+          poolId: id,
+          poolOffset: offset,
+        })
+      }
+    },
+    [bangumiId, pluginName, episode, setStoreEpisodeTimeOffset],
+  )
+
+  const handleSetGlobalTimeOffset = useCallback(
+    (offset: number) => {
+      setGlobalTimeOffset(offset)
+      if (bangumiId && pluginName) {
+        setStoreEpisodeTimeOffset(bangumiId, pluginName, episode, {
+          global: offset,
+        })
+      }
+    },
+    [bangumiId, pluginName, episode, setStoreEpisodeTimeOffset],
+  )
+
+  const handleClearEpisodeTimeOffsets = useCallback(() => {
+    setGlobalTimeOffset(0)
+    setPools((prev) => {
+      let next = prev
+      for (const id of DANMAKU_POOL_ORDER) {
+        if ((next[id].timeOffset ?? 0) !== 0) {
+          next = updatePoolOffset(next, id, 0)
+        }
+      }
+      return next
+    })
+    if (bangumiId && pluginName) {
+      clearStoreEpisodeTimeOffset(bangumiId, pluginName, episode)
+    }
+  }, [bangumiId, pluginName, episode, clearStoreEpisodeTimeOffset])
 
   const poolOffsets = useMemo(
     () => ({
@@ -174,7 +244,9 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
   const resetPools = useCallback(() => {
     subjectMetaRef.current = null
     currentBangumiKeyRef.current = ''
+    hydratedKeyRef.current = ''
     commentsCacheRef.current.clear()
+    setGlobalTimeOffset(0)
     setPools(emptyDanmakuPools())
     setStatus('')
     setAnimes([])
@@ -692,6 +764,9 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
       onToggleSource: toggleSource,
       poolOffsets,
       onSetPoolOffset: setPoolOffset,
+      globalTimeOffset,
+      onSetGlobalTimeOffset: handleSetGlobalTimeOffset,
+      onClearEpisodeTimeOffsets: handleClearEpisodeTimeOffsets,
       danmakuOffset,
       onResetOffset: () => void handleResetOffset(),
     }),
@@ -718,6 +793,9 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
       toggleSource,
       poolOffsets,
       setPoolOffset,
+      globalTimeOffset,
+      handleSetGlobalTimeOffset,
+      handleClearEpisodeTimeOffsets,
       danmakuOffset,
       handleResetOffset,
     ],
