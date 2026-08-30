@@ -742,12 +742,13 @@ export function useWatchSession(bangumiId: number): WatchSession {
         const roads = res.data.roads
         writeRoadsForSource(bangumiId, plugin.name, searchItem.src, roads)
         if (!roads.length || !roads[0]?.data?.length) {
-          setRoadError(
-            res.data.diagnostics?.slice(0, 2).join('；') || '未解析到分集',
-          )
+          const errorMsg =
+            res.data.diagnostics?.slice(0, 2).join('；') || '未解析到分集'
+          setRoadError(errorMsg)
           setSelection(null)
           setPendingSource(null)
-          return
+          useSourceBindingStore.getState().removeBinding(bangumiId, plugin.name)
+          throw new Error(errorMsg)
         }
 
         // Persistent binding
@@ -1018,6 +1019,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
           ...keywordCandidatesStable,
         ])
         if (!items.length) {
+          useSourceBindingStore.getState().removeBinding(bangumiId, plugin.name)
           // Show first non-meta diagnostic (skip "关键词变体" style prefatory lines)
           // so users see actionable error info: timeout, 403, no results, etc.
           const diag = (res.data.diagnostics || []).filter(Boolean)
@@ -1181,7 +1183,8 @@ export function useWatchSession(bangumiId: number): WatchSession {
           })
           return
         } catch {
-          /* ignore & fallback to openPluginSearch below */
+          // Binding failed (0 episodes or dead URL): remove stale binding and smoothly fallback to search below
+          useSourceBindingStore.getState().removeBinding(bangumiId, plugin.name)
         }
       }
 

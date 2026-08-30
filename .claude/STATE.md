@@ -4,6 +4,27 @@
 
 ---
 
+## [2026-08-30] 修复视频源失效绑定精准自愈与 Fallback 调度死锁 (Fix Source Binding Fallback & Dead Link Eviction)
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **分集解析 0 集死锁修复与失效绑定清理 (`apps/web/src/lib/use-watch-session.ts`)**：
+     - 在 `pickSource` 遇到 `!roads.length || !roads[0]?.data?.length`（0 集 / 资源下架）时，恢复调用 `removeBinding(bangumiId, plugin.name)` 清理失效脏数据；
+     - 显式抛出 `throw new Error(errorMsg)` 错误，防止下游调用方误判解析成功而卡死在空白错误态。
+  2. **切换视频源（switchToPlugin）失败自动自愈与 Fallback (`apps/web/src/lib/use-watch-session.ts`)**：
+     - 当尝试通过旧绑定秒开失败或遇到 0 集进 catch 时，立即执行 `removeBinding` 剔除死链接，并无缝自动 Fallback 到 `openPluginSearch(plugin, ...)` 触发源站重新搜索并点选有效资源，用户完全无感自愈。
+  3. **源站确定无结果时的失效绑定清理 (`apps/web/src/lib/use-watch-session.ts`)**：
+     - 在 `searchOnePlugin` 返回 200 成功但确认 0 条搜索结果（`!items.length`）时，清理历史残留绑定，防止看板虚假显示 🟢 绿灯；
+     - 网络超时 / 504 / 异常中断（catch 块）严格保留绑定，保障弱网环境重试能力。
+  4. **质量验证**：
+     - `pnpm typecheck` 全仓 3 个 workspace 0 报错通过；
+     - `@animaku/shared` 13 个单测 100% 全部通过；
+     - `pnpm build` 全量生产构建成功。
+- 涉及文件：apps/web/src/lib/use-watch-session.ts, .claude/STATE.md
+- 备注：彻底打通失效绑定自动剔除与重新搜索 Fallback 闭环，区分弱网超时与确定失效。
+
+---
+
 ## [2026-08-30] 彻底重构并移除 isManual 冗余机制与全面转为纯粹绑定与自愈体系
 - 状态：已完成
 - 优先级：P0
