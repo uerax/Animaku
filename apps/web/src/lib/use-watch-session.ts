@@ -740,8 +740,8 @@ export function useWatchSession(bangumiId: number): WatchSession {
         if (!isWatchPage()) return
         if (chaptersGen.current !== gen) return
         const roads = res.data.roads
-        writeRoadsForSource(bangumiId, plugin.name, searchItem.src, roads)
         if (!roads.length || !roads[0]?.data?.length) {
+          invalidateRoadsCache(bangumiId, plugin.name, searchItem.src)
           const errorMsg =
             res.data.diagnostics?.slice(0, 2).join('；') || '未解析到分集'
           setRoadError(errorMsg)
@@ -750,6 +750,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
           useSourceBindingStore.getState().removeBinding(bangumiId, plugin.name)
           throw new Error(errorMsg)
         }
+        writeRoadsForSource(bangumiId, plugin.name, searchItem.src, roads)
 
         // Persistent binding
         useSourceBindingStore
@@ -893,11 +894,13 @@ export function useWatchSession(bangumiId: number): WatchSession {
         if (!isWatchPage()) return
         if (chaptersGen.current !== gen) return
         if (chaptersAc.signal.aborted) return
+        invalidateRoadsCache(bangumiId, plugin.name, searchItem.src)
         const msg = e instanceof Error ? e.message : '获取分集失败'
         if (/取消|aborted|AbortError/i.test(msg)) return
         setRoadError(msg)
         setSelection(null)
         setPendingSource(null)
+        throw e
       } finally {
         if (mountedRef.current && chaptersGen.current === gen) {
           roadLoadingRef.current = false
@@ -1019,7 +1022,9 @@ export function useWatchSession(bangumiId: number): WatchSession {
           ...keywordCandidatesStable,
         ])
         if (!items.length) {
-          useSourceBindingStore.getState().removeBinding(bangumiId, plugin.name)
+          if (!opts?.manualKeyword) {
+            useSourceBindingStore.getState().removeBinding(bangumiId, plugin.name)
+          }
           // Show first non-meta diagnostic (skip "关键词变体" style prefatory lines)
           // so users see actionable error info: timeout, 403, no results, etc.
           const diag = (res.data.diagnostics || []).filter(Boolean)
@@ -1097,7 +1102,11 @@ export function useWatchSession(bangumiId: number): WatchSession {
           ...keywordCandidatesStable,
         ])
         if (score >= AUTO_PICK_MIN_SIMILARITY) {
-          await pickSource(plugin, items[0])
+          try {
+            await pickSource(plugin, items[0])
+          } catch {
+            /* pickSource already set roadError and cleaned state */
+          }
         } else {
           if (opts?.autoPickFirst && !selectionRef.current) {
             setRoadError(`${plugin.name} 搜索结果与当前番剧标题不够相近，请在「视频源」中确认或点选`)
@@ -1168,7 +1177,11 @@ export function useWatchSession(bangumiId: number): WatchSession {
         setHudMessage(`正在切换至 ${plugin.name}…`)
       }
       if (targetItem) {
-        await pickSource(plugin, targetItem)
+        try {
+          await pickSource(plugin, targetItem)
+        } catch {
+          /* pickSource already set roadError and cleaned state */
+        }
         return
       }
 

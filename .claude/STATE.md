@@ -4,6 +4,29 @@
 
 ---
 
+## [2026-08-30] 修复分集0集与死链 Fallback 异常透传及脏缓存/误删绑定 Bug (Fix Fallback Exception Propagation & Cache Integrity)
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **异常正确透传与 Fallback 链路打通 (`apps/web/src/lib/use-watch-session.ts`)**：
+     - 在 `pickSource` 的 `catch` 块末尾补充 `throw e` 重新抛出异常，修复此前因异常被内部吞没导致返回 resolved Promise，进而使 `switchToPlugin` 与首访 `useEffect` 的 `try/catch` 和 `.catch()` 无法进入 Fallback 重搜分支的致命 Bug；
+     - 在 `searchOnePlugin` 的 `autoPickFirst` 及 `switchToPlugin` 手动点选分支增加 `try/catch` 保护，防止未捕获异常。
+  2. **脏缓存防御与缓存主动失效 (`apps/web/src/lib/use-watch-session.ts`)**：
+     - 将 `writeRoadsForSource` 移动至分集有效性校验成功之后，防止 0 集/空分集被提前写入 sessionStorage；
+     - 在分集为空或解析异常时主动调用 `invalidateRoadsCache(bangumiId, plugin.name, searchItem.src)` 清理残留失效分集缓存。
+  3. **搜索无结果解绑守卫 (`apps/web/src/lib/use-watch-session.ts`)**：
+     - 在 `searchOnePlugin` 中增加 `if (!opts?.manualKeyword)` 守卫，仅在默认自动搜源时清理 0 结果绑定，防止用户手动输入测试词或输错关键词时误删有效历史绑定。
+  4. **保留弹幕时间轴配置的优雅解绑 (`apps/web/src/stores/source-bindings.ts`)**：
+     - 重构 `removeBinding`：当条目中仍存在 `danmakuOffset` 或 `episodeTimeOffsets` 时，仅置空 `sourceUrl` 与 `title`，保留用户已调校的单集弹幕时间轴，待重新选源时自动继承。
+  5. **质量验证**：
+     - `pnpm typecheck` 全仓 3 个 workspace 0 报错通过；
+     - `@animaku/shared` 13 个单测 100% 全部通过；
+     - `pnpm build` 全量生产构建成功。
+- 涉及文件：apps/web/src/lib/use-watch-session.ts, apps/web/src/stores/source-bindings.ts, .claude/STATE.md
+- 备注：全链路打通分集解析失败时向外部的异常透传与优雅自愈，保护弹幕数据与缓存纯净。
+
+---
+
 ## [2026-08-30] 修复视频源失效绑定精准自愈与 Fallback 调度死锁 (Fix Source Binding Fallback & Dead Link Eviction)
 - 状态：已完成
 - 优先级：P0

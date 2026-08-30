@@ -310,6 +310,22 @@ export const useSourceBindingStore = create<SourceBindingState>()(
 
       removeBinding: (bangumiId, pluginName) => {
         const key = makeKey(bangumiId, pluginName)
+        const existing = get().bindings[key]
+        if (!existing) return
+        if (existing.danmakuOffset !== undefined || existing.episodeTimeOffsets) {
+          set((state) => ({
+            bindings: {
+              ...state.bindings,
+              [key]: {
+                ...existing,
+                sourceUrl: '',
+                title: '',
+                updatedAt: Date.now(),
+              },
+            },
+          }))
+          return
+        }
         set((state) => {
           if (!(key in state.bindings)) return state
           const next = { ...state.bindings }
