@@ -4,6 +4,48 @@
 
 ---
 
+## [2026-08-30] 优化 B 站弹幕未收录返回为 200 空数据响应与控制台降噪 (Bilibili Danmaku Unmapped 200 Response)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **服务端响应优化 (`apps/server/src/routes/bilibili-danmaku.ts`)**：
+     - 当通过 Bangumi ID 查询跨站映射库未命中对应 B 站番剧时，由原先的 `404 Not Found` 改为平滑返回标准 `200 OK`，响应体包含 `{ data: [], count: 0, meta: { unmapped: true, message: "..." } }`；
+     - 彻底消除跨源自动探测时浏览器控制台产生的无意义红色 404 错误日志。
+  2. **客户端天然零侵入兼容 (`apps/web/src/lib/use-danmaku-session.ts`)**：
+     - 客户端原本即具备 `biliComments.length > 0` 守卫，收到 200 空数据后直接静默 fallback 至单弹弹源，无需修改任何前端消费代码。
+  3. **质量验证**：
+     - `pnpm typecheck` 全仓 3 个 workspace 0 报错通过；
+     - `pnpm build` 全量生产打包构建成功。
+- 涉及文件：apps/server/src/routes/bilibili-danmaku.ts, .claude/STATE.md
+- 备注：彻底净化前端控制台，探测未命中优雅降级。
+
+---
+
+## [2026-08-30] 落地播放满 15s/完播本地持久化已看记录与选集 B 站风格置灰标记体系 (Watched Episodes & Bilibili-Style UI)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **共享类型与持久化 Store 架构 (`packages/shared/src/history.ts`, `apps/web/src/stores/watched.ts`)**：
+     - 定义 `WatchedEpisodesMap`（`Record<number, Record<number, number>>`，即 `bangumiId -> canonicalEp -> watchedTimestamp`）；
+     - 实现 `useWatchedStore`（基于 `zustand/persist` 本地存储），包含 `markWatched`、`unmarkWatched`、`toggleWatched`、`clearBangumi`、`isWatched`、`getWatchedEpisodes`；
+     - 严格防御第 0 话（`canonicalEp = 0`）与浮点分集（如 `5.5` 话），查询与写入均为 $O(1)$ 极速响应，容量极度紧凑。
+  2. **播放器 15s 有效播放与完播自动打标 (`apps/web/src/player/VideoPlayer.tsx`)**：
+     - 在无拖拽平稳播放累计满 15 秒（`STATS_VALID_PLAY_THRESHOLD_SEC = 15`）处，同步调用 `useWatchedStore.getState().markWatched(bangumiId, epNum)`；
+     - 在播放结束（`onEndedHandler`）与快进完播（`t / d >= 0.85 && d > 30`）处增加自动补标机制，确保完播场景 100% 记录已看。
+  3. **选集组件与 B 站风格已看置灰视觉呈现 (`apps/web/src/pages/watch/MobileEpsSection.tsx`, `apps/web/src/pages/WatchPage.tsx`, `apps/web/src/index.css`)**：
+     - `MobileEpsSection` 引入 `useWatchedStore` 响应式订阅当前番剧已看字典（使用 `s.records[bangumiId]` 稳定引用选择器，杜绝 `|| {}` 创建临时对象引发的 `forceStoreRerender` 递归死循环）；
+     - 在折叠横条与展开网格中为已看集数打上 `kz-bili-ep--watched` 类名（与 `kz-bili-ep--playing` 互斥，playing 优先级最高保持亮色与跳动音符）；
+     - 添加 `title="第X话 · 已观看"` 悬浮提示；
+     - CSS 实现 B 站同款已看置灰弱化视觉（`opacity: 0.68; color: var(--kz-fg-muted);`），hover 时平滑恢复高对比亮度（`opacity: 1; color: var(--kz-fg);`）。
+  4. **质量验证**：
+     - `pnpm typecheck` 全仓 3 个 workspace 0 报错通过；
+     - `@animaku/shared` 13 个单测 100% 全部通过；
+     - `pnpm build` 全量生产打包构建成功。
+- 涉及文件：packages/shared/src/history.ts, apps/web/src/stores/watched.ts, apps/web/src/player/VideoPlayer.tsx, apps/web/src/pages/watch/MobileEpsSection.tsx, apps/web/src/pages/WatchPage.tsx, apps/web/src/index.css, .claude/feature-map.md, .claude/BUGS.md, .claude/STATE.md
+- 备注：实现 15s 与完播自动打标，权威 canonicalEp 对齐免疫换源，选集列表仿 B 站视觉呈现。
+
+---
+
 ## [2026-08-30] 落地弹幕时间轴单集三维隔离与持久化自愈体系 (Per-Episode Danmaku Time Offset)
 - 状态：已完成
 - 优先级：P0

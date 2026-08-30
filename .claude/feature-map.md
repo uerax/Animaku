@@ -96,6 +96,7 @@
 
 ## 10. 用户状态管理与本地持久化 (Stores & Storage)
 - 播放历史状态管理：`apps/web/src/stores/history.ts`, `packages/shared/src/history.ts`
+- 已看集数记录状态管理：`apps/web/src/stores/watched.ts`, `packages/shared/src/history.ts`
 - 全局用户偏好与设置 Store：`apps/web/src/stores/settings.ts`
 - 视频源历史绑定 Store：`apps/web/src/stores/source-bindings.ts`
 - 视频源规则插件 Store：`apps/web/src/stores/plugins.ts`

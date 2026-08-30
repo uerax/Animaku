@@ -187,10 +187,14 @@ bilibiliDanmakuRoutes.get('/bilibili', async (c) => {
     if (!mapped?.targetId) {
       return c.json(
         {
-          error: 'not_found',
-          message: `未在跨站映射库中找到 Bangumi ID ${target.bangumiId} 对应的 B 站番剧`,
+          data: [],
+          count: 0,
+          meta: {
+            unmapped: true,
+            message: `未在跨站映射库中找到 Bangumi ID ${target.bangumiId} 对应的 B 站番剧`,
+          },
         },
-        404,
+        200,
       )
     }
     const parsedMapped = parseBilibiliInput(mapped.targetId)
@@ -210,8 +214,15 @@ bilibiliDanmakuRoutes.get('/bilibili', async (c) => {
         }
       } else {
         return c.json(
-          { error: 'not_found', message: `Bangumi ID ${target.bangumiId} 对应的 B 站映射标识格式无法识别` },
-          404,
+          {
+            data: [],
+            count: 0,
+            meta: {
+              unmapped: true,
+              message: `Bangumi ID ${target.bangumiId} 对应的 B 站映射标识格式无法识别`,
+            },
+          },
+          200,
         )
       }
     }

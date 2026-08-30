@@ -27,3 +27,10 @@ export function historyId(
 ): string {
   return `${bangumiId}::${pluginName}::${road}::${episode}`
 }
+
+/**
+ * Record of watched episodes per anime.
+ * Map: bangumiId -> { [canonicalEp: number]: watchedTimestamp }
+ */
+export type WatchedEpisodesMap = Record<number, Record<number, number>>
+

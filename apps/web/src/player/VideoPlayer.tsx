@@ -18,6 +18,7 @@ import {
   type SuperResolutionMode,
 } from '@animaku/shared'
 import { statsApi } from '../lib/api'
+import { useWatchedStore } from '../stores/watched'
 import { DanmakuPanel, type DanmakuPanelTab } from './DanmakuPanel'
 import {
   hasWebGPU,
@@ -1224,7 +1225,7 @@ export function VideoPlayer({
       const prevT = lastSkipTRef.current
       lastSkipTRef.current = t
 
-      // 累加实际有效播放时长并在满 STATS_VALID_PLAY_THRESHOLD_SEC 秒时上报播放统计
+      // 累加实际有效播放时长并在满 STATS_VALID_PLAY_THRESHOLD_SEC 秒时上报播放统计并写入已看记录
       if (
         !playViewReportedRef.current &&
         bangumiId &&
@@ -1238,11 +1239,24 @@ export function VideoPlayer({
           playSecAccumulatedRef.current += tickDelta
           if (playSecAccumulatedRef.current >= STATS_VALID_PLAY_THRESHOLD_SEC) {
             playViewReportedRef.current = true
-            void statsApi.recordPlayView(bangumiId, episodeNumber || 0).catch(() => {})
+            const epNum = typeof episodeNumber === 'number' ? episodeNumber : 0
+            void statsApi.recordPlayView(bangumiId, epNum).catch(() => {})
+            useWatchedStore.getState().markWatched(bangumiId, epNum)
           }
         }
       }
       lastPlaySecTickRef.current = t
+
+      // 完播兜底：单集播放接近末尾（>= 85% 且视频时长有效）自动记录已看
+      if (
+        bangumiId &&
+        bangumiId > 0 &&
+        typeof episodeNumber === 'number' &&
+        d > 30 &&
+        t / d >= 0.85
+      ) {
+        useWatchedStore.getState().markWatched(bangumiId, episodeNumber)
+      }
 
       if (isSeekingRef.current || skipBusyRef.current || t >= d - 3) return
       const safeMax = d - 0.1
@@ -1327,6 +1341,9 @@ export function VideoPlayer({
     const onEndedHandler = () => {
       userPausedRef.current = false
       hideBufferingUi()
+      if (bangumiId && bangumiId > 0 && typeof episodeNumber === 'number') {
+        useWatchedStore.getState().markWatched(bangumiId, episodeNumber)
+      }
       if (loopRef.current) {
         video.currentTime = 0
         void video.play().catch(() => {

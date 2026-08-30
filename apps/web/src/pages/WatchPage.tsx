@@ -337,6 +337,7 @@ export function WatchPage() {
   /* Bilibili-style 选集 — shared desktop rail + mobile */
   const epsPanel = (
     <MobileEpsSection
+      bangumiId={bangumiId}
       roads={w.selection?.roads ?? []}
       slots={w.slots}
       activeRoadIndex={activeRoadIndex}

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { PlayableSlot } from '@animaku/shared'
+import { useWatchedStore } from '../../stores/watched'
 
 export type MobileEpsRoad = {
   name?: string
@@ -37,6 +38,7 @@ type RangeBucket = {
  * 行为钩子保留：listExpanded / data-ep-index；展开与折叠横条均为约 4 列。
  */
 export function MobileEpsSection({
+  bangumiId,
   roads,
   slots,
   activeRoadIndex,
@@ -55,6 +57,7 @@ export function MobileEpsSection({
   onPickEpisode,
   onRefreshChapters,
 }: {
+  bangumiId?: number
   roads: MobileEpsRoad[]
   slots?: PlayableSlot[]
   activeRoadIndex: number
@@ -75,6 +78,9 @@ export function MobileEpsSection({
   onPickEpisode: (epIndex: number, roadIndex: number) => void
   onRefreshChapters?: () => void
 }) {
+  const watchedMap = useWatchedStore((s) =>
+    bangumiId ? s.records[bangumiId] : undefined,
+  )
   const activeRoad = roads[activeRoadIndex]
   const showRoads = roads.length > 0
   const [isDescOrder, setIsDescOrder] = useState(false)
@@ -426,6 +432,10 @@ export function MobileEpsSection({
                 (playingPageUrl
                   ? activeRoad.data[epIndex] === playingPageUrl
                   : playingIndex === epIndex)
+              const watched =
+                !playing &&
+                typeof item.canonicalEp === 'number' &&
+                Boolean(watchedMap && watchedMap[item.canonicalEp] !== undefined)
               return (
                 <button
                   key={activeRoad.data[epIndex] + item.title + epIndex}
@@ -438,10 +448,11 @@ export function MobileEpsSection({
                       onPickEpisode(epIndex, activeRoadIndex)
                     }
                   }}
-                  title={item.title}
+                  title={watched ? `${item.title} · 已观看` : item.title}
                   className={clsx(
                     'kz-watch-ep-card kz-bili-ep',
                     playing && 'kz-bili-ep--playing',
+                    watched && 'kz-bili-ep--watched',
                   )}
                 >
                   {playing ? (
