@@ -131,6 +131,7 @@ export const useSourceBindingStore = create<SourceBindingState>()(
           similarity: sim,
           isManual: manual,
           danmakuOffset: entry.danmakuOffset !== undefined ? entry.danmakuOffset : existing?.danmakuOffset,
+          episodeTimeOffsets: existing?.episodeTimeOffsets,
           updatedAt: Date.now(),
         }
 
@@ -151,26 +152,47 @@ export const useSourceBindingStore = create<SourceBindingState>()(
         if (!Number.isFinite(bangumiId) || !pluginName) return
         const key = makeKey(bangumiId, pluginName)
         const existing = get().bindings[key]
+        const normalizedOffset = offset !== 0 ? offset : undefined
 
-        if (!existing && (!offset || offset === 0)) {
+        if (!existing && !normalizedOffset) {
           return
         }
 
-        const newEntry: SourceBindingEntry = existing
-          ? {
-              ...existing,
-              danmakuOffset: offset !== 0 ? offset : undefined,
-              updatedAt: Date.now(),
+        if (existing) {
+          const nextEntry: SourceBindingEntry = {
+            ...existing,
+            danmakuOffset: normalizedOffset,
+            updatedAt: Date.now(),
+          }
+          if (!nextEntry.sourceUrl && !nextEntry.danmakuOffset && !nextEntry.episodeTimeOffsets) {
+            set((state) => {
+              const next = { ...state.bindings }
+              delete next[key]
+              return { bindings: next }
+            })
+            return
+          }
+          set((state) => {
+            const updated = {
+              ...state.bindings,
+              [key]: nextEntry,
             }
-          : {
-              bangumiId,
-              pluginName,
-              sourceUrl: '',
-              title: '',
-              isManual: true,
-              danmakuOffset: offset !== 0 ? offset : undefined,
-              updatedAt: Date.now(),
+            return {
+              bindings: enforceLRU(updated, MAX_BINDINGS),
             }
+          })
+          return
+        }
+
+        const newEntry: SourceBindingEntry = {
+          bangumiId,
+          pluginName,
+          sourceUrl: '',
+          title: '',
+          isManual: false,
+          danmakuOffset: normalizedOffset,
+          updatedAt: Date.now(),
+        }
 
         set((state) => {
           const updated = {
@@ -217,21 +239,45 @@ export const useSourceBindingStore = create<SourceBindingState>()(
         const nextEpisodeTimeOffsets =
           Object.keys(nextEpOffsets).length > 0 ? nextEpOffsets : undefined
 
-        const newEntry: SourceBindingEntry = existing
-          ? {
-              ...existing,
-              episodeTimeOffsets: nextEpisodeTimeOffsets,
-              updatedAt: Date.now(),
+        if (!existing && !nextEpisodeTimeOffsets) {
+          return
+        }
+
+        if (existing) {
+          const nextEntry: SourceBindingEntry = {
+            ...existing,
+            episodeTimeOffsets: nextEpisodeTimeOffsets,
+            updatedAt: Date.now(),
+          }
+          if (!nextEntry.sourceUrl && !nextEntry.danmakuOffset && !nextEntry.episodeTimeOffsets) {
+            set((state) => {
+              const next = { ...state.bindings }
+              delete next[key]
+              return { bindings: next }
+            })
+            return
+          }
+          set((state) => {
+            const updated = {
+              ...state.bindings,
+              [key]: nextEntry,
             }
-          : {
-              bangumiId,
-              pluginName,
-              sourceUrl: '',
-              title: '',
-              isManual: true,
-              episodeTimeOffsets: nextEpisodeTimeOffsets,
-              updatedAt: Date.now(),
+            return {
+              bindings: enforceLRU(updated, MAX_BINDINGS),
             }
+          })
+          return
+        }
+
+        const newEntry: SourceBindingEntry = {
+          bangumiId,
+          pluginName,
+          sourceUrl: '',
+          title: '',
+          isManual: false,
+          episodeTimeOffsets: nextEpisodeTimeOffsets,
+          updatedAt: Date.now(),
+        }
 
         set((state) => {
           const updated = {
@@ -251,9 +297,21 @@ export const useSourceBindingStore = create<SourceBindingState>()(
         if (!existing?.episodeTimeOffsets || !(episode in existing.episodeTimeOffsets)) return
         const nextEpOffsets = { ...existing.episodeTimeOffsets }
         delete nextEpOffsets[episode]
+        const nextEpisodeTimeOffsets =
+          Object.keys(nextEpOffsets).length > 0 ? nextEpOffsets : undefined
+
+        if (!existing.sourceUrl && !existing.danmakuOffset && !nextEpisodeTimeOffsets) {
+          set((state) => {
+            const next = { ...state.bindings }
+            delete next[key]
+            return { bindings: next }
+          })
+          return
+        }
+
         const newEntry: SourceBindingEntry = {
           ...existing,
-          episodeTimeOffsets: Object.keys(nextEpOffsets).length > 0 ? nextEpOffsets : undefined,
+          episodeTimeOffsets: nextEpisodeTimeOffsets,
           updatedAt: Date.now(),
         }
         set((state) => ({

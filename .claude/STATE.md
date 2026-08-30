@@ -4,6 +4,27 @@
 
 ---
 
+## [2026-08-30] 修复视频源绑定覆盖抹除单集弹幕时间轴与新建弹幕偏移状态污染 Bug
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **换源与更新视频源继承单集弹幕时间轴 (`apps/web/src/stores/source-bindings.ts`)**：
+     - 在 `setBinding` 构造 `newEntry` 时，显式继承已有的 `episodeTimeOffsets: existing?.episodeTimeOffsets`；
+     - 彻底根除用户在换源或重新选源时，已微调好的单集弹幕时间轴（`+1s`、`-0.5s`）被清空抹杀的数据丢失缺陷。
+  2. **中立新建弹幕偏移与状态解耦 (`apps/web/src/stores/source-bindings.ts`)**：
+     - 在 `setDanmakuOffset` 与 `setEpisodeDanmakuTimeOffset` 的全新创建（`!existing`）分支中，统一使用 `isManual: false`，杜绝仅调弹幕时间却越权将视频源标记为“用户手动确认”的语义污染；
+     - 现有手动选源绑定（`existing` 分支）通过解构展开保持其原有的 `isManual` 与 `sourceUrl` 状态完全不变。
+  3. **空记录自愈与自动垃圾回收 (GC)**：
+     - 在 `setDanmakuOffset`、`setEpisodeDanmakuTimeOffset` 与 `clearEpisodeDanmakuTimeOffset` 中，当记录的 `sourceUrl` 为空、`danmakuOffset` 为空且单集 `episodeTimeOffsets` 全部清空时，自动执行 `delete next[key]` 彻底移除该条目，消除幽灵空记录残留。
+  4. **质量验证**：
+     - `pnpm typecheck` 全仓 3 个 workspace 0 报错通过；
+     - `@animaku/shared` 13 个单测 100% 全部通过；
+     - `pnpm build` 全量生产构建成功。
+- 涉及文件：apps/web/src/stores/source-bindings.ts, .claude/STATE.md
+- 备注：单集弹幕时移与视频源绑定彻底解耦，换源不丢数据，空记录自动清理。
+
+---
+
 ## [2026-08-30] 优化 B 站弹幕未收录返回为 200 空数据响应与控制台降噪 (Bilibili Danmaku Unmapped 200 Response)
 - 状态：已完成
 - 优先级：P2
