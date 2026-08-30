@@ -246,7 +246,7 @@ export type WatchSession = {
       clearSelection?: boolean
       autoPickFirst?: boolean
       refresh?: boolean
-      isManual?: boolean
+      manualKeyword?: boolean
     },
   ) => Promise<void>
   searchOnePlugin: (
@@ -256,7 +256,7 @@ export type WatchSession = {
       clearSelection?: boolean
       autoPickFirst?: boolean
       refresh?: boolean
-      isManual?: boolean
+      manualKeyword?: boolean
     },
   ) => Promise<void>
   reSearchCurrentSource: (keyword: string) => Promise<void>
@@ -683,7 +683,6 @@ export function useWatchSession(bangumiId: number): WatchSession {
     async (
       plugin: PluginMeta,
       searchItem: SearchItem,
-      opts?: { isManual?: boolean },
     ) => {
       if (
         !roadLoadingRef.current &&
@@ -748,20 +747,17 @@ export function useWatchSession(bangumiId: number): WatchSession {
           )
           setSelection(null)
           setPendingSource(null)
-          useSourceBindingStore.getState().removeBinding(bangumiId, plugin.name)
           return
         }
 
-        // Silent contamination gatekeeper & persistent binding
-        // User manual picks (opts.isManual !== false) are always persisted
+        // Persistent binding
         useSourceBindingStore
           .getState()
           .setBinding(
             bangumiId,
             plugin.name,
-            { sourceUrl: searchItem.src, title: searchItem.name, isManual: opts?.isManual ?? true },
+            { sourceUrl: searchItem.src, title: searchItem.name },
             titleRefsStable,
-            opts?.isManual ?? true,
           )
 
         // Episode alignment & seamless progress inheritance via PlayableSlot
@@ -901,10 +897,6 @@ export function useWatchSession(bangumiId: number): WatchSession {
         setRoadError(msg)
         setSelection(null)
         setPendingSource(null)
-        const existingBinding = useSourceBindingStore.getState().getBinding(bangumiId, plugin.name)
-        if (existingBinding && !existingBinding.isManual) {
-          useSourceBindingStore.getState().removeBinding(bangumiId, plugin.name)
-        }
       } finally {
         if (mountedRef.current && chaptersGen.current === gen) {
           roadLoadingRef.current = false
@@ -934,7 +926,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
         /** Skip client search cache (and ask server refresh when true). */
         refresh?: boolean
         /** Explicitly manual keyword override */
-        isManual?: boolean
+        manualKeyword?: boolean
       },
     ) => {
       const gen = (pluginSearchGen.current[plugin.name] || 0) + 1
@@ -946,7 +938,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
       }
       const searchAc = new AbortController()
       pluginSearchAbort.current[plugin.name] = searchAc
-      if (opts?.isManual) {
+      if (opts?.manualKeyword) {
         setManualKeywords((prev) => ({
           ...prev,
           [plugin.name]: keyword.trim(),
@@ -1026,10 +1018,6 @@ export function useWatchSession(bangumiId: number): WatchSession {
           ...keywordCandidatesStable,
         ])
         if (!items.length) {
-          const existingBinding = useSourceBindingStore.getState().getBinding(bangumiId, plugin.name)
-          if (existingBinding && !existingBinding.isManual) {
-            useSourceBindingStore.getState().removeBinding(bangumiId, plugin.name)
-          }
           // Show first non-meta diagnostic (skip "关键词变体" style prefatory lines)
           // so users see actionable error info: timeout, 403, no results, etc.
           const diag = (res.data.diagnostics || []).filter(Boolean)
@@ -1043,10 +1031,6 @@ export function useWatchSession(bangumiId: number): WatchSession {
       } catch (e) {
         if (pluginSearchGen.current[plugin.name] !== gen) return
         if (searchAc.signal.aborted) return
-        const existingBinding = useSourceBindingStore.getState().getBinding(bangumiId, plugin.name)
-        if (existingBinding && !existingBinding.isManual) {
-          useSourceBindingStore.getState().removeBinding(bangumiId, plugin.name)
-        }
         const msg = e instanceof Error ? e.message : '搜索失败'
         if (/取消|aborted|AbortError/i.test(msg)) return
         error = /504|timeout|超时|无法访问/i.test(msg)
@@ -1152,11 +1136,11 @@ export function useWatchSession(bangumiId: number): WatchSession {
         clearSelection?: boolean
         autoPickFirst?: boolean
         refresh?: boolean
-        isManual?: boolean
+        manualKeyword?: boolean
       },
     ) => {
-      const isManual = Boolean(keyword?.trim() || opts?.isManual)
-      if (isManual && keyword?.trim()) {
+      const isCustomKw = Boolean(keyword?.trim() || opts?.manualKeyword)
+      if (isCustomKw && keyword?.trim()) {
         setManualKeywords((prev) => ({
           ...prev,
           [plugin.name]: keyword.trim(),
@@ -1170,7 +1154,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
         ''
       ).trim()
       if (!kw) return
-      await searchOnePlugin(plugin, kw, { ...opts, isManual })
+      await searchOnePlugin(plugin, kw, { ...opts, manualKeyword: isCustomKw })
     },
     [searchOnePlugin, getPluginKeyword, searchKeyword, defaultKeyword],
   )
@@ -1182,7 +1166,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
         setHudMessage(`正在切换至 ${plugin.name}…`)
       }
       if (targetItem) {
-        await pickSource(plugin, targetItem, { isManual: true })
+        await pickSource(plugin, targetItem)
         return
       }
 
@@ -1194,12 +1178,10 @@ export function useWatchSession(bangumiId: number): WatchSession {
           await pickSource(plugin, {
             name: binding.title || plugin.name,
             src: binding.sourceUrl,
-          }, { isManual: Boolean(binding.isManual) })
+          })
           return
         } catch {
-          if (!binding.isManual) {
-            useSourceBindingStore.getState().removeBinding(bangumiId, plugin.name)
-          }
+          /* ignore & fallback to openPluginSearch below */
         }
       }
 
@@ -1525,9 +1507,8 @@ export function useWatchSession(bangumiId: number): WatchSession {
             .setBinding(
               bangumiId,
               qPlugin,
-              { sourceUrl: source.src, title: source.name, isManual: true },
+              { sourceUrl: source.src, title: source.name },
               titleRefsStable,
-              true,
             )
         }
         const q = new URLSearchParams(paramsRef.current)
@@ -1836,7 +1817,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
       clearSelection: true,
       autoPickFirst: false,
       refresh: true,
-      isManual: true,
+      manualKeyword: true,
     })
   }
 

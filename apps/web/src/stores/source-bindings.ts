@@ -9,7 +9,6 @@ migrateLocalStorageKey('animaku-source-bindings', [
 ])
 
 const MAX_BINDINGS = 1000
-const MIN_PERSIST_SIMILARITY = 0.5
 
 export interface EpisodeDanmakuTimeOffset {
   global?: number
@@ -22,7 +21,6 @@ export interface SourceBindingEntry {
   sourceUrl: string
   title: string
   similarity?: number
-  isManual?: boolean
   /** Relative offset for danmaku episode alignment (e.g. -1 for prologue shift) */
   danmakuOffset?: number
   /** Per-episode time offsets (in seconds) isolated to this [bangumiId : pluginName : episode] */
@@ -36,9 +34,8 @@ export interface SourceBindingState {
   setBinding: (
     bangumiId: number,
     pluginName: string,
-    entry: { sourceUrl: string; title: string; similarity?: number; isManual?: boolean; danmakuOffset?: number },
+    entry: { sourceUrl: string; title: string; similarity?: number; danmakuOffset?: number },
     referenceTitles?: Array<string | null | undefined>,
-    isManual?: boolean,
   ) => boolean
   setDanmakuOffset: (
     bangumiId: number,
@@ -99,12 +96,11 @@ export const useSourceBindingStore = create<SourceBindingState>()(
         return binding
       },
 
-      setBinding: (bangumiId, pluginName, entry, referenceTitles, isManual) => {
+      setBinding: (bangumiId, pluginName, entry, referenceTitles) => {
         if (!Number.isFinite(bangumiId) || !pluginName || !entry.sourceUrl) {
           return false
         }
 
-        const manual = Boolean(isManual || entry.isManual)
         let sim = entry.similarity
         if (
           sim === undefined &&
@@ -112,13 +108,6 @@ export const useSourceBindingStore = create<SourceBindingState>()(
           referenceTitles.some((t) => Boolean(t?.trim()))
         ) {
           sim = bestTitleSimilarity(entry.title, referenceTitles)
-        }
-
-        // Silent contamination gatekeeper:
-        // Only block unverified automated guesses with low similarity (< 0.50).
-        // User manual picks (isManual = true) are always trusted and persisted!
-        if (!manual && sim !== undefined && sim < MIN_PERSIST_SIMILARITY) {
-          return false
         }
 
         const key = makeKey(bangumiId, pluginName)
@@ -129,7 +118,6 @@ export const useSourceBindingStore = create<SourceBindingState>()(
           sourceUrl: entry.sourceUrl.trim(),
           title: entry.title.trim(),
           similarity: sim,
-          isManual: manual,
           danmakuOffset: entry.danmakuOffset !== undefined ? entry.danmakuOffset : existing?.danmakuOffset,
           episodeTimeOffsets: existing?.episodeTimeOffsets,
           updatedAt: Date.now(),
@@ -189,7 +177,6 @@ export const useSourceBindingStore = create<SourceBindingState>()(
           pluginName,
           sourceUrl: '',
           title: '',
-          isManual: false,
           danmakuOffset: normalizedOffset,
           updatedAt: Date.now(),
         }
@@ -274,7 +261,6 @@ export const useSourceBindingStore = create<SourceBindingState>()(
           pluginName,
           sourceUrl: '',
           title: '',
-          isManual: false,
           episodeTimeOffsets: nextEpisodeTimeOffsets,
           updatedAt: Date.now(),
         }

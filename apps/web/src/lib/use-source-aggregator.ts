@@ -247,8 +247,8 @@ export function useSourceAggregator({
       probeDoneRef.current[pluginName] = true
 
       const customKw = customKeywordsRef.current[pluginName]
-      const isManual = Boolean(customKw)
-      if (!isManual) {
+      const isCustomKw = Boolean(customKw)
+      if (!isCustomKw) {
         activeAutoJobsRef.current.add(pluginName)
       } else {
         activeAutoJobsRef.current.delete(pluginName)
@@ -425,7 +425,7 @@ export function useSourceAggregator({
 
   // Preemption: User clicks a specific source card -> jump to front of queue
   const prioritizePlugin = useCallback(
-    (pluginName: string, isManual = true) => {
+    (pluginName: string, isUserAction = true) => {
       if (abortControllersRef.current[pluginName]) {
         try {
           abortControllersRef.current[pluginName].abort()
@@ -437,7 +437,7 @@ export function useSourceAggregator({
       probeDoneRef.current[pluginName] = false
 
       // Preempt background auto-job if concurrency is full and user made a manual action
-      if (isManual && activeJobsRef.current >= CONCURRENCY_LIMIT) {
+      if (isUserAction && activeJobsRef.current >= CONCURRENCY_LIMIT) {
         for (const autoJobName of activeAutoJobsRef.current) {
           if (autoJobName !== pluginName && abortControllersRef.current[autoJobName]) {
             try {

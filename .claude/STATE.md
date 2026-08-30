@@ -4,6 +4,29 @@
 
 ---
 
+## [2026-08-30] 彻底重构并移除 isManual 冗余机制与全面转为纯粹绑定与自愈体系
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **存储模型纯净化 (`apps/web/src/stores/source-bindings.ts`)**：
+     - 从 `SourceBindingEntry` 接口和 `setBinding` 中彻底删除 `isManual` 字段与参数；
+     - 视频源绑定职责完全回归纯粹（`sourceUrl`、`title`、`similarity`、`danmakuOffset`、`episodeTimeOffsets`）；
+     - 只要确定播放（自动匹配或手动点选），均作为有效偏好稳定持久化，享受统一平等的 0ms 秒开缓存。
+  2. **会话层生命周期简化与异常自愈 (`apps/web/src/lib/use-watch-session.ts`)**：
+     - 彻底清除所有因 `!isManual` 导致的“一次网络超时就暗中物理删除绑定”的脆弱逻辑；
+     - `openPluginSearch` 与 `searchOnePlugin` 参数收敛为 `manualKeyword?: boolean`（仅用于记录用户手动输入的自定义关键词）；
+     - `switchToPlugin`、`pickSource` 与续播挂载彻底解耦 `isManual`，失败时平滑 Fallback 重新搜索与探活，杜绝死锁。
+  3. **视频源看板探活解耦 (`apps/web/src/lib/use-source-aggregator.ts`)**：
+     - 将队列抢占逻辑规范为 `isUserAction`，用户交互与自定义关键词探活精准优先分配并发。
+  4. **质量验证**：
+     - `pnpm typecheck` 全仓 3 个 workspace 0 报错通过；
+     - `@animaku/shared` 13 个单测 100% 全部通过；
+     - `pnpm build` 全量生产构建成功。
+- 涉及文件：apps/web/src/stores/source-bindings.ts, apps/web/src/lib/use-watch-session.ts, apps/web/src/lib/use-source-aggregator.ts, .claude/STATE.md
+- 备注：彻底消灭二等公民机制，全仓 0 残留，纯粹基于有效性与优雅 Fallback 自愈。
+
+---
+
 ## [2026-08-30] 修复视频源绑定覆盖抹除单集弹幕时间轴与新建弹幕偏移状态污染 Bug
 - 状态：已完成
 - 优先级：P0
