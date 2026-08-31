@@ -4,6 +4,31 @@
 
 ---
 
+## [2026-08-31] 落地 AI/LLM 爬虫友好规范声明、标准 llms.txt 路由与 AggregateRating 结构化数据升级 (SEO / GEO Enhancement)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **主流 AI 爬虫协议显式声明 (`apps/server/src/lib/seo-static.ts`, `apps/web/public/robots.txt`)**：
+     - 在动态与静态 `robots.txt` 中显式针对 `GPTBot`、`ChatGPT-User`、`ClaudeBot`、`anthropic-ai`、`PerplexityBot`、`Google-Extended`、`Applebot-Extended`、`CCBot` 声明抓取规则；
+     - 明确放行 `/`、`/anime`、`/timeline`、`/subject/` 核心内容页面与 `/api/bangumi/` 元数据 API 及 `/llms.txt`，同时规范 Disallow `/play/`、`/settings`、`/history` 等重定向与客户端私有路径。
+  2. **落地标准 `llms.txt` 规范与动态/静态双模路由 (`apps/server/src/lib/seo-static.ts`, `apps/server/src/index.ts`, `apps/web/public/llms.txt`)**：
+     - 新增 `buildLlmsTxt(origin)` 动态生成器与 `apps/web/public/llms.txt` 静态兜底文件；
+     - 结构化阐述 Animaku 核心定位、页面索引、Bangumi 权威数字 ID 引用规范（`{origin}/subject/{bangumiId}`）与 Schema.org 结构化数据标记；
+     - 服务端注册 `/llms.txt` 路由并下发标准 `text/markdown; charset=utf-8` 与 24 小时长效缓存响应头。
+  3. **Schema.org TVSeries AggregateRating 结构化数据升级 (`apps/server/src/lib/seo-prerender.ts`)**：
+     - 在服务端 SSR 预渲染的 `buildJsonLd` 中，当 `ratingScore` 与 `votes` 有效时注入标准 `AggregateRating`（包含 `ratingValue`、`ratingCount`、`bestRating=10`、`worstRating=1`）；
+     - 严格保持评论区作为客户端异步数据流，不额外增加服务端阻塞负担。
+  4. **质量验证**：
+     - 新增 `apps/server/src/lib/seo-prerender.test.ts` 与 `apps/server/src/lib/seo-static.test.ts`；
+     - 服务端 12 个单测 100% 全部通过；
+     - `@animaku/shared` 30 个单测 100% 全部通过；
+     - `pnpm -r typecheck` 全仓 3 个 workspace 0 报错；
+     - `pnpm build` 全量生产构建顺利通过。
+- 涉及文件：apps/server/src/lib/seo-prerender.ts, apps/server/src/lib/seo-prerender.test.ts, apps/server/src/lib/seo-static.ts, apps/server/src/lib/seo-static.test.ts, apps/server/src/index.ts, apps/server/package.json, apps/web/public/robots.txt, apps/web/public/llms.txt, .claude/feature-map.md, .claude/STATE.md
+- 备注：全面对齐 AI 抓取与 LLM 索引标准，零额外网络 I/O 阻塞。
+
+---
+
 ## [2026-08-31] 修复播放页加载未就绪时视频源错误使用占位标题搜索与元数据失败态保护 (Fix Watch Session Placeholder Title Leaking & Subject Error State)
 - 状态：已完成
 - 优先级：P1

@@ -1,6 +1,29 @@
 # Animaku — default robots for static hosting / Vite public/
 # Production server may override this with a Host-aware response (same rules).
 
+# Explicit allowances for AI and LLM search/answer bots
+User-agent: GPTBot
+User-agent: ChatGPT-User
+User-agent: ClaudeBot
+User-agent: anthropic-ai
+User-agent: PerplexityBot
+User-agent: Google-Extended
+User-agent: Applebot-Extended
+User-agent: CCBot
+Allow: /
+Allow: /anime
+Allow: /timeline
+Allow: /subject/
+Allow: /api/bangumi/
+Allow: /llms.txt
+Disallow: /api/
+Disallow: /settings
+Disallow: /history
+Disallow: /collect
+Disallow: /play/
+Disallow: /search
+
+# General search engines and all other crawlers
 User-agent: *
 Allow: /
 Allow: /anime
@@ -9,6 +32,7 @@ Allow: /subject/
 
 # Public API endpoints required for client-side rendering (SPA)
 Allow: /api/bangumi/
+Allow: /llms.txt
 
 # API and private client state
 Disallow: /api/
@@ -26,3 +50,4 @@ Allow: /assets/
 # Sitemap is absolute; production injects via server when possible.
 # If you only serve static files, set Sitemap manually:
 # Sitemap: https://your.domain/sitemap.xml
+

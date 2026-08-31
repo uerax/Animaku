@@ -21,6 +21,7 @@ import { statsRoutes } from './routes/stats'
 import {
   buildRobotsTxt,
   buildDynamicSitemapXml,
+  buildLlmsTxt,
   resolvePublicOrigin,
   fetchSitemapSubjects,
 } from './lib/seo-static'
@@ -198,7 +199,7 @@ app.route('/api/plugin', pluginCatalogRoutes)
 app.route('/api/media', mediaRoutes)
 app.route('/api/stats', statsRoutes)
 
-// Host-aware SEO files (before SPA static so they are not shadowed by public/)
+// Host-aware SEO & AI discovery files (before SPA static so they are not shadowed by public/)
 app.get('/robots.txt', (c) => {
   const origin = resolvePublicOrigin(config.siteUrl, c.req)
   return new Response(buildRobotsTxt(origin), {
@@ -206,6 +207,16 @@ app.get('/robots.txt', (c) => {
     headers: {
       'Content-Type': 'text/plain; charset=utf-8',
       'Cache-Control': 'public, max-age=3600',
+    },
+  })
+})
+app.get('/llms.txt', (c) => {
+  const origin = resolvePublicOrigin(config.siteUrl, c.req)
+  return new Response(buildLlmsTxt(origin), {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/markdown; charset=utf-8',
+      'Cache-Control': 'public, max-age=86400',
     },
   })
 })
@@ -242,7 +253,11 @@ if (webRoot) {
   // - HTML and SPA routes: no-cache so redeploys are detected immediately
   app.use('*', async (c, next) => {
     if (c.req.path.startsWith('/api')) return next()
-    if (c.req.path === '/robots.txt' || c.req.path === '/sitemap.xml') {
+    if (
+      c.req.path === '/robots.txt' ||
+      c.req.path === '/llms.txt' ||
+      c.req.path === '/sitemap.xml'
+    ) {
       return next()
     }
     if (c.req.path.startsWith('/subject/') || c.req.path.startsWith('/play/')) {
@@ -277,9 +292,10 @@ if (webRoot) {
 
   app.use('*', async (c, next) => {
     if (c.req.path.startsWith('/api')) return next()
-    // Dynamic robots/sitemap/subject already handled above
+    // Dynamic robots/llms/sitemap/subject already handled above
     if (
       c.req.path === '/robots.txt' ||
+      c.req.path === '/llms.txt' ||
       c.req.path === '/sitemap.xml' ||
       c.req.path.startsWith('/subject/') ||
       c.req.path.startsWith('/play/')
@@ -293,6 +309,7 @@ if (webRoot) {
     if (c.req.path.startsWith('/api')) return next()
     if (
       c.req.path === '/robots.txt' ||
+      c.req.path === '/llms.txt' ||
       c.req.path === '/sitemap.xml' ||
       c.req.path.startsWith('/subject/') ||
       c.req.path.startsWith('/play/')

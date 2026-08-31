@@ -127,6 +127,7 @@
 ## 12. SEO 搜索引擎优化与收录协议 (SEO & Indexing)
 - 服务端轻量 SSR 预渲染与 Meta 注入：`apps/server/src/lib/seo-prerender.ts`
 - 动态多源 Sitemap XML 生成与 Google Image 扩展：`apps/server/src/lib/seo-static.ts`
+- AI 爬虫协议与 llms.txt 规范：`apps/server/src/lib/seo-static.ts`, `apps/web/public/llms.txt`, `apps/web/public/robots.txt`
 - IndexNow 即时收录协议引擎：`apps/server/src/lib/indexnow.ts`
 - 前端客户端 SEO 与 JSON-LD 结构化数据：`apps/web/src/components/DocumentSeo.tsx`, `apps/web/src/lib/seo.ts`
 - 静态 robots.txt 与 webmanifest：`apps/web/public/robots.txt`, `apps/web/public/site.webmanifest`

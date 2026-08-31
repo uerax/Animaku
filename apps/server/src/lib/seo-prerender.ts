@@ -116,7 +116,7 @@ export async function fetchSubjectSeoData(id: number): Promise<SubjectSeoResult>
 /**
  * Build rich JSON-LD objects for TVSeries and BreadcrumbList.
  */
-function buildJsonLd(args: {
+export function buildJsonLd(args: {
   id: number
   name: string
   alternateName?: string
@@ -125,6 +125,8 @@ function buildJsonLd(args: {
   datePublished?: string
   canonicalUrl: string
   origin: string
+  ratingScore?: number
+  ratingVotes?: number
 }): [Record<string, unknown>, Record<string, unknown>] {
   const tvSeries: Record<string, unknown> = {
     '@context': 'https://schema.org',
@@ -136,6 +138,17 @@ function buildJsonLd(args: {
     ...(args.description ? { description: args.description } : {}),
     ...(args.image ? { image: args.image } : {}),
     ...(args.datePublished ? { datePublished: args.datePublished } : {}),
+    ...(args.ratingScore && args.ratingScore > 0 && args.ratingVotes && args.ratingVotes > 0
+      ? {
+          aggregateRating: {
+            '@type': 'AggregateRating',
+            ratingValue: Number(args.ratingScore.toFixed(1)),
+            bestRating: 10,
+            worstRating: 1,
+            ratingCount: args.ratingVotes,
+          },
+        }
+      : {}),
     url: args.canonicalUrl,
     identifier: String(args.id),
   }
@@ -198,6 +211,8 @@ function renderSuccessPage(
     datePublished: item.airDate || undefined,
     canonicalUrl,
     origin,
+    ratingScore: item.ratingScore,
+    ratingVotes: item.votes,
   })
 
   let html = templateHtml
