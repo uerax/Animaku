@@ -4,6 +4,32 @@
 
 ---
 
+## [2026-08-31] 修复移动端吐槽区翻页自动滚动未避让吸顶播放器与重复触发打断 Bug (Fix Mobile Comments Pagination Auto Scroll)
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **排查根本原因**：
+     - **吸顶遮挡导致第一条被挡死**：移动端竖屏下，顶部常驻吸顶 Header（56px）以及 `.kz-player-stack--sticky` 吸顶播放器（~220px），两者常驻占满视口上方 0~276px 区域；此前 `scrollToCommentsTop` 硬编码使用固定 `- 80px` 偏移量，导致翻页滚动后吐槽区标题及第 1~2 条评论直接被吸顶播放器完全覆盖遮挡，用户直观看到的是第 3 条，误以为“自动滚动没用”；
+     - **移动端 Smooth Scroll 双重触发打断**：此前在 `handlePageChange` 中调用了 `scrollToCommentsTop`，同时 `useEffect` 监听 `[data, isFetching]` 在同 Chunk 命中缓存秒开时又立即调用了一次 `scrollToCommentsTop`；在 iOS Safari 及移动端 WebKit 下，两次极短间隔（<5ms）的连续 smooth scroll 会导致浏览器底层滚动动画被判定为冲突并强制 abort 中断，导致停滞在底部。
+  2. **全面自适应动态吸顶测算与时序解耦修复**：
+     - **动态感知吸顶高度与呼吸留白 (`apps/web/src/pages/watch/comments/WatchComments.tsx`)**：
+       - 智能识别移动端竖屏环境（`innerWidth < 1024 && portrait`），动态量测吸顶播放器 `.kz-player-stack--sticky` 的真实渲染高度与 Header 真实高度，计算精确视口避让偏移量 `offset = headerHeight + playerHeight + 14px`（桌面端与横屏保持 `headerHeight + 20px`）；
+       - 滚动后吐槽区标题栏与第一条吐槽评论卡片完完整整展现在吸顶播放器正下方，杜绝任何遮挡。
+     - **精准时序解耦与打断防御 (`apps/web/src/pages/watch/comments/WatchComments.tsx`)**：
+       - 引入 `hadNetworkFetchRef` 状态锁，严格区分“同 Chunk 缓存秒开”与“跨 Chunk 异步网络拉取”；
+       - 缓存秒开时：仅在 `requestAnimationFrame` 发起单次平滑滚动，`useEffect` 静默清理标记，杜绝二次调用打断动画；
+       - 跨 Chunk 网络拉取时：点击立即平滑滚动，异步数据返回渲染完毕后由 `useEffect` 在下一渲染帧微调校准一次，确保视口 100% 锁定在第一条评论顶部。
+     - **分页器当前页防误触优化 (`apps/web/src/pages/watch/comments/CommentPagination.tsx`)**：
+       - 为当前激活页按钮添加 `pointer-events-none` 与 `aria-current="page"`，杜绝重复触发。
+  3. **质量验证**：
+     - `@animaku/shared` 28 个单测 100% 全部通过；
+     - `pnpm typecheck` 全仓 3 个 workspace 0 报错；
+     - `pnpm build` 全量生产构建成功。
+- 涉及文件：apps/web/src/pages/watch/comments/WatchComments.tsx, apps/web/src/pages/watch/comments/CommentPagination.tsx, .claude/STATE.md
+- 备注：彻底解决移动端竖屏下吸顶播放器遮挡吐槽区第一条以及翻页平滑滚动冲突中断的问题。
+
+---
+
 ## [2026-08-31] 落地吐槽评论区词法分词规则引擎、裸短链与引流黑幕遮掩体系 (Comment Rich Censor & Redacted Tokens)
 - 状态：已完成
 - 优先级：P1

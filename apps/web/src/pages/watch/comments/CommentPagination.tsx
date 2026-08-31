@@ -73,11 +73,12 @@ export const CommentPagination = memo(function CommentPagination({
             key={p}
             type="button"
             disabled={loading}
+            aria-current={isCurrent ? 'page' : undefined}
             onClick={() => onPageChange(p)}
             className={clsx(
               'flex h-8 min-w-[32px] items-center justify-center rounded-lg px-2 text-xs font-semibold tabular-nums transition-colors',
               isCurrent
-                ? 'bg-[var(--kz-accent)] text-white shadow-xs'
+                ? 'bg-[var(--kz-accent)] text-white shadow-xs pointer-events-none'
                 : 'border border-[var(--kz-border)] bg-[var(--kz-bg-card)] text-[var(--kz-fg-muted)] hover:border-[var(--kz-border-hover)] hover:bg-[var(--kz-bg-hover)] hover:text-[var(--kz-fg)]',
             )}
           >

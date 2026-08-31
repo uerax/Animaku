@@ -15,6 +15,7 @@ export const WatchComments = memo(function WatchComments({
   const [page, setPage] = useState(1)
   const containerRef = useRef<HTMLDivElement>(null)
   const shouldScrollOnDataRef = useRef(false)
+  const hadNetworkFetchRef = useRef(false)
 
   // 当番剧 ID 切换时，重置页码为第一页
   useEffect(() => {
@@ -36,29 +37,82 @@ export const WatchComments = memo(function WatchComments({
     placeholderData: keepPreviousData, // 💡 跨 Chunk 拉取新数据时保持上页内容，防止骨架屏导致高度坍塌打断滚动
   })
 
+  // 记录是否经历过异步网络加载
+  useEffect(() => {
+    if (isFetching) {
+      hadNetworkFetchRef.current = true
+    }
+  }, [isFetching])
+
   const comments = data?.data || []
   const total = data?.total || 0
 
   const scrollToCommentsTop = useCallback(() => {
-    if (containerRef.current) {
-      const top = containerRef.current.getBoundingClientRect().top + window.scrollY - 80
-      window.scrollTo({ top, behavior: 'smooth' })
+    if (!containerRef.current) return
+
+    let offset = 80 // 默认桌面端 Header (56px) + 呼吸间距 (24px)
+
+    if (typeof window !== 'undefined') {
+      const isPortraitMobile =
+        window.innerWidth < 1024 &&
+        window.matchMedia('(orientation: portrait)').matches
+
+      const header = document.querySelector('header')
+      const headerHeight = header ? header.getBoundingClientRect().height : 56
+
+      if (isPortraitMobile) {
+        const stickyPlayer = document.querySelector<HTMLElement>(
+          '.kz-watch-cinema--mobile .kz-player-stack--sticky',
+        )
+        if (stickyPlayer) {
+          const playerHeight = stickyPlayer.getBoundingClientRect().height
+          // 移动端竖屏：Header 高度 + 吸顶播放器高度 + 14px 呼吸间隙
+          offset = headerHeight + playerHeight + 14
+        } else {
+          offset = headerHeight + 14
+        }
+      } else {
+        offset = headerHeight + 20
+      }
     }
+
+    const containerTop =
+      containerRef.current.getBoundingClientRect().top + window.scrollY
+    const targetTop = Math.max(0, containerTop - offset)
+
+    window.scrollTo({
+      top: targetTop,
+      behavior: 'smooth',
+    })
   }, [])
 
   const handlePageChange = (newPage: number) => {
     if (newPage === page) return
     setPage(newPage)
+    hadNetworkFetchRef.current = false
     shouldScrollOnDataRef.current = true
-    // 立即触发一次平滑滚动（同 Chunk 命中缓存时即时响应）
-    scrollToCommentsTop()
+
+    // 立即在下一渲染帧平滑滚动到吐槽区第一条
+    requestAnimationFrame(() => {
+      scrollToCommentsTop()
+    })
   }
 
-  // 💡 当新 Chunk 数据异步到达并完成渲染后，再次校准滚动位置确保视口锁定在第一条评论顶部
+  // 💡 当新 Chunk 异步网络数据到达并完成渲染后，再次校准滚动位置确保视口锁定在第一条评论顶部
   useEffect(() => {
-    if (shouldScrollOnDataRef.current && !isFetching) {
+    if (
+      shouldScrollOnDataRef.current &&
+      !isFetching &&
+      hadNetworkFetchRef.current
+    ) {
       shouldScrollOnDataRef.current = false
-      scrollToCommentsTop()
+      hadNetworkFetchRef.current = false
+      requestAnimationFrame(() => {
+        scrollToCommentsTop()
+      })
+    } else if (shouldScrollOnDataRef.current && !isFetching) {
+      // 命中内存/同 Chunk 缓存时秒开，点击发起的平滑滚动已经在流畅运行中，清理标记避免重复打断
+      shouldScrollOnDataRef.current = false
     }
   }, [data, isFetching, scrollToCommentsTop])
 
