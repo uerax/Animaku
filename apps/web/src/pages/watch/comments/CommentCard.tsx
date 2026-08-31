@@ -1,6 +1,7 @@
 import { memo, useState, useRef, useLayoutEffect, useEffect } from 'react'
 import clsx from 'clsx'
 import { CollectTypeLabel, type CommentItem } from '@animaku/shared'
+import { CommentContent } from './CommentContent'
 
 const STAR_PATH =
   'M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z'
@@ -212,7 +213,7 @@ export const CommentCard = memo(function CommentCard({
                 !expanded && 'line-clamp-2',
               )}
             >
-              {content}
+              <CommentContent content={content} />
             </p>
 
             {/* 只有在确实发生溢出截断时，才展示精致的 B 站同款展开/收起文字 */}

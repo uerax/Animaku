@@ -63,7 +63,7 @@
 - 移动端播放页布局：`apps/web/src/pages/watch/MobileWatchLayout.tsx`
 - 移动端选集抽屉：`apps/web/src/pages/watch/MobileEpsSection.tsx`
 - 播放页番剧推荐列表 / 相关推荐 (WatchRecommendations)：`apps/web/src/pages/watch/WatchRecommendations.tsx`
-- 播放页番剧吐槽区 (WatchComments)：`apps/web/src/pages/watch/comments/WatchComments.tsx`, `apps/web/src/pages/watch/comments/CommentCard.tsx`, `apps/web/src/pages/watch/comments/CommentPagination.tsx`
+- 播放页番剧吐槽区 (WatchComments)：`apps/web/src/pages/watch/comments/WatchComments.tsx`, `apps/web/src/pages/watch/comments/CommentCard.tsx`, `apps/web/src/pages/watch/comments/CommentContent.tsx`, `apps/web/src/pages/watch/comments/CommentPagination.tsx`
 - 播放页元信息与简介：`apps/web/src/pages/watch/WatchMeta.tsx`
 - 播放页 HUD 悬浮提示：`apps/web/src/pages/watch/WatchHudToast.tsx`
 - 播放页布局响应式 Hook：`apps/web/src/pages/watch/useWatchLayoutMode.ts`
@@ -135,4 +135,5 @@
 - HTTP 请求封装与伪装头：`apps/server/src/lib/http.ts`
 - 版本检查与发版信息：`apps/server/src/lib/release.ts`, `packages/shared/src/version.ts`
 - 剧集解析、PlayableSlot 统一槽位与双层对齐引擎：`packages/shared/src/episode.ts`, `packages/shared/src/episode-alignment.ts`
+- 评论内容过滤、词法分词与黑幕遮掩引擎：`packages/shared/src/comment-censor.ts`, `packages/shared/src/comment.ts`
 - 站点品牌与文案配置：`apps/web/src/lib/site-branding.ts`

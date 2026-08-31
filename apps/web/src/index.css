@@ -772,6 +772,28 @@ textarea:focus-visible {
   box-shadow: 0 1px 4px color-mix(in srgb, var(--kz-accent) 18%, transparent);
 }
 
+/* ==========================================================================
+   评论区敏感内容与外链黑幕遮罩 (Comment Redacted Spoiler Mask)
+   ========================================================================== */
+.kz-heimu {
+  display: inline;
+  background-color: #252525;
+  color: transparent !important;
+  text-shadow: none !important;
+  border-radius: 2px;
+  padding: 0 2px;
+  user-select: none;
+  cursor: default;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.kz-heimu:hover,
+.kz-heimu:active {
+  color: #ffffff !important;
+  background-color: #252525;
+}
+
+
 .kz-bili-source-row {
   display: flex;
   width: 100%;

@@ -4,6 +4,36 @@
 
 ---
 
+## [2026-08-31] 落地吐槽评论区词法分词规则引擎、裸短链与引流黑幕遮掩体系 (Comment Rich Censor & Redacted Tokens)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **零依赖可扩展词法分词引擎 (`packages/shared/src/comment-censor.ts`, `packages/shared/src/comment-censor.test.ts`)**：
+     - **开闭原则与规则插件架构 (CensorRule Plugin Architecture)**：设计 `tokenizeCommentText(text, rules)` 纯函数分词流水线，支持 `type`、`label`、`transform` 及自定义规则扩展（如剧透标签 `[spoiler]`、自定义表情包、违禁词等）；
+     - **权威网络链接与裸短链正则 (`URL_PATTERN`)**：覆盖 HTTP/HTTPS 及主流无协议裸域名与短链（`tt.vg/jmxz`、`b23.tv/xxx`、`pan.baidu.com`、`t.me`、`.me/.io/.top/.xyz` 等），严格限定左边界与 TLD，100% 免疫中文句号误伤（如 `好看.但是`）；
+     - **中文社交引流正则 (`SOCIAL_LEAD_PATTERN`)**：精准捕获 QQ/QQ群（`企鹅裙`、`扣扣群`、`Q群`）、微信（`+vx`、`微信号`、`加v`）、Telegram（`TG`、`电报`）等引流内容；
+     - **6~11 位纯长数字兜底正则 (`UNKNOWN_NUMBER_PATTERN`)**：采用负向前后断言，自动豁免年份（`2024年`）、集数（`第12集`）、评分（`8.5分`）、分辨率（`1080P`）、帧率（`60fps`）；
+     - **重叠贪心仲裁 (Greedy Non-overlapping Interval Resolver)**：独立扫描各规则区间并消除冲突，确保高优先级规则稳定胜出且不破坏内部捕获组。
+  2. **评论区敏感与外链黑幕遮掩体系（100% 原始文本不转超链接 + transparent 绝对实心遮黑 + 悬浮浮现）(`apps/web/src/index.css`, `apps/web/src/pages/watch/comments/CommentContent.tsx`, `CommentCard.tsx`)**：
+     - **纯文本原样保留**：完全不转为 `<a>` 标签或任何超链接，不做任何协议补全或特殊处理，内容 100% 保持原本字符串；
+     - **绝对实心黑幕 (`.kz-heimu`)**：默认状态强制 `color: transparent !important; background-color: #252525;`，文字完全透明，杜绝字体抗锯齿或 CSS 继承导致漏字，一个像素都看不见；
+     - **鼠标悬浮 (hover) / 移动端按住 (active)**：文字瞬间变为 `color: #ffffff !important` 清晰浮现；
+     - **鼠标移开 (leave)**：瞬间恢复 `transparent` 黑幕遮掩，无任何操作负担；
+     - **行内无缝布局**：采用 `inline align-baseline`，与 `CommentCard.tsx` 的 `line-clamp-2` 展开/收起真实 DOM 测量 100% 无缝兼容。
+  3. **修复跨 Chunk 异步翻页丢失平滑滚动 Bug (`apps/web/src/pages/watch/comments/WatchComments.tsx`)**：
+     - **排查根因**：原先跨 Chunk 翻页（如 Page 3 $\to$ Page 4）发起网络请求时，React Query 默认将 `data` 置空导致 `isLoading: true`，页面闪烁并渲染为高度远小于真实列表的骨架屏（Layout Shift 高度严重坍塌）；此时执行的 `window.scrollTo` 坐标被高度缩水打断，随后新数据加载又撑高页面，导致滚动错位/未生效；
+     - **双重锁与平滑保持修复**：
+       1. 配置 `placeholderData: keepPreviousData`，跨 Chunk 网络拉取期间平滑保持前页内容，杜绝骨架屏导致的高度坍塌；
+       2. 引入 `shouldScrollOnDataRef` 调度锁，在点击翻页时即时滚动，并在新 Chunk 异步数据到达完成 DOM 渲染后再次自动校准，确保 100% 稳定对齐在第一条吐槽顶部。
+  4. **质量验证**：
+     - `pnpm --filter @animaku/shared test` 28 个单测 100% 全部秒级通过；
+     - `pnpm typecheck` 全仓 3 个 workspace 0 报错；
+     - `pnpm build` 全量生产构建成功。
+- 涉及文件：packages/shared/src/comment-censor.ts, packages/shared/src/comment-censor.test.ts, packages/shared/src/index.ts, apps/web/src/pages/watch/comments/CommentContent.tsx, apps/web/src/pages/watch/comments/CommentCard.tsx, apps/web/src/pages/watch/comments/WatchComments.tsx, apps/web/src/pages/watch/comments/index.ts, apps/web/src/index.css, .claude/feature-map.md, .claude/STATE.md
+- 备注：基于纯函数与开闭原则设计，零外部第三方包体积负担，后续扩展新型规则只需传入配置无需重构 UI。
+
+---
+
 ## [2026-08-31] 落地吐槽评论区纯函数解析、可插拔过滤模块、参数安全防御与空内容自适应呈现 (Refactor Comment Pipeline & Safety Defenses)
 - 状态：已完成
 - 优先级：P1

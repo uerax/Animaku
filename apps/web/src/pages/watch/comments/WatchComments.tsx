@@ -1,5 +1,5 @@
-import { memo, useState, useEffect, useRef } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { memo, useState, useEffect, useRef, useCallback } from 'react'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { bangumiApi } from '../../../lib/bangumi'
 import { CommentCard } from './CommentCard'
 import { CommentPagination } from './CommentPagination'
@@ -14,6 +14,7 @@ export const WatchComments = memo(function WatchComments({
 }) {
   const [page, setPage] = useState(1)
   const containerRef = useRef<HTMLDivElement>(null)
+  const shouldScrollOnDataRef = useRef(false)
 
   // 当番剧 ID 切换时，重置页码为第一页
   useEffect(() => {
@@ -32,19 +33,34 @@ export const WatchComments = memo(function WatchComments({
     staleTime: 3 * 60 * 60_000,
     gcTime: 24 * 60 * 60_000,
     refetchOnWindowFocus: false,
+    placeholderData: keepPreviousData, // 💡 跨 Chunk 拉取新数据时保持上页内容，防止骨架屏导致高度坍塌打断滚动
   })
 
   const comments = data?.data || []
   const total = data?.total || 0
 
-  const handlePageChange = (newPage: number) => {
-    setPage(newPage)
-    // 平滑滚动回评论区顶部
+  const scrollToCommentsTop = useCallback(() => {
     if (containerRef.current) {
       const top = containerRef.current.getBoundingClientRect().top + window.scrollY - 80
       window.scrollTo({ top, behavior: 'smooth' })
     }
+  }, [])
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage === page) return
+    setPage(newPage)
+    shouldScrollOnDataRef.current = true
+    // 立即触发一次平滑滚动（同 Chunk 命中缓存时即时响应）
+    scrollToCommentsTop()
   }
+
+  // 💡 当新 Chunk 数据异步到达并完成渲染后，再次校准滚动位置确保视口锁定在第一条评论顶部
+  useEffect(() => {
+    if (shouldScrollOnDataRef.current && !isFetching) {
+      shouldScrollOnDataRef.current = false
+      scrollToCommentsTop()
+    }
+  }, [data, isFetching, scrollToCommentsTop])
 
   // 若非首次加载且确认条目不存在吐槽数据，优雅渲染精简空状态
   const isEmpty = !isLoading && !isError && comments.length === 0

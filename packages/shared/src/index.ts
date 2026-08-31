@@ -12,4 +12,5 @@ export * from './m3u8-ad-filter'
 export * from './version'
 export * from './stats'
 export * from './comment'
+export * from './comment-censor'
 
