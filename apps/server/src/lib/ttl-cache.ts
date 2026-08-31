@@ -26,6 +26,8 @@ export const BANGUMI_CACHE_TTL = {
   subject: 6 * 60 * 60_000,
   /** Recommendations with 2 random tags — 24h daily exploration cycle. */
   recommendations: 24 * 60 * 60_000,
+  /** Comments / 吐槽列表 (统一长效缓存 3 小时). */
+  comments: 3 * 60 * 60_000,
 } as const
 
 /** Plugin exec result TTLs (search 4h; chapters 30m session shield; resolve classified). */

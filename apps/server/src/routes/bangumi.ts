@@ -12,6 +12,8 @@ import {
   type BangumiRecommendationItem,
   type BangumiRecommendationsRequest,
   type BangumiRecommendationsPayload,
+  type CommentItem,
+  type CommentPagePayload,
 } from '@animaku/shared'
 import { config } from '../config'
 import { bangumiFetch, getBearerToken } from '../lib/http'
@@ -1047,4 +1049,162 @@ bangumiRoutes.post('/recommendations', async (c) => {
   cacheSet(key, payload, BANGUMI_CACHE_TTL.recommendations)
   return c.json({ data: payload }, 200, cacheHeaders(false))
 })
+
+interface CommentChunkData {
+  items: CommentItem[]
+  total: number
+}
+
+/** 前端标准单页条数 (固定 10 条，与左右布局高度 1:1 对称) */
+const COMMENTS_PAGE_SIZE = 10
+/** 服务端单次预取块大小 (固定 30 条 = 3 个标准页面，数学上严格整除 0 跨块碎片) */
+const COMMENTS_CHUNK_SIZE = 30
+
+bangumiRoutes.get('/subjects/:id/comments', async (c) => {
+  const subjectId = Number(c.req.param('id'))
+  if (!Number.isFinite(subjectId) || subjectId <= 0) {
+    return c.json({ error: 'bad_request', message: '无效的 subjectId' }, 400)
+  }
+
+  const page = Math.max(1, Number(c.req.query('page') || 1))
+  // 🔥 防御性约束：显式锁定单页大小为标准 10 条，杜绝非整除传参导致跨 Chunk 边界切片不全
+  const pageSize = COMMENTS_PAGE_SIZE
+  const targetOffset = (page - 1) * pageSize
+  const type = c.req.query('type') // optional CollectType filter
+
+  // 计算当前目标页对应的独立分块索引 (每个 Chunk 覆盖 30 条数据 / 3 个页面)
+  const chunkIndex = Math.floor(targetOffset / COMMENTS_CHUNK_SIZE)
+  const chunkStartOffset = chunkIndex * COMMENTS_CHUNK_SIZE
+  const relativeIndex = targetOffset - chunkStartOffset
+
+  const chunkKey = `bangumi:${apiHost}:comments_chunk:${subjectId}:${chunkIndex}:${type || 'all'}`
+  const bypass = wantsCacheBypass(c)
+  if (bypass) {
+    cacheDelete(chunkKey)
+  }
+
+  let chunk = bypass ? undefined : cacheGet<CommentChunkData>(chunkKey)
+
+  if (!chunk) {
+    try {
+      // 严格仅发起 1 次单块精准拉取，绝不循环拉取中间历史页，跳到最后一页 100ms 瞬开
+      const url = new URL(
+        `${config.bangumiNextApi}/p1/subjects/${subjectId}/comments`,
+      )
+      url.searchParams.set('limit', String(COMMENTS_CHUNK_SIZE))
+      url.searchParams.set('offset', String(chunkStartOffset))
+      if (type) url.searchParams.set('type', type)
+
+      const res = await bangumiFetch(url.toString())
+      if (!res.ok) {
+        const emptyPayload: CommentPagePayload = {
+          data: [],
+          total: 0,
+          page,
+          pageSize,
+        }
+        return c.json(emptyPayload, 200, cacheHeaders(false))
+      }
+
+      const json = (await res.json()) as {
+        total?: number
+        data?: Array<{
+          id?: number | string
+          user?: {
+            id?: number | string
+            username?: string
+            nickname?: string
+            avatar?: {
+              small?: string
+              medium?: string
+              large?: string
+            }
+            group?: number
+            sign?: string
+          }
+          type?: number
+          rate?: number
+          comment?: string
+          updatedAt?: number | string
+        }>
+      }
+
+      const rawList = Array.isArray(json.data) ? json.data : []
+      const total = Number(json.total ?? 0)
+
+      const items: CommentItem[] = []
+      for (const row of rawList) {
+        const commentText = String(row.comment ?? '').trim()
+        if (!commentText) continue
+
+        const u = row.user || {}
+        const rawAvatars = u.avatar || {}
+        const rawAvatar =
+          rawAvatars.large || rawAvatars.medium || rawAvatars.small || ''
+        const avatar = rawAvatar ? bangumiImageUrl(rawAvatar) : ''
+
+        let createdAt = ''
+        if (row.updatedAt) {
+          if (typeof row.updatedAt === 'number') {
+            createdAt = new Date(row.updatedAt * 1000).toISOString()
+          } else {
+            createdAt = String(row.updatedAt)
+          }
+        }
+
+        const rateNum = Number(row.rate ?? 0)
+        const rate = rateNum > 0 && rateNum <= 10 ? rateNum : undefined
+        const colType =
+          row.type != null
+            ? fromBangumiCollectionType(Number(row.type))
+            : undefined
+
+        items.push({
+          id: row.id ?? `${u.id || u.username}-${chunkStartOffset + items.length}`,
+          source: 'bangumi' as const,
+          author: {
+            id: u.id ?? 0,
+            username: String(u.username ?? ''),
+            nickname: String(u.nickname ?? u.username ?? '匿名用户'),
+            avatar,
+            userGroup: u.group,
+            sign: u.sign,
+          },
+          content: commentText,
+          rate,
+          collectionType: colType,
+          createdAt,
+          stats: {
+            likeCount: 0,
+            replyCount: 0,
+          },
+        })
+      }
+
+      chunk = { items, total }
+      cacheSet(chunkKey, chunk, BANGUMI_CACHE_TTL.comments)
+    } catch {
+      const emptyPayload: CommentPagePayload = {
+        data: [],
+        total: 0,
+        page,
+        pageSize,
+      }
+      return c.json(emptyPayload, 200, cacheHeaders(false))
+    }
+  }
+
+  // 从当前独立 Chunk 缓存中切片出目标 10 条
+  const sliced = chunk.items.slice(relativeIndex, relativeIndex + pageSize)
+
+  const payload: CommentPagePayload = {
+    data: sliced,
+    total: chunk.total,
+    page,
+    pageSize,
+  }
+
+  return c.json(payload, 200, cacheHeaders(true))
+})
+
 

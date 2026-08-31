@@ -15,11 +15,13 @@ export function DesktopWatchLayout({
   player,
   meta,
   rail,
+  comments,
   widescreen = false,
 }: {
   player: ReactNode
   meta: ReactNode
   rail: ReactNode
+  comments?: ReactNode
   widescreen?: boolean
 }) {
   if (widescreen) {
@@ -29,7 +31,10 @@ export function DesktopWatchLayout({
           {player}
         </div>
         <div className="grid items-start lg:grid-cols-[minmax(0,1fr)_var(--kz-watch-rail-w)] lg:gap-[var(--kz-watch-cinema-gap)]">
-          <div className="min-w-0">{meta}</div>
+          <div className="min-w-0 space-y-3">
+            {meta}
+            {comments}
+          </div>
           <aside className="kz-watch-rail flex flex-col gap-3">{rail}</aside>
         </div>
       </div>
@@ -41,6 +46,7 @@ export function DesktopWatchLayout({
       <div className="kz-player-stack min-w-0 space-y-3">
         {player}
         {meta}
+        {comments}
       </div>
       <aside className="kz-watch-rail flex flex-col gap-3">{rail}</aside>
     </div>

@@ -5,6 +5,7 @@ import type {
   BangumiUser,
   BangumiCollectionEntry,
   BangumiRecommendationsPayload,
+  CommentPagePayload,
   CollectType,
 } from '@animaku/shared'
 import { useSettingsStore } from '../stores/settings'
@@ -88,6 +89,24 @@ export const bangumiApi = {
         signal: opts?.signal,
       },
     ),
+  comments: (
+    subjectId: number | string,
+    opts?: {
+      page?: number
+      pageSize?: number
+      type?: number
+      signal?: AbortSignal
+    },
+  ) => {
+    const q = new URLSearchParams()
+    if (opts?.page) q.set('page', String(opts.page))
+    if (opts?.pageSize) q.set('pageSize', String(opts.pageSize))
+    if (opts?.type) q.set('type', String(opts.type))
+    return api<CommentPagePayload>(
+      `/api/bangumi/subjects/${subjectId}/comments?${q}`,
+      { signal: opts?.signal },
+    )
+  },
   me: (opts?: SignalOpt) =>
     api<{ data: BangumiUser }>('/api/bangumi/me', {
       token: token(),

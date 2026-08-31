@@ -63,6 +63,7 @@
 - 移动端播放页布局：`apps/web/src/pages/watch/MobileWatchLayout.tsx`
 - 移动端选集抽屉：`apps/web/src/pages/watch/MobileEpsSection.tsx`
 - 播放页番剧推荐列表 / 相关推荐 (WatchRecommendations)：`apps/web/src/pages/watch/WatchRecommendations.tsx`
+- 播放页番剧吐槽与短评区 (WatchComments)：`apps/web/src/pages/watch/comments/WatchComments.tsx`, `apps/web/src/pages/watch/comments/CommentCard.tsx`, `apps/web/src/pages/watch/comments/CommentPagination.tsx`
 - 播放页元信息与简介：`apps/web/src/pages/watch/WatchMeta.tsx`
 - 播放页 HUD 悬浮提示：`apps/web/src/pages/watch/WatchHudToast.tsx`
 - 播放页布局响应式 Hook：`apps/web/src/pages/watch/useWatchLayoutMode.ts`
@@ -74,6 +75,8 @@
 - 播放源 URL 协议判断与代理包装：`apps/web/src/lib/playback-src.ts`
 
 ## 8. Bangumi 数据交互与元数据管线 (Bangumi API & Metadata)
+- 官方 OpenAPI UI 文档：`https://bangumi.github.io/api/`（OpenAPI 3.0 Spec: `https://bangumi.github.io/api/dist.json`）
+- 弹弹play Swagger UI 文档：`https://api.dandanplay.net/swagger/index.html`（Swagger 2.0 Spec: `https://api.dandanplay.net/swagger/v2/swagger.json`）
 - 统一 Bangumi 端点解析与反代映射：`packages/shared/src/bangumi-endpoint.ts`
 - Bangumi 图片 CDN 优化与反代：`packages/shared/src/bangumi-image.ts`, `apps/web/src/lib/bangumi-image-host.ts`
 - Bangumi 类型定义与工具：`packages/shared/src/bangumi.ts`

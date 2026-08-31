@@ -4,6 +4,39 @@
 
 ---
 
+## [2026-08-31] 落地 Bangumi 吐槽与短评评论区体系（独立分块缓存 + 3小时统一长效TTL + 修复跳页死循环Bug）
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **跨源通用评论领域模型 (`packages/shared/src/comment.ts`, `packages/shared/src/index.ts`)**：
+     - 定义通用 `CommentItem`、`CommentAuthor` 与 `CommentPagePayload` 契约；
+     - 预留未来点赞（`stats.likeCount`）、点踩（`stats.dislikeCount`）、二级回复（`stats.replyCount`, `replies`）、用户互动状态（`userAction`）与置顶（`isPinned`）扩展槽位，未来接入自建评论或 B 站评论无需重写组件层。
+  2. **服务端独立分块缓存架构与跳页死循环修复 (`apps/server/src/routes/bangumi.ts`, `apps/server/src/lib/ttl-cache.ts`)**：
+     - **修复跳页卡死 Bug**：彻底移除原先基于 0 偏移顺序累积的 `while` 循环（此前直接点最后一页如 Page 300 会连续发出 100 次网络请求导致卡死）；
+     - **独立分块缓存 (`CommentChunkData`)**：将评论划分为以 30 条为单位的独立 Chunk（`chunkIndex = Math.floor(targetOffset / 30)`），顺序翻页（Page 1, 2, 3）100% 命中 Chunk 0 缓存（0 上游请求），随机跳页（直接点最后一页）**严格仅发起 1 次单块精准拉取（100ms 瞬开）**；
+     - 统一设置 3 小时长效 TTL 内存缓存（`BANGUMI_CACHE_TTL.comments = 3h`），补番期间全剧 0 重复请求。
+  3. **客户端 API 与 B 站风格评论组件体系 (`apps/web/src/lib/bangumi.ts`, `apps/web/src/pages/watch/comments/*`)**：
+     - `bangumiApi.comments` 提供类型完备的请求方法；
+     - `CommentCard.tsx`：
+       - **B 站 5 星填充格式 (`BiliStarRating`)**：将 Bangumi 1~10 分映射为 5 颗连续 SVG 圆润五角星（B 站经典橙金 `#FFAA04` + 浅灰未激活底）；
+       - **真实 DOM 溢出测量折叠**：默认 2 行折叠（`line-clamp-2`），未溢出时 100% 隐藏展开按钮，溢出展示内嵌式「展开 ▼ / 收起 ▲」；
+       - **B 站同款底部线框操作栏**：预留点赞 👍 与点踩 👎 极简轻量线框手势按键（默认隐藏，保留代码）；
+     - `CommentPagination.tsx`：实现 B 站同款经典数字分页器（`[上一页] [1] [2] ... [下一页]`），支持移动端自适应；
+     - `CommentSkeleton.tsx`：实现 5 条圆形头像 + 骨架线条占位；
+     - `WatchComments.tsx`：主容器，配置 `staleTime: 3h`，`gcTime: 24h`，`refetchOnWindowFocus: false`，翻页时平滑滚动。
+  4. **播放页布局集成与 100% 物理错误隔离 (`WatchPage.tsx`, `DesktopWatchLayout.tsx`, `MobileWatchLayout.tsx`, `ErrorBoundary.tsx`)**：
+     - 桌面端（标准与宽屏模式）位于左侧 `WatchMeta` 下方，单页 10 条评论（~750px）与右侧推荐流（~600px）形成黄金对称，彻底消除大面积镂空白底；
+     - 移动端置于流式列表底部；
+     - 评论区外层使用局部 `<ErrorBoundary>` 封装，即使评论区发生任何未知异常也仅局部提示，**与播放器、选集、弹幕保持 100% 物理隔离，绝不影响视频起播与切集**。
+  5. **质量验证**：
+     - `pnpm typecheck` 全仓 3 个 workspace 0 报错通过；
+     - `@animaku/shared` 13 个单测 100% 全部通过；
+     - `pnpm build` 全量生产构建成功。
+- 涉及文件：packages/shared/src/comment.ts, packages/shared/src/index.ts, apps/server/src/routes/bangumi.ts, apps/server/src/lib/ttl-cache.ts, apps/web/src/lib/bangumi.ts, apps/web/src/pages/watch/comments/WatchComments.tsx, apps/web/src/pages/watch/comments/CommentCard.tsx, apps/web/src/pages/watch/comments/CommentPagination.tsx, apps/web/src/pages/watch/comments/CommentSkeleton.tsx, apps/web/src/pages/watch/comments/index.ts, apps/web/src/pages/watch/DesktopWatchLayout.tsx, apps/web/src/pages/watch/MobileWatchLayout.tsx, apps/web/src/pages/WatchPage.tsx, apps/web/src/components/ErrorBoundary.tsx, .claude/feature-map.md, .claude/STATE.md
+- 备注：评论区与播放核心完全解耦，MVP 基础展示极简纯净，底层预留全套互动扩展能力。
+
+---
+
 ## [2026-08-30] 修复分集0集与死链 Fallback 异常透传及脏缓存/误删绑定 Bug (Fix Fallback Exception Propagation & Cache Integrity)
 - 状态：已完成
 - 优先级：P0

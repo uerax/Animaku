@@ -20,6 +20,8 @@ import { MobileEpsSection } from './watch/MobileEpsSection'
 import { SourceBoard } from './watch/SourceBoard'
 import { WatchHudToast } from './watch/WatchHudToast'
 import { WatchRecommendations } from './watch/WatchRecommendations'
+import { WatchComments } from './watch/comments'
+import { ErrorBoundary } from '../components/ErrorBoundary'
 
 /**
  * Unified subject + cinema page (Bilibili-style).
@@ -370,6 +372,19 @@ export function WatchPage() {
     />
   )
 
+  /* 番剧吐槽评论区（左侧 Meta 下方，带独立 ErrorBoundary 物理隔离） */
+  const commentsPanel = Number.isFinite(bangumiId) && bangumiId > 0 ? (
+    <ErrorBoundary
+      fallback={
+        <div className="rounded-2xl border border-[var(--kz-border)]/40 p-4 text-center text-xs text-[var(--kz-fg-muted)]">
+          吐槽评论区加载暂不可用，不影响视频播放
+        </div>
+      }
+    >
+      <WatchComments bangumiId={bangumiId} />
+    </ErrorBoundary>
+  ) : null
+
   /* Desktop rail: sources, episodes, then recommendations (right column). */
   const rail = (
     <>
@@ -386,16 +401,18 @@ export function WatchPage() {
           player={playerBlock}
           meta={metaBlock}
           rail={rail}
+          comments={commentsPanel}
           widescreen={widescreen}
         />
       ) : (
-        // Mobile: player → meta → 视频源 → 选集 → 推荐 (Bilibili-style)
+        // Mobile: player → meta → 视频源 → 选集 → 推荐 → 吐槽评论 (Bilibili-style)
         <MobileWatchLayout
           player={playerBlock}
           meta={metaBlock}
           sources={sourcesPanel}
           episodes={epsPanel}
           recommendations={recommendationsPanel}
+          comments={commentsPanel}
         />
       )}
     </div>

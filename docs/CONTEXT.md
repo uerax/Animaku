@@ -127,7 +127,20 @@ Browser Client (Vite 5173 / Production Web)
 
 ---
 
-## 7. 关键踩坑记录与开发守则
+## 8. 外部接入 API 官方文档索引
+
+- **Bangumi (番组计划) API 官方文档 (OpenAPI v0)**：
+  - Swagger UI 交互文档：`https://bangumi.github.io/api/`
+  - OpenAPI 3.0 规范源 (JSON)：`https://bangumi.github.io/api/dist.json`
+  - 核心范围：条目信息与搜索 (`/v0/subjects/*`, `/v0/search/subjects`)、分集元数据 (`/v0/episodes/*`)、用户收藏与打分 (`/v0/users/*`)、关联推荐 (`/v0/subjects/{id}/subjects`)。
+- **弹弹play (Dandanplay) API 官方文档 (Swagger v2)**：
+  - Swagger UI 交互文档：`https://api.dandanplay.net/swagger/index.html`
+  - Swagger 2.0 规范源 (JSON)：`https://api.dandanplay.net/swagger/v2/swagger.json`
+  - 核心范围：弹幕检索与下载 (`/api/v2/comment/{episodeId}`)、分集/作品搜索 (`/api/v2/search/*`)、Bangumi 映射直连 (`/api/v2/bangumi/bgmtv/{id}`)、作品评论 (`/api/v2/bangumi/{id}/comments`)。
+
+---
+
+## 9. 关键踩坑记录与开发守则
 
 1. **视频有声无画 / 画面纯黑**：
    - 严禁在 `<video>` 的父级容器上添加 `overflow: hidden` + `border-radius`（Chrome 硬件解码与圆角合成图层冲突）；
