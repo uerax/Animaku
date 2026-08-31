@@ -655,7 +655,7 @@ export function SettingsPage() {
         id="image-host"
         icon="🖼️"
         title="封面图片源"
-        summary={bangumiImageHost.includes('mirror') || bangumiImageHost.includes('proxy') ? '代理优化' : '官方直连'}
+        summary={BANGUMI_IMAGE_HOST_OPTIONS.find((o) => o.host === bangumiImageHost)?.label || bangumiImageHost}
         isOpen={Boolean(openSections['image-host'])}
         onToggle={() => toggleSection('image-host')}
       >

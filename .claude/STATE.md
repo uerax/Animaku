@@ -4,6 +4,23 @@
 
 ---
 
+## [2026-08-31] 修复设置页封面图片源折叠卡片摘要显示错误 Bug (Fix Settings Image Host Summary Display)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **问题根因定位**：设置页「封面图片源」卡片摘要（`summary`）此前通过 `bangumiImageHost.includes('mirror') || bangumiImageHost.includes('proxy') ? '代理优化' : '官方直连'` 进行判定；而实际存储的镜像 host 为 `bgmimg.anibt.net`，官方 host 为 `lain.bgm.tv`，导致选中国内镜像代理（`bgmimg.anibt.net`）时判断为 `false`，折叠态误显示为「官方直连」，展开后却选的是「代理 (针对国内优化)」。
+  2. **极简优雅修复 (`apps/web/src/pages/SettingsPage.tsx`)**：
+     - 直接使用 `BANGUMI_IMAGE_HOST_OPTIONS.find((o) => o.host === bangumiImageHost)?.label || bangumiImageHost` 动态获取当前选中项的 Label，无需手动维护字符串条件分支，实现 100% 自动对齐；
+     - 新增 `packages/shared/src/bangumi-endpoint.test.ts` 单元测试，覆盖 host 预设解析、改写与官方源强制转换。
+  3. **质量验证**：
+     - `pnpm --filter @animaku/shared test` 17 个单测 100% 通过；
+     - `pnpm typecheck` 全工作区类型检查 0 报错；
+     - `pnpm build` 全量生产构建成功。
+- 涉及文件：apps/web/src/pages/SettingsPage.tsx, packages/shared/src/bangumi-endpoint.test.ts, .claude/STATE.md
+- 备注：彻底解决折叠态摘要与内部真实选择状态不一致的问题。
+
+---
+
 ## [2026-08-31] 落地 Bangumi 吐槽与短评评论区体系（独立分块缓存 + 3小时统一长效TTL + 修复跳页死循环Bug）
 - 状态：已完成
 - 优先级：P1
