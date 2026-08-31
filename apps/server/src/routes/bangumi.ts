@@ -14,6 +14,7 @@ import {
   type BangumiRecommendationsPayload,
   type CommentItem,
   type CommentPagePayload,
+  commentFilters,
 } from '@animaku/shared'
 import { config } from '../config'
 import { bangumiFetch, getBearerToken } from '../lib/http'
@@ -1059,18 +1060,111 @@ interface CommentChunkData {
 const COMMENTS_PAGE_SIZE = 10
 /** 服务端单次预取块大小 (固定 30 条 = 3 个标准页面，数学上严格整除 0 跨块碎片) */
 const COMMENTS_CHUNK_SIZE = 30
+/** 防刷安全上限页码 (覆盖 20,000 条数据，杜绝爬虫/非法大数穿透击穿上游) */
+const COMMENTS_MAX_SAFE_PAGE = 2000
+/** Bangumi 收藏类型有效参数白名单 (1想看, 2看过, 3在看, 4搁置, 5抛弃) */
+const VALID_COLLECT_TYPES = new Set(['1', '2', '3', '4', '5'])
+
+export interface BangumiRawCommentRow {
+  id?: number | string
+  user?: {
+    id?: number | string
+    username?: string
+    nickname?: string
+    avatar?: {
+      small?: string
+      medium?: string
+      large?: string
+    }
+    group?: number
+    sign?: string
+  }
+  type?: number
+  rate?: number
+  comment?: string
+  updatedAt?: number | string
+}
+
+/**
+ * 将 Bangumi 原始评论行转换为统一领域模型 CommentItem (纯函数，无 I/O)
+ */
+export function parseBangumiCommentRow(
+  row: BangumiRawCommentRow,
+  fallbackIndex: number,
+): CommentItem {
+  const u = row.user || {}
+  const rawAvatars = u.avatar || {}
+  const rawAvatar =
+    rawAvatars.large || rawAvatars.medium || rawAvatars.small || ''
+  const avatar = rawAvatar ? bangumiImageUrl(rawAvatar) : ''
+
+  let createdAt = ''
+  if (row.updatedAt) {
+    if (typeof row.updatedAt === 'number') {
+      createdAt = new Date(row.updatedAt * 1000).toISOString()
+    } else {
+      createdAt = String(row.updatedAt)
+    }
+  }
+
+  const rateNum = Number(row.rate ?? 0)
+  const rate = rateNum >= 1 && rateNum <= 10 ? rateNum : undefined
+  const colType =
+    row.type != null ? fromBangumiCollectionType(Number(row.type)) : undefined
+
+  return {
+    id: row.id ?? `${u.id || u.username || 'anon'}-${fallbackIndex}`,
+    source: 'bangumi' as const,
+    author: {
+      id: u.id ?? 0,
+      username: String(u.username ?? ''),
+      nickname: String(u.nickname ?? u.username ?? '匿名用户'),
+      avatar,
+      userGroup: u.group,
+      sign: u.sign,
+    },
+    content: String(row.comment ?? '').trim(),
+    rate,
+    collectionType: colType,
+    createdAt,
+    stats: {
+      likeCount: 0,
+      replyCount: 0,
+    },
+  }
+}
 
 bangumiRoutes.get('/subjects/:id/comments', async (c) => {
-  const subjectId = Number(c.req.param('id'))
-  if (!Number.isFinite(subjectId) || subjectId <= 0) {
+  const rawSubjectId = Number(c.req.param('id'))
+  const subjectId =
+    Number.isFinite(rawSubjectId) &&
+    Number.isInteger(rawSubjectId) &&
+    rawSubjectId > 0
+      ? rawSubjectId
+      : 0
+  if (!subjectId) {
     return c.json({ error: 'bad_request', message: '无效的 subjectId' }, 400)
   }
 
-  const page = Math.max(1, Number(c.req.query('page') || 1))
-  // 🔥 防御性约束：显式锁定单页大小为标准 10 条，杜绝非整除传参导致跨 Chunk 边界切片不全
+  const rawPage = Number(c.req.query('page') || 1)
+  const page = Number.isFinite(rawPage) ? Math.max(1, Math.floor(rawPage)) : 1
+  // 🔥 防御性约束：显式锁定单页大小为标准 10 条，杜绝外部篡改与非整除跨块碎片
   const pageSize = COMMENTS_PAGE_SIZE
+
+  // 🛡️ 最大安全页码拦截：超大页码秒回空数据，0 上游网络请求，防爬虫击穿
+  if (page > COMMENTS_MAX_SAFE_PAGE) {
+    const emptyPayload: CommentPagePayload = {
+      data: [],
+      total: 0,
+      page,
+      pageSize,
+    }
+    return c.json(emptyPayload, 200, cacheHeaders(true))
+  }
+
   const targetOffset = (page - 1) * pageSize
-  const type = c.req.query('type') // optional CollectType filter
+  const rawType = c.req.query('type')
+  const type = rawType && VALID_COLLECT_TYPES.has(rawType) ? rawType : undefined
 
   // 计算当前目标页对应的独立分块索引 (每个 Chunk 覆盖 30 条数据 / 3 个页面)
   const chunkIndex = Math.floor(targetOffset / COMMENTS_CHUNK_SIZE)
@@ -1108,78 +1202,16 @@ bangumiRoutes.get('/subjects/:id/comments', async (c) => {
 
       const json = (await res.json()) as {
         total?: number
-        data?: Array<{
-          id?: number | string
-          user?: {
-            id?: number | string
-            username?: string
-            nickname?: string
-            avatar?: {
-              small?: string
-              medium?: string
-              large?: string
-            }
-            group?: number
-            sign?: string
-          }
-          type?: number
-          rate?: number
-          comment?: string
-          updatedAt?: number | string
-        }>
+        data?: BangumiRawCommentRow[]
       }
 
       const rawList = Array.isArray(json.data) ? json.data : []
       const total = Number(json.total ?? 0)
 
-      const items: CommentItem[] = []
-      for (const row of rawList) {
-        const commentText = String(row.comment ?? '').trim()
-        if (!commentText) continue
-
-        const u = row.user || {}
-        const rawAvatars = u.avatar || {}
-        const rawAvatar =
-          rawAvatars.large || rawAvatars.medium || rawAvatars.small || ''
-        const avatar = rawAvatar ? bangumiImageUrl(rawAvatar) : ''
-
-        let createdAt = ''
-        if (row.updatedAt) {
-          if (typeof row.updatedAt === 'number') {
-            createdAt = new Date(row.updatedAt * 1000).toISOString()
-          } else {
-            createdAt = String(row.updatedAt)
-          }
-        }
-
-        const rateNum = Number(row.rate ?? 0)
-        const rate = rateNum > 0 && rateNum <= 10 ? rateNum : undefined
-        const colType =
-          row.type != null
-            ? fromBangumiCollectionType(Number(row.type))
-            : undefined
-
-        items.push({
-          id: row.id ?? `${u.id || u.username}-${chunkStartOffset + items.length}`,
-          source: 'bangumi' as const,
-          author: {
-            id: u.id ?? 0,
-            username: String(u.username ?? ''),
-            nickname: String(u.nickname ?? u.username ?? '匿名用户'),
-            avatar,
-            userGroup: u.group,
-            sign: u.sign,
-          },
-          content: commentText,
-          rate,
-          collectionType: colType,
-          createdAt,
-          stats: {
-            likeCount: 0,
-            replyCount: 0,
-          },
-        })
-      }
+      // 严格 1:1 映射解析，保持 30 条物理顺序与下标严格对齐，不提前过滤
+      const items: CommentItem[] = rawList.map((row, idx) =>
+        parseBangumiCommentRow(row, chunkStartOffset + idx),
+      )
 
       chunk = { items, total }
       cacheSet(chunkKey, chunk, BANGUMI_CACHE_TTL.comments)
@@ -1194,11 +1226,12 @@ bangumiRoutes.get('/subjects/:id/comments', async (c) => {
     }
   }
 
-  // 从当前独立 Chunk 缓存中切片出目标 10 条
-  const sliced = chunk.items.slice(relativeIndex, relativeIndex + pageSize)
+  // 从当前独立 Chunk 缓存中切片出目标 10 条，并流经可插拔过滤模块 (当前默认 passthrough 直通)
+  const pageRows = chunk.items.slice(relativeIndex, relativeIndex + pageSize)
+  const filteredData = pageRows.filter(commentFilters.passthrough)
 
   const payload: CommentPagePayload = {
-    data: sliced,
+    data: filteredData,
     total: chunk.total,
     page,
     pageSize,

@@ -53,13 +53,13 @@ export const WatchComments = memo(function WatchComments({
     <section
       ref={containerRef}
       className="kz-watch-comments rounded-2xl border border-[var(--kz-border)]/60 bg-[var(--kz-bg-card)]/30 p-4 sm:p-5 space-y-4 shadow-xs"
-      aria-label="番剧吐槽与评价"
+      aria-label="番剧吐槽"
     >
       {/* 头部标题与数量统计 */}
       <div className="flex items-center justify-between border-b border-[var(--kz-border)]/40 pb-3">
         <div className="flex items-center gap-2">
           <span className="text-base font-bold tracking-tight text-[var(--kz-fg)]">
-            💭 吐槽与短评
+            💭 吐槽
           </span>
           {total > 0 && (
             <span className="rounded-full bg-[var(--kz-bg-soft)] px-2 py-0.5 text-xs font-semibold tabular-nums text-[var(--kz-fg-muted)]">

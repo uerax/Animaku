@@ -4,6 +4,36 @@
 
 ---
 
+## [2026-08-31] 落地吐槽评论区纯函数解析、可插拔过滤模块、参数安全防御与空内容自适应呈现 (Refactor Comment Pipeline & Safety Defenses)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **纯函数解析抽离与无 I/O 单测覆盖 (`apps/server/src/routes/bangumi.ts`, `apps/server/src/routes/bangumi-comment.test.ts`)**：
+     - 将 Bangumi 原始行清洗为领域模型 `CommentItem` 的逻辑抽离为纯函数 `parseBangumiCommentRow`；
+     - 稳健处理头像代理改写、UNIX 秒级/ISO 字符串时间戳转换、1~10 分评分校验、`CollectType` 映射及确定性 fallback ID；
+     - 新增 5 个单测覆盖标准转换、缺省字段、时间戳与边界评分。
+  2. **可插拔评论过滤模块 (`packages/shared/src/comment.ts`, `packages/shared/src/comment.test.ts`)**：
+     - 定义通用 `CommentFilter` 签名与 `commentFilters` 预置规则工厂（`passthrough`、`nonEmptyContent`、`ratedOnly`、`createKeywordFilter`、`combine`）；
+     - 当前默认采用 `passthrough` 直通，100% 保留打分与短评记录；未来接入屏蔽词或多源评论时可直接组合插件规则；
+     - 过滤执行时机严格固定在切页之后（Post-slice），确保 30 条 Chunk 物理 Offset 1:1 绝对对齐，彻底杜绝跨页位移与跨 Chunk 漏数据。
+  3. **工业级防篡改参数防御体系 (`apps/server/src/routes/bangumi.ts`)**：
+     - `offset` 与 `pageSize`：接口拒绝外部 `offset` 注入，硬编码锁定 `pageSize = 10`；
+     - `page` 防御：使用 `Number.isFinite`、`Math.floor` 和 `Math.max(1, ...)` 消除 `NaN` 与浮点数偏移；
+     - `MAX_SAFE_PAGE` 安全阀：超大页码（`page > 2000`）在服务端直接秒回空列表，0 上游请求，彻底免疫爬虫与恶意脚本穿透 DDOS；
+     - `subjectId` 与 `type`：严格正整数校验与收藏类型白名单校验。
+  4. **前端空内容自适应紧凑呈现 (`apps/web/src/pages/watch/comments/CommentCard.tsx`)**：
+     - 当 `!content`（纯打分未留短评）时，不渲染正文 `div`，自动收缩为单行打分微记录（头像 + 昵称 + 5星评分 + 看过胶囊 + 时间），高度紧凑视觉自然；
+     - `useIsomorphicLayoutEffect` 增加 `if (!content) return` 守卫，无内容时跳过 `ResizeObserver` 溢出测量，零多余性能开销。
+  5. **质量验证**：
+     - `pnpm --filter @animaku/shared test` 22 个单测 100% 全部通过；
+     - `pnpm --filter @animaku/server test` 5 个单测 100% 全部通过；
+     - `pnpm typecheck` 全仓 3 个 workspace 0 报错；
+     - `pnpm build` 全量生产构建成功。
+- 涉及文件：packages/shared/src/comment.ts, packages/shared/src/comment.test.ts, apps/server/src/routes/bangumi.ts, apps/server/src/routes/bangumi-comment.test.ts, apps/server/package.json, apps/web/src/pages/watch/comments/WatchComments.tsx, apps/web/src/pages/watch/comments/CommentCard.tsx, .claude/feature-map.md, .claude/STATE.md
+- 备注：评论区数据流与分块数学边界完全闭环，扩展管道就绪，多端安全防御稳固。
+
+---
+
 ## [2026-08-31] 修复设置页封面图片源折叠卡片摘要显示错误 Bug (Fix Settings Image Host Summary Display)
 - 状态：已完成
 - 优先级：P2

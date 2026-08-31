@@ -113,6 +113,9 @@ export const CommentCard = memo(function CommentCard({
     typeof window !== 'undefined' ? useLayoutEffect : useEffect
 
   useIsomorphicLayoutEffect(() => {
+    // 💡 无内容时直接跳过溢出测量，零 Observer 性能开销
+    if (!content) return
+
     const el = textRef.current
     if (!el) return
 
@@ -199,34 +202,36 @@ export const CommentCard = memo(function CommentCard({
           )}
         </div>
 
-        {/* 评论正文与优雅的内嵌展开/收起 (默认 2 行折叠) */}
-        <div className="relative text-sm leading-relaxed text-[var(--kz-fg-muted)]">
-          <p
-            ref={textRef}
-            className={clsx(
-              'whitespace-pre-wrap break-words transition-all',
-              !expanded && 'line-clamp-2',
-            )}
-          >
-            {content}
-          </p>
+        {/* 💡 评论正文：仅当有内容时渲染，无文字时整块隐藏保持卡片高度紧凑 */}
+        {content ? (
+          <div className="relative text-sm leading-relaxed text-[var(--kz-fg-muted)]">
+            <p
+              ref={textRef}
+              className={clsx(
+                'whitespace-pre-wrap break-words transition-all',
+                !expanded && 'line-clamp-2',
+              )}
+            >
+              {content}
+            </p>
 
-          {/* 只有在确实发生溢出截断时，才展示精致的 B 站同款展开/收起文字 */}
-          {(canOverflow || expanded) && (
-            <div className="pt-0.5">
-              <button
-                type="button"
-                onClick={() => setExpanded((v) => !v)}
-                className="inline-flex items-center gap-0.5 text-xs font-medium text-[var(--kz-accent)] hover:opacity-80 transition-opacity focus:outline-hidden cursor-pointer"
-              >
-                <span>{expanded ? '收起' : '展开'}</span>
-                <span className="text-[10px] leading-none">
-                  {expanded ? '▲' : '▼'}
-                </span>
-              </button>
-            </div>
-          )}
-        </div>
+            {/* 只有在确实发生溢出截断时，才展示精致的 B 站同款展开/收起文字 */}
+            {(canOverflow || expanded) && (
+              <div className="pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => setExpanded((v) => !v)}
+                  className="inline-flex items-center gap-0.5 text-xs font-medium text-[var(--kz-accent)] hover:opacity-80 transition-opacity focus:outline-hidden cursor-pointer"
+                >
+                  <span>{expanded ? '收起' : '展开'}</span>
+                  <span className="text-[10px] leading-none">
+                    {expanded ? '▲' : '▼'}
+                  </span>
+                </button>
+              </div>
+            )}
+          </div>
+        ) : null}
 
         {/* 🔮 预留互动操作栏 (默认隐藏，保留完整代码，后续接入自建点赞系统后直接开启) */}
         {showActions && (

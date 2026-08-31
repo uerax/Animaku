@@ -63,7 +63,7 @@
 - 移动端播放页布局：`apps/web/src/pages/watch/MobileWatchLayout.tsx`
 - 移动端选集抽屉：`apps/web/src/pages/watch/MobileEpsSection.tsx`
 - 播放页番剧推荐列表 / 相关推荐 (WatchRecommendations)：`apps/web/src/pages/watch/WatchRecommendations.tsx`
-- 播放页番剧吐槽与短评区 (WatchComments)：`apps/web/src/pages/watch/comments/WatchComments.tsx`, `apps/web/src/pages/watch/comments/CommentCard.tsx`, `apps/web/src/pages/watch/comments/CommentPagination.tsx`
+- 播放页番剧吐槽区 (WatchComments)：`apps/web/src/pages/watch/comments/WatchComments.tsx`, `apps/web/src/pages/watch/comments/CommentCard.tsx`, `apps/web/src/pages/watch/comments/CommentPagination.tsx`
 - 播放页元信息与简介：`apps/web/src/pages/watch/WatchMeta.tsx`
 - 播放页 HUD 悬浮提示：`apps/web/src/pages/watch/WatchHudToast.tsx`
 - 播放页布局响应式 Hook：`apps/web/src/pages/watch/useWatchLayoutMode.ts`
