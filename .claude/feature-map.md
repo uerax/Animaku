@@ -80,7 +80,7 @@
 - 统一 Bangumi 端点解析与反代映射：`packages/shared/src/bangumi-endpoint.ts`
 - Bangumi 图片 CDN 优化、纯路径提取与反代：`packages/shared/src/bangumi-endpoint.ts`, `packages/shared/src/bangumi-image.ts`, `apps/web/src/lib/bangumi-image-host.ts`
 - Bangumi 类型定义与工具：`packages/shared/src/bangumi.ts`
-- 通用图片与头像渲染组件 (Image / Avatar)：`apps/web/src/components/Image.tsx`, `apps/web/src/components/ui.tsx`
+- Bangumi 专属图片与头像渲染组件 (BangumiImage / BangumiAvatar)：`apps/web/src/components/BangumiImage.tsx`, `apps/web/src/components/ui.tsx`
 - 服务端 Bangumi API 代理与推荐聚合路由 (POST /api/bangumi/recommendations)：`apps/server/src/routes/bangumi.ts`
 - 客户端 Bangumi API 请求层：`apps/web/src/lib/bangumi.ts`, `apps/web/src/lib/api.ts`
 

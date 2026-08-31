@@ -6,19 +6,17 @@ import {
 } from '@animaku/shared'
 import { useSettingsStore } from '../stores/settings'
 
-export interface ImageProps
+export interface BangumiImageProps
   extends Omit<React.ImgHTMLAttributes<HTMLImageElement>, 'src'> {
   src?: string | null
   fallback?: React.ReactNode
 }
 
 /**
- * 通用图片组件：
- * 1. 从传入的 URL 提取标准路径 (path)
- * 2. 动态写入当前用户配置的 host: https://${host}${path}
- * 3. 若加载失败直接展示 fallback 占位，不做多余的回退重试
+ * Bangumi 专属图片渲染组件：
+ * 专用于 Bangumi 封面/海报等图片资产的 Path 提取与当前 Host（官方直连 / 代理）动态拼装
  */
-export const Image: React.FC<ImageProps> = ({
+export const BangumiImage: React.FC<BangumiImageProps> = ({
   src,
   fallback,
   alt = '',
@@ -58,7 +56,7 @@ export const Image: React.FC<ImageProps> = ({
   )
 }
 
-export interface AvatarProps {
+export interface BangumiAvatarProps {
   src?: string | null
   name?: string
   sizeClass?: string
@@ -67,10 +65,10 @@ export interface AvatarProps {
 }
 
 /**
- * 通用头像组件：
- * 自动使用 Image 组件进行 host 拼接与容灾，404 或无图时优雅展示首字母占位
+ * Bangumi 专属用户头像渲染组件：
+ * 专用于 Bangumi 吐槽区/用户信息头像，支持动态 Host 切换与首字母优雅占位
  */
-export const Avatar: React.FC<AvatarProps> = ({
+export const BangumiAvatar: React.FC<BangumiAvatarProps> = ({
   src,
   name = '匿',
   sizeClass = 'h-9 w-9',
@@ -89,7 +87,7 @@ export const Avatar: React.FC<AvatarProps> = ({
     <div
       className={`relative shrink-0 select-none overflow-hidden rounded-full ring-1 ring-[var(--kz-border)]/60 shadow-xs ${sizeClass} ${className}`}
     >
-      <Image
+      <BangumiImage
         src={src}
         alt={alt || name}
         fallback={defaultPlaceholder}

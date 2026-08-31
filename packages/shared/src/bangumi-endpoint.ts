@@ -164,7 +164,7 @@ export function toBangumiOfficialImageUrl(url: string): string {
 }
 
 /**
- * 从任意完整图片 URL 或相对路径中提取标准路径 (Pathname + Query)
+ * 从 Bangumi 图片完整 URL 或相对路径中提取标准资产路径 (Pathname + Query)
  * 无论输入 https://lain.bgm.tv/pic/user/1.jpg、https://bgmimg.anibt.net/pic/user/1.jpg 还是 /pic/user/1.jpg
  * 均提取出 /pic/user/1.jpg
  */

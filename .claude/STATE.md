@@ -4,7 +4,7 @@
 
 ---
 
-## [2026-08-31] 落地通用图片路径提取拼装与头像代理直连自愈体系 (Universal Image Path Extraction & Avatar Integration)
+## [2026-08-31] 落地 Bangumi 专属图片路径提取拼装与头像组件体系 (Bangumi Image Path Extraction & Avatar Integration)
 - 状态：已完成
 - 优先级：P1
 - 描述：
@@ -14,16 +14,17 @@
   2. **服务端纯净透传 (`apps/server/src/routes/bangumi.ts`, `apps/server/src/routes/bangumi-comment.test.ts`)**：
      - 彻底移除 `parseBangumiCommentRow` 中服务端调用 `bangumiImageUrl` 导致提前将镜像域名写死在 JSON 响应里的缺陷，保持 `rawAvatar` 纯净透传；
      - 释放服务端边缘 CDN 缓存（`s-maxage=3600`）与客户端用户独立直连/代理设置的完全解耦。
-  3. **前端通用图片与头像组件体系 (`apps/web/src/components/Image.tsx`, `apps/web/src/components/ui.tsx`, `apps/web/src/pages/watch/comments/CommentCard.tsx`)**：
-     - 实现 `<Image />` 组件：提取 `path` 直接拼装输出 `https://${host}${path}`，默认携带 `referrerPolicy="no-referrer"`；若加载失败直接触发 `fallback` 占位，不搞隐式重试与静默回退；
-     - 实现 `<Avatar />` 组件：封装圆形头像容器与首字母优雅兜底，在 `CommentCard` 中单行极简接入，彻底消除此前 `display: none` 导致的 CLS 布局抖动。
+  3. **前端 Bangumi 专属图片与头像组件体系 (`apps/web/src/components/BangumiImage.tsx`, `apps/web/src/components/ui.tsx`, `apps/web/src/pages/watch/comments/CommentCard.tsx`)**：
+     - 实现 `<BangumiImage />` 组件：专用于 Bangumi 封面等资产，提取 `path` 直接拼装输出 `https://${host}${path}`，默认携带 `referrerPolicy="no-referrer"`；若加载失败直接触发 `fallback` 占位；
+     - 实现 `<BangumiAvatar />` 组件：专用于 Bangumi 吐槽区/用户信息头像，封装圆形头像容器与首字母优雅兜底，在 `CommentCard` 中单行极简接入，彻底消除此前 `display: none` 导致的 CLS 布局抖动；
+     - 明确定位与职责边界，杜绝被误用于其他第三方外链图片。
   4. **质量验证**：
      - `@animaku/shared` 30 个单测 100% 全部通过；
      - `@animaku/server` 5 个单测 100% 全部通过；
      - `pnpm typecheck` 全仓 3 个 workspace 0 报错；
      - `pnpm build` 全量生产构建成功。
-- 涉及文件：packages/shared/src/bangumi-endpoint.ts, packages/shared/src/bangumi-endpoint.test.ts, apps/server/src/routes/bangumi.ts, apps/server/src/routes/bangumi-comment.test.ts, apps/web/src/components/Image.tsx, apps/web/src/components/ui.tsx, apps/web/src/pages/watch/comments/CommentCard.tsx, .claude/feature-map.md, .claude/STATE.md
-- 备注：彻底理顺全站图片与用户头像链路，零写死代理，支持任意配置与优雅自愈。
+- 涉及文件：packages/shared/src/bangumi-endpoint.ts, packages/shared/src/bangumi-endpoint.test.ts, apps/server/src/routes/bangumi.ts, apps/server/src/routes/bangumi-comment.test.ts, apps/web/src/components/BangumiImage.tsx, apps/web/src/components/ui.tsx, apps/web/src/pages/watch/comments/CommentCard.tsx, .claude/feature-map.md, .claude/STATE.md
+- 备注：定位精准清晰，专用于 Bangumi 资产，彻底理顺评论区头像链路。
 
 ---
 

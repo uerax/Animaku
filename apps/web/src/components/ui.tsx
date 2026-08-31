@@ -9,7 +9,7 @@ import {
 import { preloadVideoPlayer } from '../player/lazy'
 import { preloadRoute } from '../lib/route-preload'
 
-export * from './Image'
+export * from './BangumiImage'
 
 /** Chip text color on dark cover — pairs with warm score yellow on the right. */
 function airChipClass(
