@@ -163,6 +163,40 @@ export function toBangumiOfficialImageUrl(url: string): string {
   return src
 }
 
+/**
+ * 从任意完整图片 URL 或相对路径中提取标准路径 (Pathname + Query)
+ * 无论输入 https://lain.bgm.tv/pic/user/1.jpg、https://bgmimg.anibt.net/pic/user/1.jpg 还是 /pic/user/1.jpg
+ * 均提取出 /pic/user/1.jpg
+ */
+export function extractImagePath(rawUrl?: string | null): string {
+  if (!rawUrl || !rawUrl.trim()) return ''
+  const trimmed = rawUrl.trim()
+  const m = /^(?:https?:)?\/\/[^/?#]+(\/[^?#]*)(\?.*)?$/i.exec(trimmed)
+  if (m) {
+    return `${m[1]}${m[2] || ''}`
+  }
+  if (trimmed.startsWith('/')) {
+    return trimmed
+  }
+  return `/${trimmed}`
+}
+
+/**
+ * 纯粹按 Host 与 Path 拼装最终图片 URL：https://${host}${path}
+ */
+export function buildImageUrl(
+  path?: string | null,
+  host: string = BANGUMI_IMAGE_HOST_BANGUMI,
+): string {
+  if (!path || !path.trim()) return ''
+  const cleanPath = path.trim().startsWith('/') ? path.trim() : `/${path.trim()}`
+  const cleanHost = (host || BANGUMI_IMAGE_HOST_BANGUMI)
+    .trim()
+    .replace(/^https?:\/\//i, '')
+    .replace(/\/.*$/, '')
+  return `https://${cleanHost}${cleanPath}`
+}
+
 /** 生成 Bangumi 条目页面 URL（固定跳转官方 bgm.tv） */
 export function bangumiSubjectUrl(id: number | string): string {
   return `https://bgm.tv/subject/${id}`

@@ -4,6 +4,29 @@
 
 ---
 
+## [2026-08-31] 落地通用图片路径提取拼装与头像代理直连自愈体系 (Universal Image Path Extraction & Avatar Integration)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **架构范式精简（Path Extraction & Variable Template Assembly）**：
+     - 彻底摒弃脆弱的多域名正则替换，以官方基准域名 `lain.bgm.tv` 为唯一不变锚点；
+     - 无论上游返回官方源、第三方 API 代理重写后的镜像源（`bgmimg.anibt.net`）还是相对路径，统一提取纯净 `path`（`extractImagePath`），在渲染时由模板 `https://${host}${path}` 结合用户设置（直连/代理）动态拼装（`buildImageUrl`）。
+  2. **服务端纯净透传 (`apps/server/src/routes/bangumi.ts`, `apps/server/src/routes/bangumi-comment.test.ts`)**：
+     - 彻底移除 `parseBangumiCommentRow` 中服务端调用 `bangumiImageUrl` 导致提前将镜像域名写死在 JSON 响应里的缺陷，保持 `rawAvatar` 纯净透传；
+     - 释放服务端边缘 CDN 缓存（`s-maxage=3600`）与客户端用户独立直连/代理设置的完全解耦。
+  3. **前端通用图片与头像组件体系 (`apps/web/src/components/Image.tsx`, `apps/web/src/components/ui.tsx`, `apps/web/src/pages/watch/comments/CommentCard.tsx`)**：
+     - 实现 `<Image />` 组件：提取 `path` 直接拼装输出 `https://${host}${path}`，默认携带 `referrerPolicy="no-referrer"`；若加载失败直接触发 `fallback` 占位，不搞隐式重试与静默回退；
+     - 实现 `<Avatar />` 组件：封装圆形头像容器与首字母优雅兜底，在 `CommentCard` 中单行极简接入，彻底消除此前 `display: none` 导致的 CLS 布局抖动。
+  4. **质量验证**：
+     - `@animaku/shared` 30 个单测 100% 全部通过；
+     - `@animaku/server` 5 个单测 100% 全部通过；
+     - `pnpm typecheck` 全仓 3 个 workspace 0 报错；
+     - `pnpm build` 全量生产构建成功。
+- 涉及文件：packages/shared/src/bangumi-endpoint.ts, packages/shared/src/bangumi-endpoint.test.ts, apps/server/src/routes/bangumi.ts, apps/server/src/routes/bangumi-comment.test.ts, apps/web/src/components/Image.tsx, apps/web/src/components/ui.tsx, apps/web/src/pages/watch/comments/CommentCard.tsx, .claude/feature-map.md, .claude/STATE.md
+- 备注：彻底理顺全站图片与用户头像链路，零写死代理，支持任意配置与优雅自愈。
+
+---
+
 ## [2026-08-31] 修复移动端吐槽区翻页自动滚动未避让吸顶播放器与重复触发打断 Bug (Fix Mobile Comments Pagination Auto Scroll)
 - 状态：已完成
 - 优先级：P0

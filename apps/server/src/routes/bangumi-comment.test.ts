@@ -29,6 +29,7 @@ test('parseBangumiCommentRow: parses complete row with valid fields', () => {
   assert.equal(result.author.id, 1247839)
   assert.equal(result.author.username, 'megumin')
   assert.equal(result.author.nickname, '惠惠')
+  assert.equal(result.author.avatar, 'https://lain.bgm.tv/pic/user/l/001/24/78/1247839.jpg')
   assert.equal(result.author.userGroup, 10)
   assert.equal(result.author.sign, 'Explosion!')
   assert.equal(result.content, '神作不解释')

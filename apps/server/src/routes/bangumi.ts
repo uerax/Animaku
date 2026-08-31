@@ -3,7 +3,6 @@ import {
   parseBangumiItem,
   fromBangumiCollectionType,
   toBangumiCollectionType,
-  bangumiImageUrl,
   type BangumiItem,
   type BangumiEpisode,
   type BangumiCollectionEntry,
@@ -1097,7 +1096,7 @@ export function parseBangumiCommentRow(
   const rawAvatars = u.avatar || {}
   const rawAvatar =
     rawAvatars.large || rawAvatars.medium || rawAvatars.small || ''
-  const avatar = rawAvatar ? bangumiImageUrl(rawAvatar) : ''
+  const avatar = rawAvatar
 
   let createdAt = ''
   if (row.updatedAt) {

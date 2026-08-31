@@ -2,6 +2,7 @@ import { memo, useState, useRef, useLayoutEffect, useEffect } from 'react'
 import clsx from 'clsx'
 import { CollectTypeLabel, type CommentItem } from '@animaku/shared'
 import { CommentContent } from './CommentContent'
+import { Avatar } from '../../../components/Image'
 
 const STAR_PATH =
   'M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z'
@@ -143,24 +144,11 @@ export const CommentCard = memo(function CommentCard({
   return (
     <div className="group flex items-start gap-3 rounded-xl border border-[var(--kz-border)]/60 bg-[var(--kz-bg-card)] p-3.5 transition-colors hover:border-[var(--kz-border)] hover:bg-[var(--kz-bg-hover)]/40">
       {/* 用户头像 */}
-      <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full bg-[var(--kz-bg-soft)] ring-1 ring-[var(--kz-border)]/60 shadow-xs">
-        {comment.author.avatar ? (
-          <img
-            src={comment.author.avatar}
-            alt={comment.author.nickname}
-            loading="lazy"
-            decoding="async"
-            className="h-full w-full object-cover"
-            onError={(e) => {
-              ;(e.currentTarget as HTMLElement).style.display = 'none'
-            }}
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-[var(--kz-fg-muted)]">
-            {(comment.author.nickname || '匿')[0]}
-          </div>
-        )}
-      </div>
+      <Avatar
+        src={comment.author.avatar}
+        name={comment.author.nickname}
+        sizeClass="h-9 w-9"
+      />
 
       {/* 右侧主体内容 */}
       <div className="flex-1 min-w-0 space-y-1.5">
