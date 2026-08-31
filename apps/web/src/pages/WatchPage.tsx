@@ -35,6 +35,9 @@ export function WatchPage() {
   const layoutMode = useWatchLayoutMode()
 
   const token = useSettingsStore((s) => s.bangumiToken)
+  const pluginOrder = usePluginStore((s) =>
+    Array.isArray(s.pluginOrder) ? s.pluginOrder : [],
+  )
   const qc = useQueryClient()
   const [summaryOpen, setSummaryOpen] = useState(false)
   /** Mobile: whole meta card collapsed to 2 lines until expanded */
@@ -312,10 +315,6 @@ export function WatchPage() {
           : undefined
       }
     />
-  )
-
-  const pluginOrder = usePluginStore((s) =>
-    Array.isArray(s.pluginOrder) ? s.pluginOrder : [],
   )
 
   const sourcesPanel = (

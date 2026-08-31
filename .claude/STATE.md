@@ -4,6 +4,28 @@
 
 ---
 
+## [2026-09-01] Safari / WebKit 播放稳定性与带缓冲感知的程序化意图守卫重构 (Safari Playback Stability & Programmatic Intent Guard)
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **全 WebKit 容器环境识别与原生 HLS 优先（阶段一）**：
+     - **全面覆盖 iOS 容器**：不仅支持 Safari，且全面识别 iOS / iPadOS 上的所有 WebKit 浏览器容器（包含 iOS Chrome / CriOS、iOS Edge / EdgiOS、iOS Firefox / FxiOS、微信内置浏览器等）以及 macOS Safari，结合 `canPlayType` 优先走系统级 AVPlayer 原生 HLS 解码管线（`<source type="application/vnd.apple.mpegurl">`），避开 MSE (`hls.js`) 调度与系统底层时钟在变速与 Seek 时的对抗；
+     - 彻底清除 `applyPlaybackRate` 内部残留的 `defaultPlaybackRate = s` 赋值。
+  2. **带缓冲感知的统一程序化意图守卫与唤醒恢复机制（阶段二）**：
+     - **通用意图保护包装器 (`withIntentGuard`)**：主动操作（倍速变更、进度拖动、OP/ED 跳过）统一套用瞬态守卫，消除程序化副作用引发的底层 DOM 噪声；
+     - **假 Pause 过滤与自动续播拉起**：在守卫期内且具备可播数据（`!reallyStarved`）时，豁免底层时钟重协商引发的假 `pause` 事件，并延后 30ms 尝试 `video.play()` 将暂停状态的底层 DOM 唤醒恢复，彻底封死因只 return 拦截 UI 却丢下 paused 状态 DOM 的脱节问题；若真实缺数据或 play 失败则同步真实 UI 状态；
+     - **同步手势强保活与 RateChange 补刀**：在 `applySpeedChange` 中于最高优先级手势调用栈内直接执行 `play()` 保持播放意图；并在 `ratechange` 事件中对具备可播数据但停在 paused 的异常状态主动续播；
+     - **消除 React Re-render 二次无手势赋值**：引入 `lastAppliedSpeedRef` 拦截 `useEffect([player.speed])` 的重复赋值。
+     - **优化 `applySeek` fastSeek 策略**：仅在原生播放模式下使用 `fastSeek`，MSE 挂载时退化为普通 `currentTime` 以免调度冲突。
+  3. **质量验证**：
+     - 全仓 3 个 workspace `pnpm -r typecheck` 0 报错；
+     - `@animaku/shared` 30 个单测全部通过；
+     - `@animaku/server` 12 个单测全部通过。
+- 涉及文件：apps/web/src/player/VideoPlayer.tsx, .claude/STATE.md
+- 备注：彻底解决 Safari/WebKit 上修改倍速导致播放中断与假暂停的底层架构缺陷。
+
+---
+
 ## [2026-08-31] 修复移动端 Safari 切换播放倍速时触发 AVPlayer 关键帧重同步导致回退跳跃与卡顿 Bug (Fix Safari PlaybackRate Snapping)
 - 状态：已完成
 - 优先级：P0

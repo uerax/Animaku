@@ -332,6 +332,67 @@ export function VideoPlayer({
   const [audioCodec, setAudioCodec] = useState('')
   const [opedDrawerOpen, setOpedDrawerOpen] = useState(false)
 
+  /**
+   * 统一程序化操作意图守卫：
+   * 记录主动程序化操作（倍速调整、Seek 拖动、跳过 OP/ED）引发的底层 DOM 噪声豁免截止时间。
+   */
+  const programmaticIntentExpiryRef = useRef(0)
+
+  const withIntentGuard = useCallback(
+    (durationMs: number, action: () => void) => {
+      programmaticIntentExpiryRef.current = Date.now() + durationMs
+      action()
+    },
+    [],
+  )
+
+  const isProgrammaticNoise = useCallback(() => {
+    return Date.now() < programmaticIntentExpiryRef.current
+  }, [])
+
+  /**
+   * 缓冲感知判断：
+   * 只有在「处于程序化守卫期」且「当前具备可播数据（不是真正的网络缺数据饥饿）」时，才将 pause 判定为瞬态噪声并豁免。
+   * 若当前缓冲确实耗尽（video.readyState < HAVE_CURRENT_DATA 且 bufferedAhead <= 0），则必须正常触发缓冲等待，严禁盲目 play() 造成抖动。
+   */
+  const shouldSuppressPause = useCallback((v: HTMLVideoElement) => {
+    if (Date.now() >= programmaticIntentExpiryRef.current) return false
+    const reallyStarved =
+      v.readyState < HTMLMediaElement.HAVE_CURRENT_DATA &&
+      bufferedAhead(v) <= 0
+    return !reallyStarved
+  }, [])
+
+  const shouldSuppressPauseRef = useRef(shouldSuppressPause)
+  shouldSuppressPauseRef.current = shouldSuppressPause
+  const withIntentGuardRef = useRef(withIntentGuard)
+  withIntentGuardRef.current = withIntentGuard
+
+  const lastAppliedSpeedRef = useRef(player.speed || 1)
+
+  const applySpeedChange = useCallback(
+    (s: number) => {
+      const v = videoRef.current
+      if (!v) return
+      const wasPlaying = !v.paused && !userPausedRef.current
+      lastAppliedSpeedRef.current = s
+      withIntentGuard(450, () => {
+        try {
+          v.playbackRate = s
+        } catch {
+          /* ignore */
+        }
+        // 关键：在当前最高优先级的用户手势上下文内，若原本处于播放状态，强保活维持播放意图
+        if (wasPlaying) {
+          void v.play().catch(() => {
+            /* ignore */
+          })
+        }
+      })
+    },
+    [withIntentGuard],
+  )
+
   useEffect(() => {
     if (typeof document !== 'undefined') {
       setPipSupported(Boolean(document.pictureInPictureEnabled))
@@ -725,11 +786,10 @@ export function VideoPlayer({
     video.load()
 
     const cfg = playerRef.current
-    /** Apply rate + default so load()/MSE attach cannot silently fall back to 1. */
+    /** Apply playbackRate to video element without touching defaultPlaybackRate. */
     const applyPlaybackRate = (rate?: number) => {
       const s = rate ?? playerRef.current.speed ?? 1
       try {
-        video.defaultPlaybackRate = s
         video.playbackRate = s
       } catch {
         /* some engines reject while HAVE_NOTHING */
@@ -1008,172 +1068,203 @@ export function VideoPlayer({
         onStalled
     }
 
+    // 严密覆盖所有 iOS/iPadOS WebKit 容器环境（iOS Chrome、iOS Edge、iOS Firefox、微信内置等）以及 macOS Safari
+    const isIos =
+      typeof navigator !== 'undefined' &&
+      (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
+
+    const isSafariOrWebKit =
+      typeof navigator !== 'undefined' &&
+      (isIos ||
+        (/^((?!chrome|android).)*safari/i.test(navigator.userAgent) &&
+          !/android/i.test(navigator.userAgent)))
+
+    const canNativeHls = Boolean(
+      video.canPlayType('application/vnd.apple.mpegurl'),
+    )
+
+    const preferNativeHls = canNativeHls && (isIos || isSafariOrWebKit)
+
+    const attachNativeHls = () => {
+      while (video.firstChild) {
+        video.removeChild(video.firstChild)
+      }
+      video.removeAttribute('src')
+      const sourceEl = document.createElement('source')
+      sourceEl.src = activeSrc
+      sourceEl.type = 'application/vnd.apple.mpegurl'
+      const onHlsError = () => {
+        if (!alive()) return
+        setLoading(false)
+        setMediaError('原生 HLS 加载失败，建议切换视频源')
+        reportLoadFailed('native_hls')
+      }
+      sourceEl.addEventListener('error', onHlsError, { once: true })
+      video.addEventListener('error', onHlsError, { once: true })
+      video.appendChild(sourceEl)
+      video.load()
+      video.addEventListener('loadedmetadata', onReady, { once: true })
+    }
+
     if (isM3u8(activeSrc)) {
-      // Prefer MSE hls.js; fall back to Safari native HLS
-      void import('hls.js')
-        .then((mod) => {
-          if (!alive()) return
-          const HlsCtor = mod.default
-          if (HlsCtor.isSupported()) {
-            const hls = new HlsCtor({
-              enableWorker: true,
-              // Prefetch first media fragment immediately upon parsing playlist
-              startFragPrefetch: true,
-              // Deep buffer configuration to absorb cross-border network jitter
-              maxBufferLength: 30,
-              maxMaxBufferLength: 60,
-              maxBufferHole: 0.5,
-              startLevel: -1,
-              abrEwmaDefaultEstimate: 5_000_000,
-              maxBufferSize: 60 * 1000 * 1000,
-              fragLoadingTimeOut: 20_000,
-              manifestLoadingTimeOut: 15_000,
-              fragLoadingRetryDelay: 500,
-              fragLoadingMaxRetry: 4,
-              fragLoadingMaxRetryTimeout: 8_000,
-              levelLoadingRetryDelay: 500,
-              levelLoadingMaxRetry: 4,
-              levelLoadingMaxRetryTimeout: 8_000,
-            })
-            hlsRef.current = hls
-            hls.loadSource(activeSrc)
-            hls.attachMedia(video)
-            hls.on(HlsCtor.Events.MANIFEST_PARSED, () => {
-              if (!alive()) return
-              onReady()
-            })
-            hls.on(HlsCtor.Events.FRAG_LOADED, (_e, data) => {
-              if (!alive()) return
-              if (hls.bandwidthEstimate) {
-                setBandwidthEstimateBps(hls.bandwidthEstimate)
-              }
-              const fragData = data as unknown as {
-                stats?: { total?: number; loading?: { start: number; end: number } }
-                frag?: { stats?: { total?: number; loading?: { start: number; end: number } } }
-              }
-              const stats = fragData.stats || fragData.frag?.stats
-              const bytes = stats?.total || 0
-              const loadTimeMs =
-                stats?.loading && stats.loading.end > stats.loading.start
-                  ? stats.loading.end - stats.loading.start
-                  : 0
-              if (loadTimeMs > 0 && bytes > 0) {
-                setLastFragStats({
-                  bytes,
-                  loadTimeMs,
-                  speedBytesPerSec: bytes / (loadTimeMs / 1000),
-                })
-              }
-              if (hls.currentLevel >= 0 && hls.levels[hls.currentLevel]) {
-                const lvl = hls.levels[hls.currentLevel]
-                if (lvl.videoCodec) setVideoCodec(lvl.videoCodec)
-                if (lvl.audioCodec) setAudioCodec(lvl.audioCodec)
-              }
-            })
-            hls.on(HlsCtor.Events.LEVEL_LOADED, (_e, data) => {
-              if (!alive()) return
-              if (hls.bandwidthEstimate) {
-                setBandwidthEstimateBps(hls.bandwidthEstimate)
-              }
-              if (data.details.totalduration) {
-                setDuration(data.details.totalduration)
-              }
-              // 入口 4: HLS VOD 完整切片列表与总时长解析就绪
-              if (!resumedRef.current) {
-                tryApplyInitialResume()
-              }
-            })
-            hls.on(HlsCtor.Events.ERROR, (_e, data) => {
-              if (!alive()) return
-              if (!data.fatal) {
-                // Non-fatal stalls are often sub-second (hole skip / append).
-                // Don't flash 缓冲中… — video `waiting` path debounces real ones.
-                return
-              }
-              console.error('[player] hls fatal', data.type, data.details)
-              if (data.type === HlsCtor.ErrorTypes.NETWORK_ERROR) {
-                setLoading(false)
-                setBufferingUi(false)
-                setMediaError(`网络连接错误 ${data.details || ''}，建议切换视频源`)
-                reportLoadFailed(String(data.details || 'hls_network'))
-                return
-              } else if (data.type === HlsCtor.ErrorTypes.MEDIA_ERROR) {
-                const now = Date.now()
-                // 30s sliding window decay: reset local counter if previous error was >30s ago
-                if (now - lastMediaErrorTimeRef.current > 30_000) {
-                  mediaErrorWindowCountRef.current = 0
+      // iOS WebKit (含所有浏览器) 与 macOS Safari 下优先走系统级 AVPlayer 原生 HLS
+      if (preferNativeHls) {
+        attachNativeHls()
+      } else {
+        // 非 Safari/Apple 环境优先使用 hls.js (MSE)；若不支持则降级原生 HLS
+        void import('hls.js')
+          .then((mod) => {
+            if (!alive()) return
+            const HlsCtor = mod.default
+            if (HlsCtor.isSupported()) {
+              const hls = new HlsCtor({
+                enableWorker: true,
+                // Prefetch first media fragment immediately upon parsing playlist
+                startFragPrefetch: true,
+                // Deep buffer configuration to absorb cross-border network jitter
+                maxBufferLength: 30,
+                maxMaxBufferLength: 60,
+                maxBufferHole: 0.5,
+                startLevel: -1,
+                abrEwmaDefaultEstimate: 5_000_000,
+                maxBufferSize: 60 * 1000 * 1000,
+                fragLoadingTimeOut: 20_000,
+                manifestLoadingTimeOut: 15_000,
+                fragLoadingRetryDelay: 500,
+                fragLoadingMaxRetry: 4,
+                fragLoadingMaxRetryTimeout: 8_000,
+                levelLoadingRetryDelay: 500,
+                levelLoadingMaxRetry: 4,
+                levelLoadingMaxRetryTimeout: 8_000,
+              })
+              hlsRef.current = hls
+              hls.loadSource(activeSrc)
+              hls.attachMedia(video)
+              hls.on(HlsCtor.Events.MANIFEST_PARSED, () => {
+                if (!alive()) return
+                onReady()
+              })
+              hls.on(HlsCtor.Events.FRAG_LOADED, (_e, data) => {
+                if (!alive()) return
+                if (hls.bandwidthEstimate) {
+                  setBandwidthEstimateBps(hls.bandwidthEstimate)
                 }
-                lastMediaErrorTimeRef.current = now
-                mediaErrorWindowCountRef.current++
-                sessionMediaErrorTotalRef.current++
-
-                // Error rate density with 2-minute cold-start protection baseline
-                const playedSeconds = video.currentTime || 0
-                const effectiveMinutes = Math.max(playedSeconds / 60, 2)
-                const errorRatePerMinute =
-                  sessionMediaErrorTotalRef.current / effectiveMinutes
-
-                // If error rate exceeds density threshold, terminate and suggest switching source
-                if (errorRatePerMinute > 1.0) {
-                  setLoading(false)
-                  setBufferingUi(false)
-                  setMediaError('该视频源稳定性较差，建议切换视频源')
-                  reportLoadFailed('hls_media_frequent_errors')
+                const fragData = data as unknown as {
+                  stats?: { total?: number; loading?: { start: number; end: number } }
+                  frag?: { stats?: { total?: number; loading?: { start: number; end: number } } }
+                }
+                const stats = fragData.stats || fragData.frag?.stats
+                const bytes = stats?.total || 0
+                const loadTimeMs =
+                  stats?.loading && stats.loading.end > stats.loading.start
+                    ? stats.loading.end - stats.loading.start
+                    : 0
+                if (loadTimeMs > 0 && bytes > 0) {
+                  setLastFragStats({
+                    bytes,
+                    loadTimeMs,
+                    speedBytesPerSec: bytes / (loadTimeMs / 1000),
+                  })
+                }
+                if (hls.currentLevel >= 0 && hls.levels[hls.currentLevel]) {
+                  const lvl = hls.levels[hls.currentLevel]
+                  if (lvl.videoCodec) setVideoCodec(lvl.videoCodec)
+                  if (lvl.audioCodec) setAudioCodec(lvl.audioCodec)
+                }
+              })
+              hls.on(HlsCtor.Events.LEVEL_LOADED, (_e, data) => {
+                if (!alive()) return
+                if (hls.bandwidthEstimate) {
+                  setBandwidthEstimateBps(hls.bandwidthEstimate)
+                }
+                if (data.details.totalduration) {
+                  setDuration(data.details.totalduration)
+                }
+                // 入口 4: HLS VOD 完整切片列表与总时长解析就绪
+                if (!resumedRef.current) {
+                  tryApplyInitialResume()
+                }
+              })
+              hls.on(HlsCtor.Events.ERROR, (_e, data) => {
+                if (!alive()) return
+                if (!data.fatal) {
+                  // Non-fatal stalls are often sub-second (hole skip / append).
+                  // Don't flash 缓冲中… — video `waiting` path debounces real ones.
                   return
                 }
+                console.error('[player] hls fatal', data.type, data.details)
+                if (data.type === HlsCtor.ErrorTypes.NETWORK_ERROR) {
+                  setLoading(false)
+                  setBufferingUi(false)
+                  setMediaError(`网络连接错误 ${data.details || ''}，建议切换视频源`)
+                  reportLoadFailed(String(data.details || 'hls_network'))
+                  return
+                } else if (data.type === HlsCtor.ErrorTypes.MEDIA_ERROR) {
+                  const now = Date.now()
+                  // 30s sliding window decay: reset local counter if previous error was >30s ago
+                  if (now - lastMediaErrorTimeRef.current > 30_000) {
+                    mediaErrorWindowCountRef.current = 0
+                  }
+                  lastMediaErrorTimeRef.current = now
+                  mediaErrorWindowCountRef.current++
+                  sessionMediaErrorTotalRef.current++
 
-                if (mediaErrorWindowCountRef.current === 1) {
-                  setMediaError('解码异常，正在尝试恢复…')
-                  hls.recoverMediaError()
-                } else if (mediaErrorWindowCountRef.current === 2) {
-                  setMediaError('解码异常，置换音频解码器并恢复…')
-                  hls.swapAudioCodec()
-                  hls.recoverMediaError()
+                  // Error rate density with 2-minute cold-start protection baseline
+                  const playedSeconds = video.currentTime || 0
+                  const effectiveMinutes = Math.max(playedSeconds / 60, 2)
+                  const errorRatePerMinute =
+                    sessionMediaErrorTotalRef.current / effectiveMinutes
+
+                  // If error rate exceeds density threshold, terminate and suggest switching source
+                  if (errorRatePerMinute > 1.0) {
+                    setLoading(false)
+                    setBufferingUi(false)
+                    setMediaError('该视频源稳定性较差，建议切换视频源')
+                    reportLoadFailed('hls_media_frequent_errors')
+                    return
+                  }
+
+                  if (mediaErrorWindowCountRef.current === 1) {
+                    setMediaError('解码异常，正在尝试恢复…')
+                    hls.recoverMediaError()
+                  } else if (mediaErrorWindowCountRef.current === 2) {
+                    setMediaError('解码异常，置换音频解码器并恢复…')
+                    hls.swapAudioCodec()
+                    hls.recoverMediaError()
+                  } else {
+                    setLoading(false)
+                    setBufferingUi(false)
+                    setMediaError('媒体解码不可恢复，建议切换视频源')
+                    reportLoadFailed('hls_media_unrecoverable')
+                  }
                 } else {
                   setLoading(false)
                   setBufferingUi(false)
-                  setMediaError('媒体解码不可恢复，建议切换视频源')
-                  reportLoadFailed('hls_media_unrecoverable')
+                  setMediaError(`播放失败: ${data.details || data.type}`)
+                  reportLoadFailed(String(data.details || data.type))
                 }
-              } else {
-                setLoading(false)
-                setBufferingUi(false)
-                setMediaError(`播放失败: ${data.details || data.type}`)
-                reportLoadFailed(String(data.details || data.type))
-              }
-            })
-            return
-          }
-          if (video.canPlayType('application/vnd.apple.mpegurl')) {
-            while (video.firstChild) {
-              video.removeChild(video.firstChild)
+              })
+              return
             }
-            video.removeAttribute('src')
-            const sourceEl = document.createElement('source')
-            sourceEl.src = activeSrc
-            sourceEl.type = 'application/vnd.apple.mpegurl'
-            const onHlsError = () => {
-              if (!alive()) return
-              setLoading(false)
-              setMediaError('原生 HLS 加载失败，建议切换视频源')
-              reportLoadFailed('native_hls')
+            if (canNativeHls) {
+              attachNativeHls()
+              return
             }
-            sourceEl.addEventListener('error', onHlsError, { once: true })
-            video.addEventListener('error', onHlsError, { once: true })
-            video.appendChild(sourceEl)
-            video.load()
-            video.addEventListener('loadedmetadata', onReady, { once: true })
-            return
-          }
-          setLoading(false)
-          setMediaError('当前浏览器不支持 HLS')
-        })
-        .catch((e) => {
-          if (!alive()) return
-          console.error('[player] hls import failed', e)
-          setLoading(false)
-          setMediaError('加载播放器失败')
-        })
+            setLoading(false)
+            setMediaError('当前浏览器不支持 HLS')
+          })
+          .catch((e) => {
+            if (!alive()) return
+            console.error('[player] hls import failed', e)
+            if (canNativeHls) {
+              attachNativeHls()
+              return
+            }
+            setLoading(false)
+            setMediaError('加载播放器失败')
+          })
+      }
     } else {
       attachProgressive()
     }
@@ -1323,6 +1414,22 @@ export function VideoPlayer({
     }
 
     const onPause = () => {
+      // 若处于程序化操作守卫期且当前具备可播数据（非真实网络缺数据饥饿），判定为 WebKit 底层假 pause，予以豁免并主动拉起续播
+      if (shouldSuppressPauseRef.current(video) && !userPausedRef.current) {
+        window.setTimeout(() => {
+          if (!alive() || userPausedRef.current) return
+          if (video.paused) {
+            video.play().catch(() => {
+              // 若 play() 失败（如策略拦截或异常），降级同步真实 UI 状态
+              setPaused(true)
+              showBarRef.current = true
+              setShowBar(true)
+            })
+          }
+        }, 30)
+        return
+      }
+
       setPaused(true)
       showBarRef.current = true
       setShowBar(true)
@@ -1337,6 +1444,24 @@ export function VideoPlayer({
       setLoading(false)
       hideBufferingUi()
       bumpBar()
+    }
+    const onRateChange = () => {
+      if (!alive()) return
+      // 若用户未主动暂停，但在守卫期内底层意外处于 paused 状态且具备可播数据，主动拉起 play() 确保无缝续播
+      if (
+        !userPausedRef.current &&
+        video.paused &&
+        shouldSuppressPauseRef.current(video)
+      ) {
+        window.setTimeout(() => {
+          if (!alive() || userPausedRef.current) return
+          if (video.paused) {
+            void video.play().catch(() => {
+              /* ignore autoplay rejection */
+            })
+          }
+        }, 30)
+      }
     }
     const onEndedHandler = () => {
       userPausedRef.current = false
@@ -1515,6 +1640,7 @@ export function VideoPlayer({
     video.addEventListener('timeupdate', onTime)
     video.addEventListener('pause', onPause)
     video.addEventListener('play', onPlay)
+    video.addEventListener('ratechange', onRateChange)
     video.addEventListener('ended', onEndedHandler)
     video.addEventListener('volumechange', onVol)
     video.addEventListener('seeking', onSeeking)
@@ -1692,6 +1818,7 @@ export function VideoPlayer({
       video.removeEventListener('timeupdate', onTime)
       video.removeEventListener('pause', onPause)
       video.removeEventListener('play', onPlay)
+      video.removeEventListener('ratechange', onRateChange)
       video.removeEventListener('ended', onEndedHandler)
       video.removeEventListener('volumechange', onVol)
       video.removeEventListener('seeking', onSeeking)
@@ -1775,14 +1902,14 @@ export function VideoPlayer({
     const video = videoRef.current
     if (!video) return
     const s = player.speed || 1
-    if (Math.abs(video.playbackRate - s) > 0.01) {
-      try {
-        video.playbackRate = s
-      } catch {
-        /* ignore */
-      }
+    // 仅在外部配置变化且尚未通过同步手势就地应用时才更新（避免无手势二次重复赋值）
+    if (
+      Math.abs(lastAppliedSpeedRef.current - s) > 0.01 &&
+      Math.abs(video.playbackRate - s) > 0.01
+    ) {
+      applySpeedChange(s)
     }
-  }, [player.speed])
+  }, [player.speed, applySpeedChange])
 
   // Probe WebGPU once when user opens SR menu or has a non-off preference
   useEffect(() => {
@@ -2198,21 +2325,24 @@ export function VideoPlayer({
   function applySeek(v: HTMLVideoElement, targetTime: number) {
     const safeTarget = Math.max(0, targetTime)
     lastSkipTRef.current = safeTarget
-    // Safari / WebKit native fastSeek for rapid keyframe-accurate seeking
-    if (
-      typeof (v as HTMLVideoElement & { fastSeek?: (time: number) => void })
-        .fastSeek === 'function'
-    ) {
-      try {
-        ;(
-          v as HTMLVideoElement & { fastSeek: (time: number) => void }
-        ).fastSeek(safeTarget)
-        return
-      } catch {
-        /* fallback to currentTime */
+    withIntentGuard(500, () => {
+      // 仅在原生播放模式下使用 WebKit 原生 fastSeek；若存在 hls.js 实例则退化为普通 currentTime 以免调度冲突
+      if (
+        !hlsRef.current &&
+        typeof (v as HTMLVideoElement & { fastSeek?: (time: number) => void })
+          .fastSeek === 'function'
+      ) {
+        try {
+          ;(
+            v as HTMLVideoElement & { fastSeek: (time: number) => void }
+          ).fastSeek(safeTarget)
+          return
+        } catch {
+          /* fallback to currentTime */
+        }
       }
-    }
-    v.currentTime = safeTarget
+      v.currentTime = safeTarget
+    })
   }
 
   function seekRatio(ratio: number) {
@@ -2671,14 +2801,7 @@ export function VideoPlayer({
       setVolumeMenuOpen((v) => !v)
     },
     onPickSpeed: (s) => {
-      const v = videoRef.current
-      if (v) {
-        try {
-          v.playbackRate = s
-        } catch {
-          /* ignore */
-        }
-      }
+      applySpeedChange(s)
       onPlayerChange?.({ speed: s })
       setSpeedMenuOpen(false)
     },
@@ -3021,14 +3144,7 @@ export function VideoPlayer({
           onAspectRatioChange={setAspectRatioMode}
           speed={player.speed || 1}
           onPickSpeed={(s) => {
-            const v = videoRef.current
-            if (v) {
-              try {
-                v.playbackRate = s
-              } catch {
-                /* ignore */
-              }
-            }
+            applySpeedChange(s)
             onPlayerChange?.({ speed: s })
           }}
           speedOptions={PLAYER_SPEEDS}
