@@ -24,13 +24,16 @@
   4. **前端空内容自适应紧凑呈现 (`apps/web/src/pages/watch/comments/CommentCard.tsx`)**：
      - 当 `!content`（纯打分未留短评）时，不渲染正文 `div`，自动收缩为单行打分微记录（头像 + 昵称 + 5星评分 + 看过胶囊 + 时间），高度紧凑视觉自然；
      - `useIsomorphicLayoutEffect` 增加 `if (!content) return` 守卫，无内容时跳过 `ResizeObserver` 溢出测量，零多余性能开销。
-  5. **质量验证**：
+  5. **CDN 边缘缓存支持与运维文档同步 (`apps/server/src/lib/cdn-cache-headers.ts`, `docs/cloudflare-cdn-rules.md`)**：
+     - 实现 `setCommentsCdnHeaders`：向客户端与边缘 CDN 下发 `s-maxage=3600`（1 小时边缘缓存，浏览器端 `max-age=0`），支持 `?refresh=1` 主动穿透；
+     - 同步更新 `docs/cloudflare-cdn-rules.md`：在全栈多级缓存图与规则 4（API Soft Cache）中补充 `/api/bangumi/subjects/*/comments` 的匹配表达式与配置 SOP。
+  6. **质量验证**：
      - `pnpm --filter @animaku/shared test` 22 个单测 100% 全部通过；
      - `pnpm --filter @animaku/server test` 5 个单测 100% 全部通过；
      - `pnpm typecheck` 全仓 3 个 workspace 0 报错；
      - `pnpm build` 全量生产构建成功。
-- 涉及文件：packages/shared/src/comment.ts, packages/shared/src/comment.test.ts, apps/server/src/routes/bangumi.ts, apps/server/src/routes/bangumi-comment.test.ts, apps/server/package.json, apps/web/src/pages/watch/comments/WatchComments.tsx, apps/web/src/pages/watch/comments/CommentCard.tsx, .claude/feature-map.md, .claude/STATE.md
-- 备注：评论区数据流与分块数学边界完全闭环，扩展管道就绪，多端安全防御稳固。
+- 涉及文件：packages/shared/src/comment.ts, packages/shared/src/comment.test.ts, apps/server/src/routes/bangumi.ts, apps/server/src/routes/bangumi-comment.test.ts, apps/server/src/lib/cdn-cache-headers.ts, apps/server/package.json, apps/web/src/pages/watch/comments/WatchComments.tsx, apps/web/src/pages/watch/comments/CommentCard.tsx, docs/cloudflare-cdn-rules.md, .claude/feature-map.md, .claude/STATE.md
+- 备注：评论区数据流与分块数学边界完全闭环，扩展管道就绪，CDN 边缘缓存与多端安全防御稳固。
 
 ---
 

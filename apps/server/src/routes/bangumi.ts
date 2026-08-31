@@ -18,6 +18,7 @@ import {
 } from '@animaku/shared'
 import { config } from '../config'
 import { bangumiFetch, getBearerToken } from '../lib/http'
+import { setCommentsCdnHeaders } from '../lib/cdn-cache-headers'
 import {
   BANGUMI_CACHE_TTL,
   cacheDelete,
@@ -1237,6 +1238,7 @@ bangumiRoutes.get('/subjects/:id/comments', async (c) => {
     pageSize,
   }
 
+  setCommentsCdnHeaders(c, bypass)
   return c.json(payload, 200, cacheHeaders(true))
 })
 

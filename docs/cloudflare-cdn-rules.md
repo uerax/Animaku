@@ -101,10 +101,10 @@ Animaku 系统内部已实施了精细化的响应头策略（`Cache-Control`, `
        │ (1) 命中 Browser Cache: Vite Assets 1年 / 详情页 30m / 页面 HTML no-cache
        ▼
 [ Cloudflare 边缘 CDN (Anycast Edge) ]
-       │ (2) 命中 Edge Cache: 弹幕 30m / 详情页 1h / Sitemap 6h / 静态资源 1年
+       │ (2) 命中 Edge Cache: 弹幕 30m / 吐槽评论 1h / 详情页 1h / Sitemap 6h / 静态资源 1年
        ▼
 [ Animaku 服务端 (Hono Node Process) ]
-       │ (3) 命中 L1 In-Memory TTL Cache (Single-Flight 防击穿)
+       │ (3) 命中 L1 In-Memory TTL Cache (Single-Flight 防击穿 + 吐槽 3h Chunk 缓存)
        ▼
 [ SQLite 数据库持久化缓存 (L2 Cache) ]
        │ (4) 命中 plugin_search_cache / plugin_chapters_cache / kv_cache
@@ -165,16 +165,17 @@ Animaku 系统内部已实施了精细化的响应头策略（`Cache-Control`, `
   - **浏览器 TTL (Browser TTL)**：`🔘 替代源服务器，使用此 TTL (Override origin server and use this TTL)` -> 选择 `1 年 (1 year)`
   - **目的**：Vite 构建产物自带内容 Hash，1 年强缓存实现 0ms 边缘毫秒级秒开。
 
-#### 规则 4：日历与热门静态 API 缓存 (API Soft Cache)
+#### 规则 4：日历、热门、插件仓库与番剧吐槽 API 缓存 (API Soft Cache)
 - **规则名称**：`animaku-api-soft-cache`
 - **匹配表达式 (Expression)**：
   ```text
-  (http.request.method eq "GET" and (starts_with(http.request.uri.path, "/api/bangumi/calendar") or starts_with(http.request.uri.path, "/api/bangumi/trending") or starts_with(http.request.uri.path, "/api/plugin/catalog")))
+  (http.request.method eq "GET" and (starts_with(http.request.uri.path, "/api/bangumi/calendar") or starts_with(http.request.uri.path, "/api/bangumi/trending") or starts_with(http.request.uri.path, "/api/plugin/catalog") or (starts_with(http.request.uri.path, "/api/bangumi/subjects/") and http.request.uri.path contains "/comments")))
   ```
 - **缓存设置**：
   - **缓存资格 (Cache Eligibility)**：`符合缓存条件 (Eligible for cache)`
-  - **边缘 TTL (Edge TTL)**：`🔘 使用缓存控制标头（如果存在），否则绕过缓存 (Use cache control header if present, bypass cache otherwise)`（或忽略标头设为 2 小时）
-  - **浏览器 TTL (Browser TTL)**：`🔘 接受源服务器 TTL (Respect origin server TTL)`
+  - **边缘 TTL (Edge TTL)**：`🔘 使用缓存控制标头（如果存在），否则绕过缓存 (Use cache control header if present, bypass cache otherwise)`（服务端对日历/热门下发 2 小时、对番剧吐槽下发 `s-maxage=3600` 即 1 小时，由源站精确控制）
+  - **浏览器 TTL (Browser TTL)**：`🔘 接受源服务器 TTL (Respect origin server TTL)`（源站下发 `max-age=0`，不占用客户端浏览器内存，由 React Query 管理）
+  - **目的**：将高频访问的番剧吐槽列表（`/api/bangumi/subjects/:id/comments`）、日历与规则仓库拦截在边缘 CDN，极大降低服务端与 Bangumi 上游并发压力。
 
 #### 规则 5：SSR 番剧详情页边缘缓存 (SSR Subject Cache)
 - **规则名称**：`animaku-ssr-subject-cache`
