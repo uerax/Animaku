@@ -1775,12 +1775,8 @@ export function VideoPlayer({
     const video = videoRef.current
     if (!video) return
     const s = player.speed || 1
-    if (
-      Math.abs(video.playbackRate - s) > 0.01 ||
-      Math.abs((video.defaultPlaybackRate || 1) - s) > 0.01
-    ) {
+    if (Math.abs(video.playbackRate - s) > 0.01) {
       try {
-        video.defaultPlaybackRate = s
         video.playbackRate = s
       } catch {
         /* ignore */
@@ -2678,7 +2674,6 @@ export function VideoPlayer({
       const v = videoRef.current
       if (v) {
         try {
-          v.defaultPlaybackRate = s
           v.playbackRate = s
         } catch {
           /* ignore */
@@ -3029,7 +3024,6 @@ export function VideoPlayer({
             const v = videoRef.current
             if (v) {
               try {
-                v.defaultPlaybackRate = s
                 v.playbackRate = s
               } catch {
                 /* ignore */

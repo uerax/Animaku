@@ -4,6 +4,27 @@
 
 ---
 
+## [2026-08-31] 修复移动端 Safari 切换播放倍速时触发 AVPlayer 关键帧重同步导致回退跳跃与卡顿 Bug (Fix Safari PlaybackRate Snapping)
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **排查根本原因与内核机制**：
+     - **`defaultPlaybackRate` 运行时污染与关键帧回退**：在 HTML5 规范中，`defaultPlaybackRate` 仅用于媒体初始加载（`load()`）时的出厂基准；而在 iOS Safari (WebKit / AVPlayer) 中，在视频播放期间错误修改 `video.defaultPlaybackRate` 会触发 AVPlayer 的 Timebase / Rate 状态机重置，清空已解码的音频/视频缓冲区并强制回退到上一个关键帧（Keyframe/I-Frame），导致画面跳动 1~2 秒、回退或卡顿；
+     - **React Re-render 连续双重赋值竞态**：`onPickSpeed` 赋值后由 `onPlayerChange` 触发 Store 更新，`useEffect([player.speed])` 在数毫秒后因缺少防抖比对守卫，再次触发二次 rate 设置，进一步加剧了 iOS AVPlayer 的管线重同步抖动。
+  2. **极简优雅修复 (`apps/web/src/player/VideoPlayer.tsx`)**：
+     - **解耦运行时切换与初始化加载**：彻底从 `onPickSpeed`、`PlayerContextMenu` 和 `useEffect([player.speed])` 中移除多余的 `defaultPlaybackRate = s` 赋值，播放中严格仅修改 `video.playbackRate = s`，实现 0 顿挫平滑变速；
+     - **精准保护切集与长效倍速记忆**：完整保留新视频初始化 `load()` 阶段的 `applyPlaybackRate`，确保切集或下次打开时 100% 自动继承从 `localStorage` 读取的倍速；
+     - **消除二次重复触发**：`useEffect([player.speed])` 仅在 `Math.abs(video.playbackRate - s) > 0.01` 时才执行赋值，杜绝点击后的即时重复设置。
+  3. **质量验证**：
+     - 全仓 3 个 workspace `pnpm -r typecheck` 0 报错；
+     - `@animaku/shared` 30 个单测 100% 全部通过；
+     - `@animaku/server` 12 个单测 100% 全部通过；
+     - `pnpm build` 全量生产构建顺利通过。
+- 涉及文件：apps/web/src/player/VideoPlayer.tsx, .claude/STATE.md
+- 备注：彻底解决 iOS Safari 移动端倍速切换跳转回退缺陷，完整保持跨集与长效记忆。
+
+---
+
 ## [2026-08-31] 落地 AI/LLM 爬虫友好规范声明、标准 llms.txt 路由与 AggregateRating 结构化数据升级 (SEO / GEO Enhancement)
 - 状态：已完成
 - 优先级：P1
