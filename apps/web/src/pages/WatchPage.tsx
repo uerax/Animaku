@@ -178,6 +178,14 @@ export function WatchPage() {
     )
   }
 
+  if (!w.subjectLoading && w.subjectError && !w.title) {
+    return (
+      <div className="kz-watch px-4 sm:px-0 py-8">
+        <ErrorState error={w.subjectError} onRetry={w.refetchSubject} />
+      </div>
+    )
+  }
+
   const hasKeywordTarget = Boolean(
     w.keywordTargetPlugin || w.selection?.plugin,
   )

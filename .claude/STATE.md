@@ -4,6 +4,25 @@
 
 ---
 
+## [2026-08-31] 修复播放页加载未就绪时视频源错误使用占位标题搜索与元数据失败态保护 (Fix Watch Session Placeholder Title Leaking & Subject Error State)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **切断占位标题下流污染 (`apps/web/src/lib/use-watch-session.ts`)**：
+     - 将此前在 Bangumi 元数据拉取期间强行兜底的 `const title = item ? item.nameCn || item.name : qTitle || '番剧 ' + bangumiId` 重构为 `(item ? item.nameCn || item.name : (qTitle && !/^番剧\s*\d+$/.test(qTitle) ? qTitle : '')) || ''`；
+     - 彻底解耦 UI 展示占位符与业务搜索/解析/弹幕关键词，在元数据加载中未就绪时保持 `title` 为 `''`，天然激活既有 `if (!kw) return` 守卫，杜绝向视频源插件发送无意义的 `"番剧 xxxxx"` 搜索与解析请求。
+  2. **完善条目元数据失败态保护 (`apps/web/src/pages/WatchPage.tsx`, `apps/web/src/lib/use-watch-session.ts`)**：
+     - `useWatchSession` 暴露 `refetchSubject: () => subject.refetch()` 细粒度无刷新重试方法；
+     - 在原本的 `w.subjectLoading && !w.title` 骨架屏守卫下，补充 `!w.subjectLoading && w.subjectError && !w.title` 失败态分支；
+     - 当 Bangumi 接口因网络或 ID 错误彻底失败时，直接透传 `w.subjectError` 给 `ErrorState`，点击重试触发 `w.refetchSubject` 局部重试，彻底避免整页刷新带来的状态丢失与空白残缺界面的边界漏洞。
+  3. **质量验证**：
+     - `pnpm --filter @animaku/web build` 类型检查与构建 100% 顺利通过；
+     - `pnpm --filter @animaku/server build` 服务端构建通过。
+- 涉及文件：apps/web/src/lib/use-watch-session.ts, apps/web/src/pages/WatchPage.tsx, .claude/STATE.md
+- 备注：改动精简优雅，完美解决时序交错下的占位标题泄漏问题，并完善了请求失败态。
+
+---
+
 ## [2026-08-31] 落地 Bangumi 专属图片路径提取拼装与头像组件体系 (Bangumi Image Path Extraction & Avatar Integration)
 - 状态：已完成
 - 优先级：P1

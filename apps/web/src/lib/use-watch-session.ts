@@ -269,6 +269,7 @@ export type WatchSession = {
   onProgress: (position: number, duration: number) => void
   onMediaAuthExpired: (position: number) => Promise<void>
   onMediaLoadFailed: (args: { position: number }) => void
+  refetchSubject: () => void
   refetchResolve: () => void
   refreshChapters: () => Promise<void>
   hudMessage: string | null
@@ -420,7 +421,8 @@ export function useWatchSession(bangumiId: number): WatchSession {
   const danmakuSettings = useSettingsStore((s) => s.danmaku ?? FALLBACK_DANMAKU)
   const setDanmaku = useSettingsStore((s) => s.setDanmaku)
 
-  const title = item ? item.nameCn || item.name : qTitle || `番剧 ${bangumiId}`
+  const title =
+    (item ? item.nameCn || item.name : (qTitle && !/^番剧\s*\d+$/.test(qTitle) ? qTitle : '')) || ''
   const cover = item ? coverOf(item) : qCover || ''
 
   const [searchResults, setSearchResults] = useState<SearchRow[]>([])
@@ -1996,6 +1998,9 @@ export function useWatchSession(bangumiId: number): WatchSession {
     onProgress,
     onMediaAuthExpired,
     onMediaLoadFailed,
+    refetchSubject: () => {
+      void subject.refetch()
+    },
     refetchResolve: () => {
       resolveRefreshOnce.current = true
       void resolve.refetch()
