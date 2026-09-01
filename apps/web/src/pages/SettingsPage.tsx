@@ -28,6 +28,7 @@ import { getSiteBranding } from '../lib/site-branding'
 import { EMPTY_ARRAY, FALLBACK_DANMAKU, FALLBACK_NAV, FALLBACK_PLAYER } from '../lib/stable'
 import {
   buildBangumiOpedContent,
+  buildBatchOpedGithubUploadUrl,
   createOpedZipBlob,
   diffSubjectOped,
   submitSingleSubjectToGithub,
@@ -197,6 +198,7 @@ export function SettingsPage() {
   const opedStore = useCustomOpedStore()
   const opedSubjects = opedStore.subjects
   const [opedToast, setOpedToast] = useState('')
+  const [showCommitPreview, setShowCommitPreview] = useState(false)
 
   const opedSummary = useMemo(() => {
     const subs = Object.values(opedSubjects)
@@ -209,6 +211,11 @@ export function SettingsPage() {
       episodeCount: totalEps,
     }
   }, [opedSubjects])
+
+  const batchUploadInfo = useMemo(
+    () => buildBatchOpedGithubUploadUrl(opedSubjects),
+    [opedSubjects],
+  )
 
   const navSummary = useMemo(() => {
     const items = [
@@ -395,13 +402,13 @@ export function SettingsPage() {
     return {
       'server-status': false,
       'image-host': false,
-      'nav-settings': false,
       'bangumi-token': true,
       'oped-center': false,
       'installed-plugins': true,
       'rule-catalog': false,
       'player-settings': true,
       'danmaku-settings': false,
+      'nav-settings': false,
     }
   })
 
@@ -426,13 +433,13 @@ export function SettingsPage() {
       for (const k of [
         'server-status',
         'image-host',
-        'nav-settings',
         'bangumi-token',
         'oped-center',
         'installed-plugins',
         'rule-catalog',
         'player-settings',
         'danmaku-settings',
+        'nav-settings',
       ]) {
         next[k] = targetState
       }
@@ -705,73 +712,7 @@ export function SettingsPage() {
         </label>
       </CollapsibleSection>
 
-      {/* 3. 导航栏与外观 */}
-      <CollapsibleSection
-        id="nav-settings"
-        icon="🧭"
-        title="导航栏与外观"
-        summary={navSummary}
-        isOpen={Boolean(openSections['nav-settings'])}
-        onToggle={() => toggleSection('nav-settings')}
-        headerActions={
-          <button
-            type="button"
-            onClick={resetNav}
-            className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1 text-xs text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] cursor-pointer"
-            title="恢复导航栏快捷按钮默认展示"
-          >
-            恢复默认
-          </button>
-        }
-      >
-        <p className="text-xs sm:text-sm text-[var(--kz-fg-muted)]">
-          自定义界面主题与顶部导航栏右侧快捷功能按钮的展示。
-        </p>
-        <label className="flex items-center justify-between gap-3 text-xs sm:text-sm text-[var(--kz-fg)]">
-          <span className="font-medium">界面主题</span>
-          <select
-            value={theme}
-            onChange={(e) => setTheme(e.target.value as 'dark' | 'light')}
-            className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1.5 text-xs sm:text-sm cursor-pointer"
-          >
-            <option value="light">☀️ 浅色主题 (Light)</option>
-            <option value="dark">🌙 深色主题 (Dark)</option>
-          </select>
-        </label>
-        <div className="pt-2 border-t border-[var(--kz-border)]/40 space-y-2">
-          <div className="text-xs font-semibold text-[var(--kz-fg-muted)] pt-0.5">
-            导航栏右侧快捷按钮展示
-          </div>
-          <Toggle
-            label="展示「观看历史」按钮"
-            checked={nav.showHistory}
-            onChange={(showHistory) => setNav({ showHistory })}
-          />
-          <p className="text-[11px] sm:text-xs text-[var(--kz-fg-dim)]">
-            在顶部导航栏右侧展示时钟历史图标，点击快速打开播放历史。
-          </p>
-
-          <Toggle
-            label="展示「黑白模式切换」按钮"
-            checked={nav.showThemeToggle}
-            onChange={(showThemeToggle) => setNav({ showThemeToggle })}
-          />
-          <p className="text-[11px] sm:text-xs text-[var(--kz-fg-dim)]">
-            在顶部导航栏右侧展示深浅色一键切换按钮。
-          </p>
-
-          <Toggle
-            label="展示「GitHub」链接"
-            checked={nav.showGitHub}
-            onChange={(showGitHub) => setNav({ showGitHub })}
-          />
-          <p className="text-[11px] sm:text-xs text-[var(--kz-fg-dim)]">
-            在顶部导航栏右侧展示 GitHub 项目开源仓库链接。
-          </p>
-        </div>
-      </CollapsibleSection>
-
-      {/* 4. Bangumi Access Token */}
+      {/* 3. Bangumi Access Token */}
       <CollapsibleSection
         id="bangumi-token"
         icon="👤"
@@ -821,7 +762,7 @@ export function SettingsPage() {
         </div>
       </CollapsibleSection>
 
-      {/* 5. OP/ED 标记中心 */}
+      {/* 4. OP/ED 标记中心 */}
       <CollapsibleSection
         id="oped-center"
         icon="⏱️"
@@ -929,6 +870,107 @@ export function SettingsPage() {
               })}
             </div>
 
+            {/* Commit 详细说明预览与复制面板 (默认折叠) */}
+            <div className="rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/60 overflow-hidden transition-all duration-200">
+              <div
+                onClick={() => setShowCommitPreview((v) => !v)}
+                className="flex items-center justify-between p-2.5 sm:p-3 cursor-pointer select-none text-xs font-semibold text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] transition-colors"
+                role="button"
+                tabIndex={0}
+                aria-expanded={showCommitPreview}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setShowCommitPreview((v) => !v)
+                  }
+                }}
+              >
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="truncate">📝 PR Commit 信息</span>
+                  <span
+                    className={`inline-block text-[10px] text-[var(--kz-fg-dim)] transition-transform duration-200 ${
+                      showCommitPreview ? 'rotate-180' : ''
+                    }`}
+                  >
+                    ▼
+                  </span>
+                </div>
+                <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1.5 shrink-0 ml-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(batchUploadInfo.commitTitle)
+                        setOpedToast('已复制 Commit 标题！')
+                        setTimeout(() => setOpedToast(''), 3000)
+                      } catch {}
+                    }}
+                    className="rounded-md border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2 py-0.5 text-[11px] font-medium text-[var(--kz-fg)] hover:bg-[var(--kz-bg-elevated)] cursor-pointer"
+                    title="复制 Commit 标题（主标题输入框）"
+                  >
+                    📋 复制标题
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(batchUploadInfo.commitDescription)
+                        setOpedToast('已复制 Commit 详细描述！')
+                        setTimeout(() => setOpedToast(''), 3000)
+                      } catch {}
+                    }}
+                    className="rounded-md border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2 py-0.5 text-[11px] font-medium text-[var(--kz-fg)] hover:bg-[var(--kz-bg-elevated)] cursor-pointer"
+                    title="复制 Commit 详细描述（多行描述输入框）"
+                  >
+                    📋 复制描述
+                  </button>
+                </div>
+              </div>
+
+              {showCommitPreview && (
+                <div className="px-3 pb-3 pt-1 border-t border-[var(--kz-border)]/40 space-y-1.5 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-[var(--kz-fg-dim)] shrink-0">标题:</span>
+                    <code className="flex-1 rounded bg-[var(--kz-bg)] px-2 py-1 font-mono text-[11px] text-[var(--kz-fg)] truncate border border-[var(--kz-border)]/60">
+                      {batchUploadInfo.commitTitle}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(batchUploadInfo.commitTitle)
+                          setOpedToast('已复制 Commit 标题！')
+                          setTimeout(() => setOpedToast(''), 3000)
+                        } catch {}
+                      }}
+                      className="rounded border border-[var(--kz-border)] bg-[var(--kz-bg)] px-1.5 py-0.5 text-[10px] text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] cursor-pointer shrink-0"
+                    >
+                      复制
+                    </button>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="text-[11px] text-[var(--kz-fg-dim)] shrink-0 pt-1">描述:</span>
+                    <pre className="flex-1 rounded bg-[var(--kz-bg)] p-2 font-mono text-[11px] text-[var(--kz-fg-muted)] whitespace-pre-wrap max-h-28 overflow-y-auto border border-[var(--kz-border)]/60 leading-relaxed">
+                      {batchUploadInfo.commitDescription}
+                    </pre>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(batchUploadInfo.commitDescription)
+                          setOpedToast('已复制 Commit 详细描述！')
+                          setTimeout(() => setOpedToast(''), 3000)
+                        } catch {}
+                      }}
+                      className="rounded border border-[var(--kz-border)] bg-[var(--kz-bg)] px-1.5 py-0.5 text-[10px] text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] cursor-pointer shrink-0 mt-1"
+                    >
+                      复制
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
               <div className="flex flex-wrap items-center gap-2">
                 <button
@@ -961,7 +1003,14 @@ export function SettingsPage() {
                   📦 打包全量 ZIP
                 </button>
                 <a
-                  href="https://github.com/uerax/bangumi-oped/upload/data"
+                  href={batchUploadInfo.url}
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(batchUploadInfo.commitTitle)
+                    } catch {}
+                    setOpedToast('已自动复制 Commit 标题！如需详细说明可在上方点击「复制描述」')
+                    setTimeout(() => setOpedToast(''), 5000)
+                  }}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-1 rounded-lg border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-xs font-semibold text-sky-600 dark:text-sky-400 hover:bg-sky-500/20 transition-colors"
@@ -996,7 +1045,7 @@ export function SettingsPage() {
         )}
       </CollapsibleSection>
 
-      {/* 6. 已安装规则 */}
+      {/* 5. 已安装规则 */}
       <CollapsibleSection
         id="installed-plugins"
         icon="🧩"
@@ -1394,7 +1443,7 @@ export function SettingsPage() {
         </ul>
       </CollapsibleSection>
 
-      {/* 7. 规则仓库 */}
+      {/* 6. 规则仓库 */}
       <CollapsibleSection
         id="rule-catalog"
         icon="🏪"
@@ -1662,7 +1711,7 @@ export function SettingsPage() {
         </ul>
       </CollapsibleSection>
 
-      {/* 8. 播放器偏好 */}
+      {/* 7. 播放器偏好 */}
       <CollapsibleSection
         id="player-settings"
         icon="🎬"
@@ -1912,7 +1961,7 @@ export function SettingsPage() {
         </p>
       </CollapsibleSection>
 
-      {/* 9. 弹幕偏好 */}
+      {/* 8. 弹幕偏好 */}
       <CollapsibleSection
         id="danmaku-settings"
         icon="💬"
@@ -2008,6 +2057,72 @@ export function SettingsPage() {
             rows={3}
             className="w-full rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-2 text-xs sm:text-sm outline-none ring-[var(--kz-accent)] focus:ring-2"
           />
+        </div>
+      </CollapsibleSection>
+
+      {/* 9. 导航栏与外观 */}
+      <CollapsibleSection
+        id="nav-settings"
+        icon="🧭"
+        title="导航栏与外观"
+        summary={navSummary}
+        isOpen={Boolean(openSections['nav-settings'])}
+        onToggle={() => toggleSection('nav-settings')}
+        headerActions={
+          <button
+            type="button"
+            onClick={resetNav}
+            className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1 text-xs text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] cursor-pointer"
+            title="恢复导航栏快捷按钮默认展示"
+          >
+            恢复默认
+          </button>
+        }
+      >
+        <p className="text-xs sm:text-sm text-[var(--kz-fg-muted)]">
+          自定义界面主题与顶部导航栏右侧快捷功能按钮的展示。
+        </p>
+        <label className="flex items-center justify-between gap-3 text-xs sm:text-sm text-[var(--kz-fg)]">
+          <span className="font-medium">界面主题</span>
+          <select
+            value={theme}
+            onChange={(e) => setTheme(e.target.value as 'dark' | 'light')}
+            className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1.5 text-xs sm:text-sm cursor-pointer"
+          >
+            <option value="light">☀️ 浅色主题 (Light)</option>
+            <option value="dark">🌙 深色主题 (Dark)</option>
+          </select>
+        </label>
+        <div className="pt-2 border-t border-[var(--kz-border)]/40 space-y-2">
+          <div className="text-xs font-semibold text-[var(--kz-fg-muted)] pt-0.5">
+            导航栏右侧快捷按钮展示
+          </div>
+          <Toggle
+            label="展示「观看历史」按钮"
+            checked={nav.showHistory}
+            onChange={(showHistory) => setNav({ showHistory })}
+          />
+          <p className="text-[11px] sm:text-xs text-[var(--kz-fg-dim)]">
+            在顶部导航栏右侧展示时钟历史图标，点击快速打开播放历史。
+          </p>
+
+          <Toggle
+            label="展示「黑白模式切换」按钮"
+            checked={nav.showThemeToggle}
+            onChange={(showThemeToggle) => setNav({ showThemeToggle })}
+          />
+          <p className="text-[11px] sm:text-xs text-[var(--kz-fg-dim)]">
+            在顶部导航栏右侧展示深浅色一键切换按钮。
+          </p>
+
+          <Toggle
+            label="展示「GitHub」链接"
+            checked={nav.showGitHub}
+            onChange={(showGitHub) => setNav({ showGitHub })}
+          />
+          <p className="text-[11px] sm:text-xs text-[var(--kz-fg-dim)]">
+            在顶部导航栏右侧展示 GitHub 项目开源仓库链接。
+          </p>
         </div>
       </CollapsibleSection>
     </div>

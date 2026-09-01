@@ -4,6 +4,48 @@
 
 ---
 
+## [2026-09-02] 调整设置页模块层级顺序：将「导航栏与外观」迁移至页面最底部 (Reorder Settings Page: Move Nav & Appearance to Bottom)
+- 状态：已完成
+- 优先级：P3
+- 描述：
+  1. **调整折叠卡片渲染层级 (`apps/web/src/pages/SettingsPage.tsx`)**：
+     - 将「🧭 导航栏与外观」模块由原本的第 3 位迁移至整个设置页面的最底部（第 9 位，位于「弹幕偏好」下方）；
+     - 使得高频的数据与核心功能设置（服务状态、封面图片源、Bangumi 账号、OP/ED 标记中心、已安装规则、规则仓库、播放器偏好、弹幕偏好）靠前展示，视觉层级更加合理；
+     - 同步更新 `openSections` 初始折叠状态与 `toggleAllSections` 全局展开/折叠键值遍历顺序。
+  2. **质量验证**：
+     - `pnpm -r typecheck` 全仓 3 个 workspace 0 报错；
+     - `@animaku/shared` 30 个单测 100% 全部通过；
+     - `@animaku/server` 12 个单测 100% 全部通过；
+     - `pnpm --filter @animaku/web build` 生产构建成功。
+- 涉及文件：apps/web/src/pages/SettingsPage.tsx, .claude/STATE.md
+- 备注：设置页卡片布局重排闭环。
+
+---
+
+## [2026-09-02] 支持 OP/ED 批量上传 GitHub 自动生成并预填 Commit 标题与详细描述 (Auto Fill OP/ED Batch Upload Commit Message)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **构建批量 Commit 标题与描述生成引擎 (`apps/web/src/lib/custom-oped-store.ts`)**：
+     - 实现 `buildBatchOpedGithubUploadUrl(subjects)` 函数；
+     - 自动统计当前所有打标番剧 ID、番剧名称、标记集数及集数区间（如 `(ep 1-4)`）；
+     - **Commit 标题**：精简为数组 ID 简写规范（如 `feat(data): upload OP/ED for [627136, 627132]`，单番为 `feat(data): upload OP/ED for [627136]`）；
+     - **Commit 详细描述**：自动结构化列出各番剧打标详情清单与总番剧/总集数汇总；
+     - 移除无效的 URL Query 参数，保持纯净简洁。
+  2. **设置页一键联动、默认折叠预览与标题/描述独立复制 (`apps/web/src/pages/SettingsPage.tsx`)**：
+     - 在设置页中内嵌「📝 自动生成的 PR Commit 信息」卡片，默认收起/折叠展示，支持点击一键展开查看具体的 Commit 标题与详细描述代码块；
+     - 拆分为独立的「📋 复制标题」与「📋 复制描述」按钮，精准对应 GitHub 的主标题单行框和详细描述多行框；
+     - 点击「📂 前往 GitHub 批量上传」按钮时默认自动复制 Commit 标题至系统剪贴板。
+  3. **质量验证**：
+     - `pnpm -r typecheck` 全仓 3 个 workspace 0 报错；
+     - `@animaku/shared` 30 个单测 100% 全部通过；
+     - `@animaku/server` 12 个单测 100% 全部通过；
+     - `pnpm --filter @animaku/web build` 生产构建成功。
+- 涉及文件：apps/web/src/lib/custom-oped-store.ts, apps/web/src/pages/SettingsPage.tsx, .claude/STATE.md
+- 备注：彻底省去用户手动编写 Commit 标题和描述的操作，一键自动填充。
+
+---
+
 ## [2026-09-02] 修复设置页服务状态标题与图标对齐问题 (Fix Settings Server Status Title & Icon Alignment)
 - 状态：已完成
 - 优先级：P3
