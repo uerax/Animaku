@@ -209,22 +209,67 @@ export function WatchPage() {
   }
 
   if (w.subjectLoading && !w.title) {
-    // Keep cinema shell height stable while subject meta loads (CLS).
-    return (
-      <div className="kz-watch px-4 sm:px-0">
-        <div className="kz-player-stack mx-auto space-y-3">
-          <div className="kz-player-placeholder text-sm text-[var(--kz-fg-muted)]">
-            <div className="flex flex-col items-center gap-2">
-              <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-[var(--kz-border)] border-t-[var(--kz-accent)]" />
-              加载条目…
-            </div>
-          </div>
-          <div className="kz-watch-panel space-y-2 px-3 py-3">
-            <div className="kz-skeleton h-4 w-2/3 rounded-md" />
-            <div className="kz-skeleton h-3 w-1/2 rounded-md" />
-            <div className="kz-skeleton h-3 w-full rounded-md" />
+    // Keep cinema shell height & multi-column grid stable while subject meta loads (CLS).
+    const skeletonPlayer = (
+      <div className="relative w-full space-y-2 lg:static sticky top-0 z-40 bg-[var(--kz-bg)] shadow-md lg:shadow-none">
+        <div className="kz-player-placeholder text-sm text-[var(--kz-fg-muted)]">
+          <div className="flex flex-col items-center gap-2">
+            <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-[var(--kz-border)] border-t-[var(--kz-accent)]" />
+            加载条目…
           </div>
         </div>
+      </div>
+    )
+
+    const skeletonMeta = (
+      <div className="kz-watch-panel space-y-2.5 px-3 py-3">
+        <div className="kz-skeleton h-4 w-2/3 rounded-md" />
+        <div className="kz-skeleton h-3 w-1/2 rounded-md" />
+        <div className="kz-skeleton h-3 w-full rounded-md" />
+      </div>
+    )
+
+    const skeletonSources = (
+      <div className="kz-watch-panel p-3 space-y-2">
+        <div className="kz-skeleton h-4 w-20 rounded" />
+        <div className="kz-skeleton h-8 w-full rounded-lg" />
+      </div>
+    )
+
+    const skeletonEps = (
+      <div className="kz-watch-panel p-3 space-y-2">
+        <div className="kz-skeleton h-4 w-16 rounded" />
+        <div className="grid grid-cols-5 gap-1.5 pt-1">
+          {Array.from({ length: 10 }).map((_, i) => (
+            <div key={i} className="kz-skeleton h-8 rounded" />
+          ))}
+        </div>
+      </div>
+    )
+
+    const skeletonRail = (
+      <>
+        {skeletonSources}
+        {skeletonEps}
+      </>
+    )
+
+    return (
+      <div className="kz-watch -mx-4 -mt-2 sm:mx-0 sm:mt-0">
+        {layoutMode === 'desktop' ? (
+          <DesktopWatchLayout
+            player={skeletonPlayer}
+            meta={skeletonMeta}
+            rail={skeletonRail}
+          />
+        ) : (
+          <MobileWatchLayout
+            player={skeletonPlayer}
+            meta={skeletonMeta}
+            sources={skeletonSources}
+            episodes={skeletonEps}
+          />
+        )}
       </div>
     )
   }

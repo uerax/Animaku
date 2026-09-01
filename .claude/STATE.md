@@ -4,6 +4,27 @@
 
 ---
 
+## [2026-09-02] 优化播放页加载骨架屏多列布局对齐与消除首屏 CLS 居中跳动 (Fix Watch Page Skeleton Layout & Zero CLS)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **排查根本原因**：
+     - 在 `apps/web/src/pages/WatchPage.tsx` 中，Bangumi 元数据请求中（`w.subjectLoading && !w.title`）时，原骨架屏仅渲染了一个单列独立的 `<div className="kz-player-stack mx-auto">`；
+     - 此时没有渲染桌面端双列 Grid 容器（`.kz-watch-cinema--desktop`）以及右侧侧边栏骨架，导致播放器在 Safari 及冷启动首帧水平居中展示；待数据加载完毕后切为双列布局时，播放器被右侧栏挤到左侧，产生明显的 CLS 视觉跳动。
+  2. **骨架屏双列/移动端布局 1:1 结构对齐 (`apps/web/src/pages/WatchPage.tsx`)**：
+     - 将骨架屏统一接入 `<DesktopWatchLayout>` 与 `<MobileWatchLayout>`；
+     - 桌面端首帧即呈现标准的双列 Grid 架构（左侧播放器 + 简介骨架，右侧视频源 + 选集网格骨架），移除 `mx-auto` 居中限制，与正式渲染保持 1:1 像素级结构对齐；
+     - 彻底消除 Safari/冷启动首屏播放器“先居中后靠左”的跳动现象，实现 0ms 平滑数据渐进填充。
+  3. **质量验证**：
+     - `pnpm -r typecheck` 全仓 3 个 workspace 0 报错；
+     - `@animaku/shared` 30 个单测 100% 全部通过；
+     - `@animaku/server` 12 个单测 100% 全部通过；
+     - `pnpm --filter @animaku/web build` 生产构建成功。
+- 涉及文件：apps/web/src/pages/WatchPage.tsx, .claude/STATE.md
+- 备注：骨架屏与正式页面完全同构，消除所有首屏布局偏移。
+
+---
+
 ## [2026-09-02] 修复 Bangumi 路由状态码类型断言与追番乐观更新并发竞态守卫 (Fix Status Code Types & Mutation Race Guard)
 - 状态：已完成
 - 优先级：P2
