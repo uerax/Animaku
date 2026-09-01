@@ -4,6 +4,77 @@
 
 ---
 
+## [2026-09-01] 追番状态 UI 现代重构与 0ms 乐观即时切换机制 (Optimistic Collection UI & Zero-Latency Switch)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **React Query 乐观更新机制 (`apps/web/src/pages/WatchPage.tsx`)**：
+     - 在 `setCollect` mutation 中引入 `onMutate`、`onError` 与 `onSettled`；
+     - 用户点击任意收藏状态时，`onMutate` 立即取消在途请求，快照前值并**以 0ms 瞬间同步写入本地 React Query 缓存**；
+     - 彻底消除等待服务端网络往返的白屏/冻结延迟，点击即切换；若网络异常则无缝自动回滚。
+  2. **追番状态 UI 精致紧凑微标与 Popover 浮层体系 (`apps/web/src/pages/watch/WatchMeta.tsx`)**：
+     - 彻底摒弃原生 `<select>` 标签，采用与 `kz-watch-chip` 元数据标签 1:1 对齐的精致紧凑胶囊按钮（`px-2 py-0.5 text-xs rounded-md`），视觉自然呼吸毫不突兀；
+     - **未收藏态**：展示轻巧的 `[追番 ▾]` 微标；
+     - **已收藏态**：动态展示各状态特有主题色与精致微图标（`[▶ 在看 ▾]`、`[★ 想看 ▾]`、`[✓ 看过 ▾]`、`[⏸ 搁置 ▾]`、`[✕ 抛弃 ▾]`）；
+     - **浮层卡片**：轻量收敛为紧凑 Popover 浮层，支持点击外部或 ESC 自动收起。
+  3. **质量验证**：
+     - `pnpm -r typecheck` 全仓 3 个 workspace 0 报错；
+     - `@animaku/shared` 30 个单测全部通过；
+     - `@animaku/server` 12 个单测全部通过；
+     - `pnpm --filter @animaku/web build` 生产打包成功。
+- 涉及文件：apps/web/src/pages/WatchPage.tsx, apps/web/src/pages/watch/WatchMeta.tsx, .claude/STATE.md
+- 备注：彻底提升追番状态切换的手感与视觉品质，实现 0ms 秒切无感知网络同步。
+
+---
+
+## [2026-09-01] 修复播放页番剧信息中已保存 Token 却始终显示未收藏 Bug (Fix Subject Collection Status Lookup)
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **排查根本原因**：
+     - `apps/server/src/routes/bangumi.ts` 中的 `GET /collections/:subjectId` 此前请求上游为 `GET /v0/users/-/collections/${subjectId}`；
+     - 根据 Bangumi 官方 OpenAPI 规范，`-` 简写占位符仅支持 `POST` 和 `PATCH` 操作；而针对单个条目的 `GET` 查询收藏端点严格为 `/v0/users/{username}/collections/{subject_id}`；
+     - 使用 `-` 发起 GET 会触发上游 404 Not Found，服务端误判为条目未收藏返回 `{ data: null }`，导致前端 `WatchMeta` 始终兜底显示「未收藏」。
+  2. **优雅修复与 Token 用户名缓存**：
+     - 实现 `getUsernameForToken(token)` 辅助函数，基于 SHA256 Token 键在内存中缓存 1 小时用户名映射，避免频繁请求 `/v0/me`；
+     - `GET /collections/:subjectId` 与 `GET /collections` 统一调用 `getUsernameForToken`，正确拼装 `/v0/users/${encodeURIComponent(username)}/collections/${subjectId}` 发起精确查询；
+     - 播放页即时且准确地回显当前用户的真实收藏状态（想看/在看/看过/搁置/抛弃）。
+  3. **质量验证**：
+     - `pnpm -r typecheck` 全仓 3 个 workspace 0 报错；
+     - `@animaku/shared` 30 个单测全部通过；
+     - `@animaku/server` 12 个单测全部通过；
+     - `pnpm --filter @animaku/web build` 生产打包成功。
+- 涉及文件：apps/server/src/routes/bangumi.ts, .claude/STATE.md
+- 备注：彻底解决已收藏条目在播放页番剧信息中常驻显示「未收藏」的严重缺陷。
+
+---
+
+## [2026-09-01] 导航栏深浅色模式与 GitHub 按钮可配置化、历史页面独立提取为时钟快捷按钮 (Configurable Navigation Bar Actions & Dedicated History Button)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **状态模型与持久化扩展 (`apps/web/src/stores/settings.ts`, `apps/web/src/lib/stable.ts`)**：
+     - 定义 `NavSettings` 接口（`showHistory`, `showThemeToggle`, `showGitHub`），默认全为 `true`；
+     - `useSettingsStore` 新增 `nav` 状态及 `setNav`、`resetNav` 方法，并纳入本地持久化（`persist`）与 `merge` 兜底；
+     - `stable.ts` 导出 `FALLBACK_NAV` 稳定引用选择器。
+  2. **导航栏提取「历史」为右侧时钟快捷按钮与条件渲染 (`apps/web/src/components/Layout.tsx`)**：
+     - 从 `moreLinks`（移动端更多菜单 / 桌面端主导航条）中移除 `历史` 文本链接；
+     - 实现 `<HistoryIconButton />`：采用精简 SVG 时钟图标，支持预取（`preloadRoute('/history')`）、激活高亮态（`kz-accent`）与悬浮说明；
+     - 响应式根据用户 `nav` 设置条件渲染 `<HistoryIconButton />`、`<ThemeToggleButton />` 与 `<GitHubIconButton />`。
+  3. **设置页增加「导航栏与外观」配置卡片 (`apps/web/src/pages/SettingsPage.tsx`)**：
+     - 新增「🧭 导航栏与外观」可折叠卡片，支持主题一键切换（深色/浅色）；
+     - 提供「观看历史」、「黑白模式切换」、「GitHub 链接」三个独立 Switch 开关及一键「恢复默认」重置能力；
+     - 实时动态摘要展示当前启用配置。
+  4. **质量验证**：
+     - `pnpm -r typecheck` 全仓 3 个 workspace 0 报错；
+     - `@animaku/shared` 30 个单测全部通过；
+     - `@animaku/server` 12 个单测全部通过；
+     - `pnpm --filter @animaku/web build` 生产构建成功。
+- 涉及文件：apps/web/src/stores/settings.ts, apps/web/src/lib/stable.ts, apps/web/src/components/Layout.tsx, apps/web/src/pages/SettingsPage.tsx, .claude/STATE.md
+- 备注：全面满足用户对导航栏精简与个性化定制诉求，各端体验统一流畅。
+
+---
+
 ## [2026-09-01] 支持在配置文件中通过 HOST 参数配置 Docker 端口公网/本地监听绑定 (Configurable Docker Host Port Binding)
 - 状态：已完成
 - 优先级：P2

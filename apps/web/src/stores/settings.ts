@@ -24,6 +24,18 @@ migrateLocalStorageKey('animaku-settings', [
 
 export type AppTheme = 'dark' | 'light'
 
+export interface NavSettings {
+  showHistory: boolean
+  showThemeToggle: boolean
+  showGitHub: boolean
+}
+
+export const defaultNavSettings: NavSettings = {
+  showHistory: true,
+  showThemeToggle: true,
+  showGitHub: true,
+}
+
 interface SettingsState {
   bangumiToken: string
   /** 管理员服务器代理授权口令（用于解锁媒体流代理出站） */
@@ -33,6 +45,7 @@ interface SettingsState {
   bangumiImageHost: string
   danmaku: DanmakuSettings
   player: PlayerSettings
+  nav: NavSettings
   setBangumiToken: (token: string) => void
   setProxyToken: (token: string) => void
   setBangumiImageHost: (host: string) => void
@@ -42,6 +55,8 @@ interface SettingsState {
   resetDanmaku: () => void
   setPlayer: (partial: Partial<PlayerSettings>) => void
   resetPlayer: () => void
+  setNav: (partial: Partial<NavSettings>) => void
+  resetNav: () => void
 }
 
 /** Apply theme to <html> for CSS tokens + native color-scheme. */
@@ -110,6 +125,7 @@ export const useSettingsStore = create<SettingsState>()(
       bangumiImageHost: DEFAULT_BANGUMI_IMAGE_HOST,
       danmaku: { ...defaultDanmakuSettings },
       player: { ...defaultPlayerSettings },
+      nav: { ...defaultNavSettings },
       setBangumiToken: (bangumiToken) => set({ bangumiToken }),
       setProxyToken: (proxyToken) => set({ proxyToken }),
       setBangumiImageHost: (raw) => {
@@ -136,6 +152,9 @@ export const useSettingsStore = create<SettingsState>()(
           player: mergePlayer({ ...s.player, ...partial }),
         })),
       resetPlayer: () => set({ player: { ...defaultPlayerSettings } }),
+      setNav: (partial) =>
+        set((s) => ({ nav: { ...s.nav, ...partial } })),
+      resetNav: () => set({ nav: { ...defaultNavSettings } }),
     }),
     {
       name: 'animaku-settings',
@@ -172,6 +191,7 @@ export const useSettingsStore = create<SettingsState>()(
         bangumiImageHost: s.bangumiImageHost,
         danmaku: s.danmaku,
         player: s.player,
+        nav: s.nav,
       }),
       merge: (persisted, current) => {
         const p = (persisted || {}) as Partial<SettingsState>
@@ -195,6 +215,10 @@ export const useSettingsStore = create<SettingsState>()(
           player: mergePlayer(
             p.player && typeof p.player === 'object' ? p.player : undefined,
           ),
+          nav: {
+            ...defaultNavSettings,
+            ...(p.nav && typeof p.nav === 'object' ? p.nav : {}),
+          },
         }
       },
       onRehydrateStorage: () => (state) => {

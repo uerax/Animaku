@@ -97,7 +97,40 @@ export function WatchPage() {
   const setCollect = useMutation({
     mutationFn: (type: CollectType) =>
       bangumiApi.setCollection(bangumiId, type),
-    onSuccess: () => {
+    onMutate: async (newType: CollectType) => {
+      // 1. 取消正在进行的 refetch，避免覆盖乐观更新
+      await qc.cancelQueries({ queryKey: ['collection', bangumiId, token] })
+
+      // 2. 快照之前的值以备回滚
+      const previous = qc.getQueryData<{ data: { subjectId: number; type: CollectType } | null }>([
+        'collection',
+        bangumiId,
+        token,
+      ])
+
+      // 3. 立即 0ms 同步更新本地缓存
+      qc.setQueryData(
+        ['collection', bangumiId, token],
+        (old: { data: Record<string, unknown> } | undefined) => ({
+          data: {
+            subjectId: bangumiId,
+            updatedAt: new Date().toISOString(),
+            ...(old?.data || {}),
+            type: newType,
+          },
+        }),
+      )
+
+      return { previous }
+    },
+    onError: (_err, _newType, context) => {
+      // 网络异常时回滚状态
+      if (context?.previous !== undefined) {
+        qc.setQueryData(['collection', bangumiId, token], context.previous)
+      }
+    },
+    onSettled: () => {
+      // 请求完成后在后台静默同步服务端权威数据
       qc.invalidateQueries({ queryKey: ['collection', bangumiId] })
       qc.invalidateQueries({ queryKey: ['collections'] })
     },

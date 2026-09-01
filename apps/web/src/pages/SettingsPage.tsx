@@ -25,7 +25,7 @@ import { useSettingsStore } from '../stores/settings'
 import { isBuiltinPlugin, usePluginStore } from '../stores/plugins'
 import { PageHeader } from '../components/ui'
 import { getSiteBranding } from '../lib/site-branding'
-import { EMPTY_ARRAY, FALLBACK_DANMAKU, FALLBACK_PLAYER } from '../lib/stable'
+import { EMPTY_ARRAY, FALLBACK_DANMAKU, FALLBACK_NAV, FALLBACK_PLAYER } from '../lib/stable'
 import {
   buildBangumiOpedContent,
   createOpedZipBlob,
@@ -133,6 +133,11 @@ export function SettingsPage() {
   const resetPlayer = useSettingsStore((s) => s.resetPlayer)
   const proxyToken = useSettingsStore((s) => s.proxyToken)
   const setProxyToken = useSettingsStore((s) => s.setProxyToken)
+  const theme = useSettingsStore((s) => s.theme)
+  const setTheme = useSettingsStore((s) => s.setTheme)
+  const nav = useSettingsStore((s) => s.nav ?? FALLBACK_NAV)
+  const setNav = useSettingsStore((s) => s.setNav)
+  const resetNav = useSettingsStore((s) => s.resetNav)
 
   const plugins = usePluginStore((s) =>
     Array.isArray(s.plugins) ? s.plugins : EMPTY_ARRAY,
@@ -204,6 +209,16 @@ export function SettingsPage() {
       episodeCount: totalEps,
     }
   }, [opedSubjects])
+
+  const navSummary = useMemo(() => {
+    const items = [
+      theme === 'light' ? '浅色' : '深色',
+      nav.showHistory ? '历史' : null,
+      nav.showThemeToggle ? '黑白模式' : null,
+      nav.showGitHub ? 'GitHub' : null,
+    ].filter(Boolean)
+    return items.join(' · ')
+  }, [theme, nav])
 
   async function handleVerifyUnlock() {
     if (!unlockPassword.trim() || isVerifying) return
@@ -380,6 +395,7 @@ export function SettingsPage() {
     return {
       'server-status': false,
       'image-host': false,
+      'nav-settings': false,
       'bangumi-token': true,
       'oped-center': false,
       'installed-plugins': true,
@@ -410,6 +426,7 @@ export function SettingsPage() {
       for (const k of [
         'server-status',
         'image-host',
+        'nav-settings',
         'bangumi-token',
         'oped-center',
         'installed-plugins',
@@ -659,9 +676,6 @@ export function SettingsPage() {
         isOpen={Boolean(openSections['image-host'])}
         onToggle={() => toggleSection('image-host')}
       >
-        <p className="text-xs sm:text-sm text-[var(--kz-fg-muted)]">
-          番剧海报封面与角色图的访问 CDN。此处选择仅保存在本机浏览器。
-        </p>
         <label className="flex items-center justify-between gap-3 text-xs sm:text-sm text-[var(--kz-fg)]">
           <span className="font-medium">图片源</span>
           <select
@@ -677,12 +691,75 @@ export function SettingsPage() {
             ))}
           </select>
         </label>
-        <p className="text-[11px] sm:text-xs text-[var(--kz-fg-dim)]">
-          切换后立即生效；新域名的图片按需重新下载并建立浏览器本地缓存。
-        </p>
       </CollapsibleSection>
 
-      {/* 3. Bangumi Access Token */}
+      {/* 3. 导航栏与外观 */}
+      <CollapsibleSection
+        id="nav-settings"
+        icon="🧭"
+        title="导航栏与外观"
+        summary={navSummary}
+        isOpen={Boolean(openSections['nav-settings'])}
+        onToggle={() => toggleSection('nav-settings')}
+        headerActions={
+          <button
+            type="button"
+            onClick={resetNav}
+            className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1 text-xs text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] cursor-pointer"
+            title="恢复导航栏快捷按钮默认展示"
+          >
+            恢复默认
+          </button>
+        }
+      >
+        <p className="text-xs sm:text-sm text-[var(--kz-fg-muted)]">
+          自定义界面主题与顶部导航栏右侧快捷功能按钮的展示。
+        </p>
+        <label className="flex items-center justify-between gap-3 text-xs sm:text-sm text-[var(--kz-fg)]">
+          <span className="font-medium">界面主题</span>
+          <select
+            value={theme}
+            onChange={(e) => setTheme(e.target.value as 'dark' | 'light')}
+            className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1.5 text-xs sm:text-sm cursor-pointer"
+          >
+            <option value="light">☀️ 浅色主题 (Light)</option>
+            <option value="dark">🌙 深色主题 (Dark)</option>
+          </select>
+        </label>
+        <div className="pt-2 border-t border-[var(--kz-border)]/40 space-y-2">
+          <div className="text-xs font-semibold text-[var(--kz-fg-muted)] pt-0.5">
+            导航栏右侧快捷按钮展示
+          </div>
+          <Toggle
+            label="展示「观看历史」按钮"
+            checked={nav.showHistory}
+            onChange={(showHistory) => setNav({ showHistory })}
+          />
+          <p className="text-[11px] sm:text-xs text-[var(--kz-fg-dim)]">
+            在顶部导航栏右侧展示时钟历史图标，点击快速打开播放历史。
+          </p>
+
+          <Toggle
+            label="展示「黑白模式切换」按钮"
+            checked={nav.showThemeToggle}
+            onChange={(showThemeToggle) => setNav({ showThemeToggle })}
+          />
+          <p className="text-[11px] sm:text-xs text-[var(--kz-fg-dim)]">
+            在顶部导航栏右侧展示深浅色一键切换按钮。
+          </p>
+
+          <Toggle
+            label="展示「GitHub」链接"
+            checked={nav.showGitHub}
+            onChange={(showGitHub) => setNav({ showGitHub })}
+          />
+          <p className="text-[11px] sm:text-xs text-[var(--kz-fg-dim)]">
+            在顶部导航栏右侧展示 GitHub 项目开源仓库链接。
+          </p>
+        </div>
+      </CollapsibleSection>
+
+      {/* 4. Bangumi Access Token */}
       <CollapsibleSection
         id="bangumi-token"
         icon="👤"
@@ -732,7 +809,7 @@ export function SettingsPage() {
         </div>
       </CollapsibleSection>
 
-      {/* 4. OP/ED 标记中心 */}
+      {/* 5. OP/ED 标记中心 */}
       <CollapsibleSection
         id="oped-center"
         icon="⏱️"
@@ -907,7 +984,7 @@ export function SettingsPage() {
         )}
       </CollapsibleSection>
 
-      {/* 5. 已安装规则 */}
+      {/* 6. 已安装规则 */}
       <CollapsibleSection
         id="installed-plugins"
         icon="🧩"
@@ -1305,7 +1382,7 @@ export function SettingsPage() {
         </ul>
       </CollapsibleSection>
 
-      {/* 6. 规则仓库 */}
+      {/* 7. 规则仓库 */}
       <CollapsibleSection
         id="rule-catalog"
         icon="🏪"
@@ -1573,7 +1650,7 @@ export function SettingsPage() {
         </ul>
       </CollapsibleSection>
 
-      {/* 7. 播放器偏好 */}
+      {/* 8. 播放器偏好 */}
       <CollapsibleSection
         id="player-settings"
         icon="🎬"
@@ -1823,7 +1900,7 @@ export function SettingsPage() {
         </p>
       </CollapsibleSection>
 
-      {/* 8. 弹幕默认设置 */}
+      {/* 9. 弹幕偏好 */}
       <CollapsibleSection
         id="danmaku-settings"
         icon="💬"

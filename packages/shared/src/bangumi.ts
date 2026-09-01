@@ -1,4 +1,4 @@
-import { bangumiImageUrl } from './bangumi-image'
+import { bangumiImageUrl } from './bangumi-endpoint'
 
 /** Local collect type — CollectType (const object for better ESM interop) */
 export const CollectType = {

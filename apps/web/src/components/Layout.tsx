@@ -23,9 +23,47 @@ const primaryLinks = [
 const moreLinks = [
   { to: '/timeline', label: '时间表' },
   { to: '/collect', label: '追番' },
-  { to: '/history', label: '历史' },
   { to: '/settings', label: '设置' },
 ]
+
+function HistoryIconButton() {
+  const onWarmup = () => {
+    preloadRoute('/history')
+  }
+
+  return (
+    <NavLink
+      to="/history"
+      onMouseEnter={onWarmup}
+      onFocus={onWarmup}
+      onTouchStart={onWarmup}
+      className={({ isActive }) =>
+        clsx(
+          'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border bg-[var(--kz-bg-elevated)] transition-all duration-200 active:scale-95 shadow-sm sm:h-9 sm:w-9',
+          isActive
+            ? 'border-[var(--kz-accent)] text-[var(--kz-accent)] bg-[var(--kz-bg-hover)] shadow-[0_0_8px_var(--kz-accent-ring)]'
+            : 'border-[var(--kz-border)] text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)]',
+        )
+      }
+      title="观看历史"
+      aria-label="观看历史"
+    >
+      <svg
+        className="h-[18px] w-[18px]"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        <circle cx="12" cy="12" r="9" />
+        <polyline points="12 7 12 12 15 15" />
+      </svg>
+    </NavLink>
+  )
+}
 
 function GitHubIconButton() {
   const b = getSiteBranding()
@@ -197,6 +235,9 @@ export function Layout() {
   const navigate = useNavigate()
   const location = useLocation()
   const [params] = useSearchParams()
+  const showHistory = useSettingsStore((s) => s.nav?.showHistory ?? true)
+  const showThemeToggle = useSettingsStore((s) => s.nav?.showThemeToggle ?? true)
+  const showGitHub = useSettingsStore((s) => s.nav?.showGitHub ?? true)
   const qFromUrl =
     location.pathname === '/search' ? params.get('q') || '' : ''
   const [q, setQ] = useState(qFromUrl)
@@ -470,8 +511,9 @@ export function Layout() {
             <SearchIcon />
           </button>
 
-          <ThemeToggleButton />
-          <GitHubIconButton />
+          {showHistory && <HistoryIconButton />}
+          {showThemeToggle && <ThemeToggleButton />}
+          {showGitHub && <GitHubIconButton />}
 
           {/*
             Mobile search overlay — covers logo/nav so the field never

@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { createHash } from 'node:crypto'
 import {
   parseBangumiItem,
   fromBangumiCollectionType,
@@ -30,6 +31,22 @@ export const bangumiRoutes = new Hono()
 
 function tokenFrom(c: { req: { header: (n: string) => string | undefined } }) {
   return getBearerToken(c.req.header('Authorization'))
+}
+
+async function getUsernameForToken(token: string): Promise<string | null> {
+  const cacheKey = `bangumi:token-user:${createHash('sha256').update(token).digest('hex')}`
+  const cached = cacheGet<string>(cacheKey)
+  if (cached) return cached
+
+  const meRes = await bangumiFetch(`${apiUrl}/v0/me`, { token })
+  if (!meRes.ok) return null
+  const me = (await meRes.json()) as { username?: string; id?: number }
+  const username = me.username || (me.id ? String(me.id) : null)
+  if (username) {
+    // 缓存 1 小时，避免频繁请求 /v0/me
+    cacheSet(cacheKey, username, 60 * 60_000)
+  }
+  return username
 }
 
 /** Drop heavy fields for list UIs (calendar / trending / search cards). */
@@ -481,13 +498,10 @@ bangumiRoutes.get('/me', async (c) => {
 bangumiRoutes.get('/collections', async (c) => {
   const token = tokenFrom(c)
   if (!token) return c.json({ error: 'unauthorized', message: '缺少 Access Token' }, 401)
-  const meRes = await bangumiFetch(`${apiUrl}/v0/me`, { token })
-  if (!meRes.ok) {
-    return c.json({ error: 'upstream', message: await meRes.text() }, 401)
+  const username = await getUsernameForToken(token)
+  if (!username) {
+    return c.json({ error: 'unauthorized', message: '无法获取用户信息或 Access Token 无效' }, 401)
   }
-  const me = (await meRes.json()) as { username?: string }
-  const username = me.username
-  if (!username) return c.json({ error: 'bad_user', message: '无法获取用户名' }, 400)
 
   const limit = Number(c.req.query('limit') || 50)
   const offset = Number(c.req.query('offset') || 0)
@@ -564,8 +578,12 @@ bangumiRoutes.get('/collections/:subjectId', async (c) => {
   const token = tokenFrom(c)
   if (!token) return c.json({ error: 'unauthorized', message: '缺少 Access Token' }, 401)
   const subjectId = c.req.param('subjectId')
+  const username = await getUsernameForToken(token)
+  if (!username) {
+    return c.json({ error: 'unauthorized', message: '无法获取用户信息或 Access Token 无效' }, 401)
+  }
   const res = await bangumiFetch(
-    `${apiUrl}/v0/users/-/collections/${subjectId}`,
+    `${apiUrl}/v0/users/${encodeURIComponent(username)}/collections/${subjectId}`,
     { token },
   )
   if (res.status === 404) {
