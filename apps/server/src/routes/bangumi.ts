@@ -503,8 +503,8 @@ bangumiRoutes.get('/collections', async (c) => {
     return c.json({ error: 'unauthorized', message: '无法获取用户信息或 Access Token 无效' }, 401)
   }
 
-  const limit = Number(c.req.query('limit') || 50)
-  const offset = Number(c.req.query('offset') || 0)
+  const limit = Math.min(Math.max(Number(c.req.query('limit')) || 24, 1), 50)
+  const offset = Math.max(Number(c.req.query('offset')) || 0, 0)
   const type = c.req.query('type') // bangumi collection type filter optional
   const url = new URL(
     `${apiUrl}/v0/users/${encodeURIComponent(username)}/collections`,

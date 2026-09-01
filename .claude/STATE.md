@@ -4,6 +4,28 @@
 
 ---
 
+## [2026-09-01] 修复追番收藏页面无法翻页与后续数据展示缺陷 (Fix Collection Pagination & Multi-Page Navigation)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **前端分页调度与 URL 状态同步 (`apps/web/src/pages/CollectPage.tsx`)**：
+     - 将原本写死单次拉取 50 条无分页状态的逻辑，重构为基于 `limit` / `offset` 与 `page` 的标准分页调度体系；
+     - 引入 `useSearchParams` 实现 `tab` 与 `page` 的 URL 响应式双向同步，支持刷新页面、前进后退与深层链接直达特定分页；
+     - 切换分类 Tab 时自动重置 `page` 为 1，切换分页时自动平滑平移至顶部 (`window.scrollTo`)，配合 `placeholderData: (prev) => prev` 消除切页骨架屏抖动；
+     - 实现与设计系统对齐的紧凑数字分页导航条（含上一页/下一页、激活态主题色反白、省略号折叠与禁用态）。
+  2. **API 请求层与服务端参数校验防御 (`apps/web/src/lib/bangumi.ts`, `apps/server/src/routes/bangumi.ts`)**：
+     - `bangumiApi.collections` 严谨处理 `opts.offset != null`、`opts.limit != null` 与 `opts.type != null` 边界；
+     - 服务端 `/api/bangumi/collections` 增加 `limit`（1~50 钳位）与 `offset`（>= 0 钳位）严格防御，透传 `total` 供前端计算 `totalPages`。
+  3. **质量验证**：
+     - `pnpm -r typecheck` 全仓 3 个 workspace 0 报错；
+     - `@animaku/shared` 30 个单测 100% 全部通过；
+     - `@animaku/server` 12 个单测 100% 全部通过；
+     - `pnpm --filter @animaku/web build` 生产构建通过。
+- 涉及文件：apps/web/src/pages/CollectPage.tsx, apps/web/src/lib/bangumi.ts, apps/server/src/routes/bangumi.ts, .claude/BUGS.md, .claude/STATE.md
+- 备注：彻底解决追番页面只显示第一页、后续收藏无法展示的分页缺陷。
+
+---
+
 ## [2026-09-01] 追番状态 UI 现代重构与 0ms 乐观即时切换机制 (Optimistic Collection UI & Zero-Latency Switch)
 - 状态：已完成
 - 优先级：P1

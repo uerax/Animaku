@@ -119,10 +119,10 @@ export const bangumiApi = {
     signal?: AbortSignal
   }) => {
     const q = new URLSearchParams()
-    if (opts?.limit) q.set('limit', String(opts.limit))
-    if (opts?.offset) q.set('offset', String(opts.offset))
-    if (opts?.type) q.set('type', String(opts.type))
-    return api<{ data: BangumiCollectionEntry[]; total?: number }>(
+    if (opts?.limit != null) q.set('limit', String(opts.limit))
+    if (opts?.offset != null) q.set('offset', String(opts.offset))
+    if (opts?.type != null) q.set('type', String(opts.type))
+    return api<{ data: BangumiCollectionEntry[]; total?: number; limit?: number; offset?: number }>(
       `/api/bangumi/collections?${q}`,
       { token: token(), signal: opts?.signal },
     )
