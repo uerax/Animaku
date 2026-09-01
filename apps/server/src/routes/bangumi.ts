@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { createHash } from 'node:crypto'
 import {
   parseBangumiItem,
@@ -441,7 +442,7 @@ bangumiRoutes.get('/subjects/:id', async (c) => {
   if (!res.ok) {
     return c.json(
       { error: 'upstream', message: await res.text() },
-      res.status as 404,
+      res.status as ContentfulStatusCode,
     )
   }
   const json = (await res.json()) as Record<string, unknown>
@@ -464,7 +465,7 @@ bangumiRoutes.get('/subjects/:id/episodes', async (c) => {
   if (!res.ok) {
     return c.json(
       { error: 'upstream', message: await res.text() },
-      (res.status >= 400 && res.status < 600 ? res.status : 502) as 404,
+      (res.status >= 400 && res.status < 600 ? res.status : 502) as ContentfulStatusCode,
     )
   }
   const json = (await res.json()) as { data?: Record<string, unknown>[]; total?: number }
@@ -486,7 +487,10 @@ bangumiRoutes.get('/me', async (c) => {
   if (!token) return c.json({ error: 'unauthorized', message: '缺少 Access Token' }, 401)
   const res = await bangumiFetch(`${apiUrl}/v0/me`, { token })
   if (!res.ok) {
-    return c.json({ error: 'upstream', message: await res.text() }, res.status as 401)
+    return c.json(
+      { error: 'upstream', message: await res.text() },
+      res.status as ContentfulStatusCode,
+    )
   }
   const json = (await res.json()) as Record<string, unknown>
   const user: BangumiUser = {
@@ -570,7 +574,7 @@ bangumiRoutes.put('/collections/:subjectId', async (c) => {
     if (!res2.ok && res2.status !== 204) {
       return c.json(
         { error: 'upstream', message: await res2.text() },
-        res2.status as 400,
+        res2.status as ContentfulStatusCode,
       )
     }
   }

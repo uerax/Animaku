@@ -95,10 +95,13 @@ export function WatchPage() {
     queryFn: ({ signal }) => bangumiApi.getCollection(bangumiId, { signal }),
     enabled: Number.isFinite(bangumiId) && Boolean(token),
   })
+  const mutationSeqRef = useRef(0)
   const setCollect = useMutation({
     mutationFn: (type: CollectType) =>
       bangumiApi.setCollection(bangumiId, type),
     onMutate: async (newType: CollectType) => {
+      const seq = ++mutationSeqRef.current
+
       // 1. 取消正在进行的 refetch，避免覆盖乐观更新
       await qc.cancelQueries({ queryKey: ['collection', bangumiId, token] })
 
@@ -122,18 +125,20 @@ export function WatchPage() {
         }),
       )
 
-      return { previous }
+      return { previous, seq }
     },
     onError: (_err, _newType, context) => {
-      // 网络异常时回滚状态
-      if (context?.previous !== undefined) {
+      // 仅当发生错误的请求是最后一次发出的最新请求时才允许回滚，避免旧请求失败将后续成功状态打回
+      if (context?.previous !== undefined && context.seq === mutationSeqRef.current) {
         qc.setQueryData(['collection', bangumiId, token], context.previous)
       }
     },
-    onSettled: () => {
-      // 请求完成后在后台静默同步服务端权威数据
-      qc.invalidateQueries({ queryKey: ['collection', bangumiId] })
-      qc.invalidateQueries({ queryKey: ['collections'] })
+    onSettled: (_data, _err, _newType, context) => {
+      // 仅在最后一次发出的请求完成时才静默同步服务端权威数据，避免中间过时请求提前 refetch 冲刷乐观 UI
+      if (context?.seq === mutationSeqRef.current) {
+        qc.invalidateQueries({ queryKey: ['collection', bangumiId] })
+        qc.invalidateQueries({ queryKey: ['collections'] })
+      }
     },
   })
   const collectType = collection.data?.data?.type ?? CollectType.none

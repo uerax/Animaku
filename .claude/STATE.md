@@ -4,6 +4,28 @@
 
 ---
 
+## [2026-09-02] 修复 Bangumi 路由状态码类型断言与追番乐观更新并发竞态守卫 (Fix Status Code Types & Mutation Race Guard)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **服务端 Hono 状态码精准类型约束 (`apps/server/src/routes/bangumi.ts`)**：
+     - 引入 `import type { ContentfulStatusCode } from 'hono/utils/http-status'`；
+     - 彻底消除 `as 404` / `as 401` / `as 400` 等掩盖真实运行时状态码的 4 处类型断言，统一断言为 `as ContentfulStatusCode`，修复类型谎言并保证 Hono 类型推导与真实 HTTP 响应语义严格对齐。
+  2. **前端追番乐观更新并发竞态双重守卫 (`apps/web/src/pages/WatchPage.tsx`)**：
+     - 引入 `mutationSeqRef` 递增序号管理；
+     - 在 `onMutate` 注入当前请求的 `seq`；
+     - 在 `onError` 中增加 `context.seq === mutationSeqRef.current` 守卫，彻底消除历史在途慢请求/网络失败将最新已完成状态错误回滚打回的竞态；
+     - 在 `onSettled` 中增加 `context.seq === mutationSeqRef.current` 守卫，避免中间过时请求完成后提前触发 `invalidateQueries` 覆盖尚未落地的乐观 UI。
+  3. **质量验证**：
+     - `pnpm -r typecheck` 全仓 3 个 workspace 0 报错；
+     - `@animaku/shared` 30 个单测 100% 全部通过；
+     - `@animaku/server` 12 个单测 100% 全部通过；
+     - `pnpm build` 全量生产构建成功。
+- 涉及文件：apps/server/src/routes/bangumi.ts, apps/web/src/pages/WatchPage.tsx, .claude/STATE.md
+- 备注：类型推导与并发竞态防御全面闭环。
+
+---
+
 ## [2026-09-01] 优化 Bangumi 分集 404 状态透传与 React Query 4xx 智能跳过重试 (Fix Episodes 404 Passthrough & Skip 4xx Retry)
 - 状态：已完成
 - 优先级：P2
