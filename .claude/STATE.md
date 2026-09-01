@@ -4,6 +4,26 @@
 
 ---
 
+## [2026-09-02] 修复设置页服务状态标题与图标对齐问题 (Fix Settings Server Status Title & Icon Alignment)
+- 状态：已完成
+- 优先级：P3
+- 描述：
+  1. **排查根本原因**：
+     - 在 `apps/web/src/pages/SettingsPage.tsx` 中，其他折叠卡片（如封面图片源、导航栏与外观、Bangumi Token 等）均采用标准 Emoji 作为 `icon`（如 `🖼️`、`🧭`、`🔑`）；
+     - 「服务状态」卡片此前传入了内联的 `h-2.5 w-2.5 rounded-full` 状态小圆点作为 `icon`，由于尺寸与 Emoji 标准字形字宽（~1.25rem）不一致，导致「服务状态」标题文字水平起始坐标较其他模块明显靠左偏离，破坏了垂直视觉基准对齐。
+  2. **统一标准图标与健康度微标槽位 (`apps/web/src/pages/SettingsPage.tsx`)**：
+     - 将「服务状态」的 `icon` 统一为与其他模块风格一致的标准 Emoji `🖥️`，使得所有 9 个设置模块的标题文字左侧对齐线 100% 像素级对齐；
+     - 将服务连通性健康指示小圆点放入 `badge` 槽位，紧随标题展示（正常状态展示发光绿点 `bg-emerald-500`、检测中展示呼吸黄点 `bg-amber-500 animate-pulse`、异常展示红点 `bg-rose-500`），兼顾对齐基准与即时健康状态展示。
+  3. **质量验证**：
+     - `pnpm -r typecheck` 全仓 3 个 workspace 0 报错；
+     - `@animaku/shared` 30 个单测全部通过；
+     - `@animaku/server` 12 个单测全部通过；
+     - `pnpm --filter @animaku/web build` 生产构建成功。
+- 涉及文件：apps/web/src/pages/SettingsPage.tsx, .claude/STATE.md
+- 备注：设置页所有模块图标与标题排版达成绝对统一对齐。
+
+---
+
 ## [2026-09-02] 优化播放页加载骨架屏多列布局对齐与消除首屏 CLS 居中跳动 (Fix Watch Page Skeleton Layout & Zero CLS)
 - 状态：已完成
 - 优先级：P2

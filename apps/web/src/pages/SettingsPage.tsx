@@ -608,8 +608,20 @@ export function SettingsPage() {
       {/* 1. 服务状态 */}
       <CollapsibleSection
         id="server-status"
-        icon={<span className="h-2.5 w-2.5 rounded-full bg-[var(--kz-accent)] inline-block" />}
+        icon="🖥️"
         title="服务状态"
+        badge={
+          <span
+            className={`inline-block h-2 w-2 rounded-full ${
+              health.data?.ok
+                ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.4)]'
+                : health.isLoading
+                  ? 'bg-amber-500 animate-pulse'
+                  : 'bg-rose-500'
+            }`}
+            title={health.data?.ok ? '服务正常' : health.isLoading ? '检测中' : '未连接'}
+          />
+        }
         summary={`${b.version} · ${health.data?.ok ? 'API 正常' : health.isLoading ? '检测中' : '未连接'}`}
         isOpen={Boolean(openSections['server-status'])}
         onToggle={() => toggleSection('server-status')}
