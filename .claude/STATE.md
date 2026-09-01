@@ -4,6 +4,35 @@
 
 ---
 
+## [2026-09-02] 落地 B 站同款 OP/ED 首集保护机制与 5s 极简交互浮层 (First-Episode OP/ED Skip Protection)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **首集准则与唯一判定机制 (`apps/web/src/player/VideoPlayer.tsx`, `packages/shared/src/player.ts`, `packages/shared/src/oped-skip.ts`)**：
+     - 在 `packages/shared/src/player.ts` 的 `PlayerSettings` 中加入 `firstEpisodeProtect: boolean`（默认 `true`），并将 `preferBangumiOped` 默认值设为 `true`，出厂即享开箱即用的智能跳过与首集保护；
+     - 严格以分集槽位物理索引 `index === 0` 作为首集准则，完美兼容带第 0 话（预热篇/Prologue）及非数字编号的分集；
+     - 首集内 OP 与 ED 决策统一绑定（整集至多触发 1 次决策提示）；
+     - 将判定状态机完全抽离为无副作用纯函数决策引擎 `determineOpedAction` (`packages/shared/src/oped-skip.ts`)，组件层与算法层彻底解耦。
+  2. **时序拦截、精准 Seek 与兜底触发 (`apps/web/src/player/VideoPlayer.tsx`, `packages/shared/src/oped-skip.ts`)**：
+     - **正常播放到达 OP 起点**：拦截自动跳过，右下角弹出 5s 极简交互浮层（`首次观看 是否跳过 OP`）；
+     - **快进/拖动进度条错过 OP 起点**：播放到达 ED 起点时作为首集兜底决策点触发浮层（`首次观看 是否跳过 ED`）；
+     - **点击「跳过」**：精准跳转至当前片段目标结束点（OP 触发跳到 `opEnd`，ED 触发跳到 `edEnd`），本集后续 ED（修复 `else` 分支直接执行跳过）及未来集数全自动跳过；
+     - **超时 5s / 点击「✕」关闭**：当前片段不跳过，激活本集 `keepWholeEpisodeRef` 完整播放锁（本集后续 ED 也一并不跳过），未来集数恢复全自动跳过。
+  3. **极简 UI 呈现与依赖联动开关 (`apps/web/src/player/VideoPlayer.tsx`, `apps/web/src/pages/SettingsPage.tsx`)**：
+     - 复用 `kz-countdown-overlay` 体系实现极简无遮挡右下角提示（`首次观看 是否跳过 OP / ED` + `[跳过 (5s)]` + `[✕]`）；
+     - 在设置页「播放器偏好」模块提供「首集保护」开关，并接入 `disabled={!player.preferBangumiOped}` 依赖约束，当 OP/ED 跳过关闭时首集保护自动置灰且不可勾选；
+     - 切集/切源时自动重置单集 Ref 锁与倒计时定时器。
+  4. **全场景 10 维单测矩阵与质量验证 (`packages/shared/src/oped-skip.test.ts`)**：
+     - 新增 `packages/shared/src/oped-skip.test.ts`，100% 覆盖首集 OP 拦截、OP 跳过后 ED 自动跳过、首集超时忽略后整集不跳过、拖进度条越过 OP 兜底 ED 提示、后续集数全自动跳过、全局关 OP/ED、全局关首集保护、开局 0s 起播及倒退防回跳所有场景；
+     - `pnpm -r typecheck` 全仓 3 个 workspace 0 报错；
+     - `@animaku/shared` 40 个单测 100% 全部通过；
+     - `@animaku/server` 12 个单测 100% 全部通过；
+     - `pnpm --filter @animaku/web build` 生产构建通过。
+- 涉及文件：packages/shared/src/player.ts, packages/shared/src/oped-skip.ts, packages/shared/src/oped-skip.test.ts, packages/shared/src/index.ts, apps/web/src/stores/settings.ts, apps/web/src/player/types.ts, apps/web/src/pages/WatchPage.tsx, apps/web/src/player/VideoPlayer.tsx, apps/web/src/pages/SettingsPage.tsx, .claude/STATE.md
+- 备注：彻底实现纯粹且优雅的首集保护，依赖联动与默认开启状态对齐，已通过自动化单元测试 100% 锁定全场景正确性。
+
+---
+
 ## [2026-09-02] 调整设置页模块层级顺序：将「导航栏与外观」迁移至页面最底部 (Reorder Settings Page: Move Nav & Appearance to Bottom)
 - 状态：已完成
 - 优先级：P3

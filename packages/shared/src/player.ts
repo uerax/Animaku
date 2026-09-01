@@ -56,6 +56,11 @@ export interface PlayerSettings {
    * and override manual skipOp / skipEd settings.
    */
   preferBangumiOped: boolean
+  /**
+   * First-episode protection: when playing the first episode (index 0) of a show,
+   * do not skip automatically on OP/ED start; show a 5-second prompt instead.
+   */
+  firstEpisodeProtect: boolean
 }
 
 export const PLAYER_SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const
@@ -84,5 +89,6 @@ export const defaultPlayerSettings: PlayerSettings = {
   superResolution: 'off',
   forceAdBlocker: false,
   serverProxy: false,
-  preferBangumiOped: false,
+  preferBangumiOped: true,
+  firstEpisodeProtect: true,
 }

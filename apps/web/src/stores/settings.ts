@@ -105,6 +105,9 @@ function mergePlayer(partial?: Partial<PlayerSettings>): PlayerSettings {
     preferBangumiOped: Boolean(
       p.preferBangumiOped ?? defaultPlayerSettings.preferBangumiOped,
     ),
+    firstEpisodeProtect: Boolean(
+      p.firstEpisodeProtect ?? defaultPlayerSettings.firstEpisodeProtect,
+    ),
     skipOp: {
       ...defaultPlayerSettings.skipOp,
       ...(p.skipOp && typeof p.skipOp === 'object' ? p.skipOp : {}),

@@ -1959,6 +1959,15 @@ export function SettingsPage() {
           </a>{' '}
           获取番剧每集实际 OP/ED 时间并自动跳过。
         </p>
+        <Toggle
+          label="首集保护（播放第一集时不自动跳过，右下角 5s 提示）"
+          checked={Boolean(player.preferBangumiOped) && player.firstEpisodeProtect !== false}
+          disabled={!player.preferBangumiOped}
+          onChange={(firstEpisodeProtect) => setPlayer({ firstEpisodeProtect })}
+        />
+        <p className={`text-[11px] sm:text-xs text-[var(--kz-fg-dim)] ${!player.preferBangumiOped ? 'opacity-50' : ''}`}>
+          {!player.preferBangumiOped ? '（需先开启上方的 OP/ED 跳过功能）' : ''}开启后播放番剧第一集 (index 0) 时不自动跳过片头片尾，并在右下角弹出 5 秒跳过提示；第 2 集起恢复全自动跳过。
+        </p>
       </CollapsibleSection>
 
       {/* 8. 弹幕偏好 */}

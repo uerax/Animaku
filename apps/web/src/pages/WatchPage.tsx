@@ -365,6 +365,7 @@ export function WatchPage() {
           hudMessage={w.hudMessage}
           bangumiId={w.bangumiId}
           episodeNumber={w.episode?.episode ?? 1}
+          episodeIndex={w.episode?.sourceIndex ?? (w.episode?.episode === 1 ? 0 : undefined)}
           totalEpisodes={item?.totalEpisodes || item?.eps || 12}
           officialOpedData={w.bgmOpedData}
           widescreen={widescreen}

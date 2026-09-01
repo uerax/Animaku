@@ -82,6 +82,8 @@ export interface VideoPlayerProps {
   bangumiId?: number
   /** Current episode number (1-based) */
   episodeNumber?: number
+  /** Current episode index in playlist (0-based, index 0 is first playable episode) */
+  episodeIndex?: number
   /** Total episodes of the anime */
   totalEpisodes?: number
   /** Official bangumi-oped data map for reference & merging */

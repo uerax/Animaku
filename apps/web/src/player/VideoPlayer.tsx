@@ -13,6 +13,7 @@ import './plyr-overrides.css'
 import type Hls from 'hls.js'
 import {
   CONTINUE_PLAY_MIN_THRESHOLD_SEC,
+  determineOpedAction,
   PLAYER_SPEEDS,
   STATS_VALID_PLAY_THRESHOLD_SEC,
   type SuperResolutionMode,
@@ -102,6 +103,7 @@ export function VideoPlayer({
   onMediaLoadFailed,
   bangumiId,
   episodeNumber,
+  episodeIndex,
   totalEpisodes,
   officialOpedData,
   widescreen: controlledWidescreen,
@@ -241,6 +243,16 @@ export function VideoPlayer({
   const [countdown, setCountdown] = useState<number | null>(null)
   const countdownIntervalRef = useRef(0)
 
+  // First-episode OP/ED skip protection overlay (index 0)
+  const [firstEpPrompt, setFirstEpPrompt] = useState<{
+    type: 'op' | 'ed'
+    targetTime: number
+    countdown: number
+  } | null>(null)
+  const firstEpPromptTimerRef = useRef(0)
+  const promptTriggeredThisEpRef = useRef(false)
+  const keepWholeEpisodeRef = useRef(false)
+
   const [aspectRatio, setAspectRatio] = useState<AspectRatioMode>('contain')
 
   const setAspectRatioMode = (next: AspectRatioMode) => {
@@ -271,7 +283,14 @@ export function VideoPlayer({
     playSecAccumulatedRef.current = 0
     playViewReportedRef.current = false
     lastPlaySecTickRef.current = 0
-  }, [bangumiId, episodeNumber, activeSrc])
+    promptTriggeredThisEpRef.current = false
+    keepWholeEpisodeRef.current = false
+    if (firstEpPromptTimerRef.current) {
+      window.clearInterval(firstEpPromptTimerRef.current)
+      firstEpPromptTimerRef.current = 0
+    }
+    setFirstEpPrompt(null)
+  }, [bangumiId, episodeNumber, episodeIndex, activeSrc])
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false)
   const [srMenuOpen, setSrMenuOpen] = useState(false)
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
@@ -1352,64 +1371,54 @@ export function VideoPlayer({
       if (isSeekingRef.current || skipBusyRef.current || t >= d - 3) return
       const safeMax = d - 0.1
 
-      // 单向自然平稳连续播放判定 (Natural forward playback)
-      // timeupdate 在正常播放下的时间增量通常在 0.05s~0.5s，高倍速 (3x/4x) 下最大不超过 2.0s
-      const delta = t - prevT
-      const isNaturalPlayback = delta > 0 && delta <= 3.0
+      const decision = determineOpedAction({
+        currentTime: t,
+        prevTime: prevT,
+        duration: d,
+        isSeeking: isSeekingRef.current,
+        isSkipBusy: skipBusyRef.current,
+        episodeIndex,
+        episodeNumber,
+        playerSettings: p,
+        promptTriggeredThisEp: promptTriggeredThisEpRef.current,
+        keepWholeEpisode: keepWholeEpisodeRef.current,
+      })
 
-      // OP skip (independent from ED – both can trigger in the same episode)
-      if (p.skipOp.enabled && p.skipOp.duration > 0) {
-        const opStart = p.skipOp.start || 0
-        const opDuration = Math.abs(p.skipOp.duration)
-        const opEnd = Math.min(opStart + opDuration, safeMax)
-
-        // 严格约束：当前播放时间必须位于片头结束点之前 (仅允许向前跳过，绝对禁止向后拉回进度)
-        if (t < opEnd) {
-          // 触发条件：
-          // 1. 正常向前连续播放跨越片头起点：prevT < opStart && t >= opStart
-          // 2. 开头片头特例 (opStart <= 0.5s)：视频起播处于片头起点极小窗口内 (prevT <= 0.5 && t >= opStart && t < 2.0)
-          const crossedOpStart =
-            (isNaturalPlayback && prevT < opStart && t >= opStart) ||
-            (opStart <= 0.5 && prevT <= 0.5 && t >= opStart && t < 2.0 && isNaturalPlayback)
-
-          if (crossedOpStart) {
-            skipBusyRef.current = true
-            lastSkipTRef.current = opEnd
-            video.currentTime = opEnd
-            flashSkipHint('已跳过片头')
-            setTimeout(() => {
-              skipBusyRef.current = false
-            }, 1500)
-          }
+      if (decision.action === 'prompt') {
+        promptTriggeredThisEpRef.current = true
+        if (firstEpPromptTimerRef.current) {
+          window.clearInterval(firstEpPromptTimerRef.current)
+          firstEpPromptTimerRef.current = 0
         }
-      }
-
-      // ED skip (independent from OP)
-      if (p.skipEd.enabled && p.skipEd.duration > 0) {
-        const edDuration = Math.abs(p.skipEd.duration)
-        const isRelativeEd = (p.skipEd.start || 0) <= 0
-        const edStart = isRelativeEd ? d - edDuration : p.skipEd.start
-        const edEnd = isRelativeEd ? safeMax : Math.min(edStart + edDuration, safeMax)
-
-        // 严格约束：当前播放时间必须位于片尾结束点之前，且 edStart 有效
-        if (t < edEnd && edStart > 0 && edStart < d) {
-          const crossedEdStart = isNaturalPlayback && prevT < edStart && t >= edStart
-          if (crossedEdStart) {
-            skipBusyRef.current = true
-            lastSkipTRef.current = edEnd
-            video.currentTime = edEnd
-            if (isRelativeEd) {
-              setOffsetHint('即将结束')
-              window.clearTimeout(offsetHintTimer.current)
-              offsetHintTimer.current = window.setTimeout(() => setOffsetHint(''), 2000)
-            } else {
-              flashSkipHint('已跳过片尾')
+        let count = 5
+        setFirstEpPrompt({
+          type: decision.type,
+          targetTime: decision.targetTime,
+          countdown: count,
+        })
+        firstEpPromptTimerRef.current = window.setInterval(() => {
+          count -= 1
+          if (count <= 0) {
+            if (firstEpPromptTimerRef.current) {
+              window.clearInterval(firstEpPromptTimerRef.current)
+              firstEpPromptTimerRef.current = 0
             }
-            setTimeout(() => {
-              skipBusyRef.current = false
-            }, 1500)
+            setFirstEpPrompt(null)
+            keepWholeEpisodeRef.current = true
+          } else {
+            setFirstEpPrompt((prev) => (prev ? { ...prev, countdown: count } : null))
           }
+        }, 1000)
+      } else if (decision.action === 'skip') {
+        skipBusyRef.current = true
+        lastSkipTRef.current = decision.targetTime
+        video.currentTime = decision.targetTime
+        if (decision.hint) {
+          flashSkipHint(decision.hint)
         }
+        setTimeout(() => {
+          skipBusyRef.current = false
+        }, 1500)
       }
     }
 
@@ -1510,8 +1519,9 @@ export function VideoPlayer({
       isSeekingRef.current = true
       lastSkipTRef.current = video.currentTime
       lastPlaySecTickRef.current = video.currentTime
-      // If user seeks during auto-next countdown, cancel it
+      // If user seeks during auto-next countdown or first-ep skip prompt, cancel it
       cancelCountdown()
+      cancelFirstEpPrompt()
       // Spinner only if seek lands outside buffered ranges (nothing to paint)
       try {
         const t = video.currentTime
@@ -1807,6 +1817,7 @@ export function VideoPlayer({
       // Invalidate generation so softPlay / HLS / auth async paths no-op
       genRef.current++
       cancelCountdown()
+      cancelFirstEpPrompt()
       window.removeEventListener('keydown', onKey)
       ro.disconnect()
       try {
@@ -1971,6 +1982,38 @@ export function VideoPlayer({
     window.clearInterval(countdownIntervalRef.current)
     countdownIntervalRef.current = 0
     setCountdown(null)
+  }
+
+  /** Cancel any active first-episode OP/ED skip prompt and hide the overlay */
+  function cancelFirstEpPrompt() {
+    if (firstEpPromptTimerRef.current) {
+      window.clearInterval(firstEpPromptTimerRef.current)
+      firstEpPromptTimerRef.current = 0
+    }
+    setFirstEpPrompt(null)
+  }
+
+  /** Confirm skipping the current segment in first-episode protection */
+  function handleConfirmFirstEpSkip() {
+    if (!firstEpPrompt) return
+    const { type, targetTime } = firstEpPrompt
+    cancelFirstEpPrompt()
+    const video = videoRef.current
+    if (video) {
+      skipBusyRef.current = true
+      lastSkipTRef.current = targetTime
+      video.currentTime = targetTime
+      flashSkipHint(type === 'op' ? '已跳过片头' : '已跳过片尾')
+      setTimeout(() => {
+        skipBusyRef.current = false
+      }, 1500)
+    }
+  }
+
+  /** Dismiss first-episode skip prompt and keep the whole episode unskipped */
+  function handleDismissFirstEpPrompt() {
+    cancelFirstEpPrompt()
+    keepWholeEpisodeRef.current = true
   }
 
   /** Immediately jump to the next episode (countdown reached 0 or user clicked "play now") */
@@ -3038,6 +3081,38 @@ export function VideoPlayer({
         >
           ▶
         </button>
+      )}
+
+      {/* First-Episode OP/ED Skip Prompt Toast */}
+      {firstEpPrompt && !mediaError && (
+        <div className="kz-countdown-layer" onClick={(e) => e.stopPropagation()}>
+          <div className="kz-countdown-overlay">
+            <div className="kz-countdown-info">
+              <span className="kz-countdown-label">
+                {firstEpPrompt.type === 'op'
+                  ? '首次观看 是否跳过 OP'
+                  : '首次观看 是否跳过 ED'}
+              </span>
+            </div>
+            <div className="kz-countdown-actions">
+              <button
+                type="button"
+                className="kz-countdown-btn kz-countdown-btn--primary"
+                onClick={handleConfirmFirstEpSkip}
+              >
+                跳过 ({firstEpPrompt.countdown}s)
+              </button>
+              <button
+                type="button"
+                className="kz-countdown-btn kz-countdown-btn--secondary"
+                title="关闭"
+                onClick={handleDismissFirstEpPrompt}
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Modern Next-Episode Floating Toast */}
