@@ -4,6 +4,26 @@
 
 ---
 
+## [2026-09-01] 支持在配置文件中通过 HOST 参数配置 Docker 端口公网/本地监听绑定 (Configurable Docker Host Port Binding)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **Docker Compose 宿主机端口支持 HOST 变量 (`docker-compose.yml`)**：
+     - 将 `ports` 端口映射由固定的 `"${PORT:-8787}:${PORT:-8787}"` 改为 `"${HOST:-0.0.0.0}:${PORT:-8787}:${PORT:-8787}"`；
+     - 保持容器内部 `environment.HOST: "0.0.0.0"` 监听所有网络接口以接收网桥转发；
+     - 用户在 `.env` 中设置 `HOST=127.0.0.1` 时，宿主机仅绑定回环地址（仅限本机/反代访问，公网禁止直连）；未设置或设为 `0.0.0.0` 时保持默认全网卡公网访问。
+  2. **配置文件示例与文档说明同步 (`.env.example`, `README.md`, `README.en.md`)**：
+     - 补充 `HOST` 变量的配置注释说明，明确 `0.0.0.0`（开放公网）与 `127.0.0.1`（仅限本机/反代）用法；
+     - 保持默认值 `HOST=0.0.0.0` 不变。
+  3. **质量验证**：
+     - `pnpm -r typecheck` 全仓 3 个 workspace 0 报错；
+     - `@animaku/shared` 30 个单测全部通过；
+     - `@animaku/server` 12 个单测全部通过。
+- 涉及文件：docker-compose.yml, .env.example, README.md, README.en.md, .claude/STATE.md
+- 备注：改动精简纯粹，完全由用户通过 .env 配置文件掌控是否向公网开放端口。
+
+---
+
 ## [2026-09-01] Safari / WebKit 播放稳定性与带缓冲感知的程序化意图守卫重构 (Safari Playback Stability & Programmatic Intent Guard)
 - 状态：已完成
 - 优先级：P0

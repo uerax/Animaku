@@ -241,7 +241,7 @@ pnpm bump <ver>    # 一键升级全仓版本（如 pnpm bump 1.1.3 或 pnpm bum
 
 | 变量名 | 默认值 | 说明 |
 | :--- | :--- | :--- |
-| `PORT` / `HOST` | `8787` / `0.0.0.0` | API 服务与单进程生产环境监听端口 / 地址 |
+| `PORT` / `HOST` | `8787` / `0.0.0.0` | API 服务与单进程 / Docker 监听端口与地址（`0.0.0.0` 开放公网，`127.0.0.1` 仅限本机/反代） |
 | `DATA_DIR` / `SQLITE_PATH` | `./data` / `./data/animaku.db` | SQLite 数据库持久化目录与文件路径 |
 | `WEB_DEV_PORT` / `WEB_HOST` | `5173` / `127.0.0.1` | **仅本地 Vite 开发使用**；Docker 生产环境忽略 |
 | `TZ` | `Asia/Shanghai` | 服务端日志与跨天统计时区（支持 IANA 标准时区） |

@@ -240,7 +240,7 @@ See [.env.example](.env.example) for the fully commented list. Server loads from
 
 | Variable | Default | Description |
 | :--- | :--- | :--- |
-| `PORT` / `HOST` | `8787` / `0.0.0.0` | API & production single-process port / listening host |
+| `PORT` / `HOST` | `8787` / `0.0.0.0` | API port / host binding (`0.0.0.0` public, `127.0.0.1` local/reverse-proxy only) |
 | `DATA_DIR` / `SQLITE_PATH` | `./data` / `./data/animaku.db` | SQLite database persistence directory & file path |
 | `WEB_DEV_PORT` / `WEB_HOST` | `5173` / `127.0.0.1` | **Local Vite only**; ignored in Docker production |
 | `TZ` | `Asia/Shanghai` | Server log & daily reset timezone (IANA timezone strings) |

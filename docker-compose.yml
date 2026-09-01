@@ -34,7 +34,7 @@ services:
     # Host PORT → container PORT (production single process; no Vite)
     # Browser: http://localhost:$PORT
     ports:
-      - "${PORT:-8787}:${PORT:-8787}"
+      - "${HOST:-0.0.0.0}:${PORT:-8787}:${PORT:-8787}"
     volumes:
       # Persistent SQLite database & cache directory (persists across container updates)
       - ./data:/app/data
