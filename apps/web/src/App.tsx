@@ -4,8 +4,9 @@ import { Layout } from './components/Layout'
 import { LoadingState } from './components/ui'
 import { routeImports } from './lib/route-preload'
 
-// Keep HomePage in the initial chunk for instantaneous first-paint
+// Keep HomePage and NotFoundPage in the initial chunk for instantaneous render
 import { HomePage } from './pages/HomePage'
+import { NotFoundPage } from './pages/NotFoundPage'
 
 // Route-level code splitting: lazy-load non-index pages using unified preload loaders
 const TimelinePage = lazy(routeImports.timeline)
@@ -94,6 +95,7 @@ export default function App() {
             </Suspense>
           }
         />
+        <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
   )

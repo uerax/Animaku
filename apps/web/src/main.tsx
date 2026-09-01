@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import App from './App'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { bootstrapPlugins } from './stores/plugins'
+import { ApiError } from './lib/api'
 import './index.css'
 // Player frame / placeholder sizing shared by VideoPlayer, EmbedPlayer, SubjectPage
 import './player/plyr-overrides.css'
@@ -15,7 +16,17 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 60_000,
-      retry: 1,
+      retry: (failureCount, error) => {
+        // 4xx client / not-found errors (400, 401, 403, 404, etc.) are deterministic — do not retry
+        if (
+          error instanceof ApiError &&
+          error.status >= 400 &&
+          error.status < 500
+        ) {
+          return false
+        }
+        return failureCount < 1
+      },
       refetchOnWindowFocus: false,
     },
   },

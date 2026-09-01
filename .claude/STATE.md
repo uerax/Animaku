@@ -4,6 +4,57 @@
 
 ---
 
+## [2026-09-01] 优化 Bangumi 分集 404 状态透传与 React Query 4xx 智能跳过重试 (Fix Episodes 404 Passthrough & Skip 4xx Retry)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **服务端分集路由状态透传 (`apps/server/src/routes/bangumi.ts`)**：
+     - 在 `GET /api/bangumi/subjects/:id/episodes` 中，将此前固定硬编码返回 502 的逻辑，重构为与 `/subjects/:id` 一致的动态透传 `res.status`（如上游 404 时准确返回 404）；
+     - 消除不存在的番剧 ID 请求分集时被误报为 502 Bad Gateway 的假象。
+  2. **前端 React Query 4xx 错误重试智能熔断 (`apps/web/src/main.tsx`)**：
+     - 在 `QueryClient` 的 `retry` 配置中引入状态码智能判定：针对 `ApiError` 为 400~499（如 404 Not Found、401 Unauthorized、403 Forbidden）的确定性资源/客户端错误，**直接返回 false 拒绝重试**；
+     - 仅对 5xx 服务端错误或网络丢包保留 1 次重试，彻底消除无效 ID 重复发起多余网络请求的问题。
+  3. **质量验证**：
+     - `pnpm -r typecheck` 全仓 3 个 workspace 0 报错；
+     - `@animaku/shared` 30 个单测 100% 全部通过；
+     - `@animaku/server` 12 个单测 100% 全部通过；
+     - `pnpm build` 全量生产构建成功。
+- 涉及文件：apps/server/src/routes/bangumi.ts, apps/web/src/main.tsx, .claude/STATE.md
+- 备注：状态码严格对齐标准语义，4xx 错误 0 多余网络开销。
+
+---
+
+## [2026-09-01] 落地 404 页面设计与全局不存在/请求失败态自适应呈现 (NotFound & Request Failure Experience)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **二次元动漫主题 404 / 异常页面组件 (`apps/web/src/pages/NotFoundPage.tsx`)**：
+     - **纯矢量自适应插画**：设计二次元天线电视机与星轨插画 (`NotFoundIllustration`)，针对 404 (流泪哭泣表情 `( ; _ ; )`)、Error (抓狂崩溃表情 `( >_< )`) 与 Offline (断网休眠表情 `(-_-)zZ`) 智能切换生动表情，完美适配浅色与深色主题；
+     - **状态微标与情感化文案**：支持 `404` / `not_found` / `error` / `offline` 多态切换，提供大字号渐变标题与友好说明文案；
+     - **内嵌即时搜索栏**：支持用户在 404 页面直接输入关键词回车秒级跳转搜索番剧；
+     - **全套恢复行动矩阵**：提供「返回首页」、「返回上一页」、「番剧目录」及「重新加载」按键，搭配「热门番剧」、「每日放送」、「我的追番」、「观看历史」4 大热门探索快捷卡片；
+     - **可折叠技术排查详情**：支持一键展开/复制原始报错堆栈，便于排查故障；
+     - **鲁棒的路由上下文兼容**：封装 `SafeLink` 与 `navigateTo`，无论是标准路由内跳转还是全局 `ErrorBoundary`（挂载在 `BrowserRouter` 外层）均能无崩坏优雅运行。
+  2. **全局路由注册与静态 SEO (`apps/web/src/App.tsx`, `apps/web/src/lib/seo.ts`)**：
+     - 在 `App.tsx` 注册 `<Route path="*" element={<NotFoundPage />} />` 通配符路由，首页 chunk 同步打包实现 0ms 秒开呈现；
+     - `seo.ts` 注册 `/404` 路由的 SEO 元数据（`robots: noindex,nofollow`）。
+  3. **播放页条目 404 与请求失败态接入 (`apps/web/src/pages/WatchPage.tsx`)**：
+     - **非法 ID 拦截**：针对 `/subject/abc` 或 `/subject/-1` 等非法参数，直接展示 404 页面并提示无效番剧编号；
+     - **Bangumi 404 智能感知**：精准识别 `ApiError.status === 404`，下发「番剧条目不存在或已下架」专属 404 提示；
+     - **服务不可用与断网降级**：非 404 网络/上游异常展示带重试能力的请求失败态，点击「重新加载」原地调用 `w.refetchSubject` 局部重试。
+  4. **全局错误边界与公共状态导出升级 (`apps/web/src/components/ErrorBoundary.tsx`, `apps/web/src/components/ui.tsx`)**：
+     - 彻底替换旧版硬编码黑底单调界面，将 `ErrorBoundary` 崩溃回退升级为设计系统统一的二次元错误页面（带重新加载与错误详情）；
+     - `ui.tsx` 导出 `NotFoundPage` 供全站各模块即时复用。
+  5. **质量验证**：
+     - `pnpm -r typecheck` 全仓 3 个 workspace 0 报错；
+     - `@animaku/shared` 30 个单测 100% 全部通过；
+     - `@animaku/server` 12 个单测 100% 全部通过；
+     - `pnpm build` 全量生产构建成功。
+- 涉及文件：apps/web/src/pages/NotFoundPage.tsx, apps/web/src/App.tsx, apps/web/src/pages/WatchPage.tsx, apps/web/src/components/ErrorBoundary.tsx, apps/web/src/components/ui.tsx, apps/web/src/lib/seo.ts, .claude/feature-map.md, .claude/STATE.md
+- 备注：全面覆盖未匹配 URL、失效/下架番剧 ID、网络请求失败与 React 渲染异常全场景。
+
+---
+
 ## [2026-09-01] 修复追番收藏页面无法翻页与后续数据展示缺陷 (Fix Collection Pagination & Multi-Page Navigation)
 - 状态：已完成
 - 优先级：P1

@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { NotFoundPage } from '../pages/NotFoundPage'
 
 interface Props {
   children: ReactNode
@@ -26,48 +27,18 @@ export class ErrorBoundary extends Component<Props, State> {
         return this.props.fallback
       }
       return (
-        <div
-          style={{
-            minHeight: '100vh',
-            padding: 24,
-            background: '#09090b',
-            color: '#fafafa',
-            fontFamily: 'system-ui, sans-serif',
-          }}
-        >
-          <h1 style={{ fontSize: 20, marginBottom: 12 }}>页面出错了</h1>
-          <pre
-            style={{
-              whiteSpace: 'pre-wrap',
-              background: '#18181b',
-              padding: 16,
-              borderRadius: 12,
-              color: '#fca5a5',
-              fontSize: 13,
-            }}
-          >
-            {this.state.error.message}
-            {'\n\n'}
-            {this.state.error.stack}
-          </pre>
-          <button
-            type="button"
-            onClick={() => {
+        <div className="min-h-screen bg-[var(--kz-bg)] px-4 py-12 text-[var(--kz-fg)]">
+          <NotFoundPage
+            type="error"
+            title="应用遇到了意外错误"
+            description="页面渲染过程中发生异常，您可以尝试重新加载或返回首页。"
+            statusCode={500}
+            error={this.state.error}
+            onRetry={() => {
               this.setState({ error: null })
-              window.location.href = '/'
+              window.location.reload()
             }}
-            style={{
-              marginTop: 16,
-              padding: '8px 16px',
-              borderRadius: 8,
-              border: 'none',
-              background: '#0284c7',
-              color: 'white',
-              cursor: 'pointer',
-            }}
-          >
-            返回首页
-          </button>
+          />
         </div>
       )
     }

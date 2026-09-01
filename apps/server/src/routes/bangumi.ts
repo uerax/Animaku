@@ -462,7 +462,10 @@ bangumiRoutes.get('/subjects/:id/episodes', async (c) => {
   }
   const res = await bangumiFetch(url.toString())
   if (!res.ok) {
-    return c.json({ error: 'upstream', message: await res.text() }, 502)
+    return c.json(
+      { error: 'upstream', message: await res.text() },
+      (res.status >= 400 && res.status < 600 ? res.status : 502) as 404,
+    )
   }
   const json = (await res.json()) as { data?: Record<string, unknown>[]; total?: number }
   const episodes: BangumiEpisode[] = (json.data || []).map((e) => ({

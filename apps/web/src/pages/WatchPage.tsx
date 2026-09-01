@@ -6,7 +6,8 @@ import { useWatchSession } from '../lib/use-watch-session'
 import { bangumiApi } from '../lib/bangumi'
 import { useSettingsStore } from '../stores/settings'
 import { usePluginStore } from '../stores/plugins'
-import { ErrorState } from '../components/ui'
+import { ApiError } from '../lib/api'
+import { NotFoundPage } from './NotFoundPage'
 import {
   EmbedPlayerSuspense,
   VideoPlayerSuspense,
@@ -190,7 +191,16 @@ export function WatchPage() {
   }, [])
 
   if (!Number.isFinite(bangumiId) || bangumiId <= 0) {
-    return <ErrorState error={new Error('无效的番剧 ID')} />
+    return (
+      <div className="px-4 py-6 sm:px-0">
+        <NotFoundPage
+          type="not_found"
+          statusCode={404}
+          title="番剧不存在或链接无效"
+          description={`未找到有效的番剧编号${id ? `（"${id}"）` : ''}，请检查访问链接是否正确。`}
+        />
+      </div>
+    )
   }
 
   if (w.subjectLoading && !w.title) {
@@ -215,9 +225,39 @@ export function WatchPage() {
   }
 
   if (!w.subjectLoading && w.subjectError && !w.title) {
+    const is404 =
+      w.subjectError instanceof ApiError
+        ? w.subjectError.status === 404
+        : /404|not\s*found|不存在/i.test(
+            w.subjectError instanceof Error
+              ? w.subjectError.message
+              : String(w.subjectError),
+          )
+
     return (
-      <div className="kz-watch px-4 sm:px-0 py-8">
-        <ErrorState error={w.subjectError} onRetry={w.refetchSubject} />
+      <div className="px-4 py-6 sm:px-0">
+        {is404 ? (
+          <NotFoundPage
+            type="not_found"
+            statusCode={404}
+            subjectId={bangumiId}
+            title="番剧条目不存在或已下架"
+            description={`未找到条目 ID 为 ${bangumiId} 的番剧信息。该条目可能已被 Bangumi 下架、尚未收录或链接有误。`}
+            onRetry={w.refetchSubject}
+          />
+        ) : (
+          <NotFoundPage
+            type="error"
+            statusCode={
+              w.subjectError instanceof ApiError ? w.subjectError.status : 500
+            }
+            subjectId={bangumiId}
+            title="番剧信息加载失败"
+            description="获取 Bangumi 番剧数据时发生网络异常或服务暂不可用，请检查网络后重试。"
+            error={w.subjectError}
+            onRetry={w.refetchSubject}
+          />
+        )}
       </div>
     )
   }

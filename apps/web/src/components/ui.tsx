@@ -10,6 +10,8 @@ import { preloadVideoPlayer } from '../player/lazy'
 import { preloadRoute } from '../lib/route-preload'
 
 export * from './BangumiImage'
+export { NotFoundPage } from '../pages/NotFoundPage'
+export type { NotFoundPageProps } from '../pages/NotFoundPage'
 
 /** Chip text color on dark cover — pairs with warm score yellow on the right. */
 function airChipClass(

@@ -66,6 +66,11 @@ export const STATIC_ROUTE_SEO: Record<
     description: '规则、播放器、弹幕与账号相关设置。',
     robots: 'noindex,nofollow',
   },
+  '/404': {
+    title: '404 - 页面未找到',
+    description: '很抱歉，你访问的页面不存在、已被移除或链接有误。',
+    robots: 'noindex,nofollow',
+  },
 }
 
 /** Public paths listed in sitemap (no private / thin pages). */
