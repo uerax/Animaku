@@ -1,11 +1,19 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import path from 'node:path'
+import os from 'node:os'
 import {
   buildJsonLd,
   escapeHtml,
   escapeJsonLdScript,
   detectImageMimeType,
   truncateDescription,
+  findSubjectModulePreloadTags,
+  findRouteModulePreloadTags,
+  matchRouteName,
+  getPreloadedHtmlForRoute,
+  renderSuccessPage,
 } from './seo-prerender'
 
 test('buildJsonLd: builds TVSeries and BreadcrumbList schema objects with aggregateRating', () => {
@@ -74,4 +82,82 @@ test('detectImageMimeType & truncateDescription utilities', () => {
   assert.equal(detectImageMimeType('https://lain.bgm.tv/cover.png'), 'image/png')
 
   assert.equal(truncateDescription('短描述', 50), '短描述')
+})
+
+test('findSubjectModulePreloadTags: extracts PlayPage and dependency chunks from assets dir', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'seo-preload-test-'))
+  const assetsDir = path.join(tmpDir, 'assets')
+  fs.mkdirSync(assetsDir)
+
+  fs.writeFileSync(path.join(assetsDir, 'index-12345.js'), '')
+  fs.writeFileSync(path.join(assetsDir, 'PlayPage-ABCDEF.js'), '')
+  fs.writeFileSync(path.join(assetsDir, 'bangumi-oped-98765.js'), '')
+  fs.writeFileSync(path.join(assetsDir, 'server-capabilities-54321.js'), '')
+  fs.writeFileSync(path.join(assetsDir, 'watched-11111.js'), '')
+
+  const tags = findSubjectModulePreloadTags(tmpDir)
+  assert.ok(tags.includes('<link rel="modulepreload" crossorigin href="/assets/PlayPage-ABCDEF.js">'))
+  assert.ok(tags.includes('<link rel="modulepreload" crossorigin href="/assets/bangumi-oped-98765.js">'))
+  assert.ok(tags.includes('<link rel="modulepreload" crossorigin href="/assets/server-capabilities-54321.js">'))
+  assert.ok(tags.includes('<link rel="modulepreload" crossorigin href="/assets/watched-11111.js">'))
+
+  // Cleanup
+  fs.rmSync(tmpDir, { recursive: true, force: true })
+})
+
+test('renderSuccessPage: injects modulepreload tags cleanly into head', () => {
+  const mockTemplate = '<!doctype html><html><head><title>Old</title></head><body><div id="root"></div></body></html>'
+  const mockItem = {
+    id: 622206,
+    name: 'ヤニねこ',
+    nameCn: '尼古喵喵',
+    airDate: '2026-01-01',
+    summary: '测试番剧简介',
+  } as unknown as import('@animaku/shared').BangumiItem
+  const preloadTags = '    <link rel="modulepreload" crossorigin href="/assets/PlayPage-Test.js">'
+  const rendered = renderSuccessPage(mockTemplate, 622206, mockItem, 'https://animaku.app', preloadTags)
+
+  assert.ok(rendered.includes('<link rel="modulepreload" crossorigin href="/assets/PlayPage-Test.js">'))
+  assert.ok(rendered.includes('<title>尼古喵喵（ヤニねこ）· Animaku</title>'))
+  assert.ok(rendered.includes('data-animaku-jsonld="1"'))
+})
+
+test('matchRouteName: matches all core routes and returns null for unmapped/home', () => {
+  assert.equal(matchRouteName('/subject/622206'), 'subject')
+  assert.equal(matchRouteName('/play/622206?ep=1'), 'subject')
+  assert.equal(matchRouteName('/anime'), 'anime')
+  assert.equal(matchRouteName('/timeline'), 'timeline')
+  assert.equal(matchRouteName('/search?q=test'), 'search')
+  assert.equal(matchRouteName('/collect'), 'collect')
+  assert.equal(matchRouteName('/history'), 'history')
+  assert.equal(matchRouteName('/settings'), 'settings')
+  assert.equal(matchRouteName('/'), null)
+  assert.equal(matchRouteName('/404'), null)
+})
+
+test('findRouteModulePreloadTags & getPreloadedHtmlForRoute: works across all routes', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'seo-universal-preload-test-'))
+  const assetsDir = path.join(tmpDir, 'assets')
+  fs.mkdirSync(assetsDir)
+
+  fs.writeFileSync(path.join(tmpDir, 'index.html'), '<!doctype html><html><head><title>Animaku</title></head><body><div id="root"></div></body></html>')
+  fs.writeFileSync(path.join(assetsDir, 'AnimePage-123.js'), '')
+  fs.writeFileSync(path.join(assetsDir, 'TimelinePage-456.js'), '')
+  fs.writeFileSync(path.join(assetsDir, 'SettingsPage-789.js'), '')
+
+  const animeTags = findRouteModulePreloadTags(tmpDir, 'anime')
+  assert.ok(animeTags.includes('/assets/AnimePage-123.js'))
+
+  const animeHtml = getPreloadedHtmlForRoute(tmpDir, '/anime')
+  assert.ok(animeHtml?.includes('<link rel="modulepreload" crossorigin href="/assets/AnimePage-123.js">'))
+
+  const settingsHtml = getPreloadedHtmlForRoute(tmpDir, '/settings')
+  assert.ok(settingsHtml?.includes('<link rel="modulepreload" crossorigin href="/assets/SettingsPage-789.js">'))
+
+  const homeHtml = getPreloadedHtmlForRoute(tmpDir, '/')
+  assert.ok(!homeHtml?.includes('SettingsPage'))
+  assert.ok(homeHtml?.includes('<title>Animaku</title>'))
+
+  // Cleanup
+  fs.rmSync(tmpDir, { recursive: true, force: true })
 })

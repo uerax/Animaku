@@ -46,13 +46,91 @@ export function truncateDescription(str: string, maxLen = 200): string {
   return `${(sp > 40 ? cut.slice(0, sp) : cut).trim()}…`
 }
 
+export type RouteName =
+  | 'subject'
+  | 'anime'
+  | 'timeline'
+  | 'search'
+  | 'collect'
+  | 'history'
+  | 'settings'
+
+const ROUTE_CHUNK_PREFIXES: Record<RouteName, string[]> = {
+  subject: ['PlayPage-', 'bangumi-oped-', 'watched-', 'server-capabilities-'],
+  anime: ['AnimePage-'],
+  timeline: ['TimelinePage-'],
+  search: ['SearchPage-'],
+  collect: ['CollectPage-'],
+  history: ['HistoryPage-'],
+  settings: ['SettingsPage-'],
+}
+
+export function matchRouteName(pathname: string): RouteName | null {
+  const clean = pathname.split('?')[0].split('#')[0]
+  if (clean.startsWith('/subject/') || clean.startsWith('/play/')) return 'subject'
+  if (clean === '/anime' || clean.startsWith('/anime/')) return 'anime'
+  if (clean === '/timeline' || clean.startsWith('/timeline/')) return 'timeline'
+  if (clean === '/search' || clean.startsWith('/search/')) return 'search'
+  if (clean === '/collect' || clean.startsWith('/collect/')) return 'collect'
+  if (clean === '/history' || clean.startsWith('/history/')) return 'history'
+  if (clean === '/settings' || clean.startsWith('/settings/')) return 'settings'
+  return null
+}
+
 interface TemplateCache {
   html: string
   mtimeMs: number
   path: string
+  routePreloadTags: Record<RouteName, string>
 }
 
 let templateCache: TemplateCache | null = null
+
+/**
+ * Scans webRoot/assets to extract Vite modulepreload tags for a specific route chunk and its dependencies.
+ * Enables zero-waterfall parallel chunk downloads on direct visits.
+ */
+export function findRouteModulePreloadTags(
+  webRoot: string,
+  route: RouteName,
+): string {
+  if (!webRoot) return ''
+  const assetsDir = path.resolve(webRoot, 'assets')
+  try {
+    if (!fs.existsSync(assetsDir)) return ''
+    const files = fs.readdirSync(assetsDir)
+    const prefixes = ROUTE_CHUNK_PREFIXES[route] || []
+    const tags: string[] = []
+
+    for (const prefix of prefixes) {
+      const match = files.find(
+        (f) => f.startsWith(prefix) && f.endsWith('.js'),
+      )
+      if (match) {
+        tags.push(`    <link rel="modulepreload" crossorigin href="/assets/${match}">`)
+      }
+    }
+    return tags.join('\n')
+  } catch {
+    return ''
+  }
+}
+
+export function findSubjectModulePreloadTags(webRoot: string): string {
+  return findRouteModulePreloadTags(webRoot, 'subject')
+}
+
+function buildAllRoutePreloadTags(webRoot: string): Record<RouteName, string> {
+  return {
+    subject: findRouteModulePreloadTags(webRoot, 'subject'),
+    anime: findRouteModulePreloadTags(webRoot, 'anime'),
+    timeline: findRouteModulePreloadTags(webRoot, 'timeline'),
+    search: findRouteModulePreloadTags(webRoot, 'search'),
+    collect: findRouteModulePreloadTags(webRoot, 'collect'),
+    history: findRouteModulePreloadTags(webRoot, 'history'),
+    settings: findRouteModulePreloadTags(webRoot, 'settings'),
+  }
+}
 
 /**
  * Reads index.html from disk with mtime hot-invalidation.
@@ -65,13 +143,36 @@ export function getCleanTemplateHtml(webRoot: string): string {
     const stat = fs.statSync(htmlPath)
     if (!templateCache || templateCache.path !== htmlPath || templateCache.mtimeMs !== stat.mtimeMs) {
       const html = fs.readFileSync(htmlPath, 'utf-8')
-      templateCache = { html, mtimeMs: stat.mtimeMs, path: htmlPath }
+      const routePreloadTags = buildAllRoutePreloadTags(webRoot)
+      templateCache = { html, mtimeMs: stat.mtimeMs, path: htmlPath, routePreloadTags }
     }
     return templateCache.html
   } catch (err) {
     console.warn('[seo-prerender] failed to read index.html at', htmlPath, err)
     return ''
   }
+}
+
+export function getCachedSubjectPreloadTags(webRoot?: string): string {
+  if (templateCache?.routePreloadTags.subject) return templateCache.routePreloadTags.subject
+  if (webRoot) return findRouteModulePreloadTags(webRoot, 'subject')
+  return ''
+}
+
+/**
+ * Returns clean HTML template with route-specific modulepreload tags injected for SPA routes.
+ */
+export function getPreloadedHtmlForRoute(webRoot: string, pathname: string): string | null {
+  const template = getCleanTemplateHtml(webRoot)
+  if (!template) return null
+
+  const route = matchRouteName(pathname)
+  if (!route) return template
+
+  const tags = templateCache?.routePreloadTags[route] || findRouteModulePreloadTags(webRoot, route)
+  if (!tags) return template
+
+  return template.replace(/<\/head>/i, `${tags}\n  </head>`)
 }
 
 export type SubjectSeoResult =
@@ -184,11 +285,12 @@ export function buildJsonLd(args: {
 /**
  * Prerender a 200 Success Subject HTML page.
  */
-function renderSuccessPage(
+export function renderSuccessPage(
   templateHtml: string,
   subjectId: number,
   item: BangumiItem,
   origin: string,
+  preloadTags?: string,
 ): string {
   const name = item.nameCn || item.name || `番剧 ${subjectId}`
   const altName =
@@ -271,10 +373,11 @@ function renderSuccessPage(
     )
   }
 
-  // 6. Inject Canonical & JSON-LD into <head>
+  // 6. Inject Canonical, JSON-LD & Modulepreload into <head>
+  const preloadSection = preloadTags ? `\n${preloadTags}` : ''
   const headInject = `  <link rel="canonical" href="${escapeHtml(canonicalUrl)}" />
     <script type="application/ld+json" data-animaku-jsonld="1">${escapeJsonLdScript(JSON.stringify(tvSeriesJson))}</script>
-    <script type="application/ld+json" data-animaku-jsonld="1">${escapeJsonLdScript(JSON.stringify(breadcrumbsJson))}</script>
+    <script type="application/ld+json" data-animaku-jsonld="1">${escapeJsonLdScript(JSON.stringify(breadcrumbsJson))}</script>${preloadSection}
   </head>`
 
   html = html.replace(/<\/head>/i, headInject)
@@ -364,10 +467,11 @@ export async function handleSubjectPrerender(
 
   // 2. Fetch subject metadata
   const result = await fetchSubjectSeoData(subjectId)
+  const preloadTags = getCachedSubjectPreloadTags(webRoot)
 
   // Case A: 200 Success
   if (result.status === 'success') {
-    const prerendered = renderSuccessPage(template, subjectId, result.data, origin)
+    const prerendered = renderSuccessPage(template, subjectId, result.data, origin, preloadTags)
     return new Response(prerendered, {
       status: 200,
       headers: {
@@ -390,12 +494,15 @@ export async function handleSubjectPrerender(
     })
   }
 
-  // Case C: Upstream timeout or temporary failure -> Fall back cleanly to original template
+  // Case C: Upstream timeout or temporary failure -> Fall back cleanly to template with preload
   console.warn(
     `[seo-prerender] fallback to default template for subject /${subjectId}:`,
     result.error,
   )
-  return new Response(template, {
+  const fallbackHtml = preloadTags
+    ? template.replace(/<\/head>/i, `${preloadTags}\n  </head>`)
+    : template
+  return new Response(fallbackHtml, {
     status: 200,
     headers: {
       'Content-Type': 'text/html; charset=utf-8',

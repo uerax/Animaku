@@ -4,6 +4,48 @@
 
 ---
 
+## [2026-09-02] 落地全站通用 1:1 路由 Modulepreload 预加载引擎 (Universal 1:1 Route Modulepreload Engine)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **构建全站通用路由 Chunk 映射与 Modulepreload 引擎 (`apps/server/src/lib/seo-prerender.ts`, `apps/server/src/index.ts`)**：
+     - 实现 `findRouteModulePreloadTags(webRoot, route)` 函数与 `matchRouteName(pathname)` 路由解析器，严谨覆盖核心直达页面（`subject`, `anime`, `timeline`, `search`, `collect`, `history`, `settings`）；
+     - 严格遵循 **1:1 动态精准映射** 原则：访问 `/anime` 仅注入 `AnimePage`，访问 `/settings` 仅注入 `SettingsPage`，首页与 404 页自动沿用主包不额外注入，彻底排除 `hls.js` 与 `Anime4K` 等重型引擎；
+     - 在 `TemplateCache` 中实现带 `mtime` 热失效感知的全路由标签预编译与内存缓存，磁盘 I/O 开销为 0；
+     - 在 SPA Fallback 路由（`app.get('*')`）中接入 `getPreloadedHtmlForRoute(webRoot, pathname)`，使得全站任意深层链接与直达访问均能在接收 HTML 第一秒并行拉取主框架与目标页面的 JS Chunk，消除 React 挂载后才发起二次请求的网络瀑布流。
+  2. **单元测试与全仓质量验证 (`apps/server/src/lib/seo-prerender.test.ts`)**：
+     - 新增 `matchRouteName`、`findRouteModulePreloadTags` 及多路由 `getPreloadedHtmlForRoute` 综合单测；
+     - `pnpm -r typecheck` 全仓 3 个 workspace 0 报错；
+     - `@animaku/server` 16 个单测 100% 全部通过；
+     - `@animaku/shared` 40 个单测 100% 全部通过；
+     - `pnpm build` 全量生产构建成功。
+- 涉及文件：apps/server/src/lib/seo-prerender.ts, apps/server/src/lib/seo-prerender.test.ts, apps/server/src/index.ts, .claude/STATE.md
+- 备注：实现全站所有深层链接直达访问最高并行吞吐，0 多余带宽浪费。
+
+---
+
+## [2026-09-02] 移除外部 Bunny CDN 字体渲染阻塞与全面采用原生现代系统字体栈 (Remove External Font Blocking & Adopt Native System Font Stack)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **排查根本原因**：
+     - 在 `apps/web/index.html` 的 `<head>` 中原先同步声明了 `<link rel="stylesheet" href="https://fonts.bunny.net/css?family=inter...">`；
+     - 浏览器规范中 `<head>` 的外部 CSS 属于最高优先级的**强制渲染阻塞（Render-Blocking）资源**，新环境或特定网络下对海外 CDN 的 DNS 解析、TCP/TLS 握手延迟会导致浏览器强制挂起渲染（整页空白无任何 DOM 内容）；
+     - 且 `apps/web/src/lib/route-preload.ts` 的后台空闲预加载列表中未包含 `subject`，导致初次访问播放页需经历额外的路由 chunk 瀑布等待。
+  2. **全面替换为零阻塞原生系统字体栈与扩展路由预加载 (`apps/web/index.html`, `apps/web/src/index.css`, `apps/web/src/lib/route-preload.ts`)**：
+     - 从 `index.html` 中彻底移除 `fonts.bunny.net` 外部字体 `<link>` 与 `<link rel="preconnect">`，消除所有潜在的跨域握手与阻塞点；
+     - 在 `index.css` 中重构为现代多端统一的高性能系统字体栈（包含 `-apple-system`, `BlinkMacSystemFont`, `'Segoe UI'`, `Roboto`, `'PingFang SC'`, `'Hiragino Sans GB'`, `'Microsoft YaHei'`, `'Apple Color Emoji'` 等），0 额外网络开销，0ms 阻塞即时渲染；
+     - 在 `route-preload.ts` 的 `coreRoutes` 队列中补充 `'subject'` 路由，实现首页空闲时的平滑静默预取。
+  3. **质量验证**：
+     - `pnpm -r typecheck` 全仓 3 个 workspace 0 报错；
+     - `@animaku/shared` 40 个单测 100% 全部通过；
+     - `@animaku/server` 12 个单测 100% 全部通过；
+     - `pnpm --filter @animaku/web build` 生产构建成功。
+- 涉及文件：apps/web/index.html, apps/web/src/index.css, apps/web/src/lib/route-preload.ts, .claude/STATE.md
+- 备注：彻底消除新环境下外部第三方字体 CDN 引起的渲染阻塞与首屏白屏隐患。
+
+---
+
 ## [2026-09-02] 落地 B 站同款 OP/ED 首集保护机制与 5s 极简交互浮层 (First-Episode OP/ED Skip Protection)
 - 状态：已完成
 - 优先级：P1

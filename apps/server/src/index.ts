@@ -30,7 +30,10 @@ import {
   submitFullSitemapToIndexNow,
   submitDifferentialSitemapSubjects,
 } from './lib/indexnow'
-import { handleSubjectPrerender } from './lib/seo-prerender'
+import {
+  handleSubjectPrerender,
+  getPreloadedHtmlForRoute,
+} from './lib/seo-prerender'
 
 /**
  * Resolve SPA build output. @hono/node-server serveStatic only accepts
@@ -315,6 +318,16 @@ if (webRoot) {
       c.req.path.startsWith('/play/')
     ) {
       return next()
+    }
+    const html = getPreloadedHtmlForRoute(webRoot, c.req.path)
+    if (html) {
+      return new Response(html, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-cache',
+        },
+      })
     }
     return serveStatic({ root: webRoot, path: 'index.html' })(c, next)
   })

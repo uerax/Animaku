@@ -88,6 +88,7 @@ export function preloadCoreNavigationRoutes(): void {
     'history',
     'settings',
     'search',
+    'subject',
   ]
 
   // Sequential micro-delay between chunks to keep main thread completely free
