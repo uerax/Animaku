@@ -4,6 +4,21 @@
 
 ---
 
+## [2026-09-02] 在项目规范中新增代码提交自动按改动幅度递增版本号规则与纯文档豁免准则 (Add Version Bump Rules & Docs Exemption to CLAUDE.md)
+- 状态：已完成
+- 优先级：P3
+- 描述：
+  1. **更新项目规范 (`CLAUDE.md`)**：
+     - 在「5. Git 提交与版本号递增规范」中明确版本号递增条件与幅度：
+       - **纯文档/规则修改豁免**：仅涉及文档、项目规范（`CLAUDE.md`、`README.md`、`docs/`、`.claude/` 等）而无实际代码修改时，**不递增版本号**，保持版本号不变；
+       - **代码修改递增**：包含实际代码改动时，根据修改幅度执行 `pnpm bump <patch|minor|major>` 递增全仓版本号（同步 `package.json` 及 `packages/shared/src/version.ts`）；
+     - 明晰划分 Patch（小改动/修复/微调）、Minor（新功能/中等重构）、Major（重大架构/破坏性变更）的递增准则；
+     - 修复重复的二级标题。
+- 涉及文件：CLAUDE.md, .claude/STATE.md
+- 备注：保证每次代码交付均有清晰的版本号递增与追踪链路，同时避免纯文档/规则改动导致版本号虚增。
+
+---
+
 ## [2026-09-02] 清理 matchRouteName 中冗余死代码分支 /play/ (Clean Dead /play/ Branch in matchRouteName)
 - 状态：已完成
 - 优先级：P4
