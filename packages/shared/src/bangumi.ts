@@ -1,4 +1,5 @@
-import { bangumiImageUrl } from './bangumi-endpoint'
+import { bangumiImageUrl, preferResizedCover } from './bangumi-endpoint'
+export { preferResizedCover }
 
 /** Local collect type — CollectType (const object for better ESM interop) */
 export const CollectType = {
@@ -393,27 +394,6 @@ function dateToWeekday(dateStr: string): number {
   }
   // JS: 0=Sun..6=Sat → Bangumi-ish Mon=1..Sun=7
   return day === 0 ? 7 : day
-}
-
-/**
- * Bangumi CDN full covers (`/pic/cover/l/...`) are heavy LCP candidates.
- * Prefer their on-the-fly resize path `/r/{edge}/pic/...` when missing.
- * Already-resized URLs and non-bgm hosts are left unchanged.
- */
-export function preferResizedCover(
-  url: string,
-  maxEdge: 200 | 400 | 800 = 400,
-): string {
-  const src = (url || '').trim()
-  if (!src) return ''
-  if (/\/r\/\d+\//.test(src)) return bangumiImageUrl(src)
-  // Known Bangumi image sources share the same `/pic/` layout.
-  const resized = src.replace(
-    /^(https?:\/\/(?:lain\.)?bgm\.tv|https?:\/\/bgmimg\.anibt\.net|https?:\/\/bgmmi\.anibt\.net)\/pic\//i,
-    `$1/r/${maxEdge}/pic/`,
-  )
-  // Host swap last so the resize path is applied regardless of stored host.
-  return bangumiImageUrl(resized)
 }
 
 /** Prefer smaller sizes for list/grid cards (less decode / transfer). */

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import {
   extractImagePath,
   buildImageUrl,
-  BANGUMI_IMAGE_HOST_BANGUMI,
+  DEFAULT_BANGUMI_IMAGE_HOST,
 } from '@animaku/shared'
 import { useSettingsStore } from '../stores/settings'
 
@@ -24,7 +24,7 @@ export const BangumiImage: React.FC<BangumiImageProps> = ({
   ...rest
 }) => {
   const host =
-    useSettingsStore((s) => s.bangumiImageHost) || BANGUMI_IMAGE_HOST_BANGUMI
+    useSettingsStore((s) => s.bangumiImageHost) || DEFAULT_BANGUMI_IMAGE_HOST
   const path = extractImagePath(src)
   const imageUrl = path ? buildImageUrl(path, host) : ''
 

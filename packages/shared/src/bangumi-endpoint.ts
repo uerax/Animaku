@@ -133,21 +133,23 @@ export function getBangumiApiUrl(): string {
   return toBangumiApiUrl(currentApiHost)
 }
 
-/** 把已知 Bangumi 图片 host 换成当前源或指定源；其它 host / 相对路径原样返回。 */
+/** 把已知 Bangumi 图片 host 换成当前源或指定源；强制升级协议为 https；其它 host / 相对路径原样返回。 */
 export function bangumiImageUrl(
   url: string,
   overrideHost?: string | null,
 ): string {
   const src = (url || '').trim()
   if (!src) return ''
-  const m = /^(https?:)\/\/([^/?#]+)(.*)$/i.exec(src)
+  const m = /^(?:https?:)?\/\/([^/?#]+)(.*)$/i.exec(src)
   if (!m) return src
-  const host = m[2].toLowerCase()
+  const host = m[1].toLowerCase()
   const targetHost = overrideHost
     ? resolveBangumiImagePreset(overrideHost) || currentImageHost
     : currentImageHost
-  if (host === targetHost || !REWRITABLE_IMAGE_HOSTS.has(host)) return src
-  return `${m[1]}//${targetHost}${m[3]}`
+  if (host === targetHost || !REWRITABLE_IMAGE_HOSTS.has(host)) {
+    return REWRITABLE_IMAGE_HOSTS.has(host) ? `https://${host}${m[2]}` : src
+  }
+  return `https://${targetHost}${m[2]}`
 }
 
 /** 把已知 Bangumi 图片 host 强制换成官方源 lain.bgm.tv（用于 SEO / Sitemap / JSON-LD） */
@@ -186,15 +188,45 @@ export function extractImagePath(rawUrl?: string | null): string {
  */
 export function buildImageUrl(
   path?: string | null,
-  host: string = BANGUMI_IMAGE_HOST_BANGUMI,
+  host: string = DEFAULT_BANGUMI_IMAGE_HOST,
 ): string {
   if (!path || !path.trim()) return ''
   const cleanPath = path.trim().startsWith('/') ? path.trim() : `/${path.trim()}`
-  const cleanHost = (host || BANGUMI_IMAGE_HOST_BANGUMI)
+  const cleanHost = (host || DEFAULT_BANGUMI_IMAGE_HOST)
     .trim()
     .replace(/^https?:\/\//i, '')
     .replace(/\/.*$/, '')
   return `https://${cleanHost}${cleanPath}`
+}
+
+/**
+ * Bangumi CDN full covers (`/pic/cover/l/...`) are heavy LCP candidates.
+ * Prefer their on-the-fly resize path `/r/{edge}/pic/...` when missing.
+ * Already-resized URLs and non-bgm hosts are left unchanged.
+ * NOTE: /r/{edge}/ only supports large/original paths (e.g. /pic/cover/l/ or /pic/user/l/).
+ * Pre-sized paths (e.g. /pic/cover/c/, /pic/cover/m/) must NOT be prefixed with /r/{edge}/
+ * as that causes HTTP 400 errors from Bangumi image servers.
+ */
+export function preferResizedCover(
+  url: string,
+  maxEdge: 200 | 400 | 800 = 400,
+): string {
+  const src = (url || '').trim()
+  if (!src) return ''
+  if (/\/r\/\d+\//.test(src)) return bangumiImageUrl(src)
+
+  // Pre-sized thumbnails (cover/c, cover/m, cover/s, cover/g, user/m, user/s) must not be resized again
+  if (/\/(?:cover|user|icon)\/[cmsg]\//i.test(src)) {
+    return bangumiImageUrl(src)
+  }
+
+  // Known Bangumi image sources share the same `/pic/` layout.
+  const resized = src.replace(
+    /^(https?:\/\/(?:lain\.)?bgm\.tv|https?:\/\/bgmimg\.anibt\.net|https?:\/\/bgmmi\.anibt\.net)\/pic\//i,
+    `$1/r/${maxEdge}/pic/`,
+  )
+  // Host swap last so the resize path is applied regardless of stored host.
+  return bangumiImageUrl(resized)
 }
 
 /** 生成 Bangumi 条目页面 URL（固定跳转官方 bgm.tv） */

@@ -15,9 +15,38 @@
      - 更新 `matchRouteName` 单元测试断言；
      - `pnpm -r typecheck` 全仓 3 个 workspace 0 报错；
      - `@animaku/server` 16 个单测 100% 全部通过；
-     - `@animaku/shared` 40 个单测 100% 全部通过。
+     - `@animaku/shared` 41 个单测 100% 全部通过。
 - 涉及文件：apps/server/src/lib/seo-prerender.ts, apps/server/src/lib/seo-prerender.test.ts, .claude/STATE.md
 - 备注：代码更精简清晰，消除对 /play/ 路径预加载的潜在认知混淆。
+
+---
+
+## [2026-09-02] 修复 TimelinePage / 番剧卡片预裁剪缩略图被错误叠加 /r/400/ 导致 HTTP 400 破损与全栈 HTTPS 强制升级 (Fix Bangumi Thumbnail Resize & Force HTTPS)
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **排查根本原因（图片源与上游返回路径差异）**：
+     - **上游 API 返回路径差异**：`next.bgm.tv/p1/calendar` 返回的图片为原始大图路径（`/pic/cover/l/`，或已带 `/r/400/`），而 `api.bgm.tv/calendar`（或部分反代源）返回标准缩略图 `images.common`（`/pic/cover/c/`）与 `images.medium`（`/pic/cover/m/`）；
+     - **错误拼接 `/r/400/` 触发上游 400 报错**：Bangumi 图片服务器与镜像 CDN（`bgmimg.anibt.net`）的 `/r/{edge}/` 动态裁剪仅支持大图原图（`/pic/cover/l/`），对原本就是固定尺寸的缩略图路径（`/pic/cover/c/`、`/pic/cover/m/` 等）强行拼接 `/r/400/pic/cover/c/...` 时，会直接返回 **HTTP 400 Bad Request** 导致图片破损；
+     - **HTTP 协议残留与防盗链**：`api.bgm.tv` 接口返回全量 `http://` 协议，`bangumiImageUrl` 未强制升级 HTTPS，导致在现代浏览器中可能触发 Mixed Content 或被劫持拦截；且 `BangumiCard` 内部 `<img />` 未携带 `referrerPolicy="no-referrer"`。
+  2. **精准路径识别、协议强制升级与安全防盗链改造**：
+     - **动态裁剪路径守卫 (`packages/shared/src/bangumi-endpoint.ts`, `packages/shared/src/bangumi.ts`)**：
+       - `preferResizedCover` 增加路径尺寸特征校验：仅对大图原图路径（`/pic/cover/l/`、`/pic/user/l/` 等）进行 `/r/${maxEdge}/` 改写；
+       - 对已固定尺寸的缩略图路径（`cover/c/`、`cover/m/`、`cover/s/`、`cover/g/`、`user/m/`、`user/s/`），绝对不叠加 `/r/${maxEdge}/`，直接原样安全转换目标 Host 并输出；
+     - **全栈强制升级 HTTPS (`packages/shared/src/bangumi-endpoint.ts`)**：
+       - `bangumiImageUrl` 彻底消除 `${m[1]}//` 残留，对所有已知 Bangumi 域名统一输出 `https://${targetHost}${path}`，100% 免疫 Mixed Content；
+     - **默认 Host 兜底与防盗链 (`apps/web/src/components/BangumiImage.tsx`, `apps/web/src/components/ui.tsx`, `apps/web/src/pages/HomePage.tsx`, `apps/web/src/pages/HistoryPage.tsx`)**：
+       - `BangumiImage` 与 `buildImageUrl` 统一使用 `DEFAULT_BANGUMI_IMAGE_HOST`（`bgmimg.anibt.net` 镜像）作为缺省兜底，杜绝未水合时回退到国内不可用的官方直连源；
+       - 为 `BangumiCard`、`HomePage`、`HistoryPage` 统一注入 `referrerPolicy="no-referrer"`。
+  3. **单元测试与质量验证 (`packages/shared/src/bangumi-endpoint.test.ts`)**：
+       - 补充 `preferResizedCover` 覆盖原图缩放、预裁剪缩略图保持、已缩放路径透传以及 `http:` 强制升级 `https:` 全量测试；
+       - `pnpm -r typecheck` 全仓 3 个 workspace 0 报错；
+       - `@animaku/shared` 41 个单测 100% 秒级通过；
+       - `@animaku/server` 16 个单测 100% 全部通过；
+       - `pnpm --filter @animaku/web build` 生产构建成功；
+       - 在 DevTools 实测周一至周日 7 天共 114 部番剧图片 100% 全部秒开加载成功（0 失败）。
+- 涉及文件：packages/shared/src/bangumi-endpoint.ts, packages/shared/src/bangumi.ts, packages/shared/src/bangumi-endpoint.test.ts, apps/web/src/components/BangumiImage.tsx, apps/web/src/components/ui.tsx, apps/web/src/pages/HomePage.tsx, apps/web/src/pages/HistoryPage.tsx, .claude/STATE.md
+- 备注：彻底根治图片源因缩略图路径误拼 /r/400/ 引发的 HTTP 400 破损缺陷。
 
 ---
 

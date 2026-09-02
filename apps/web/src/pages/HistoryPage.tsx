@@ -61,6 +61,7 @@ export function HistoryPage() {
                   <img
                     src={bangumiImageUrl(h.cover)}
                     alt=""
+                    referrerPolicy="no-referrer"
                     className="h-16 w-12 rounded object-cover"
                   />
                 ) : (
