@@ -202,7 +202,7 @@ function OpedPanelContent({
     )
   }, [bangumiId, officialOpedData, subjectRecord?.episodes, displayTotalEpisodes])
 
-  // 打标动作
+  // 打标动作：Start 采用 Math.round（向上取整防切前置剧情），End 采用 Math.floor（向下取整防切后置正片）
   const handleMarkOpStart = () => {
     if (!bangumiId || activeEp <= 0) return
     const cur = Math.max(0, Math.round(currentTime))
@@ -219,7 +219,7 @@ function OpedPanelContent({
 
   const handleMarkOpEnd = () => {
     if (!bangumiId || activeEp <= 0) return
-    const cur = Math.max(0, Math.round(currentTime))
+    const cur = Math.max(0, Math.floor(currentTime))
     store.markOpEnd(bangumiId, activeEp, cur)
     onToast?.(`已校准第 ${activeEp} 集 OP 终点: ${formatTime(cur)}`)
   }
@@ -240,7 +240,7 @@ function OpedPanelContent({
 
   const handleMarkEdEnd = () => {
     if (!bangumiId || activeEp <= 0) return
-    const cur = Math.max(0, Math.round(currentTime))
+    const cur = Math.max(0, Math.floor(currentTime))
     store.markEdEnd(bangumiId, activeEp, cur)
     onToast?.(`已校准第 ${activeEp} 集 ED 终点: ${formatTime(cur)}`)
   }

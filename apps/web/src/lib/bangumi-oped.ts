@@ -61,7 +61,7 @@ function parseOpedLine(line: string): BgmOpedEntry | null {
 
   const nums = parts.map((p) => {
     const n = Number(p)
-    return Number.isFinite(n) ? Math.round(n) : NaN
+    return Number.isFinite(n) ? Math.floor(n) : NaN
   })
   if (nums.some((n) => Number.isNaN(n))) return null
 

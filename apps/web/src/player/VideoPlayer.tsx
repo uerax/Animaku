@@ -171,6 +171,7 @@ export function VideoPlayer({
 
   const playerRef = useRef(player)
   const danmakuRef = useRef(danmaku)
+  const danmakuPanelRef = useRef(danmakuPanel)
   const commentsRef = useRef(comments)
   /** Live layout for danmaku (avoid stale closure inside src effect). */
   const pointerModeRef = useRef<'desktop' | 'mobile'>('desktop')
@@ -472,6 +473,7 @@ export function VideoPlayer({
 
   playerRef.current = player
   danmakuRef.current = danmaku
+  danmakuPanelRef.current = danmakuPanel
   commentsRef.current = comments
   onNextRef.current = onNext
   onPrevRef.current = onPrev
@@ -646,7 +648,6 @@ export function VideoPlayer({
       commentsRef.current.length,
       commentsRef.current[0]?.time ?? 0,
       commentsRef.current[commentsRef.current.length - 1]?.time ?? 0,
-      dm.timeOffset ?? 0,
       dm.fontSize ?? 1,
       dm.showScroll ? 1 : 0,
       dm.showTop ? 1 : 0,
@@ -1760,11 +1761,12 @@ export function VideoPlayer({
           }
         }
       } else if (k === ',' || e.key === '，') {
-        // agefans: lag danmaku +0.5s
+        // agefans: lag danmaku +0.5s (直接联动弹幕面板单集全局时间偏移)
         e.preventDefault()
-        const cur = danmakuRef.current.timeOffset || 0
+        const panel = danmakuPanelRef.current
+        const cur = panel?.globalTimeOffset || 0
         const next = Math.round((cur + 0.5) * 10) / 10
-        onDanmakuChangeRef.current?.({ timeOffset: next })
+        panel?.onSetGlobalTimeOffset?.(next)
         setOffsetHint(`弹幕滞后 0.5s（偏移 ${next > 0 ? '+' : ''}${next}s）`)
         window.clearTimeout(offsetHintTimer.current)
         offsetHintTimer.current = window.setTimeout(
@@ -1772,11 +1774,12 @@ export function VideoPlayer({
           1500,
         )
       } else if (k === '.' || e.key === '。') {
-        // agefans: advance danmaku -0.5s
+        // agefans: advance danmaku -0.5s (直接联动弹幕面板单集全局时间偏移)
         e.preventDefault()
-        const cur = danmakuRef.current.timeOffset || 0
+        const panel = danmakuPanelRef.current
+        const cur = panel?.globalTimeOffset || 0
         const next = Math.round((cur - 0.5) * 10) / 10
-        onDanmakuChangeRef.current?.({ timeOffset: next })
+        panel?.onSetGlobalTimeOffset?.(next)
         setOffsetHint(`弹幕超前 0.5s（偏移 ${next > 0 ? '+' : ''}${next}s）`)
         window.clearTimeout(offsetHintTimer.current)
         offsetHintTimer.current = window.setTimeout(
@@ -1784,9 +1787,10 @@ export function VideoPlayer({
           1500,
         )
       } else if (k === '/' || e.key === '、') {
-        // agefans: restore offset
+        // agefans: restore offset (直接联动弹幕面板单集全局时间偏移复位)
         e.preventDefault()
-        onDanmakuChangeRef.current?.({ timeOffset: 0 })
+        const panel = danmakuPanelRef.current
+        panel?.onSetGlobalTimeOffset?.(0)
         setOffsetHint('弹幕偏移已复位')
         window.clearTimeout(offsetHintTimer.current)
         offsetHintTimer.current = window.setTimeout(

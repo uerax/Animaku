@@ -492,14 +492,13 @@ export class CanvasDanmaku {
       )
     }
 
-    const offset = this.settings.timeOffset || 0
     const filtered = filterComments(comments, this.settings)
     this.prepared = filtered
       .map((c) => {
         const text = c.text || ''
         const mode = c.mode || 'rtl'
         const p: Prepared = {
-          time: c.time + offset,
+          time: c.time,
           mode,
           text,
           color: parseColor(c.style?.color),

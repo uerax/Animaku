@@ -159,7 +159,7 @@ export const useCustomOpedStore = create<CustomOpedState>()(
       },
 
       markOpEnd: (subjectId, episode, currentTime) => {
-        const end = Math.max(0, Math.round(currentTime))
+        const end = Math.max(0, Math.floor(currentTime))
         set((state) => {
           const sub = state.subjects[subjectId]
           if (!sub) return state
@@ -242,7 +242,7 @@ export const useCustomOpedStore = create<CustomOpedState>()(
       },
 
       markEdEnd: (subjectId, episode, currentTime) => {
-        const end = Math.max(0, Math.round(currentTime))
+        const end = Math.max(0, Math.floor(currentTime))
         set((state) => {
           const sub = state.subjects[subjectId]
           if (!sub) return state
@@ -754,9 +754,9 @@ export function buildBangumiOpedContent(
       }
 
       const opStart = op ? Math.round(op[0]) : -1
-      const opEnd = op ? Math.round(op[1]) : -1
+      const opEnd = op ? Math.floor(op[1]) : -1
       const edStart = ed ? Math.round(ed[0]) : -1
-      const edEnd = ed ? Math.round(ed[1]) : -1
+      const edEnd = ed ? Math.floor(ed[1]) : -1
       return `${ep};${opStart};${opEnd};${edStart};${edEnd}`
     })
     .join('\n')

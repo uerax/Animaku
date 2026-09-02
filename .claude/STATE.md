@@ -4,6 +4,46 @@
 
 ---
 
+## [2026-09-02] 统一弹幕时间偏移体系至面板单集全局偏移并彻底剔除旧全局字段 (Unify Danmaku Time Offset to Panel & Drop Legacy Global)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **彻底剔除旧系统全局 `timeOffset` 字段与底层渲染重复叠加 (`packages/shared/src/danmaku.ts`, `apps/web/src/player/media/canvas-danmaku.ts`, `apps/web/src/player/VideoPlayer.tsx`)**：
+     - 从 `DanmakuSettings` 与 `defaultDanmakuSettings` 中彻底移除 `timeOffset` 字段；
+     - 从底层 `CanvasDanmaku` 渲染引擎中移除 `this.settings.timeOffset` 读取与二次叠加，弹幕流时间轴在进入播放器前已由 `useDanmakuSession` 单一真理源精确合成；
+     - 清理 `VideoPlayer` 中 `contentKey` 残留的 `dm.timeOffset` 依赖。
+  2. **快捷键直接换绑至弹幕面板单集全局时间偏移 (`apps/web/src/player/VideoPlayer.tsx`)**：
+     - 在 `VideoPlayer` 中引入 `danmakuPanelRef` 保持对面板状态与回调的实时引用；
+     - 快捷键 `,`（滞后 0.5s）、`.`（超前 0.5s）、`/`（复位 0s）直接读取并修改 `danmakuPanel.globalTimeOffset` 并调用 `onSetGlobalTimeOffset`；
+     - 快捷键操作与弹幕设置面板 100% 实时同步联动，且修改严格隔离在当前番剧当前集的 `source-bindings` 中，切集/换番绝不全局污染。
+  3. **质量验证与版本升级**：
+     - `pnpm -r typecheck` 全仓 3 个 workspace 0 报错；
+     - 全仓 57 个单测（`@animaku/shared` 41 个 + `@animaku/server` 16 个）100% 全部通过；
+     - `pnpm --filter @animaku/web build` 生产构建通过；
+     - 项目版本号递增：`v1.1.3` -> `v1.1.4`。
+- 涉及文件：packages/shared/src/danmaku.ts, apps/web/src/player/media/canvas-danmaku.ts, apps/web/src/player/VideoPlayer.tsx, package.json, apps/web/package.json, apps/server/package.json, packages/shared/package.json, packages/shared/src/version.ts, .claude/STATE.md
+- 备注：弹幕时间轴体系完全收敛统一为面板单集隔离系统，彻底消除全局串味与双重叠加。
+
+---
+
+## [2026-09-02] 优化 OP/ED 打标起止点取整策略：起点向上取整、终点向下取整 (Align OP/ED Marker Start & End Rounding)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **起止点差异化精准取整策略 (`apps/web/src/player/chrome/OpedMarkerDrawer.tsx`, `apps/web/src/lib/custom-oped-store.ts`)**：
+     - **起点标记 (`markOpStart` / `markEdStart`)**：保持 `Math.round(currentTime)` 向上四舍五入取整，弥补用户听到歌声时的反应时间延迟，防止误切 OP/ED 前面的正片与垫片剧情；
+     - **终点标记 (`markOpEnd` / `markEdEnd`)**：严格采用 `Math.floor(currentTime)` 向下截断取整，防止因向上进位导致终点往后多偏移 1 秒（+1s），彻底杜绝自动跳过 OP 时切掉后置正片剧情对白的问题；
+     - **导出构建 (`buildBangumiOpedContent`)**：`opStart`/`edStart` 采用 `Math.round`，`opEnd`/`edEnd` 采用 `Math.floor`。
+  2. **质量验证与版本升级**：
+     - `pnpm -r typecheck` 全仓 3 个 workspace 0 报错；
+     - 全仓 57 个单测（`@animaku/shared` 41 个 + `@animaku/server` 16 个）100% 全部通过；
+     - `pnpm --filter @animaku/web build` 生产构建成功；
+     - 项目版本号递增：`v1.1.2` -> `v1.1.3`。
+- 涉及文件：apps/web/src/player/chrome/OpedMarkerDrawer.tsx, apps/web/src/lib/custom-oped-store.ts, apps/web/src/lib/bangumi-oped.ts, package.json, apps/web/package.json, apps/server/package.json, packages/shared/package.json, packages/shared/src/version.ts, .claude/STATE.md
+- 备注：彻底理顺 OP/ED 标记起止点的取整行为，兼顾用户反应延迟与后置正片保护。
+
+---
+
 ## [2026-09-02] 在项目规范中新增代码提交自动按改动幅度递增版本号规则与纯文档豁免准则 (Add Version Bump Rules & Docs Exemption to CLAUDE.md)
 - 状态：已完成
 - 优先级：P3

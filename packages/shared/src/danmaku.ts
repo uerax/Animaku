@@ -70,7 +70,6 @@ export interface DanmakuSettings {
   showColor: boolean
   simplify: boolean
   filters: string[]
-  timeOffset: number
 }
 
 export const defaultDanmakuSettings: DanmakuSettings = {
@@ -85,7 +84,6 @@ export const defaultDanmakuSettings: DanmakuSettings = {
   showColor: true,
   simplify: false,
   filters: [],
-  timeOffset: 0,
 }
 
 /** Map bilibili / dandan type codes → DanmakuMode */
