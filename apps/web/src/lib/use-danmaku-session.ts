@@ -480,6 +480,9 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
             subjectMetaRef.current = meta
             setEpisodes(resolvedEpisodes)
             setAnimeId(resolvedAnimeId || '')
+            if (resolvedAnimeId) {
+              setAnimes([{ animeId: resolvedAnimeId, animeTitle: titleRef.current }])
+            }
           }
         }
 
