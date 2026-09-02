@@ -67,7 +67,7 @@ const ROUTE_CHUNK_PREFIXES: Record<RouteName, string[]> = {
 
 export function matchRouteName(pathname: string): RouteName | null {
   const clean = pathname.split('?')[0].split('#')[0]
-  if (clean.startsWith('/subject/') || clean.startsWith('/play/')) return 'subject'
+  if (clean.startsWith('/subject/')) return 'subject'
   if (clean === '/anime' || clean.startsWith('/anime/')) return 'anime'
   if (clean === '/timeline' || clean.startsWith('/timeline/')) return 'timeline'
   if (clean === '/search' || clean.startsWith('/search/')) return 'search'

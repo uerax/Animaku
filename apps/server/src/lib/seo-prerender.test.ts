@@ -124,7 +124,6 @@ test('renderSuccessPage: injects modulepreload tags cleanly into head', () => {
 
 test('matchRouteName: matches all core routes and returns null for unmapped/home', () => {
   assert.equal(matchRouteName('/subject/622206'), 'subject')
-  assert.equal(matchRouteName('/play/622206?ep=1'), 'subject')
   assert.equal(matchRouteName('/anime'), 'anime')
   assert.equal(matchRouteName('/timeline'), 'timeline')
   assert.equal(matchRouteName('/search?q=test'), 'search')
@@ -132,6 +131,7 @@ test('matchRouteName: matches all core routes and returns null for unmapped/home
   assert.equal(matchRouteName('/history'), 'history')
   assert.equal(matchRouteName('/settings'), 'settings')
   assert.equal(matchRouteName('/'), null)
+  assert.equal(matchRouteName('/play/622206'), null)
   assert.equal(matchRouteName('/404'), null)
 })
 

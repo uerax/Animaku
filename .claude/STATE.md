@@ -4,6 +4,23 @@
 
 ---
 
+## [2026-09-02] 清理 matchRouteName 中冗余死代码分支 /play/ (Clean Dead /play/ Branch in matchRouteName)
+- 状态：已完成
+- 优先级：P4
+- 描述：
+  1. **移除不可达路由分支 (`apps/server/src/lib/seo-prerender.ts`)**：
+     - 在 `matchRouteName` 中移除 `clean.startsWith('/play/')` 判断，保留纯净的 `clean.startsWith('/subject/')`；
+     - `/play/:id` 请求在服务中间件最前序阶段即被 301 永久重定向至 `/subject/:id`，且在静态与 SPA Fallback 过滤器中均已跳过，消除不可达死代码与阅读歧义。
+  2. **同步更新单测与全仓验证 (`apps/server/src/lib/seo-prerender.test.ts`)**：
+     - 更新 `matchRouteName` 单元测试断言；
+     - `pnpm -r typecheck` 全仓 3 个 workspace 0 报错；
+     - `@animaku/server` 16 个单测 100% 全部通过；
+     - `@animaku/shared` 40 个单测 100% 全部通过。
+- 涉及文件：apps/server/src/lib/seo-prerender.ts, apps/server/src/lib/seo-prerender.test.ts, .claude/STATE.md
+- 备注：代码更精简清晰，消除对 /play/ 路径预加载的潜在认知混淆。
+
+---
+
 ## [2026-09-02] 落地全站通用 1:1 路由 Modulepreload 预加载引擎 (Universal 1:1 Route Modulepreload Engine)
 - 状态：已完成
 - 优先级：P1
