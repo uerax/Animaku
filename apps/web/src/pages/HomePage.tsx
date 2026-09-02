@@ -104,6 +104,7 @@ export function HomePage() {
                   <img
                     src={bangumiImageUrl(h.cover)}
                     alt=""
+                    referrerPolicy="no-referrer"
                     loading="lazy"
                     decoding="async"
                     width={48}

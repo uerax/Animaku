@@ -71,6 +71,7 @@ export const BangumiCard = memo(function BangumiCard({
           <img
             src={cover}
             alt={item.nameCn || item.name || '动画封面'}
+            referrerPolicy="no-referrer"
             loading={eager ? 'eager' : 'lazy'}
             decoding="async"
             // React 19 / browsers: hint LCP candidate on the first above-fold card
