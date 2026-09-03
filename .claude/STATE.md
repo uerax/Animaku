@@ -2668,3 +2668,22 @@
      - 在 `apps/web/src/stores/plugins.ts` 中递增 `PLUGIN_DEFAULTS_VERSION`（`21 -> 22`）并追加 `tvtfun` 到 `legacyBuiltinNames`。
 - 涉及文件：apps/server/src/lib/tvtfun.ts, apps/server/src/rule-engine/index.ts, apps/web/src/data/default-plugins/tvtfun.json, apps/web/src/data/default-plugins/index.ts, apps/web/src/stores/plugins.ts
 - 备注：集成测试全通过，`pnpm typecheck` 与 `pnpm build` 全仓 0 报错。
+
+## [2026-09-03] 移动端导航栏快捷按钮超过3个自动折叠与防挤压重叠 (v1.2.7)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **移动端右侧快捷按钮溢出治理**：
+     - 排查移动端在开启较多快捷按钮（搜索、用户中心、历史、主题、GitHub）时因视口宽度不足与左侧主导航重叠的问题；
+     - 将桌面端与移动端快捷按钮组完全解耦，分别置于独立的 `shrink-0 items-center` 容器中；
+  2. **优先级动态折叠与独立「···」磨砂浮层（方案 1）**：
+     - 设定移动端快捷优先级队列：搜索 > 用户中心 > 观看历史 > 主题切换 > GitHub；
+     - 当移动端激活按钮总数 $\le 3$ 时，直接平铺展示；
+     - 当总数 $> 3$ 时，常驻直显前 2 个核心按钮（如搜索 + 用户），第 3 位自动收敛为 `···`（更多快捷操作）按钮，将移动端右侧按钮宽度严格恒定在 3 个以内（约 105px），彻底解决小屏重叠挤压；
+  3. **快捷气泡交互与状态感知**：
+     - 点击 `···` 弹出 Glassmorphism 磨砂琉璃气泡菜单，内置带图标与文字标签的「观看历史」、「主题模式（即点即切深浅色）」与「GitHub 仓库」；
+     - 支持点击外部、按 Escape 与路由跳转自动关闭，并在子项处于激活路径时为 `···` 按钮提供视觉高亮状态；
+  4. **版本号平滑递增**：
+     - 全仓版本号递增至 `v1.2.7`。
+- 涉及文件：apps/web/src/components/Layout.tsx, package.json, apps/web/package.json, apps/server/package.json, packages/shared/package.json, packages/shared/src/version.ts
+- 备注：全仓类型检查 `pnpm typecheck` 与前端构建 `pnpm -F @animaku/web build` 验证 100% 通过。

@@ -134,6 +134,197 @@ function ThemeToggleButton() {
   )
 }
 
+type MobileActionKey = 'search' | 'user' | 'history' | 'theme' | 'github'
+type MobileOverflowKey = 'history' | 'theme' | 'github'
+
+function MobileActionsOverflow({
+  items,
+}: {
+  items: MobileOverflowKey[]
+}) {
+  const [open, setOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const location = useLocation()
+  const b = getSiteBranding()
+  const theme = useSettingsStore((s) => s.theme)
+  const toggleTheme = useSettingsStore((s) => s.toggleTheme)
+  const isLight = theme === 'light'
+
+  // 点击外部与 Escape 键关闭
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e: MouseEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  // 路由变化自动关闭
+  useEffect(() => {
+    setOpen(false)
+  }, [location.pathname])
+
+  const hasActiveItem = items.includes('history') && location.pathname === '/history'
+
+  return (
+    <div className="relative shrink-0" ref={menuRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={clsx(
+          'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border bg-[var(--kz-bg-elevated)] transition-all duration-200 active:scale-95 shadow-sm sm:h-9 sm:w-9',
+          open || hasActiveItem
+            ? 'border-[var(--kz-accent)] text-[var(--kz-accent)] bg-[var(--kz-bg-hover)] shadow-[0_0_8px_var(--kz-accent-ring)]'
+            : 'border-[var(--kz-border)] text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)]',
+        )}
+        title="更多快捷功能"
+        aria-label="更多快捷功能"
+        aria-expanded={open}
+        aria-haspopup="menu"
+      >
+        <svg
+          className="h-[18px] w-[18px]"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          aria-hidden
+        >
+          <circle cx="12" cy="12" r="2" />
+          <circle cx="19" cy="12" r="2" />
+          <circle cx="5" cy="12" r="2" />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 top-[calc(100%+8px)] z-50 min-w-[12rem] origin-top-right overflow-hidden rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-1.5 shadow-2xl backdrop-blur-2xl transition-all duration-150"
+        >
+          <div className="space-y-0.5">
+            {items.includes('history') && (
+              <NavLink
+                to="/history"
+                role="menuitem"
+                onClick={() => setOpen(false)}
+                onMouseEnter={() => preloadRoute('/history')}
+                onTouchStart={() => preloadRoute('/history')}
+                className={({ isActive }) =>
+                  clsx(
+                    'flex items-center justify-between rounded-xl px-3 py-2.5 text-xs font-medium transition-colors',
+                    isActive
+                      ? 'bg-[var(--kz-bg-hover)] text-[var(--kz-accent)]'
+                      : 'text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] hover:text-[var(--kz-accent)]',
+                  )
+                }
+              >
+                <div className="flex items-center gap-2.5">
+                  <svg
+                    className="h-4 w-4 shrink-0"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="12" cy="12" r="9" />
+                    <polyline points="12 7 12 12 15 15" />
+                  </svg>
+                  <span>观看历史</span>
+                </div>
+                <span className="text-[10px] text-[var(--kz-fg-dim)]">历史足迹</span>
+              </NavLink>
+            )}
+
+            {items.includes('theme') && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={toggleTheme}
+                className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-xs font-medium text-[var(--kz-fg)] transition-colors hover:bg-[var(--kz-bg-hover)] hover:text-[var(--kz-accent)]"
+              >
+                <div className="flex items-center gap-2.5">
+                  {isLight ? (
+                    <svg
+                      className="h-4 w-4 shrink-0"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M21 14.5A8.5 8.5 0 0 1 9.5 3 7 7 0 1 0 21 14.5z" />
+                    </svg>
+                  ) : (
+                    <svg
+                      className="h-4 w-4 shrink-0"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <circle cx="12" cy="12" r="4" />
+                      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+                    </svg>
+                  )}
+                  <span>主题模式</span>
+                </div>
+                <span className="rounded-md border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-1.5 py-0.5 text-[10px] text-[var(--kz-fg-muted)]">
+                  {isLight ? '浅色' : '深色'}
+                </span>
+              </button>
+            )}
+
+            {items.includes('github') && (
+              <a
+                href={b.githubUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                role="menuitem"
+                onClick={() => setOpen(false)}
+                className="flex items-center justify-between rounded-xl px-3 py-2.5 text-xs font-medium text-[var(--kz-fg)] transition-colors hover:bg-[var(--kz-bg-hover)] hover:text-[var(--kz-accent)]"
+              >
+                <div className="flex items-center gap-2.5">
+                  <svg
+                    className="h-4 w-4 shrink-0 fill-current"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.017C22 6.484 17.522 2 12 2z" />
+                  </svg>
+                  <span>{b.githubLabel}</span>
+                </div>
+                <svg
+                  className="h-3.5 w-3.5 text-[var(--kz-fg-dim)]"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                  <polyline points="15 3 21 3 21 9" />
+                  <line x1="10" y1="14" x2="21" y2="3" />
+                </svg>
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function NavItem({
   to,
   label,
@@ -247,6 +438,22 @@ export function Layout() {
   const showUserMenu = useSettingsStore(
     (s) => s.nav?.showUserMenu ?? defaultNavSettings.showUserMenu,
   )
+
+  const mobileActionItems: MobileActionKey[] = [
+    'search',
+    ...(showUserMenu ? (['user'] as const) : []),
+    ...(showHistory ? (['history'] as const) : []),
+    ...(showThemeToggle ? (['theme'] as const) : []),
+    ...(showGitHub ? (['github'] as const) : []),
+  ]
+  const shouldFoldMobile = mobileActionItems.length > 3
+  const visibleMobileItems: MobileActionKey[] = shouldFoldMobile
+    ? mobileActionItems.slice(0, 2)
+    : mobileActionItems
+  const overflowMobileItems: MobileOverflowKey[] = shouldFoldMobile
+    ? (mobileActionItems.slice(2) as MobileOverflowKey[])
+    : []
+
   const qFromUrl =
     location.pathname === '/search' ? params.get('q') || '' : ''
   const [q, setQ] = useState(qFromUrl)
@@ -501,29 +708,49 @@ export function Layout() {
             </div>
           </form>
 
-          {/* Mobile: search icon only (expanded overlay is below) */}
-          <button
-            type="button"
-            className={clsx(
-              'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] text-[var(--kz-fg)] transition-colors hover:bg-[var(--kz-bg-hover)] md:hidden',
-              mobileSearchOpen && 'invisible',
-            )}
-            aria-label="搜索番剧"
-            title="搜索"
-            aria-hidden={mobileSearchOpen}
-            tabIndex={mobileSearchOpen ? -1 : 0}
-            onClick={() => {
-              setMenuOpen(false)
-              setMobileSearchOpen(true)
-            }}
-          >
-            <SearchIcon />
-          </button>
+          {/* Desktop right action items */}
+          <div className="hidden shrink-0 items-center gap-1.5 sm:gap-2 md:flex">
+            {showHistory && <HistoryIconButton />}
+            {showThemeToggle && <ThemeToggleButton />}
+            {showGitHub && <GitHubIconButton />}
+            {showUserMenu && <UserDropdown />}
+          </div>
 
-          {showHistory && <HistoryIconButton />}
-          {showThemeToggle && <ThemeToggleButton />}
-          {showGitHub && <GitHubIconButton />}
-          {showUserMenu && <UserDropdown />}
+          {/* Mobile right action items (max 3 buttons, overflows into dropdown when > 3) */}
+          <div className="flex shrink-0 items-center gap-1.5 md:hidden">
+            {visibleMobileItems.map((key) => {
+              if (key === 'search') {
+                return (
+                  <button
+                    key="search"
+                    type="button"
+                    className={clsx(
+                      'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] text-[var(--kz-fg)] transition-all duration-200 hover:bg-[var(--kz-bg-hover)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] active:scale-95 shadow-sm sm:h-9 sm:w-9',
+                      mobileSearchOpen && 'invisible',
+                    )}
+                    aria-label="搜索番剧"
+                    title="搜索"
+                    aria-hidden={mobileSearchOpen}
+                    tabIndex={mobileSearchOpen ? -1 : 0}
+                    onClick={() => {
+                      setMenuOpen(false)
+                      setMobileSearchOpen(true)
+                    }}
+                  >
+                    <SearchIcon />
+                  </button>
+                )
+              }
+              if (key === 'user') return <UserDropdown key="user" />
+              if (key === 'history') return <HistoryIconButton key="history" />
+              if (key === 'theme') return <ThemeToggleButton key="theme" />
+              if (key === 'github') return <GitHubIconButton key="github" />
+              return null
+            })}
+            {overflowMobileItems.length > 0 && (
+              <MobileActionsOverflow items={overflowMobileItems} />
+            )}
+          </div>
 
           {/*
             Mobile search overlay — covers logo/nav so the field never
