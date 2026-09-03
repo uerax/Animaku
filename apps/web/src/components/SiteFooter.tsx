@@ -58,6 +58,8 @@ function MailIcon({ className }: { className?: string }) {
 const iconBtn =
   'inline-flex h-9 w-9 items-center justify-center rounded-full text-[var(--kz-fg-muted)] transition-colors hover:bg-[var(--kz-bg-hover)] hover:text-[var(--kz-fg)]'
 
+const START_YEAR = 2026
+
 /**
  * Compact site footer inspired by product sites like 48.club:
  * single row — brand/copyright left, icon links right. No tagline / legal blurb.
@@ -65,7 +67,9 @@ const iconBtn =
  */
 export function SiteFooter() {
   const b = getSiteBranding()
-  const year = new Date().getFullYear()
+  const currentYear = new Date().getFullYear()
+  const yearDisplay =
+    currentYear > START_YEAR ? `${START_YEAR}–${currentYear}` : `${START_YEAR}`
 
   const maintainerLabel = b.maintainerName
     ? b.maintainerName
@@ -88,7 +92,7 @@ export function SiteFooter() {
           <span className="text-[var(--kz-border)]" aria-hidden>
             ·
           </span>
-          <span>© {year}</span>
+          <span>© {yearDisplay}</span>
           {maintainerLabel ? (
             <>
               <span className="text-[var(--kz-border)]" aria-hidden>

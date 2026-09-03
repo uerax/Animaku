@@ -4,6 +4,23 @@
 
 ---
 
+## [2026-09-03] 页脚版权年份支持以 2026 为起始的动态跨年区间展示 (Support Dynamic Copyright Year Range from 2026)
+- 状态：已完成
+- 优先级：P3
+- 描述：
+  1. **落地动态版权年份区间逻辑 (`apps/web/src/components/SiteFooter.tsx`)**：
+     - 定义常量 `START_YEAR = 2026`；
+     - 动态计算当前机器年份 `currentYear = new Date().getFullYear()`；
+     - 当处于 2026 当年时仅显示 `© 2026`，跨年后（2027 及之后）自动格式化为 `© 2026–{currentYear}`，免除未来每年手动维护的成本。
+  2. **质量验证与版本升级**：
+     - `pnpm --filter @animaku/web typecheck` 类型检查通过；
+     - `pnpm --filter @animaku/web build` 生产打包构建成功；
+     - 规范递增 patch 版本号：`v1.2.3` -> `v1.2.4`。
+- 涉及文件：apps/web/src/components/SiteFooter.tsx, package.json, apps/web/package.json, apps/server/package.json, packages/shared/package.json, packages/shared/src/version.ts, .claude/STATE.md
+- 备注：优雅自动化版权年份计算逻辑。
+
+---
+
 ## [2026-09-03] 修复 Docker Compose 与 Dockerfile 缺失导航栏/外观环境变量构建参数 (Fix Docker Compose & Dockerfile Missing Nav Build Args)
 - 状态：已完成
 - 优先级：P1
