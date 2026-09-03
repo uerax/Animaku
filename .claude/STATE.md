@@ -4,20 +4,21 @@
 
 ---
 
-## [2026-09-03] 页脚版权年份支持以 2026 为起始的动态跨年区间展示 (Support Dynamic Copyright Year Range from 2026)
+## [2026-09-03] 页脚升级为 GitHub 风格极简单行居中流式排版 (Refactor Site Footer to GitHub-Style Inline Centered Flow)
 - 状态：已完成
 - 优先级：P3
 - 描述：
-  1. **落地动态版权年份区间逻辑 (`apps/web/src/components/SiteFooter.tsx`)**：
-     - 定义常量 `START_YEAR = 2026`；
-     - 动态计算当前机器年份 `currentYear = new Date().getFullYear()`；
-     - 当处于 2026 当年时仅显示 `© 2026`，跨年后（2027 及之后）自动格式化为 `© 2026–{currentYear}`，免除未来每年手动维护的成本。
-  2. **质量验证与版本升级**：
-     - `pnpm --filter @animaku/web typecheck` 类型检查通过；
-     - `pnpm --filter @animaku/web build` 生产打包构建成功；
-     - 规范递增 patch 版本号：`v1.2.3` -> `v1.2.4`。
+  1. **落地极简单行居中流式页脚 (`apps/web/src/components/SiteFooter.tsx`)**：
+     - 去除冗余的宽屏多列和描述副标题，将全部信息收敛至单行紧凑流（高度压缩至 ~40px）；
+     - 居中水平连贯平铺：`产品名 + 版本号` · `© 2026 Maintainer` · `源码` · `反馈` · `本站不存储任何音视频文件`；
+     - 彻底根治超宽屏两侧极端撕裂和留白空洞问题，视觉体验轻巧优雅。
+  2. **严格单点改动、质量验证与版本升级**：
+     - 改动范围严格限定在 `SiteFooter.tsx` 单一文件；
+     - `pnpm --filter @animaku/web typecheck` 类型检查 0 报错；
+     - `pnpm --filter @animaku/web build` 生产构建成功；
+     - 版本号递增至 `v1.2.5`。
 - 涉及文件：apps/web/src/components/SiteFooter.tsx, package.json, apps/web/package.json, apps/server/package.json, packages/shared/package.json, packages/shared/src/version.ts, .claude/STATE.md
-- 备注：优雅自动化版权年份计算逻辑。
+- 备注：极致克制、不抢视觉焦点的 GitHub 风格底栏。
 
 ---
 
