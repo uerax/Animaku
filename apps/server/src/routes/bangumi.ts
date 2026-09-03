@@ -125,7 +125,15 @@ bangumiRoutes.get('/calendar', async (c) => {
       for (const entry of list) {
         try {
           const e = entry as Record<string, unknown>
-          const subject = (e.subject as Record<string, unknown>) || e
+          const subjectRaw = (e.subject as Record<string, unknown>) || e
+          const subject =
+            e.subject && typeof e.subject === 'object'
+              ? {
+                  ...subjectRaw,
+                  watchers: e.watchers ?? subjectRaw.watchers,
+                  count: e.count ?? subjectRaw.count,
+                }
+              : subjectRaw
           items.push(slimItem(parseBangumiItem(subject)))
         } catch {
           /* skip */
@@ -142,7 +150,15 @@ bangumiRoutes.get('/calendar', async (c) => {
       for (const entry of list) {
         try {
           const e = entry as Record<string, unknown>
-          const subject = (e.subject as Record<string, unknown>) || e
+          const subjectRaw = (e.subject as Record<string, unknown>) || e
+          const subject =
+            e.subject && typeof e.subject === 'object'
+              ? {
+                  ...subjectRaw,
+                  watchers: e.watchers ?? subjectRaw.watchers,
+                  count: e.count ?? subjectRaw.count,
+                }
+              : subjectRaw
           items.push(slimItem(parseBangumiItem(subject)))
         } catch {
           /* skip */
@@ -195,7 +211,15 @@ bangumiRoutes.get('/trending', async (c) => {
         for (const entry of json.data) {
           try {
             const e = entry as Record<string, unknown>
-            const subject = (e.subject as Record<string, unknown>) || e
+            const subjectRaw = (e.subject as Record<string, unknown>) || e
+            const subject =
+              e.subject && typeof e.subject === 'object'
+                ? {
+                    ...subjectRaw,
+                    watchers: e.watchers ?? subjectRaw.watchers,
+                    count: e.count ?? subjectRaw.count,
+                  }
+                : subjectRaw
             items.push(slimItem(parseBangumiItem(subject)))
           } catch {
             /* skip */

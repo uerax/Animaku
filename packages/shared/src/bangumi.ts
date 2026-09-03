@@ -98,6 +98,8 @@ export interface BangumiItem {
   eps: number
   /** Chapter rows in Bangumi DB (`total_episodes`); may include SP. 0 when unknown. */
   totalEpisodes: number
+  /** Doing/watching count from collection.doing or watchers (0 when unknown) */
+  doing?: number
 }
 
 export interface BangumiEpisode {
@@ -261,11 +263,15 @@ export function estimateAirProgress(
     return { status: 'airing', airedEpisodes: aired, eps }
   }
 
-  // Unknown total (long-runner / unfilled wiki): still show 更新至 N 集.
+  // Unknown total: if broadcast started > 180 days ago, consider finished; otherwise airing.
+  if (days > 180) {
+    return { status: 'finished', airedEpisodes: aired, eps: 0 }
+  }
+
   return { status: 'airing', airedEpisodes: aired, eps: 0 }
 }
 
-/** Card / meta badge text: `已完结` | `更新至03集` | `未开播` | null. */
+/** Card / meta status text: `已完结` | `连载中` | `未开播` | null. */
 export function airProgressLabel(
   item: Pick<BangumiItem, 'airDate' | 'eps'>,
   now: Date = new Date(),
@@ -273,14 +279,58 @@ export function airProgressLabel(
   const p = estimateAirProgress(item, now)
   if (p.status === 'finished') return '已完结'
   if (p.status === 'upcoming') return '未开播'
-  if (p.status === 'airing' && p.airedEpisodes > 0) {
-    return `更新至${String(p.airedEpisodes).padStart(2, '0')}集`
+  if (p.status === 'airing') return '连载中'
+  return null
+}
+
+/**
+ * Compact format for watching/doing counters (e.g. 2058 -> '2.1k', 12500 -> '1.3w').
+ */
+export function formatDoingCount(count: number | undefined | null): string {
+  const n = Number(count ?? 0)
+  if (!Number.isFinite(n) || n <= 0) return ''
+  if (n >= 10_000) {
+    return `${(n / 10_000).toFixed(1).replace(/\.0$/, '')}w`
   }
+  if (n >= 1_000) {
+    return `${(n / 1_000).toFixed(1).replace(/\.0$/, '')}k`
+  }
+  return String(n)
+}
+
+/**
+ * Formatted label for watchers/doing count: e.g. `2.1k 人在看` | `850 人在看` | null.
+ */
+export function formatDoingLabel(count: number | undefined | null): string | null {
+  const text = formatDoingCount(count)
+  return text ? `${text} 人在看` : null
+}
+
+/**
+ * Bottom-left badge text on covers: e.g. `连载中 · 2.1k人在看` | `已完结` | `未开播` | null.
+ */
+export function airBadgeLabel(
+  item: Pick<BangumiItem, 'airDate' | 'eps'> & { doing?: number },
+  now: Date = new Date(),
+): string | null {
+  const statusLabel = airProgressLabel(item, now)
+  const doingText = formatDoingCount(item.doing)
+  if (statusLabel && doingText) {
+    return `${statusLabel} · ${doingText}人在看`
+  }
+  if (statusLabel) return statusLabel
+  if (doingText) return `${doingText}人在看`
   return null
 }
 
 export function parseBangumiItem(json: Record<string, unknown>): BangumiItem {
   const rating = (json.rating as Record<string, unknown>) || {}
+  const collection = (json.collection as Record<string, unknown>) || {}
+  const doingRaw = Number(
+    collection.doing ?? json.doing ?? json.watchers ?? json.count ?? 0,
+  )
+  const doing =
+    Number.isFinite(doingRaw) && doingRaw > 0 ? Math.trunc(doingRaw) : undefined
   const imagesRaw = json.images as Record<string, string> | undefined
   const image = typeof json.image === 'string' ? json.image : ''
   const nameCnRaw =
@@ -345,6 +395,7 @@ export function parseBangumiItem(json: Record<string, unknown>): BangumiItem {
     info,
     eps,
     totalEpisodes,
+    doing,
   }
 }
 

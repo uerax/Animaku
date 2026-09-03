@@ -4,6 +4,74 @@
 
 ---
 
+## [2026-09-03] 封面连载状态去斜体精简：正体加粗 + 缩小尺寸微调 (Refine Cover Air Status: Upright Bold & Scaled-Down Typography)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **去除斜体（Italic）**：中文字符倾斜后容易出现视觉重心歪斜和杂乱感，彻底移除 `italic`，回归方块汉字端庄平稳的正体；
+  2. **正体加粗（Bold）**：使用稳健的 `font-bold`，兼顾辨识度与文字清晰度；
+  3. **精巧缩小字号**：从原先的 `text-sm sm:text-base` 缩小为 `text-xs sm:text-[13px]`，配合 `tracking-wider` 带来呼吸感字间距，与左下角 `text-xs` 在看人数遥相呼应，不喧宾夺主；
+  4. **精致微投影**：使用 `drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]`，自然柔和不突兀。
+- 涉及文件：apps/web/src/components/ui.tsx, .claude/STATE.md
+- 备注：彻底解决斜体中文字体歪斜不协调问题，排版更加精致收敛。
+
+## [2026-09-03] 封面连载状态全面去胶囊化：采用类似分数的无框粗斜体大字体悬浮排版 (Unbox Cover Air Status: Bold Italic Floating Typography like Score)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **彻底告别胶囊背景框**：
+     - 去除右上角胶囊容器的白底、圆角外框、阴影与内边距，从物理上彻底根除中文字体内联渲染可能带来的上下边距不一致或基线偏心问题；
+  2. **类似分数的无框大字粗斜体设计**：
+     - 采用 `text-sm sm:text-base font-black italic tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]`，视觉分量与右下角大数字完美平衡；
+     - 顶部增加极轻柔自然暗向渐变（`from-black/60 via-black/20 to-transparent h-12`），保证文字在白色天空或浅色海报上依然雕刻般清晰可见；
+     - 采用高亮语义色（已完结：亮翡翠绿 `text-emerald-300`，连载中：明亮天蓝 `text-sky-300`，未开播：紫罗兰 `text-indigo-300`），兼顾大字冲击力与极速识别度。
+  3. **左下角在看人数分色层级**：
+     - 数字 `2.1k` 采用高亮暖金色（`text-amber-300 font-bold`），辅助说明 `人在看` 采用微透柔和白（`text-white/80 font-normal text-[11px]`），层次分明。
+- 涉及文件：apps/web/src/components/ui.tsx, .claude/STATE.md
+- 备注：整张卡片完全实现全无框流式设计，画面通透感达到极致。
+
+## [2026-09-03] 优化封面角标细节：在看与人数分色层级增强 & 状态胶囊字体绝对垂直居中 (Refine Cover Badges: Doing Counter Color Separation & Chip Vertical Centering)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **在看人数分色层级设计**：
+     - 数字部分（如 `2.1k`）采用高亮暖金色（`text-amber-300 font-bold`），作为核心指标第一眼抓住视线；
+     - 辅助文案（`人在看`）采用微透柔和白（`text-white/80 font-normal text-[11px]`），自然退后作补充说明，告别单一颜色导致的视觉重心分散；
+     - 采用 `items-baseline gap-1` 进行文字基线对齐。
+  2. **右上角状态胶囊像素级垂直居中**：
+     - 解决原 `span` 行内排版 + `py-0.5` + 中文字形度量重心偏上导致的“上窄下宽”视觉偏心；
+     - 重构为 `inline-flex h-5 items-center justify-center leading-none px-1.5`，通过 20px 黄金高度容器与 Flexbox 轴线消除字体自带 line-height 干扰，实现严格对称居中。
+  3. **单测与规范同步**：
+     - `packages/shared/src/bangumi.ts` 的 `formatDoingLabel` 与 `airBadgeLabel` 文案统一规范为 `X 人在看`，同步更新单测断言全部 100% 通过。
+- 涉及文件：apps/web/src/components/ui.tsx, packages/shared/src/bangumi.ts, packages/shared/src/bangumi.test.ts, .claude/STATE.md
+- 备注：进一步打磨细节，达到主流成熟产品的排版质感。
+
+## [2026-09-03] 重构番剧封面角标：右上角状态、左下角热度橙在看人数与 B 站醒目大评分 (Refactor Anime Card Badges: Top-Right Status, Bottom-Left Watchers & Bilibili Bold Score)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **根除封面脆弱集数推算导致的严重对不上 Bug**：
+     - 去除根据首播日期按自然天数机械计算的“更新至第 XX 集”，彻底消除因停播、总集篇（SP）、多集连播、日历无 eps 导致的数字漂移与虚假完结；
+     - 优化宏观状态判定（`airProgressLabel`）：精准输出 `连载中` / `已完结` / `未开播`，长篇或缺失 eps 的老番增加半年熔断机制。
+  2. **提取并展示原生在看人数（0 额外网络请求）**：
+     - 在 `packages/shared/src/bangumi.ts` 的 `BangumiItem` 与 `parseBangumiItem` 中无缝提取上游原生已有的 `collection.doing` / `watchers` / `count`；
+     - 服务端 `/calendar` 与 `/trending` 代理透传 `watchers` 与 `count`；
+     - 新增 `formatDoingCount` 与 `formatDoingLabel`，统一输出规范文案 `X 在看`（如 `2.1k 在看`）。
+  3. **落地经典黄金三角布局与 B 站风格醒目大分数 (`apps/web/src/components/ui.tsx`)**：
+     - **右上角**：独立半透明状态胶囊（`连载中` / `已完结` / `未开播`），搭配天蓝/薄荷绿语义色彩；
+     - **左下角**：独立在看人数胶囊（`text-amber-400` 活力热度橙），醒目展示人气热度；
+     - **右下角**：B 站经典大号加粗斜体纯白评分（`text-lg font-black italic tracking-tight text-white tabular-nums drop-shadow-[0_2px_4px_rgba(0,0,0,0.85)] sm:text-xl`），直接悬浮于暗色渐变海报上方，彻底根除移动端双列排版拥挤与文字截断问题。
+  4. **全仓质量验证与单测补充**：
+     - 新增 `packages/shared/src/bangumi.test.ts` 覆盖状态判定、人数格式化与字段解析；
+     - 全仓 65 个单测（49 个 shared + 16 个 server）100% 全部通过；
+     - 全仓 3 个 workspace `pnpm -r typecheck` 0 报错；
+     - `pnpm --filter @animaku/web build` 生产构建成功；
+     - 规范递增 patch 版本号：`v1.2.5` -> `v1.2.6`。
+- 涉及文件：packages/shared/src/bangumi.ts, packages/shared/src/bangumi.test.ts, apps/server/src/routes/bangumi.ts, apps/web/src/components/ui.tsx, apps/web/src/pages/watch/WatchMeta.tsx, package.json, apps/web/package.json, apps/server/package.json, packages/shared/package.json, packages/shared/src/version.ts, .claude/STATE.md
+- 备注：彻底告别脆弱集数推算，0 新增请求下带来层次分明、移动端完全抗拥挤的顶级封面视觉体验。
+
+---
+
 ## [2026-09-03] 页脚升级为 GitHub 风格极简单行居中流式排版 (Refactor Site Footer to GitHub-Style Inline Centered Flow)
 - 状态：已完成
 - 优先级：P3

@@ -8,6 +8,7 @@ import {
   bangumiSubjectUrl,
   coverOf,
   estimateAirProgress,
+  formatDoingCount,
   type BangumiItem,
 } from '@animaku/shared'
 
@@ -97,6 +98,11 @@ function MetaChips({ item }: { item: BangumiItem }) {
       {item.ratingScore > 0 && (
         <span className="kz-watch-chip kz-watch-chip-score tabular-nums">
           ★ {item.ratingScore.toFixed(1)}
+        </span>
+      )}
+      {Boolean(item.doing && item.doing > 0) && (
+        <span className="kz-watch-chip tabular-nums text-amber-500/90 dark:text-amber-400">
+          {formatDoingCount(item.doing)} 在看
         </span>
       )}
       {airLabel && (

@@ -1,6 +1,6 @@
 {
   "name": "@animaku/shared",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "private": true,
   "type": "module",
   "main": "./src/index.ts",
@@ -9,11 +9,12 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "test": "node --experimental-strip-types --test src/*.test.ts",
+    "test": "tsx --test src/*.test.ts",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit"
   },
   "devDependencies": {
+    "tsx": "^4.19.3",
     "typescript": "^5.8.2"
   }
 }

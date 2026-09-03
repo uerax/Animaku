@@ -5,6 +5,7 @@ import {
   airProgressLabel,
   coverOf,
   estimateAirProgress,
+  formatDoingCount,
 } from '@animaku/shared'
 import { preloadVideoPlayer } from '../player/lazy'
 import { preloadRoute } from '../lib/route-preload'
@@ -14,21 +15,19 @@ export { UserDropdown } from './UserDropdown'
 export { NotFoundPage } from '../pages/NotFoundPage'
 export type { NotFoundPageProps } from '../pages/NotFoundPage'
 
-/** Chip text color on dark cover — pairs with warm score yellow on the right. */
-function airChipClass(
+/** Unboxed status text color floating over poster top gradient (bold italic, like score). */
+function airStatusClass(
   status: ReturnType<typeof estimateAirProgress>['status'],
 ): string {
   switch (status) {
     case 'finished':
-      // Soft mint — “done”, less shouty than pure success green
-      return 'text-[var(--kz-air-finished)]'
+      return 'text-emerald-300'
     case 'airing':
-      // Cool sky — active update, complementary to score
-      return 'text-[var(--kz-air-airing)]'
+      return 'text-sky-300'
     case 'upcoming':
-      return 'text-[var(--kz-air-upcoming)]'
+      return 'text-indigo-300'
     default:
-      return 'text-[var(--kz-air-airing)]'
+      return 'text-white'
   }
 }
 
@@ -51,6 +50,7 @@ export const BangumiCard = memo(function BangumiCard({
   // Derived at render from cached airDate/eps (not frozen inside list TTL).
   const air = estimateAirProgress(item)
   const airLabel = airProgressLabel(item)
+  const doingCount = formatDoingCount(item.doing)
   const eager = imagePriority !== 'lazy'
 
   const onCardWarmup = () => {
@@ -93,20 +93,39 @@ export const BangumiCard = memo(function BangumiCard({
             无封面
           </div>
         )}
-        {/* bottom gradient for score / air-progress legibility */}
-        <div
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/75 to-transparent"
-          aria-hidden
-        />
+        {/* top gradient for status legibility over bright covers */}
+        {airLabel && (
+          <div
+            className="pointer-events-none absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-black/60 via-black/20 to-transparent"
+            aria-hidden
+          />
+        )}
+        {/* top-right status: unboxed upright bold text directly on cover */}
         {airLabel && (
           <span
-            className={`absolute bottom-2.5 left-2.5 max-w-[70%] truncate rounded-md bg-black/65 px-1.5 py-0.5 text-xs font-semibold tabular-nums backdrop-blur-sm ${airChipClass(air.status)}`}
+            className={`absolute top-2 right-2.5 text-xs font-bold tracking-wider drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] sm:text-[13px] ${airStatusClass(air.status)}`}
           >
             {airLabel}
           </span>
         )}
+        {/* bottom gradient for score / watcher legibility */}
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/85 via-black/45 to-transparent"
+          aria-hidden
+        />
+        {/* bottom-left watchers: unboxed text with highlighted number and muted label */}
+        {doingCount && (
+          <span className="absolute bottom-1.5 left-2.5 flex max-w-[60%] items-baseline gap-1 truncate text-xs drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
+            <span className="font-bold tabular-nums text-amber-300">
+              {doingCount}
+            </span>
+            <span className="text-[11px] font-normal text-white/80">
+              人在看
+            </span>
+          </span>
+        )}
         {score && (
-          <span className="absolute bottom-2.5 right-2.5 rounded-md bg-black/65 px-1.5 py-0.5 text-xs font-semibold tabular-nums text-[var(--kz-score)] backdrop-blur-sm">
+          <span className="absolute bottom-1 right-2.5 text-lg font-black italic tracking-tight text-white tabular-nums drop-shadow-[0_2px_4px_rgba(0,0,0,0.85)] sm:text-xl">
             {score}
           </span>
         )}
