@@ -24,16 +24,38 @@ migrateLocalStorageKey('animaku-settings', [
 
 export type AppTheme = 'dark' | 'light'
 
+function envBool(raw: unknown, fallback: boolean): boolean {
+  if (raw === undefined || raw === null || raw === '') return fallback
+  const s = String(raw).trim().toLowerCase()
+  if (['1', 'true', 'yes', 'on'].includes(s)) return true
+  if (['0', 'false', 'no', 'off'].includes(s)) return false
+  return fallback
+}
+
+function envTheme(raw: unknown, fallback: AppTheme): AppTheme {
+  if (raw === undefined || raw === null || raw === '') return fallback
+  const s = String(raw).trim().toLowerCase()
+  if (s === 'dark' || s === 'light') return s
+  return fallback
+}
+
+export const DEFAULT_APP_THEME: AppTheme = envTheme(
+  import.meta.env.VITE_DEFAULT_THEME,
+  'light',
+)
+
 export interface NavSettings {
+  showUserMenu: boolean
   showHistory: boolean
   showThemeToggle: boolean
   showGitHub: boolean
 }
 
 export const defaultNavSettings: NavSettings = {
-  showHistory: true,
-  showThemeToggle: true,
-  showGitHub: true,
+  showUserMenu: envBool(import.meta.env.VITE_NAV_SHOW_USER_MENU, true),
+  showHistory: envBool(import.meta.env.VITE_NAV_SHOW_HISTORY, true),
+  showThemeToggle: envBool(import.meta.env.VITE_NAV_SHOW_THEME_TOGGLE, true),
+  showGitHub: envBool(import.meta.env.VITE_NAV_SHOW_GITHUB, true),
 }
 
 interface SettingsState {
@@ -124,7 +146,7 @@ export const useSettingsStore = create<SettingsState>()(
     (set) => ({
       bangumiToken: '',
       proxyToken: '',
-      theme: 'light',
+      theme: DEFAULT_APP_THEME,
       bangumiImageHost: DEFAULT_BANGUMI_IMAGE_HOST,
       danmaku: { ...defaultDanmakuSettings },
       player: { ...defaultPlayerSettings },
@@ -209,7 +231,7 @@ export const useSettingsStore = create<SettingsState>()(
               ? p.proxyToken
               : current.proxyToken,
           theme:
-            p.theme === 'light' || p.theme === 'dark' ? p.theme : current.theme,
+            p.theme === 'light' || p.theme === 'dark' ? p.theme : DEFAULT_APP_THEME,
           bangumiImageHost: resolveBangumiImageHost(p.bangumiImageHost),
           danmaku: {
             ...defaultDanmakuSettings,
@@ -238,5 +260,5 @@ if (
   typeof document !== 'undefined' &&
   !document.documentElement.getAttribute('data-theme')
 ) {
-  applyDocumentTheme('light')
+  applyDocumentTheme(DEFAULT_APP_THEME)
 }

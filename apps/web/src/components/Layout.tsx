@@ -12,6 +12,7 @@ import { getSiteBranding } from '../lib/site-branding'
 import { preloadRoute, preloadCoreNavigationRoutes } from '../lib/route-preload'
 import { DocumentSeo } from './DocumentSeo'
 import { SiteFooter } from './SiteFooter'
+import { UserDropdown } from './UserDropdown'
 
 /** Always visible in the top strip (mobile + desktop). */
 const primaryLinks = [
@@ -22,7 +23,6 @@ const primaryLinks = [
 /** Desktop strip + mobile overflow menu. */
 const moreLinks = [
   { to: '/timeline', label: '时间表' },
-  { to: '/collect', label: '追番' },
   { to: '/settings', label: '设置' },
 ]
 
@@ -238,6 +238,7 @@ export function Layout() {
   const showHistory = useSettingsStore((s) => s.nav?.showHistory ?? true)
   const showThemeToggle = useSettingsStore((s) => s.nav?.showThemeToggle ?? true)
   const showGitHub = useSettingsStore((s) => s.nav?.showGitHub ?? true)
+  const showUserMenu = useSettingsStore((s) => s.nav?.showUserMenu ?? true)
   const qFromUrl =
     location.pathname === '/search' ? params.get('q') || '' : ''
   const [q, setQ] = useState(qFromUrl)
@@ -514,6 +515,7 @@ export function Layout() {
           {showHistory && <HistoryIconButton />}
           {showThemeToggle && <ThemeToggleButton />}
           {showGitHub && <GitHubIconButton />}
+          {showUserMenu && <UserDropdown />}
 
           {/*
             Mobile search overlay — covers logo/nav so the field never

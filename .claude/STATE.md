@@ -4,6 +4,43 @@
 
 ---
 
+## [2026-09-03] 落地通用用户模块框架设计、策略适配器与导航栏右上角下拉入口 (User Domain Architecture & Top Navigation Dropdown)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **通用用户领域模型与认证策略契约 (`packages/shared/src/user.ts`, `packages/shared/src/index.ts`)**：
+     - 定义与第三方平台解耦的统一领域实体 `UserProfile`、`UserSession`、`IAuthProvider`、`AuthProviderType` 以及访客辅助函数 `isGuestUser`、`GUEST_USER_PROFILE`；
+     - 采用适配器与策略模式，业务层统一面向中立的通用模型交互，支持后续自建用户系统平滑接入。
+  2. **状态管理与 Bangumi 认证适配器 (`apps/web/src/stores/auth.ts`)**：
+     - 构建 `useAuthStore`，实现基于 `IAuthProvider` 的策略注册表；
+     - 实现 `BangumiAuthProvider`，双向桥接现有的 Bangumi Access Token 与 `bangumiApi.me()`，保持现有业务 100% 向后兼容；
+     - 预留 `SelfHostedAuthProvider` 骨架，方便后续快速扩展自有用户鉴权接口；
+     - 支持脱机资料快照持久化，消除首屏未水合时的头像闪烁。
+  3. **导航栏精简与追番入口收拢 (`apps/web/src/components/Layout.tsx`, `apps/web/src/pages/CollectPage.tsx`)**：
+     - 从主导航条与移动端更多菜单中移除「追番」链接，导航栏更精简聚焦；
+     - 保持 `/collect` 路由可用，并将其升级为感知 `useAuthStore` 会话状态；
+     - 追番作为首要核心项收拢至右上角用户中心下拉菜单中。
+  4. **右上角用户模块下拉组件与设置项支持 (`apps/web/src/components/UserDropdown.tsx`, `apps/web/src/components/ui.tsx`, `apps/web/src/stores/settings.ts`, `apps/web/src/pages/SettingsPage.tsx`)**：
+     - 按钮态：未登录展示精致轮廓图标，已登录展示圆形头像（复用 `BangumiAvatar`）与昵称首字母兜底；
+     - 下拉菜单：包含用户资料卡片（展示平台徽标如 Bangumi）、我的追番、观看历史、系统设置以及退出/解绑按钮；
+     - 完善的交互体验：点击外部自动收起、ESC 键收起、路由切换自动关闭、无障碍 ARIA 属性完备；
+     - 在 `NavSettings` 中扩充 `showUserMenu`，并在设置页「🧭 导航栏与外观」卡片中同步集成独立展示开关与摘要。
+  5. **分层默认配置支持与环境变量注入 (`apps/web/src/stores/settings.ts`, `.env.example`)**：
+     - 在 `settings.ts` 中实现 `envBool` 与 `envTheme` 解析辅助函数；
+     - 支持通过 `VITE_DEFAULT_THEME`（`light` / `dark`）定制新访客初始主题；
+     - 支持通过 `VITE_NAV_SHOW_USER_MENU`、`VITE_NAV_SHOW_HISTORY`、`VITE_NAV_SHOW_THEME_TOGGLE`、`VITE_NAV_SHOW_GITHUB` 在 `.env` 中定制新访客导航栏出厂默认展示状态；
+     - 完美兼顾“站长部署预设”与“单端用户在设置页个性化覆盖保存在 localStorage”的分层自洽；用户点击“恢复默认”时自动恢复至站长 `.env` 指定的默认值；
+     - 同步在 `.env.example` 补充完整的配置注释。
+  6. **全仓质量验证与版本升级**：
+     - 全仓 3 个 workspace `pnpm -r typecheck` 0 报错；
+     - 59 个单元测试（`@animaku/shared` 43 个 + `@animaku/server` 16 个）100% 全部通过；
+     - `pnpm --filter @animaku/web build` 生产构建成功；
+     - 递增项目次版本号：`v1.1.5` -> `v1.2.0`。
+- 涉及文件：packages/shared/src/user.ts, packages/shared/src/user.test.ts, packages/shared/src/index.ts, apps/web/src/stores/auth.ts, apps/web/src/stores/settings.ts, apps/web/src/components/UserDropdown.tsx, apps/web/src/components/Layout.tsx, apps/web/src/components/ui.tsx, apps/web/src/pages/CollectPage.tsx, apps/web/src/pages/SettingsPage.tsx, .env.example, .claude/feature-map.md, .claude/STATE.md, package.json, apps/web/package.json, apps/server/package.json, packages/shared/package.json, packages/shared/src/version.ts
+- 备注：用户模块架构骨架与设计模式完全就绪，后续接入自建用户系统只需新增 Provider 实现，业务层无需任何重构。
+
+---
+
 ## [2026-09-02] 统一弹幕时间偏移体系至面板单集全局偏移并彻底剔除旧全局字段 (Unify Danmaku Time Offset to Panel & Drop Legacy Global)
 - 状态：已完成
 - 优先级：P1

@@ -87,6 +87,7 @@
 ## 9. 业务页面与前端核心路由 (Pages & App Shell)
 - 应用主入口与路由注册：`apps/web/src/App.tsx`, `apps/web/src/main.tsx`
 - 全局主布局 (导航栏、搜索框、底部栏)：`apps/web/src/components/Layout.tsx`, `apps/web/src/components/SiteFooter.tsx`
+- 用户中心下拉菜单入口组件：`apps/web/src/components/UserDropdown.tsx`
 - 路由预加载与意图预取中心：`apps/web/src/lib/route-preload.ts`
 - 首页 (热门番剧、分类板块、继续观看)：`apps/web/src/pages/HomePage.tsx`
 - 每日放送时间表页：`apps/web/src/pages/TimelinePage.tsx`
@@ -100,6 +101,8 @@
 - 全局错误边界：`apps/web/src/components/ErrorBoundary.tsx`
 
 ## 10. 用户状态管理与本地持久化 (Stores & Storage)
+- 统一用户领域模型与契约接口：`packages/shared/src/user.ts`
+- 统一用户认证状态管理与策略适配器：`apps/web/src/stores/auth.ts`
 - 播放历史状态管理：`apps/web/src/stores/history.ts`, `packages/shared/src/history.ts`
 - 已看集数记录状态管理：`apps/web/src/stores/watched.ts`, `packages/shared/src/history.ts`
 - 全局用户偏好与设置 Store：`apps/web/src/stores/settings.ts`

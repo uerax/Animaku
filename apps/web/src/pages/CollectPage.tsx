@@ -8,6 +8,7 @@ import {
 } from '@animaku/shared'
 import { bangumiApi } from '../lib/bangumi'
 import { useSettingsStore } from '../stores/settings'
+import { useAuthStore } from '../stores/auth'
 import {
   BangumiGrid,
   BangumiGridSkeleton,
@@ -150,14 +151,17 @@ export function CollectPage() {
     [patchParams],
   )
 
-  if (!token) {
+  const authUser = useAuthStore((s) => s.getUser())
+  const effectiveToken = token || useAuthStore((s) => s.session?.token)
+
+  if (!effectiveToken) {
     return (
       <div>
         <PageHeader title="我的追番" />
-        <EmptyState text="请先在设置中配置 Bangumi Access Token" />
-        <div className="mt-4 text-center">
-          <Link to="/settings" className="text-[var(--kz-accent)] hover:underline">
-            前往设置
+        <EmptyState text="未登录账号或未配置 Bangumi Access Token" />
+        <div className="mt-4 flex items-center justify-center gap-4 text-sm">
+          <Link to="/settings#bangumi-token" className="text-[var(--kz-accent)] hover:underline">
+            前往设置绑定 Bangumi 账号
           </Link>
         </div>
       </div>
@@ -166,7 +170,9 @@ export function CollectPage() {
 
   const descParts: string[] = []
   if (me.data?.data) {
-    descParts.push(`${me.data.data.nickname || me.data.data.username} 的 Bangumi 收藏`)
+    descParts.push(`${me.data.data.nickname || me.data.data.username} 的收藏`)
+  } else if (authUser?.nickname && authUser.nickname !== '未登录') {
+    descParts.push(`${authUser.nickname} 的收藏`)
   } else {
     descParts.push('同步自 Bangumi')
   }

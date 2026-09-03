@@ -220,6 +220,7 @@ export function SettingsPage() {
   const navSummary = useMemo(() => {
     const items = [
       theme === 'light' ? '浅色' : '深色',
+      nav.showUserMenu ? '用户中心' : null,
       nav.showHistory ? '历史' : null,
       nav.showThemeToggle ? '黑白模式' : null,
       nav.showGitHub ? 'GitHub' : null,
@@ -2106,6 +2107,15 @@ export function SettingsPage() {
           <div className="text-xs font-semibold text-[var(--kz-fg-muted)] pt-0.5">
             导航栏右侧快捷按钮展示
           </div>
+          <Toggle
+            label="展示「用户中心」按钮"
+            checked={nav.showUserMenu}
+            onChange={(showUserMenu) => setNav({ showUserMenu })}
+          />
+          <p className="text-[11px] sm:text-xs text-[var(--kz-fg-dim)]">
+            在顶部导航栏右侧展示用户头像与下拉菜单（包含我的追番、观看历史、设置等）。
+          </p>
+
           <Toggle
             label="展示「观看历史」按钮"
             checked={nav.showHistory}

@@ -10,6 +10,7 @@ import { preloadVideoPlayer } from '../player/lazy'
 import { preloadRoute } from '../lib/route-preload'
 
 export * from './BangumiImage'
+export { UserDropdown } from './UserDropdown'
 export { NotFoundPage } from '../pages/NotFoundPage'
 export type { NotFoundPageProps } from '../pages/NotFoundPage'
 
