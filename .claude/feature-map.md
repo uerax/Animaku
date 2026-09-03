@@ -143,3 +143,9 @@
 - 剧集解析、PlayableSlot 统一槽位与双层对齐引擎：`packages/shared/src/episode.ts`, `packages/shared/src/episode-alignment.ts`
 - 评论内容过滤、词法分词与黑幕遮掩引擎：`packages/shared/src/comment-censor.ts`, `packages/shared/src/comment.ts`
 - 站点品牌与文案配置：`apps/web/src/lib/site-branding.ts`
+
+## 14. 容器编排与镜像部署 (Docker & Deployment)
+- 单容器全栈多阶段构建：`Dockerfile`
+- 一键编排与构建参数透传：`docker-compose.yml`, `.dockerignore`
+- 环境变量配置范本与说明：`.env.example`
+

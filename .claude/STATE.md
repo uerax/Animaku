@@ -4,6 +4,27 @@
 
 ---
 
+## [2026-09-03] 修复 Docker Compose 与 Dockerfile 缺失导航栏/外观环境变量构建参数 (Fix Docker Compose & Dockerfile Missing Nav Build Args)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **补全 `docker-compose.yml` 的 `build.args` 映射**：
+     - 将 `VITE_DEFAULT_THEME`、`VITE_NAV_SHOW_USER_MENU`、`VITE_NAV_SHOW_HISTORY`、`VITE_NAV_SHOW_THEME_TOGGLE`、`VITE_NAV_SHOW_GITHUB` 以及 `VITE_APP_VERSION` 完整接入 `services.animaku.build.args`，确保 `docker compose up -d --build` 时宿主机 `.env` 中的定制预设能顺利透传到 Docker 镜像构建上下文。
+  2. **补齐 `Dockerfile` 前端构建阶段的 `ARG` 与 `ENV`**：
+     - 在 `Dockerfile` 的 `build` 阶段显式声明对应的 `ARG` 并赋值入构建 `ENV`，彻底解决 `.dockerignore` 隔离 `.env` 情况下 Vite 构建期丢失环境变量导致回退到硬编码默认值的问题。
+  3. **完善 `.env.example` 部署文档说明**：
+     - 在导航栏与界面外观出厂预设小节补充 Docker 部署构建期烘焙（Baked at build time）的刷新说明。
+  4. **全仓质量验证与版本升级**：
+     - 全仓 3 个 workspace `pnpm -r typecheck` 0 报错；
+     - 61 个单测（`@animaku/shared` 45 个 + `@animaku/server` 16 个）100% 全部通过；
+     - `pnpm --filter @animaku/web build` 生产构建成功；
+     - 规范递增 patch 版本号：`v1.2.2` -> `v1.2.3`；
+     - 保持 `.claude/feature-map.md` 同步更新（补充容器编排与镜像部署索引）。
+- 涉及文件：docker-compose.yml, Dockerfile, .env.example, .claude/feature-map.md, package.json, apps/web/package.json, apps/server/package.json, packages/shared/package.json, packages/shared/src/version.ts, .claude/STATE.md
+- 备注：彻底打通 Docker Compose 容器部署模式下前端出厂外观预设的注入链路。
+
+---
+
 ## [2026-09-03] 修复 Token 换绑校验失败时旧会话滞留、消除 AuthStore 双重并发请求与正则主题注入健壮化 (Fix Auth Stale Session, Concurrent Login Request & Robust Theme Regex)
 - 状态：已完成
 - 优先级：P1
