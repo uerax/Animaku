@@ -164,6 +164,9 @@ interface AuthState {
   initAuth: () => Promise<void>
 }
 
+let isExplicitLoggingIn = false
+let authSeq = 0
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
@@ -197,7 +200,10 @@ export const useAuthStore = create<AuthState>()(
       login: async (credentials: unknown, provider?: AuthProviderType) => {
         const pType = provider || get().providerType
         const adapter = getAuthProvider(pType)
+        // 递增序列号，使此前所有挂起的 initAuth 请求立即失效，防止旧请求覆盖新登录态
+        ++authSeq
         set({ isLoading: true, error: null })
+        isExplicitLoggingIn = true
 
         try {
           if (!adapter.login) {
@@ -215,12 +221,16 @@ export const useAuthStore = create<AuthState>()(
           const msg = e instanceof Error ? e.message : '登录失败'
           set({ isLoading: false, error: msg })
           throw e
+        } finally {
+          isExplicitLoggingIn = false
         }
       },
 
       logout: async () => {
         const { providerType } = get()
         const adapter = getAuthProvider(providerType)
+        // 递增序列号，使此前所有挂起的 initAuth 请求立即失效，杜绝历史慢请求复活已退出的会话
+        ++authSeq
         set({ isLoading: true, error: null })
 
         try {
@@ -259,6 +269,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       initAuth: async () => {
+        const seq = ++authSeq
         const { providerType } = get()
         const tokenFromSettings = useSettingsStore.getState().bangumiToken?.trim()
 
@@ -277,10 +288,28 @@ export const useAuthStore = create<AuthState>()(
           return
         }
 
+        const handleFailure = () => {
+          const curSession = get().session
+          // 若当前已有有效会话且 Token 完全未改变，视为网络抖动或离线，保留现有离线快照
+          if (curSession && tokenFromSettings && curSession.token === tokenFromSettings) {
+            set({ isLoading: false })
+          } else {
+            // 换了新 Token 但校验失败，或当前无有效会话首次输入错误 Token，必须彻底清空旧会话并明确置入错误态
+            set({
+              session: null,
+              profileSnapshot: null,
+              isLoading: false,
+              error: 'Token 校验失败',
+            })
+          }
+        }
+
         const adapter = getAuthProvider(providerType)
         try {
           set({ isLoading: true })
           const restored = await adapter.restoreSession?.()
+          if (seq !== authSeq) return
+
           if (restored) {
             set({
               session: restored,
@@ -289,10 +318,11 @@ export const useAuthStore = create<AuthState>()(
               error: null,
             })
           } else {
-            set({ isLoading: false })
+            handleFailure()
           }
         } catch {
-          set({ isLoading: false })
+          if (seq !== authSeq) return
+          handleFailure()
         }
       },
     }),
@@ -314,7 +344,8 @@ if (typeof window !== 'undefined') {
     if (state.bangumiToken !== prevState.bangumiToken) {
       const newToken = state.bangumiToken?.trim()
       if (!newToken) {
-        // 用户清空了 Token：立即清理会话
+        // 用户清空了 Token：立即废弃所有挂起的异步请求并清理会话
+        ++authSeq
         const cur = useAuthStore.getState()
         if (cur.session || cur.profileSnapshot) {
           useAuthStore.setState({
@@ -325,8 +356,15 @@ if (typeof window !== 'undefined') {
           })
         }
       } else {
+        // 若当前正处于外部主动 login() 事务中，由 login 负责落地状态，避免并发双重网络请求
+        if (isExplicitLoggingIn) return
+
+        const cur = useAuthStore.getState()
+        // 若当前会话已有相同 Token 且已成功鉴权，跳过重复 initAuth
+        if (cur.session?.token === newToken) return
+
         // 用户输入或修改了 Token：触发鉴权与资料拉取
-        void useAuthStore.getState().initAuth()
+        void cur.initAuth()
       }
     }
   })

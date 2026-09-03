@@ -90,8 +90,14 @@ export default defineConfig(({ mode }) => {
         name: 'animaku-theme-injection',
         transformIndexHtml(html: string) {
           return html
-            .replace("var theme = 'light'", `var theme = '${defaultTheme}'`)
-            .replace("setAttribute('data-theme', 'light')", `setAttribute('data-theme', '${defaultTheme}')`)
+            .replace(
+              /(var|let|const)\s+theme\s*=\s*['"]light['"]/,
+              `$1 theme = '${defaultTheme}'`,
+            )
+            .replace(
+              /(setAttribute\(\s*['"]data-theme['"]\s*,\s*)['"]light['"]\s*\)/,
+              `$1'${defaultTheme}')`,
+            )
         },
       },
       {

@@ -4,6 +4,28 @@
 
 ---
 
+## [2026-09-03] 修复 Token 换绑校验失败时旧会话滞留、消除 AuthStore 双重并发请求与正则主题注入健壮化 (Fix Auth Stale Session, Concurrent Login Request & Robust Theme Regex)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **根治新 Token 校验失败时的旧会话与快照滞留问题 (`apps/web/src/stores/auth.ts`)**：
+     - 在 `initAuth` 中提取 `handleFailure`：精准区分离线保持（Token 未变且有会话时保留离线快照）与凭证失效（换新 Token 或未登录输入无效 Token 时彻底清空会话并明确提示 `Token 校验失败`），消除 try/catch 块中重复的样板代码；
+     - 全链路时序序列号 `authSeq` 守卫：在 `login()`、`logout()`、`subscribe(!newToken)` 与 `initAuth()` 全面接入 `++authSeq`，严格废弃所有飞行中的历史慢请求，彻底杜绝已登出会话被慢网络回调“复活”及慢请求倒挂覆盖新登录态。
+  2. **消除 `authStore.login()` 与 `subscribe` 监听器的双重并发网络请求 (`apps/web/src/stores/auth.ts`)**：
+     - 引入 `isExplicitLoggingIn` 事务守卫：在外部主动调用 `login()` 时临时屏蔽 `subscribe` 自动触发的 `initAuth`，防止单次登录发起两笔并行的 `/api/bangumi/me` 请求；
+     - 并在 `subscribe` 中增加已有相同有效 Token 时的重发熔断。
+  3. **主题注入插件升级为兼容器正则匹配 (`apps/web/vite.config.ts`)**：
+     - 将 `animaku-theme-injection` 中的字面量字符串替换重构为健壮正则匹配（`/(var|let|const)\s+theme\s*=\s*['"]light['"]/` 与 `/(setAttribute\(\s*['"]data-theme['"]\s*,\s*)['"]light['"]\s*\)/`），100% 兼容单双引号、多余空白及代码格式化工具的潜在变动。
+  4. **质量验证与版本升级**：
+     - `pnpm -r typecheck` 全仓 3 个 workspace 0 报错；
+     - 全仓 61 个单测（`@animaku/shared` 45 个 + `@animaku/server` 16 个）100% 全部通过；
+     - `pnpm --filter @animaku/web build` 生产构建通过；
+     - 规范递增 patch 版本号：`v1.2.1` -> `v1.2.2`。
+- 涉及文件：apps/web/src/stores/auth.ts, apps/web/vite.config.ts, package.json, apps/web/package.json, apps/server/package.json, packages/shared/package.json, packages/shared/src/version.ts, .claude/STATE.md
+- 备注：彻底闭环会话换绑失败时的残留边界、消除并发冗余并在构建管线达成格式无关容错。
+
+---
+
 ## [2026-09-03] 修复环境变量穿透失效、老缓存覆盖导致用户中心隐藏失败与僵尸 Token 复活等缺陷 (Fix Nav Defaults Env Passthrough, Cache Stomp & Auth Store Sync)
 - 状态：已完成
 - 优先级：P0
