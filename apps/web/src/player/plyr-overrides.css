@@ -297,9 +297,7 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
 
 .kz-watch-cinema--desktop .kz-watch-rail {
   width: var(--kz-watch-rail-w);
-  position: sticky;
-  top: 4.5rem;
-  /* Rail is a layout column only — no outer scroll; panels own their overflow */
+  /* Rail is a layout column only — natural flow with page scroll; panels own their overflow */
   max-height: none;
   overflow: visible;
 }

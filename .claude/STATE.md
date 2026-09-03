@@ -2687,3 +2687,19 @@
      - 全仓版本号递增至 `v1.2.7`。
 - 涉及文件：apps/web/src/components/Layout.tsx, package.json, apps/web/package.json, apps/server/package.json, packages/shared/package.json, packages/shared/src/version.ts
 - 备注：全仓类型检查 `pnpm typecheck` 与前端构建 `pnpm -F @animaku/web build` 验证 100% 通过。
+
+## [2026-09-03] 修复播放页右侧栏因 sticky 导致页面滚动时右侧假死且底部截断 Bug (v1.2.8)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **问题根因定位**：
+     - 在桌面端播放页布局中，.kz-watch-cinema--desktop .kz-watch-rail 历史遗留了 position: sticky; top: 4.5rem;；
+     - 随着播放页右侧栏接入高规格 6 部大卡片「番剧推荐流（WatchRecommendations）」，右侧栏总高（1200px~1500px）远超单屏视口高度；
+     - 用户向下滚动页面时，右侧栏初始位置即顶到 4.5rem，瞬间触发 sticky 粘滞吸顶被钉死在视口顶部；导致左侧向上滚动而右侧一动不动，且右侧下半部分推荐内容被直接截断在屏幕外；只有当左侧超长评论区滚到接近底部、父容器底边推着右侧栏走时右侧才开始移动。
+  2. **落地方案 1（自然流式双列同步滚动）**：
+     - 移除 .kz-watch-cinema--desktop .kz-watch-rail 上的 position: sticky; top: 4.5rem;；
+     - 右侧栏回归干净纯粹的自然流式布局，与左侧播放器/评论区 100% 同步向上滚动，彻底消除滚动阻滞与底部内容截断，完全对齐 B 站与 YouTube 桌面主站标准交互；
+  3. **版本号平滑递增**：
+     - 全仓版本号递增至 1.2.8。
+- 涉及文件：apps/web/src/player/plyr-overrides.css, package.json, apps/web/package.json, apps/server/package.json, packages/shared/package.json, packages/shared/src/version.ts
+- 备注：全仓类型检查 pnpm typecheck 与前端构建 pnpm -F @animaku/web build 验证 100% 通过。
