@@ -107,9 +107,9 @@ export const bangumiApi = {
       { signal: opts?.signal },
     )
   },
-  me: (opts?: SignalOpt) =>
+  me: (opts?: SignalOpt & { token?: string }) =>
     api<{ data: BangumiUser }>('/api/bangumi/me', {
-      token: token(),
+      token: opts?.token ?? token(),
       signal: opts?.signal,
     }),
   collections: (opts?: {

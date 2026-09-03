@@ -69,6 +69,10 @@ export default defineConfig(({ mode }) => {
   )
 
   const siteUrl = (get('VITE_SITE_URL') || get('SITE_URL') || '').trim().replace(/\/+$/, '')
+  const defaultTheme =
+    (get('VITE_DEFAULT_THEME') || 'light').trim().toLowerCase() === 'dark'
+      ? 'dark'
+      : 'light'
 
   const apiPort = envInt(get('PORT'), 8787)
   // Proxy connects to the API process; 0.0.0.0 is not a valid client target
@@ -77,9 +81,19 @@ export default defineConfig(({ mode }) => {
     get('API_PROXY_TARGET') || `http://${apiProxyHost}:${apiPort}`
 
   return {
+    envDir: repoRoot,
     plugins: [
       react(),
       tailwindcss(),
+      {
+        // Inject early theme default based on VITE_DEFAULT_THEME to prevent FOUC.
+        name: 'animaku-theme-injection',
+        transformIndexHtml(html: string) {
+          return html
+            .replace("var theme = 'light'", `var theme = '${defaultTheme}'`)
+            .replace("setAttribute('data-theme', 'light')", `setAttribute('data-theme', '${defaultTheme}')`)
+        },
+      },
       {
         // Inject preconnect/dns-prefetch for the configured cover host.
         name: 'animaku-bangumi-image-preconnect',
@@ -126,6 +140,19 @@ export default defineConfig(({ mode }) => {
       ),
       'import.meta.env.VITE_BANGUMI_IMAGE_HOST': JSON.stringify(bangumiImageHost),
       'import.meta.env.VITE_SITE_URL': JSON.stringify(siteUrl),
+      'import.meta.env.VITE_DEFAULT_THEME': JSON.stringify(defaultTheme),
+      'import.meta.env.VITE_NAV_SHOW_USER_MENU': JSON.stringify(
+        get('VITE_NAV_SHOW_USER_MENU') ?? '',
+      ),
+      'import.meta.env.VITE_NAV_SHOW_HISTORY': JSON.stringify(
+        get('VITE_NAV_SHOW_HISTORY') ?? '',
+      ),
+      'import.meta.env.VITE_NAV_SHOW_THEME_TOGGLE': JSON.stringify(
+        get('VITE_NAV_SHOW_THEME_TOGGLE') ?? '',
+      ),
+      'import.meta.env.VITE_NAV_SHOW_GITHUB': JSON.stringify(
+        get('VITE_NAV_SHOW_GITHUB') ?? '',
+      ),
     },
     resolve: {
       alias: {

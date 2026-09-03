@@ -152,9 +152,8 @@ export function CollectPage() {
   )
 
   const authUser = useAuthStore((s) => s.getUser())
-  const effectiveToken = token || useAuthStore((s) => s.session?.token)
 
-  if (!effectiveToken) {
+  if (!token) {
     return (
       <div>
         <PageHeader title="我的追番" />

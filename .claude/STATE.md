@@ -4,6 +4,39 @@
 
 ---
 
+## [2026-09-03] 修复环境变量穿透失效、老缓存覆盖导致用户中心隐藏失败与僵尸 Token 复活等缺陷 (Fix Nav Defaults Env Passthrough, Cache Stomp & Auth Store Sync)
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **根治环境变量跨目录穿透失效与首屏深色闪白 (`apps/web/vite.config.ts`)**：
+     - 在 Vite 配置中注入 `envDir: repoRoot`，使 Vite 客户端编译管线完整识别根目录 `.env` 中的所有 `VITE_*` 变量；
+     - 在 `define` 中显式安全注入 `VITE_DEFAULT_THEME`、`VITE_NAV_SHOW_USER_MENU`、`VITE_NAV_SHOW_HISTORY`、`VITE_NAV_SHOW_THEME_TOGGLE`、`VITE_NAV_SHOW_GITHUB`，消除 undefined 回退；
+     - 增加 `animaku-theme-injection` 插件，在 `transformIndexHtml` 中动态替换 `index.html` 头部内联脚本的默认主题，根除 `VITE_DEFAULT_THEME=dark` 下的首屏白闪（FOUC）。
+  2. **根治老用户本地缓存覆盖与 Fallback 硬编码覆盖 (`apps/web/src/stores/settings.ts`, `apps/web/src/components/Layout.tsx`)**：
+     - 将 settingsStore 的持久化版本递增至 `version: 3`，并在 `migrate` 中清理 `version < 3` 历史残留的 `nav.showUserMenu`，使未主动定制过的用户无缝继承出厂预设；
+     - 优化 `merge` 逻辑，显式类型守卫确保老缓存中未定义项严格继承 `defaultNavSettings`；
+     - 修复 `Layout.tsx` 中 `?? true` 的硬编码兜底，改为回退至 `defaultNavSettings.*`。
+  3. **根治僵尸 Token 复活与设置页/AuthStore 实时双向联动 (`apps/web/src/stores/auth.ts`)**：
+     - 彻底剔除 `initAuth` 中的反向覆写 `setBangumiToken(session.token)`，用户在设置页清空 Token 后永不复活；
+     - 确立 `settingsStore.bangumiToken` 为唯一单一真理源；
+     - 引入 `useSettingsStore.subscribe` 自动监听器：用户在设置页输入或清空 Token 时，`useAuthStore` 瞬间响应拉取或清理会话，0 刷新即时联动。
+  4. **修复 `UserDropdown` 响应式重渲染缺陷 (`apps/web/src/components/UserDropdown.tsx`)**：
+     - 废除订阅静态 Action 函数引用的错误反模式，改为响应式订阅 State 数据 (`useAuthStore((s) => s.getUser())` 与 `s.isAuthenticated()`)，用户资料与登录态变更时 100% 触发组件重渲染；
+     - 清理 Tailwind v4 不支持的未配置动画类名。
+  5. **修复 `CollectPage.tsx` 查询死锁与 `bangumiApi.me` 形参透传 (`apps/web/src/pages/CollectPage.tsx`, `apps/web/src/lib/bangumi.ts`, `apps/web/src/stores/auth.ts`)**：
+     - 统一 `CollectPage.tsx` 的 Token 判定，消除 `effectiveToken` 与内部查询 `enabled` 之间的条件割裂；
+     - `bangumiApi.me` 支持可选显式透传 `{ token?: string }`，`BangumiAuthProvider.fetchProfile` 准确传参。
+  6. **单测完善与全仓质量验证**：
+     - `packages/shared/src/user.test.ts` 补充本地账号、扩展属性、边缘访客 ID 与不可变性测试；
+     - 全仓 3 个 workspace `pnpm -r typecheck` 0 报错；
+     - 61 个单测（`@animaku/shared` 45 个 + `@animaku/server` 16 个）100% 全部通过；
+     - `pnpm --filter @animaku/web build` 生产构建通过；
+     - 规范递增 patch 版本号：`v1.2.0` -> `v1.2.1`。
+- 涉及文件：apps/web/vite.config.ts, apps/web/src/stores/settings.ts, apps/web/src/components/Layout.tsx, apps/web/src/stores/auth.ts, apps/web/src/components/UserDropdown.tsx, apps/web/src/pages/CollectPage.tsx, apps/web/src/lib/bangumi.ts, packages/shared/src/user.test.ts, package.json, apps/web/package.json, apps/server/package.json, packages/shared/package.json, packages/shared/src/version.ts, .claude/STATE.md
+- 备注：彻底理顺出厂环境变量穿透、本地缓存层级自洽与用户模块响应式单向数据流。
+
+---
+
 ## [2026-09-03] 落地通用用户模块框架设计、策略适配器与导航栏右上角下拉入口 (User Domain Architecture & Top Navigation Dropdown)
 - 状态：已完成
 - 优先级：P1

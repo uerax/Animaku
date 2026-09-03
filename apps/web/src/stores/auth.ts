@@ -70,7 +70,7 @@ export class BangumiAuthProvider implements IAuthProvider {
       throw new Error('未配置 Bangumi Token')
     }
 
-    const res = await bangumiApi.me()
+    const res = await bangumiApi.me({ token: activeToken })
     const user = res.data
     const avatar =
       user.avatar?.large ||
@@ -259,19 +259,21 @@ export const useAuthStore = create<AuthState>()(
       },
 
       initAuth: async () => {
-        const { providerType, session } = get()
+        const { providerType } = get()
         const tokenFromSettings = useSettingsStore.getState().bangumiToken?.trim()
 
-        // 若 settingsStore 没有 token，但 session 有，则双向对齐
-        if (!tokenFromSettings && session?.token && providerType === 'bangumi') {
-          useSettingsStore.getState().setBangumiToken(session.token)
+        // settingsStore.bangumiToken 为单一真理源：若未配置 token，立即重置会话，杜绝僵尸 token 复活
+        if (providerType === 'bangumi' && !tokenFromSettings) {
+          const { session, profileSnapshot } = get()
+          if (session || profileSnapshot) {
+            set({ session: null, profileSnapshot: null, isLoading: false, error: null })
+          }
+          return
         }
 
-        const effectiveToken = tokenFromSettings || session?.token
+        const effectiveToken = tokenFromSettings || get().session?.token
         if (!effectiveToken) {
-          if (session) {
-            set({ session: null, profileSnapshot: null })
-          }
+          set({ session: null, profileSnapshot: null, isLoading: false, error: null })
           return
         }
 
@@ -284,6 +286,7 @@ export const useAuthStore = create<AuthState>()(
               session: restored,
               profileSnapshot: restored.profile,
               isLoading: false,
+              error: null,
             })
           } else {
             set({ isLoading: false })
@@ -304,3 +307,27 @@ export const useAuthStore = create<AuthState>()(
     },
   ),
 )
+
+// 自动订阅 settingsStore 中的 bangumiToken 变更，保证单一真理源双向实时同步
+if (typeof window !== 'undefined') {
+  useSettingsStore.subscribe((state, prevState) => {
+    if (state.bangumiToken !== prevState.bangumiToken) {
+      const newToken = state.bangumiToken?.trim()
+      if (!newToken) {
+        // 用户清空了 Token：立即清理会话
+        const cur = useAuthStore.getState()
+        if (cur.session || cur.profileSnapshot) {
+          useAuthStore.setState({
+            session: null,
+            profileSnapshot: null,
+            isLoading: false,
+            error: null,
+          })
+        }
+      } else {
+        // 用户输入或修改了 Token：触发鉴权与资料拉取
+        void useAuthStore.getState().initAuth()
+      }
+    }
+  })
+}

@@ -183,12 +183,16 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'animaku-settings',
-      version: 2,
+      version: 3,
       migrate: (persisted, version) => {
         const p = (persisted || {}) as Record<string, unknown>
         const player =
           p.player && typeof p.player === 'object'
             ? (p.player as Record<string, unknown>)
+            : null
+        const nav =
+          p.nav && typeof p.nav === 'object'
+            ? (p.nav as Record<string, unknown>)
             : null
         if (version < 1) {
           // v0→v1: preferBangumiOped + autoNext defaults changed from true to false.
@@ -202,6 +206,12 @@ export const useSettingsStore = create<SettingsState>()(
           if (player && 'forceMediaProxy' in player && !('serverProxy' in player)) {
             player.serverProxy = player.forceMediaProxy
             delete player.forceMediaProxy
+          }
+        }
+        if (version < 3) {
+          // v2→v3: showUserMenu introduced. Reset old v2 cache to adopt site's defaultNavSettings.showUserMenu
+          if (nav && 'showUserMenu' in nav) {
+            delete nav.showUserMenu
           }
         }
         return persisted as Record<string, unknown>
@@ -243,6 +253,22 @@ export const useSettingsStore = create<SettingsState>()(
           nav: {
             ...defaultNavSettings,
             ...(p.nav && typeof p.nav === 'object' ? p.nav : {}),
+            showUserMenu:
+              p.nav && typeof p.nav.showUserMenu === 'boolean'
+                ? p.nav.showUserMenu
+                : defaultNavSettings.showUserMenu,
+            showHistory:
+              p.nav && typeof p.nav.showHistory === 'boolean'
+                ? p.nav.showHistory
+                : defaultNavSettings.showHistory,
+            showThemeToggle:
+              p.nav && typeof p.nav.showThemeToggle === 'boolean'
+                ? p.nav.showThemeToggle
+                : defaultNavSettings.showThemeToggle,
+            showGitHub:
+              p.nav && typeof p.nav.showGitHub === 'boolean'
+                ? p.nav.showGitHub
+                : defaultNavSettings.showGitHub,
           },
         }
       },

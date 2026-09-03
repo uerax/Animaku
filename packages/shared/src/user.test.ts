@@ -23,13 +23,50 @@ describe('User domain model & helpers', () => {
   })
 
   it('identifies authenticated user correctly', () => {
-    const user: UserProfile = {
+    const bangumiUser: UserProfile = {
       id: 123456,
       username: 'testuser',
       nickname: '测试用户',
       avatarUrl: 'https://example.com/avatar.jpg',
       provider: 'bangumi',
+      extra: { bangumiUser: { id: 123456 } },
     }
-    assert.equal(isGuestUser(user), false)
+    assert.equal(isGuestUser(bangumiUser), false)
+
+    const localUser: UserProfile = {
+      id: 'usr_abc123',
+      username: 'localadmin',
+      nickname: '站长',
+      email: 'admin@example.com',
+      provider: 'local',
+    }
+    assert.equal(isGuestUser(localUser), false)
+  })
+
+  it('handles edge case guest identifiers', () => {
+    assert.equal(
+      isGuestUser({
+        id: 'guest',
+        username: 'someone',
+        nickname: '临时用户',
+        provider: 'local',
+      }),
+      true,
+    )
+    assert.equal(
+      isGuestUser({
+        id: 'some_id',
+        username: 'guest',
+        nickname: '游客',
+        provider: 'guest',
+      }),
+      true,
+    )
+  })
+
+  it('preserves frozen immutability of GUEST_USER_PROFILE', () => {
+    assert.equal(Object.isFrozen(GUEST_USER_PROFILE), true)
+    assert.equal(GUEST_USER_PROFILE.provider, 'guest')
+    assert.equal(GUEST_USER_PROFILE.id, 'guest')
   })
 })

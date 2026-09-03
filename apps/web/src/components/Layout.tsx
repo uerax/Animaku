@@ -7,7 +7,7 @@ import {
   useLocation,
 } from 'react-router-dom'
 import clsx from 'clsx'
-import { useSettingsStore } from '../stores/settings'
+import { defaultNavSettings, useSettingsStore } from '../stores/settings'
 import { getSiteBranding } from '../lib/site-branding'
 import { preloadRoute, preloadCoreNavigationRoutes } from '../lib/route-preload'
 import { DocumentSeo } from './DocumentSeo'
@@ -235,10 +235,18 @@ export function Layout() {
   const navigate = useNavigate()
   const location = useLocation()
   const [params] = useSearchParams()
-  const showHistory = useSettingsStore((s) => s.nav?.showHistory ?? true)
-  const showThemeToggle = useSettingsStore((s) => s.nav?.showThemeToggle ?? true)
-  const showGitHub = useSettingsStore((s) => s.nav?.showGitHub ?? true)
-  const showUserMenu = useSettingsStore((s) => s.nav?.showUserMenu ?? true)
+  const showHistory = useSettingsStore(
+    (s) => s.nav?.showHistory ?? defaultNavSettings.showHistory,
+  )
+  const showThemeToggle = useSettingsStore(
+    (s) => s.nav?.showThemeToggle ?? defaultNavSettings.showThemeToggle,
+  )
+  const showGitHub = useSettingsStore(
+    (s) => s.nav?.showGitHub ?? defaultNavSettings.showGitHub,
+  )
+  const showUserMenu = useSettingsStore(
+    (s) => s.nav?.showUserMenu ?? defaultNavSettings.showUserMenu,
+  )
   const qFromUrl =
     location.pathname === '/search' ? params.get('q') || '' : ''
   const [q, setQ] = useState(qFromUrl)

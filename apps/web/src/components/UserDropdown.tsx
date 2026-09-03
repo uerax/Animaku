@@ -12,13 +12,11 @@ export function UserDropdown() {
   const location = useLocation()
   const navigate = useNavigate()
 
-  const getUser = useAuthStore((s) => s.getUser)
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const authed = useAuthStore((s) => s.isAuthenticated())
+  const user = useAuthStore((s) => s.getUser())
   const logout = useAuthStore((s) => s.logout)
   const initAuth = useAuthStore((s) => s.initAuth)
 
-  const authed = isAuthenticated()
-  const user = getUser()
   const isGuest = isGuestUser(user)
 
   // 挂载时尝试初始化一次会话状态（读取现有 Token 缓存）
@@ -120,7 +118,7 @@ export function UserDropdown() {
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-[calc(100%+8px)] z-50 w-64 origin-top-right overflow-hidden rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-1.5 shadow-2xl backdrop-blur-2xl transition-all animate-in fade-in zoom-in-95 duration-150"
+          className="absolute right-0 top-[calc(100%+8px)] z-50 w-64 origin-top-right overflow-hidden rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-1.5 shadow-2xl backdrop-blur-2xl transition-all duration-150"
         >
           {/* 用户概览卡片区 */}
           <div className="flex items-center gap-3 rounded-xl bg-[var(--kz-bg-soft)]/70 p-3">
