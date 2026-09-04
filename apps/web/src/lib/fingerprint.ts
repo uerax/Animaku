@@ -20,8 +20,8 @@ function getNativeFallbackFingerprint(): string {
     parts.push(Intl.DateTimeFormat().resolvedOptions().timeZone || '')
 
     // 2. WebGL physical renderer probe
-    const canvas = document.createElement('canvas')
-    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl')
+    const glCanvas = document.createElement('canvas')
+    const gl = glCanvas.getContext('webgl') || glCanvas.getContext('experimental-webgl')
     if (gl && gl instanceof WebGLRenderingContext) {
       const ext = gl.getExtension('WEBGL_debug_renderer_info')
       if (ext) {
@@ -29,28 +29,33 @@ function getNativeFallbackFingerprint(): string {
       }
     }
 
-    // 3. Canvas 2D sub-pixel rendering nuance
-    const ctx = canvas.getContext('2d')
+    // 3. Canvas 2D sub-pixel rendering nuance (must use a separate canvas from WebGL)
+    const canvas2d = document.createElement('canvas')
+    const ctx = canvas2d.getContext('2d')
     if (ctx) {
-      canvas.width = 200
-      canvas.height = 40
+      canvas2d.width = 200
+      canvas2d.height = 40
       ctx.textBaseline = 'top'
       ctx.font = "14px 'Arial'"
       ctx.fillStyle = '#f60'
       ctx.fillRect(100, 1, 62, 20)
       ctx.fillStyle = '#069'
       ctx.fillText('Animaku,fp! 😃', 2, 12)
-      parts.push(canvas.toDataURL().slice(-40))
+      parts.push(canvas2d.toDataURL().slice(-40))
     }
 
-    // 4. FNV-1a fast 32-bit hash
-    let hash = 2166136261
+    // 4. Dual-seed 64-bit FNV-1a hash to guarantee >=16 hex chars and strong collision resistance
+    let h1 = 2166136261
+    let h2 = 2166136261 ^ 0x5a5a5a5a
     const str = parts.join('||')
     for (let i = 0; i < str.length; i++) {
-      hash ^= str.charCodeAt(i)
-      hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24)
+      const code = str.charCodeAt(i)
+      h1 = Math.imul(h1 ^ code, 16777619)
+      h2 = Math.imul(h2 ^ (code + i), 16777619)
     }
-    return (hash >>> 0).toString(16)
+    const hex1 = ('00000000' + (h1 >>> 0).toString(16)).slice(-8)
+    const hex2 = ('00000000' + (h2 >>> 0).toString(16)).slice(-8)
+    return hex1 + hex2
   } catch {
     return ''
   }

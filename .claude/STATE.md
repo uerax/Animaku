@@ -4,6 +4,16 @@
 
 ---
 
+## [2026-09-04] 修复原生指纹兜底探针中 Canvas WebGL 与 2D 上下文冲突的 Bug 并升级双路哈希 (Fix Canvas Context Collision & Upgrade Dual-Seed Hash)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **独立 Canvas 元素解耦**：解决 HTML5 Canvas 规范中“单个 canvas 元素无法同时获取 webgl 和 2d 上下文导致后续 getContext('2d') 恒为 null”的硬性标准限制，拆分为独立的 `glCanvas` 与 `canvas2d`，确保 Canvas 2D 像素与字体渲染微特征 100% 正确执行；
+  2. **原生 Fallback 升级双路 64-bit FNV-1a 哈希**：原生兜底计算升级为双种子（dual-seed）复合哈希，恒定输出 16 位十六进制字符串，大幅提升抗碰撞性能（碰撞空间从 32 位扩展至 64 位）；
+  3. **收敛指纹校验与防篡改正则区间**：核验 FingerprintJS v5 源码确认其 visitorId 恒为 32 位十六进制（128-bit MurmurHash3），将正则严密收敛至 `^[a-zA-Z0-9_-]{16,64}$`，既完美兼容主流库 32 位与原生 16 位指纹，又杜绝了 8 位短值对 sessionStorage 校验防线的削弱。
+- 涉及文件：apps/web/src/lib/fingerprint.ts, .claude/STATE.md
+- 备注：类型检查与单测全量通过。
+
 ## [2026-09-04] 前端非阻塞异步浏览器指纹采集与请求注入 (Non-blocking Browser Fingerprinting & Header Injection)
 - 状态：已完成
 - 优先级：P2
