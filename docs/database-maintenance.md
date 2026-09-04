@@ -90,9 +90,57 @@ docker compose exec animaku node -e 'const { DatabaseSync } = require("node:sqli
 
 ---
 
-## 4. 宿主机免容器查询方式
+## 4. 开发者快速查询工具 (`scripts/db-query.mjs` / `pnpm db`)
 
-### 方式 1：宿主机 Node.js 命令行（免安装 SQLite）
+项目内置了零依赖、原生 `node:sqlite` 驱动的极速数据库查询与分析脚本，默认开启只读保护，支持命令行参数与交互式 REPL 菜单。
+
+### 4.1 常用快捷命令
+```bash
+# 启动交互式控制台与 SQL REPL
+pnpm db
+
+# 数据库与所有表统计概览 (文件大小、WAL模式、各表行数、迁移版本)
+pnpm db --stats
+# 或
+pnpm db -s
+
+# 执行任意自定义 SQL (自适应中文宽度的美化表格输出)
+pnpm db "SELECT * FROM anime_play_counts LIMIT 10"
+
+# 以标准 JSON 输出 (方便配合 jq 管道处理)
+pnpm db --json "SELECT * FROM kv_cache"
+
+# 快速浏览指定表数据 (支持 -l 条数限制)
+pnpm db -t anime_play_counts -l 20
+
+# 查看番剧累计播放量 Top 榜单 (自动关联番剧中文名称)
+pnpm db --top 10
+
+# 查看全局独立访客 IP 与 PV 日志排行
+pnpm db --ip 10
+
+# 检索 Bangumi 跨平台 ID 映射 (支持输入番剧名关键词或 Bangumi ID)
+pnpm db --mapping "葬送的芙莉莲"
+
+# 查看缓存表 (kv_cache, plugin_search_cache, plugin_chapters_cache) 命中率与状态
+pnpm db --cache
+
+# 查看数据表结构定义与索引
+pnpm db --schema anime_play_counts
+```
+
+### 4.2 Docker 容器内运行方式
+```bash
+docker compose exec animaku node scripts/db-query.mjs --stats
+docker compose exec animaku node scripts/db-query.mjs --top 10
+docker compose exec animaku node scripts/db-query.mjs "SELECT * FROM ip_access_logs"
+```
+
+---
+
+## 5. 传统免安装单行命令与工具替代方案
+
+### 方式 1：宿主机 Node.js 单行脚本
 在项目根目录运行：
 ```bash
 node -e 'const { DatabaseSync } = require("node:sqlite"); const db = new DatabaseSync("data/animaku.db"); console.table(db.prepare("SELECT * FROM anime_play_stats ORDER BY play_count DESC LIMIT 10").all())'

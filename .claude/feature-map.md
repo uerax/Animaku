@@ -119,6 +119,7 @@
 - 访问控制与 Token 校验：`apps/server/src/lib/access.ts`
 - 私有 IP 拦截与内网熔断：`apps/server/src/lib/private-host.ts`
 - 数据库维护与免安装查询指南文档：`docs/database-maintenance.md`
+- 数据库极速查询与交互分析工具：`scripts/db-query.mjs`（`pnpm db` 纯原生支持概览/排行/IP/映射/缓存/表结构/SQL REPL）
 - SQLite 数据库连接与初始化：`apps/server/src/db/connection.ts`, `apps/server/src/db/schema.ts`, `apps/server/src/db/index.ts`
 - SQLite KV 缓存仓储：`apps/server/src/db/repositories/kv-cache.ts`
 - SQLite 播放量与热度统计仓储 (anime_play_counts 解耦单行统计)：`apps/server/src/db/repositories/play-stats.ts`

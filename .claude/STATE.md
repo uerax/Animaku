@@ -2754,3 +2754,36 @@
   - .claude/feature-map.md
   - package.json, apps/web/package.json, apps/server/package.json, packages/shared/package.json, packages/shared/src/version.ts
 - 备注：全仓类型检查 pnpm typecheck 与服务端单元测试 pnpm --filter @animaku/server test 验证全部通过。
+
+## [2026-09-04] 数据库快速查询与交互分析工具脚本 (scripts/db-query.mjs / pnpm db) (v1.2.12)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **零依赖与开箱即用架构**：
+     - 新建 `scripts/db-query.mjs`，纯 Node.js 原生模块驱动（`node:sqlite` + `node:readline`），无需安装外部第三方依赖即可在宿主机与 Docker 容器内即开即用；
+     - 默认开启只读保护（`readOnly: true`），防止调试排查误操作污染生产或本地数据库（支持 `--write` 显式开启读写模式）；
+     - 支持自适应数据库路径推断（命令行 `--db` > `SQLITE_PATH` > `DATA_DIR` > `./data/animaku.db` > 项目根路径）；
+  2. **双模操作支持（命令行快捷参数 + 交互式 REPL 终端）**：
+     - **命令行参数**：支持直接执行 SQL 语句、`--stats`（库概览与各表行数/大小）、`--top`（播放量排行 + 自动左连 Bangumi 标题）、`--ip`（IP 访问量与 PV 日志）、`--mapping`（Bangumi 多平台映射模糊检索）、`--cache`（视频源与 KV 缓存状态）、`--schema`（表字段与索引定义）、`--table`（指定表浏览分页）、`--json`（机器可读输出）与 `--raw`；
+     - **交互式终端**：执行 `pnpm db` 即可进入 ASCII/Unicode 磨砂边框彩色交互控制台，支持菜单编号直达和持续 SQL REPL 查询；
+  3. **表格排版与终端可读性美化**：
+     - 实现自适应全角/半角混合字符宽度的终端 Unicode 框线表格渲染，消除中文乱序错位；
+     - 自动识别 10~13 位时间戳列（如 `updated_at`, `created_at`, `first_seen`, `last_seen`），转换为本地时间与相对时间标注（如 `(3天前)`）；
+     - 针对大文本与 JSON（如 `sites`、`data`）实现轻量摘要截断与键名提取；
+  4. **工程化与文档配套**：
+     - 在根目录 `package.json` 中配置 `"db": "node scripts/db-query.mjs"` 快捷命令；
+     - 同步更新 `docs/database-maintenance.md` 与 `.claude/feature-map.md`；
+  5. **版本号平滑递增**：
+     - 全仓版本号递增至 `v1.2.12`。
+- 涉及文件：
+  - scripts/db-query.mjs
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - docs/database-maintenance.md
+  - .claude/feature-map.md
+  - .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck` 与单测全量 100% 通过。
+

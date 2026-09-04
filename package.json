@@ -1,7 +1,7 @@
 {
   "name": "animaku",
   "private": true,
-  "version": "1.2.11",
+  "version": "1.2.12",
   "description": "Animaku — browser anime client: Bangumi metadata, plugin sources, danmaku, collections",
   "scripts": {
     "dev": "node scripts/dev.mjs",
@@ -15,6 +15,8 @@
     "start:prod": "pnpm build && pnpm start",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
+    "db": "node scripts/db-query.mjs",
+    "db:migrate": "node scripts/migrate-play-stats.mjs",
     "bump": "node scripts/bump-version.mjs"
   },
   "engines": {
