@@ -1,69 +1,36 @@
 import type { AnimePlayStats } from '@animaku/shared'
-import { getDatabase, prepareStatement, transaction } from '../connection'
+import { prepareStatement } from '../connection'
 
 export class PlayStatsRepository {
   /**
-   * Record a valid play view for a specific anime episode and increment the total anime play count.
-   * episode = 0 represents the total play count for the whole anime series.
-   * episode >= 1 represents the specific episode.
+   * Record a valid play view for a specific anime and increment the total anime play count.
+   * Directly operates on anime_play_counts with atomic single-row upsert.
+   * `episode` is accepted for backward-compatibility but no longer split into separate DB rows.
    */
   recordPlay(
     bangumiId: number,
-    episode: number,
+    _episode?: number,
   ): { episodePlayCount: number; totalPlayCount: number } {
     if (!Number.isFinite(bangumiId) || bangumiId <= 0) {
       return { episodePlayCount: 0, totalPlayCount: 0 }
     }
-    const epNum = Math.max(0, Math.trunc(episode || 0))
     const now = Date.now()
 
     try {
-      // Execute in a transaction to ensure episode count & total count stay atomic
-      return transaction(() => {
-        const upsertStmt = prepareStatement(`
-          INSERT INTO anime_play_stats (bangumi_id, episode, play_count, updated_at)
-          VALUES (?, ?, 1, ?)
-          ON CONFLICT(bangumi_id, episode) DO UPDATE SET
-            play_count = play_count + 1,
-            updated_at = excluded.updated_at;
-        `)
+      // Single-row atomic upsert with RETURNING to fetch updated count with 0 query overhead
+      const upsertStmt = prepareStatement(`
+        INSERT INTO anime_play_counts (bangumi_id, play_count, updated_at)
+        VALUES (?, 1, ?)
+        ON CONFLICT(bangumi_id) DO UPDATE SET
+          play_count = play_count + 1,
+          updated_at = excluded.updated_at
+        RETURNING play_count;
+      `)
 
-        // 1. Increment specific episode (if epNum > 0)
-        if (epNum > 0) {
-          upsertStmt.run(bangumiId, epNum, now)
-        }
+      const row = upsertStmt.get(bangumiId, now) as { play_count?: number } | undefined
+      const total = Number(row?.play_count || 1)
 
-        // 2. Always increment whole anime total (episode = 0)
-        upsertStmt.run(bangumiId, 0, now)
-
-        // 3. Fetch latest counts
-        const queryStmt = prepareStatement(`
-          SELECT episode, play_count
-          FROM anime_play_stats
-          WHERE bangumi_id = ? AND episode IN (?, 0);
-        `)
-        const rows = queryStmt.all(bangumiId, epNum) as Array<{
-          episode: number
-          play_count: number
-        }>
-
-        let epCount = 0
-        let totalCount = 0
-        for (const row of rows) {
-          if (row.episode === 0) {
-            totalCount = Number(row.play_count)
-          }
-          if (epNum > 0 && row.episode === epNum) {
-            epCount = Number(row.play_count)
-          }
-        }
-
-        if (epNum === 0) {
-          epCount = totalCount
-        }
-
-        return { episodePlayCount: epCount, totalPlayCount: totalCount }
-      })
+      return { episodePlayCount: total, totalPlayCount: total }
     } catch (err) {
       console.error('[db:play-stats] recordPlay error:', err)
       return { episodePlayCount: 0, totalPlayCount: 0 }
@@ -85,33 +52,17 @@ export class PlayStatsRepository {
 
     try {
       const stmt = prepareStatement(`
-        SELECT episode, play_count
-        FROM anime_play_stats
-        WHERE bangumi_id = ?
-        ORDER BY episode ASC;
+        SELECT play_count
+        FROM anime_play_counts
+        WHERE bangumi_id = ?;
       `)
-      const rows = stmt.all(bangumiId) as Array<{
-        episode: number
-        play_count: number
-      }>
-
-      let totalPlayCount = 0
-      const episodePlayCounts: Record<number, number> = {}
-
-      for (const row of rows) {
-        const ep = Number(row.episode)
-        const count = Number(row.play_count)
-        if (ep === 0) {
-          totalPlayCount = count
-        } else {
-          episodePlayCounts[ep] = count
-        }
-      }
+      const row = stmt.get(bangumiId) as { play_count?: number } | undefined
+      const totalPlayCount = Number(row?.play_count || 0)
 
       return {
         bangumiId,
         totalPlayCount,
-        episodePlayCounts,
+        episodePlayCounts: {},
       }
     } catch (err) {
       console.error('[db:play-stats] getPlayStats error:', err)
@@ -126,8 +77,7 @@ export class PlayStatsRepository {
     try {
       const stmt = prepareStatement(`
         SELECT bangumi_id, play_count
-        FROM anime_play_stats
-        WHERE episode = 0
+        FROM anime_play_counts
         ORDER BY play_count DESC
         LIMIT ?;
       `)
@@ -147,3 +97,4 @@ export class PlayStatsRepository {
 }
 
 export const playStatsRepo = new PlayStatsRepository()
+

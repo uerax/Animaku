@@ -1,6 +1,6 @@
 export interface RecordPlayViewRequest {
   bangumiId: number
-  episode: number
+  episode?: number
 }
 
 /**
@@ -19,5 +19,5 @@ export interface RecordPlayViewResponse {
 export interface AnimePlayStats {
   bangumiId: number
   totalPlayCount: number
-  episodePlayCounts: Record<number, number>
+  episodePlayCounts?: Record<number, number>
 }

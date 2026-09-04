@@ -73,10 +73,10 @@ export async function api<T>(
 }
 
 export const statsApi = {
-  recordPlayView: (bangumiId: number, episode: number) =>
+  recordPlayView: (bangumiId: number, episode?: number) =>
     api<RecordPlayViewResponse>('/api/stats/view', {
       method: 'POST',
-      body: JSON.stringify({ bangumiId, episode }),
+      body: JSON.stringify({ bangumiId, episode: episode ?? 0 }),
     }),
   getSubjectStats: (bangumiId: number) =>
     api<{ data: AnimePlayStats }>(`/api/stats/subject/${bangumiId}`),

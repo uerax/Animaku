@@ -121,7 +121,7 @@
 - 数据库维护与免安装查询指南文档：`docs/database-maintenance.md`
 - SQLite 数据库连接与初始化：`apps/server/src/db/connection.ts`, `apps/server/src/db/schema.ts`, `apps/server/src/db/index.ts`
 - SQLite KV 缓存仓储：`apps/server/src/db/repositories/kv-cache.ts`
-- SQLite 播放量与热度统计仓储：`apps/server/src/db/repositories/play-stats.ts`
+- SQLite 播放量与热度统计仓储 (anime_play_counts 解耦单行统计)：`apps/server/src/db/repositories/play-stats.ts`
 - SQLite IP 访问与 PV 异步批量仓储：`apps/server/src/db/repositories/ip-access.ts`
 - 视频源搜索与章节 SQLite 缓存：`apps/server/src/db/repositories/plugin-search-cache.ts`, `apps/server/src/db/repositories/plugin-chapters-cache.ts`
 - 内存 TTL 缓存 (Single-Flight 防击穿)：`apps/server/src/lib/ttl-cache.ts`

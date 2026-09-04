@@ -2724,3 +2724,33 @@
      - 全仓版本号递增至 1.2.8。
 - 涉及文件：apps/web/src/player/plyr-overrides.css, package.json, apps/web/package.json, apps/server/package.json, packages/shared/package.json, packages/shared/src/version.ts
 - 备注：全仓类型检查 pnpm typecheck 与前端构建 pnpm -F @animaku/web build 验证 100% 通过。
+
+## [2026-09-04] 观看次数数据库单一职责解耦重构 (anime_play_counts) (v1.2.11)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **数据库结构解耦与单一职责化**：
+     - 废除原按单集拆分的复合主键表 anime_play_stats (bangumi_id, episode) 与 episode=0 总数魔数 Hack；
+     - 在 apps/server/src/db/schema.ts 中新增 Migration v6 创建 anime_play_counts 表，仅包含 bangumi_id (PRIMARY KEY)、play_count 与 updated_at，并建立 play_count DESC 倒序索引；
+  2. **PlayStatsRepository 高性能原子改造**：
+     - 移除旧版双重写入事务与多行 upsert，重构为单行 INSERT ... ON CONFLICT DO UPDATE RETURNING play_count，利用 SQLite 原生 RETURNING 实现 0 查询开销的原子自增与最新计数值回显；
+     - 简化 getPlayStats 与 getTopPlayed，无需再添加 WHERE episode = 0 过滤条件，直接走覆盖索引；
+  3. **独立数据迁移脚本与运维工具**：
+     - 编写独立一次性迁移工具 scripts/migrate-play-stats.mjs，负责从旧表 anime_play_stats 聚合历史播放量（优先取 episode=0，兜底 SUM）迁移至新表，完全不污染主干业务代码；
+     - 同步更新 docs/database-maintenance.md 中的表结构字典与 Docker 运维查询命令；
+  4. **测试与类型安全覆盖**：
+     - 新增 apps/server/src/db/repositories/play-stats.test.ts 针对新表自增、单行约束、查询及排行进行完整单元测试覆盖（通过率 100%）；
+     - packages/shared/src/stats.ts 优化契约兼容，pnpm typecheck 全仓类型检查 100% 通过；
+  5. **版本号平滑递增**：
+     - 全仓版本号递增至 v1.2.11。
+- 涉及文件：
+  - apps/server/src/db/schema.ts
+  - apps/server/src/db/repositories/play-stats.ts
+  - apps/server/src/db/repositories/play-stats.test.ts
+  - packages/shared/src/stats.ts
+  - apps/web/src/lib/api.ts
+  - scripts/migrate-play-stats.mjs
+  - docs/database-maintenance.md
+  - .claude/feature-map.md
+  - package.json, apps/web/package.json, apps/server/package.json, packages/shared/package.json, packages/shared/src/version.ts
+- 备注：全仓类型检查 pnpm typecheck 与服务端单元测试 pnpm --filter @animaku/server test 验证全部通过。

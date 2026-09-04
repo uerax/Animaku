@@ -120,6 +120,21 @@ const MIGRATIONS: Migration[] = [
       `)
     },
   },
+  {
+    version: 6,
+    name: 'anime_play_counts',
+    up: (db) => {
+      // Streamlined anime play counts table (decoupled, subject-level only)
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS anime_play_counts (
+          bangumi_id INTEGER PRIMARY KEY,
+          play_count INTEGER NOT NULL DEFAULT 0,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_play_counts_desc ON anime_play_counts(play_count DESC);
+      `)
+    },
+  },
 ]
 
 /**

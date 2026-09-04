@@ -22,7 +22,8 @@ Animaku 服务端采用 Node.js (>=22) 内置原生模块 `node:sqlite`（`Datab
 
 | 表名 | 用途说明 | 核心字段说明 |
 | :--- | :--- | :--- |
-| **`anime_play_stats`** | 番剧及单集播放量统计 | `bangumi_id` (条目ID), `episode` (集数), `play_count` (播放次数), `updated_at` (更新时间戳) |
+| **`anime_play_counts`** | 番剧观看次数统计 (解耦单行设计) | `bangumi_id` (条目ID), `play_count` (累计观看次数), `updated_at` (更新时间戳) |
+| **`anime_play_stats`** | (旧版归档) 番剧及单集播放量统计 | `bangumi_id`, `episode`, `play_count`, `updated_at` |
 | **`ip_access_logs`** | 全局 IP 访问与 PV 统计 | `ip` (访问者IP), `total_hits` (累计PV), `today_hits` (今日PV), `last_date` (日期), `first_seen` (首次访问), `last_seen` (末次访问) |
 | **`plugin_search_cache`** | 视频源番剧搜索结果缓存 | `key` (缓存主键), `plugin_name` (规则名), `keyword` (搜索词), `hit_count` (命中数), `data` (JSON数据), `expires_at` (过期时间) |
 | **`plugin_chapters_cache`** | 视频源剧集列表缓存 | `key` (缓存主键), `plugin_name` (规则名), `source_url` (详情页URL), `hit_count` (命中数), `data` (JSON数据), `expires_at` (过期时间) |
@@ -51,16 +52,25 @@ docker compose exec animaku node -e 'const { DatabaseSync } = require("node:sqli
 
 ---
 
-### 3.2 查看播放量排行 (`anime_play_stats`)
+### 3.2 查看播放量排行 (`anime_play_counts`)
 
 **带格式化本地时间：**
 ```bash
-docker compose exec animaku node -e 'const { DatabaseSync } = require("node:sqlite"); const db = new DatabaseSync("/app/data/animaku.db"); const rows = db.prepare("SELECT * FROM anime_play_stats ORDER BY play_count DESC LIMIT 10").all(); console.table(rows.map(r => ({ ...r, updated_at: new Date(r.updated_at).toLocaleString("zh-CN") })))'
+docker compose exec animaku node -e 'const { DatabaseSync } = require("node:sqlite"); const db = new DatabaseSync("/app/data/animaku.db"); const rows = db.prepare("SELECT * FROM anime_play_counts ORDER BY play_count DESC LIMIT 10").all(); console.table(rows.map(r => ({ ...r, updated_at: new Date(r.updated_at).toLocaleString("zh-CN") })))'
 ```
 
 **原始数据快速输出：**
 ```bash
-docker compose exec animaku node -e 'const { DatabaseSync } = require("node:sqlite"); const db = new DatabaseSync("/app/data/animaku.db"); console.table(db.prepare("SELECT * FROM anime_play_stats ORDER BY play_count DESC LIMIT 10").all())'
+docker compose exec animaku node -e 'const { DatabaseSync } = require("node:sqlite"); const db = new DatabaseSync("/app/data/animaku.db"); console.table(db.prepare("SELECT * FROM anime_play_counts ORDER BY play_count DESC LIMIT 10").all())'
+```
+
+**历史数据迁移工具 (`anime_play_stats` -> `anime_play_counts`)：**
+```bash
+# Docker 容器内执行：
+docker compose exec animaku node scripts/migrate-play-stats.mjs
+
+# 宿主机直接执行：
+node scripts/migrate-play-stats.mjs
 ```
 
 ---
