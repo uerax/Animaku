@@ -4,6 +4,17 @@
 
 ---
 
+## [2026-09-04] 前端非阻塞异步浏览器指纹采集与请求注入 (Non-blocking Browser Fingerprinting & Header Injection)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **非阻塞异步计算与预热**：创建 `apps/web/src/lib/fingerprint.ts`，基于主流 `@fingerprintjs/fingerprintjs` 开源库采集硬件/浏览器指纹，结合 `requestIdleCallback` 在后台闲时异步计算，不争抢首屏关键路径资源；
+  2. **双轨容灾降级**：内置原生 Canvas 2D + WebGL 显卡探针 + 硬件配置 + FNV-1a 极速哈希作为 Fallback，确保任何极端限制环境下 100% 不阻塞、不抛错；
+  3. **零延迟同步缓存与注入**：使用内存变量 + `sessionStorage` 缓存，`getCachedBrowserFingerprint()` 同步读取耗时为 0ms；在 `apps/web/src/lib/api.ts` 中非阻塞注入 `X-Browser-Fingerprint`，未就绪时不阻塞首屏网络请求，计算完成后后续请求自动全量携带；
+  4. **全仓解耦保护**：暂未改动后端数据库表与中间件业务，仅完成前端非阻塞采集与透传基础设施。
+- 涉及文件：apps/web/src/lib/fingerprint.ts, apps/web/src/lib/api.ts, apps/web/src/main.tsx, apps/web/package.json, pnpm-lock.yaml, .claude/feature-map.md, .claude/STATE.md
+- 备注：类型检查与全仓单测 100% 通过。
+
 ## [2026-09-03] 封面连载状态去斜体精简：正体加粗 + 缩小尺寸微调 (Refine Cover Air Status: Upright Bold & Scaled-Down Typography)
 - 状态：已完成
 - 优先级：P2

@@ -137,6 +137,7 @@
 - 静态 robots.txt 与 webmanifest：`apps/web/public/robots.txt`, `apps/web/public/site.webmanifest`
 
 ## 13. 辅助工具与公共库 (Utilities & Shared)
+- 客户端非阻塞浏览器指纹与设备识别：`apps/web/src/lib/fingerprint.ts`
 - 简繁转换 (OpenCC S2T)：`apps/server/src/lib/opencc-s2t.ts`
 - HTTP 请求封装与伪装头：`apps/server/src/lib/http.ts`
 - 版本检查与发版信息：`apps/server/src/lib/release.ts`, `packages/shared/src/version.ts`

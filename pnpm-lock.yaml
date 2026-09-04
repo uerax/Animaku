@@ -50,6 +50,9 @@ importers:
       '@animaku/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@fingerprintjs/fingerprintjs':
+        specifier: ^5.2.0
+        version: 5.2.0
       '@tanstack/react-query':
         specifier: ^5.69.0
         version: 5.101.4(react@19.2.8)
@@ -505,6 +508,9 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
+
+  '@fingerprintjs/fingerprintjs@5.2.0':
+    resolution: {integrity: sha512-j+2nInkwCQNTJcNhOjvkGM/nLRTuGJTC6xai4quqvUpjob2ssrGwBZjS7k55nOmKvge7qvJT2nS3i/IRvQSTQA==}
 
   '@hono/node-server@1.19.14':
     resolution: {integrity: sha512-GwtvgtXxnWsucXvbQXkRgqksiH2Qed37H9xHZocE5sA3N8O8O8/8FA3uclQXxXVzc9XBZuEOMK7+r02FmSpHtw==}
@@ -1499,6 +1505,8 @@ snapshots:
 
   '@esbuild/win32-x64@0.28.1':
     optional: true
+
+  '@fingerprintjs/fingerprintjs@5.2.0': {}
 
   '@hono/node-server@1.19.14(hono@4.12.31)':
     dependencies:

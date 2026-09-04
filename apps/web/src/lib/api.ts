@@ -1,5 +1,6 @@
 import type { RecordPlayViewResponse, AnimePlayStats } from '@animaku/shared'
 import { useSettingsStore } from '../stores/settings'
+import { getCachedBrowserFingerprint } from './fingerprint'
 
 export class ApiError extends Error {
   status: number
@@ -30,6 +31,16 @@ export async function api<T>(
     }
   } catch {
     /* ignore store access error */
+  }
+
+  // Non-blocking browser fingerprint injection if ready (0ms overhead)
+  try {
+    const fp = getCachedBrowserFingerprint()
+    if (fp && !headers.has('X-Browser-Fingerprint')) {
+      headers.set('X-Browser-Fingerprint', fp)
+    }
+  } catch {
+    /* ignore fingerprint access error */
   }
 
   const { token: _t, ...rest } = init
