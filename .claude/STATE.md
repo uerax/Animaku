@@ -4,6 +4,67 @@
 
 ---
 
+## [2026-09-05] 首页 Hero 轮播 Meta 胶囊极简重构：移除 TOP 与连载冗余胶囊，升级观看人数为专属胶囊
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **移除冗余胶囊**：彻底从焦点海报下方的 Meta 面板中移除 `🔥 TOP 0x` 序号胶囊以及 `连载中` 状态胶囊，去除干扰视线的冗余装饰；
+  2. **观看人数升级精致胶囊**：将原先的纯文本 `2.8k 人在看` 升级为带微磨砂阴影的规整胶囊 Badge（`bg-[var(--kz-bg-elevated)] border border-[var(--kz-border)] backdrop-blur-md`），高亮金色凸显观看数字；
+  3. **双胶囊对称聚焦**：保留量化核心的【★ 评分胶囊】与【🔥 观看人数胶囊】，排版对称呼吸感强，彻底消除无用元素堆叠。
+- 涉及文件：apps/web/src/components/HeroCoverFlow.tsx, .claude/STATE.md
+- 备注：通过 `pnpm --filter @animaku/web typecheck` 类型检查与全仓单测，版本号升级至 v1.3.0。
+
+## [2026-09-05] 首页 Hero 轮播图片源与全站体系 100% 对齐：动态 Host 注入、SEO 官方源保障与网络容错防线
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **全站图片源 URL 控制 100% 对齐**：统一接入 `@animaku/shared` 的 `bangumiImageUrl(url, host)` 核心分发管线，与 Zustand `useSettingsStore.bangumiImageHost` 动态响应绑定，设置页切换官方/镜像/自定义代理时瞬时响应重绘，不落下一处死链；
+  2. **SEO / GEO 官方图片源保障**：结构化数据 JSON-LD 严格对齐全站 SEO 规范（`DocumentSeo.tsx`），采用 `toBangumiOfficialImageUrl(...)` 输出 `https://lain.bgm.tv` 官方权威源，防止反代域名稀释搜索引擎权重；
+  3. **海报加载容错与安全兜底**：卡片对齐 `BangumiCard` 增加了 `onError` 隐匿破损图标防线与底置优雅占位，杜绝图片加载异常导致视觉损坏。
+- 涉及文件：apps/web/src/components/HeroCoverFlow.tsx, .claude/STATE.md
+- 备注：通过 `pnpm --filter @animaku/web typecheck` 类型检查与全仓单测，版本号保持 v1.2.14。
+
+## [2026-09-05] 首页 Hero 轮播规格精调：缩减 1/9 宽度、移除悬浮播放按钮并加固 SEO 与 GEO 微数据架构
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **按比例回缩 1/9 宽度与步长**：
+     - 容器宽度由 1680px 回缩为 `2xl:max-w-[1480px] xl:max-w-[1360px]`，外层恢复标准页面安全内边距；
+     - 桌面端卡片位移步长由 102%/198%/288% 精确收敛至 `90% / 176% / 256%`（精准等比减少 1/9），卡片间距舒适不贴边；
+  2. **去除悬浮播放图标浮层**：彻底移除鼠标 hover 聚焦卡片时弹出的中心高亮播放按钮及未使用的 `IconPlay` 图标，点击海报直达详情，视觉更干净轻量；
+  3. **SEO 与 GEO（生成式 AI）深度加固**：
+     - **GEO 结构化数据**：内嵌 Schema.org `ItemList` JSON-LD，精确描述 7 部推荐动画的名称、直达链接与高清海报，供 Perplexity、ChatGPT Search 等生成式 AI 爬虫精准提取；
+     - **SEO 语义化与可访问性**：卡片内部增设 `<span className="sr-only">{title}</span>`，解决纯文本爬虫对非活跃海报的标题索引问题；首张卡片增加 `fetchPriority="high"` 加速首屏 LCP 渲染；骨架屏高度完全匹配（CLS = 0）。
+- 涉及文件：apps/web/src/components/HeroCoverFlow.tsx, apps/web/src/pages/HomePage.tsx, .claude/STATE.md
+- 备注：通过 `pnpm --filter @animaku/web typecheck` 类型检查与全仓单测，版本号保持 v1.2.14。
+
+## [2026-09-05] 首页 Hero 轮播模块桌面端宽度扩展与海报间距舒展拉开 (Expand Hero Cover Flow Stage Width & Card Spacing for Desktop)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **扩大桌面端海报卡片间距**：将桌面端 7 张海报之间的相对水平位移步长由紧缩状态扩大为 `102% / 198% / 288%`，卡片与卡片之间拥有开阔明朗的呼吸感与立体层次，立绘不再过度遮挡；
+  2. **大幅扩大模块宽度，消除两侧白边**：
+     - 外层容器在桌面端应用负外边距微调 `sm:-mx-2 md:-mx-4 lg:-mx-6`，舞台容器最大宽度由原先的狭窄 `max-w-6xl`（1152px）扩展为全屏高阶自适应响应容器 `max-w-6xl lg:max-w-7xl xl:max-w-[1560px] 2xl:max-w-[1680px]`；
+     - 舞台高度提升至 `sm:h-[360px] md:h-[390px] lg:h-[420px] xl:h-[440px]`，7 张竖版大图完整铺展横贯宽屏，彻底吸收两翼多余的大块空白（白边）；
+     - 左右翻页按钮与骨架屏尺寸同步适配至宽舞台架构。
+- 涉及文件：apps/web/src/components/HeroCoverFlow.tsx, apps/web/src/pages/HomePage.tsx, .claude/STATE.md
+- 备注：通过 `pnpm --filter @animaku/web typecheck` 类型检查与全仓单测，版本号升级至 v1.2.14。
+
+## [2026-09-05] 首页 Hero 3D 海报轮播精细化打磨：移除卡片连载胶囊、解耦端侧数量与间距、消除背景硬切断层 (Refine Hero Cover Flow: Remove Badge, Decouple Viewports, Seamless Blending)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **移除卡片右上角连载状态胶囊**：彻底从 3D 海报卡片右上角移除连载状态胶囊，消除遮挡与杂乱感，卡片画面更加聚焦纯粹，状态信息收敛于下方 Spotlight Meta 面板统一呈现；
+  2. **端侧数量与间距解耦（桌面 7 张 / 移动 5 张）**：
+     - 桌面端（`>=768px`）海报容量从 5 张提升至 7 张，相邻海报横向步进偏移从 96%/182% 收紧至 64%/122%/174%，卡片层次交错更紧凑丰富，彻底解决桌面端中央留白散乱、卡片过小的问题；
+     - 移动端维持 5 张海报与 58%/108% 紧凑步进偏移，兼顾单手滑动与触控舒适度；
+  3. **模块顶部与背景无缝渐变融合**：
+     - 流光背景层引入 CSS `mask-image` 垂直平滑衰减遮罩（`transparent 0% -> black 22% -> black 78% -> transparent 100%`）；
+     - 在舞台容器顶部与底部新增双向 `bg-gradient-to-b/t from-[var(--kz-bg)] to-transparent` 渐变遮罩，使背景流光自然淡入淡出，彻底消除原先灰色与白色直接相撞的硬切色差断层；
+     - 骨架屏同步去除背景底色，保持统一的无缝沉浸感。
+- 涉及文件：apps/web/src/components/HeroCoverFlow.tsx, apps/web/src/pages/HomePage.tsx, .claude/feature-map.md, .claude/STATE.md
+- 备注：通过 `pnpm --filter @animaku/web typecheck` 类型检查与全仓单测，版本号升级至 v1.2.14。
+
 ## [2026-09-04] 修复原生指纹兜底探针中 Canvas WebGL 与 2D 上下文冲突的 Bug 并升级双路哈希 (Fix Canvas Context Collision & Upgrade Dual-Seed Hash)
 - 状态：已完成
 - 优先级：P1

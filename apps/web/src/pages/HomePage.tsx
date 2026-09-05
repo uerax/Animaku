@@ -6,6 +6,8 @@ import {
   BangumiGridSkeleton,
   ErrorState,
 } from '../components/ui'
+import { HeroCoverFlow } from '../components/HeroCoverFlow'
+import { useHeroSpotlight } from '../hooks/use-hero-spotlight'
 import { useHistoryStore } from '../stores/history'
 import { Link } from 'react-router-dom'
 import { useEffect, useMemo } from 'react'
@@ -15,6 +17,8 @@ import { preloadVideoPlayer } from '../player/lazy'
 const SECTION_LIMIT = 18
 
 export function HomePage() {
+  const heroSpotlight = useHeroSpotlight({ limit: 7 })
+
   const trending = useQuery({
     queryKey: ['trending', SECTION_LIMIT],
     queryFn: ({ signal }) => bangumiApi.trending(SECTION_LIMIT, 0, { signal }),
@@ -74,6 +78,20 @@ export function HomePage() {
 
   return (
     <div className="space-y-12 sm:space-y-14">
+      {/* 顶部 3D Cover Flow 焦点舞台 */}
+      {heroSpotlight.isLoading && (
+        <div className="relative -mx-4 overflow-hidden px-4 pt-6 pb-6 sm:mx-0 sm:px-6 sm:pt-8 sm:pb-8">
+          <div className="mx-auto h-[270px] w-full animate-pulse rounded-2xl bg-[var(--kz-bg-soft)]/60 sm:h-[340px] md:h-[370px] lg:h-[390px] xl:h-[410px] max-w-5xl lg:max-w-6xl xl:max-w-[1360px] 2xl:max-w-[1480px]" />
+          <div className="mx-auto mt-6 h-6 w-56 animate-pulse rounded-full bg-[var(--kz-bg-soft)]" />
+          <div className="mx-auto mt-3 h-4 w-40 animate-pulse rounded-full bg-[var(--kz-bg-soft)]/60" />
+        </div>
+      )}
+      {!heroSpotlight.isLoading && heroSpotlight.items.length >= 3 && (
+        <section aria-label="热门聚焦">
+          <HeroCoverFlow items={heroSpotlight.items} limit={7} />
+        </section>
+      )}
+
       {recent.length > 0 && (
         <section>
           <div className="mb-4 sm:mb-5 flex items-center justify-between gap-3">
