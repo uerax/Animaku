@@ -17,6 +17,7 @@ import {
   HERO_PERSPECTIVE,
   DESKTOP_MEDIA_QUERY,
   getHeroCardTransformStyle,
+  isHeroDeepBackground,
 } from './hero-cover-flow.constants'
 
 export { HeroCoverFlowSkeleton } from './HeroCoverFlowSkeleton'
@@ -655,9 +656,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
 
           // 统一使用共享的 3D 几何变换样式计算，确保与骨架屏 1:1 精确镜像
           const baseTransformStyle = getHeroCardTransformStyle(offset, isDesktop)
-          const isDeepBackground =
-            !isCenter &&
-            (isDesktop ? Math.abs(offset) > 3 : Math.abs(offset) > 2)
+          const isDeepBackground = isHeroDeepBackground(offset, isDesktop)
 
           const style: React.CSSProperties = {
             ...baseTransformStyle,

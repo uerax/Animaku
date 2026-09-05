@@ -172,3 +172,29 @@ export function getHeroCardTransformStyle(
       }
   }
 }
+
+/**
+ * 舞台活动与无缝进出场缓冲卡片的最大偏移量阈值
+ * - 桌面端：可见 7 张 (offset ±3) + 2 张透明进出缓冲卡片 (offset ±4) => 最大活动阈值为 4
+ * - 移动端：可见 5 张 (offset ±2) + 2 张透明进出缓冲卡片 (offset ±3) => 最大活动阈值为 3
+ * 仅当 |offset| 严格超过此阈值时，卡片处于舞台极深背面，才剥离 will-change 释放合成层显存；
+ * 确保进出场缓冲区卡片保留独立 GPU 合成层，避免滑入舞台瞬间因临时 Layer Promotion 掉帧。
+ */
+export const HERO_MAX_ACTIVE_OFFSET = {
+  desktop: 4,
+  mobile: 3,
+} as const
+
+/**
+ * 判断卡片是否处于舞台深层离屏背景（超出活动区与缓冲卡片范围）
+ */
+export function isHeroDeepBackground(
+  offset: number,
+  isDesktop: boolean,
+): boolean {
+  if (offset === 0) return false
+  const maxActive = isDesktop
+    ? HERO_MAX_ACTIVE_OFFSET.desktop
+    : HERO_MAX_ACTIVE_OFFSET.mobile
+  return Math.abs(offset) > maxActive
+}

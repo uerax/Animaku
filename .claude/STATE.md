@@ -4,6 +4,27 @@
 
 ---
 
+## [2026-09-06] 修复 3D 轮播 isDeepBackground 缓冲卡片合成层阈值回归缺陷 (v1.3.12)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **问题根因定位**：
+     - 在将 3D 变换计算抽离至共享函数的重构中，隐式 else 分支改写为显式条件表达式时阈值收窄了 1：桌面端误写为 `> 3`（原为 `> 4`），移动端误写为 `> 2`（原为 `> 3`）；
+     - 导致桌面端 `offset=±4` 和移动端 `offset=±3` 的进出场透明缓冲卡片被误判为深层背景，其 `will-change` 被设为 `auto`，在滑入舞台时重新触发临时 Layer Promotion 掉帧。
+  2. **阈值修正与常量集中管理**：
+     - 在 `hero-cover-flow.constants.ts` 中新增并导出 `HERO_MAX_ACTIVE_OFFSET = { desktop: 4, mobile: 3 }` 常量，以及判定函数 `isHeroDeepBackground(offset, isDesktop)`；
+     - `HeroCoverFlow.tsx` 统一调用该共享函数，保障缓冲卡片保留常驻 GPU 合成层，杜绝魔法数字与手写边界漂移。
+- 涉及文件：
+  - apps/web/src/components/hero-cover-flow.constants.ts
+  - apps/web/src/components/HeroCoverFlow.tsx
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck` 与前端构建 `pnpm -F @animaku/web build` 验证 100% 通过。
+
 ## [2026-09-06] 热门聚焦 1:1 拟真 3D 骨架屏与渐进式图片淡入填充落地 (v1.3.11)
 - 状态：已完成
 - 优先级：P2
