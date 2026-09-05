@@ -520,7 +520,6 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
         className="relative mx-auto flex h-[270px] w-full items-center justify-center sm:h-[340px] md:h-[370px] lg:h-[390px] xl:h-[410px] max-w-5xl lg:max-w-6xl xl:max-w-[1360px] 2xl:max-w-[1480px]"
         style={{
           perspective: isDesktop ? '1700px' : '1200px',
-          transformStyle: 'preserve-3d',
         }}
       >
         {displayItems.map((item, index) => {

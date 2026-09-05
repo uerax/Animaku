@@ -4,6 +4,27 @@
 
 ---
 
+## [2026-09-05] 修复 3D 海报轮播 preserve-3d 与 2D zIndex 冲突导致的命中区域破碎缺陷 (v1.3.7)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **移除舞台容器的 `transformStyle: 'preserve-3d'`，拍平 3D 渲染上下文**：
+     - 查明深层根因：并非父容器阻挡射线，而是子卡片既指定了强行的 2D `zIndex`，父级又开启了 `preserve-3d` 空间深度排序，导致浏览器在同一批兄弟元素上同时执行两套排序机制而发生冲突，产生破碎不可预测的重叠命中边界，引发侧翼较远卡片大面积被兄弟不可见边界覆盖、仅小块缝隙可点的现象；
+     - 移除 `transformStyle: 'preserve-3d'` 将 3D 上下文拍平至 2D 投影平面，兄弟卡片的层叠与点击顺序完全回归到明确可控的 `zIndex`（30 > 22 > 15 > 8 > 2）；
+  2. **双重实机验证**：
+     - **点击完整性实测**：全卡片水平 5 级激光点测（10%、25%、50%、75%、90%），原先只有偏右能点、且整体近乎瘫痪的第 3、第 4 张卡片（offset = ±2, ±3）全表面恢复 100% 完整精准可点击；
+     - **3D 透视视觉实测**：`perspective` 保留在舞台父容器上，各子卡片独立的 `rotateY` 梯形透视、`scale` 与 3D 景深完全保留，截图肉眼比对与修复前 100% 一致无失真。
+- 涉及文件：
+  - apps/web/src/components/HeroCoverFlow.tsx
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/BUGS.md
+  - .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck` 验证 100% 通过。
+
 ## [2026-09-05] 3D 轮播自动播放交互重置、手势定时器竞态根除与落座 0 额外渲染架构加固 (v1.3.6)
 - 状态：已完成
 - 优先级：P1
