@@ -74,11 +74,10 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
   )
 
   const displayItems = useMemo(() => {
-    // 桌面端保留 10 项缓冲池（7 张视口可见 + 2 张入场/退场平滑缓冲区 + 1 张背面环转）
-    // 移动端保留 8 项缓冲池（5 张视口可见 + 2 张入场/退场平滑缓冲区 + 1 张背面环转）
-    const targetLimit = isDesktop ? Math.min(limit, 10) : Math.min(limit, 8)
+    // 统一保留 10 项缓冲池（桌面可见 7 项，移动可见 5 项，均具备充裕的两翼与离屏环转缓冲）
+    const targetLimit = Math.min(limit, 10)
     return items.slice(0, targetLimit)
-  }, [items, limit, isDesktop])
+  }, [items, limit])
   const count = displayItems.length
 
   const [activeIndex, setActiveIndex] = useState(0)
@@ -91,6 +90,8 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
   const containerRef = useRef<HTMLDivElement>(null)
   const prevOffsetsRef = useRef<Record<string | number, number>>({})
   const stepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const autoPlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const dragResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Touch gesture and dragging state refs
   const touchStartX = useRef<number | null>(null)
@@ -101,11 +102,17 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
   const isDragging = useRef<boolean>(false)
   const lastSlideTimeRef = useRef<number>(0)
 
-  // 组件卸载时清理连滚步进定时器
+  // 组件卸载时清理所有定时器
   useEffect(() => {
     return () => {
       if (stepTimerRef.current) {
         clearTimeout(stepTimerRef.current)
+      }
+      if (autoPlayTimerRef.current) {
+        clearTimeout(autoPlayTimerRef.current)
+      }
+      if (dragResetTimerRef.current) {
+        clearTimeout(dragResetTimerRef.current)
       }
     }
   }, [])
@@ -128,11 +135,74 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
 
   const activeItem = displayItems[activeIndex] ?? displayItems[0]
 
+  const moveLeftRef = useRef<() => void>(() => {})
+
+  // 自动播放调度器：每次用户主动操作（点击卡片/按钮/手势翻页）时重置 6 秒倒计时，杜绝刚刚翻页就被自动跳页打断
+  const restartAutoPlayTimer = useCallback(() => {
+    if (autoPlayTimerRef.current) {
+      clearTimeout(autoPlayTimerRef.current)
+      autoPlayTimerRef.current = null
+    }
+    if (isPaused || count <= 1) return
+    if (typeof document !== 'undefined' && document.hidden) return
+    autoPlayTimerRef.current = setTimeout(() => {
+      moveLeftRef.current()
+      restartAutoPlayTimer()
+    }, 6000)
+  }, [isPaused, count])
+
+  // 舞台整体向左移动（卡片向左平移流动，右侧卡片滑入）
+  const moveLeft = useCallback(() => {
+    if (count <= 1) return
+    if (stepTimerRef.current) {
+      clearTimeout(stepTimerRef.current)
+      stepTimerRef.current = null
+    }
+    setIsAccelerating(false)
+    const now = Date.now()
+    if (now - lastSlideTimeRef.current < 200) return
+    lastSlideTimeRef.current = now
+    restartAutoPlayTimer()
+    // activeIndex + 1 会使所有卡片 offset 减 1，X 轴整体向左平移
+    setActiveIndex((prev) => {
+      const next = (prev + 1) % count
+      activeIndexRef.current = next
+      return next
+    })
+  }, [count, restartAutoPlayTimer])
+
+  // 舞台整体向右移动（卡片向右平移流动，左侧卡片滑入）
+  const moveRight = useCallback(() => {
+    if (count <= 1) return
+    if (stepTimerRef.current) {
+      clearTimeout(stepTimerRef.current)
+      stepTimerRef.current = null
+    }
+    setIsAccelerating(false)
+    const now = Date.now()
+    if (now - lastSlideTimeRef.current < 200) return
+    lastSlideTimeRef.current = now
+    restartAutoPlayTimer()
+    // activeIndex - 1 会使所有卡片 offset 加 1，X 轴整体向右平移
+    setActiveIndex((prev) => {
+      const next = (prev - 1 + count) % count
+      activeIndexRef.current = next
+      return next
+    })
+  }, [count, restartAutoPlayTimer])
+
+  moveLeftRef.current = moveLeft
+
   // 平滑步进导航调度器：无论跨越多少张牌，均在最短环形路径上物理连续流动
   // 点击第 2/3 张或远端指示器时启动极速连滚并在终点减速刹停，手感迅猛流畅
   const slideTo = useCallback(
     (targetIndex: number) => {
       if (count <= 1) return
+      const now = Date.now()
+      if (now - lastSlideTimeRef.current < 160) return
+      lastSlideTimeRef.current = now
+      restartAutoPlayTimer()
+
       if (stepTimerRef.current) {
         clearTimeout(stepTimerRef.current)
         stepTimerRef.current = null
@@ -151,98 +221,76 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
       // 仅移动 1 步：以标准 520ms 饱满缓动平稳切至中心
       if (steps === 1) {
         setIsAccelerating(false)
-        setActiveIndex((prev) => (prev + direction + count) % count)
+        setActiveIndex((prev) => {
+          const next = (prev + direction + count) % count
+          activeIndexRef.current = next
+          return next
+        })
         return
       }
 
       // 跨越 2 步或更多（如点击第 2、3 张或远端圆点）：
-      // 启动高速加速滚盘动效（Accelerated Rapid Rolling），每步 75~95ms 极速掠过
-      // 最后一步自动解除加速并以 520ms 自然物理减速刹车停在中心，手感迅猛且轻盈
+      // 启动高速加速滚盘动效（Accelerated Rapid Rolling），每步 50~88ms 极速掠过
+      // 在到达最终目标步时平滑解开加速，以 520ms 饱满物理减速刹车落座，手感迅猛且轻盈
       setIsAccelerating(true)
       const stepInterval =
-        steps === 2 ? 95 : steps === 3 ? 75 : Math.max(55, Math.floor(220 / steps))
+        steps === 2 ? 88 : steps === 3 ? 72 : Math.max(50, Math.floor(200 / steps))
       let remaining = steps
 
       const executeStep = () => {
-        setActiveIndex((prev) => (prev + direction + count) % count)
         remaining--
-        if (remaining <= 1) {
-          // 到达最后一步时平滑解开加速，进入物理惯性减速刹停
+        if (remaining === 0) {
+          // 到达最后一步（终点）：平滑解开加速，进入 520ms 物理惯性减速刹停
           setIsAccelerating(false)
-        }
-        if (remaining > 0) {
+          setActiveIndex((prev) => {
+            const next = (prev + direction + count) % count
+            activeIndexRef.current = next
+            return next
+          })
+        } else {
+          // 飞跃中间步骤：保持 200ms 高速敏捷加速
+          setActiveIndex((prev) => {
+            const next = (prev + direction + count) % count
+            activeIndexRef.current = next
+            return next
+          })
           stepTimerRef.current = setTimeout(executeStep, stepInterval)
         }
       }
 
       executeStep()
     },
-    [count],
+    [count, restartAutoPlayTimer],
   )
 
-  // 舞台整体向左移动（卡片向左平移流动，右侧卡片滑入）
-  const moveLeft = useCallback(() => {
-    if (count <= 1) return
-    if (stepTimerRef.current) {
-      clearTimeout(stepTimerRef.current)
-      stepTimerRef.current = null
-    }
-    setIsAccelerating(false)
-    const now = Date.now()
-    if (now - lastSlideTimeRef.current < 200) return
-    lastSlideTimeRef.current = now
-    // activeIndex + 1 会使所有卡片 offset 减 1，X 轴整体向左平移
-    setActiveIndex((prev) => (prev + 1) % count)
-  }, [count])
-
-  // 舞台整体向右移动（卡片向右平移流动，左侧卡片滑入）
-  const moveRight = useCallback(() => {
-    if (count <= 1) return
-    if (stepTimerRef.current) {
-      clearTimeout(stepTimerRef.current)
-      stepTimerRef.current = null
-    }
-    setIsAccelerating(false)
-    const now = Date.now()
-    if (now - lastSlideTimeRef.current < 200) return
-    lastSlideTimeRef.current = now
-    // activeIndex - 1 会使所有卡片 offset 加 1，X 轴整体向右平移
-    setActiveIndex((prev) => (prev - 1 + count) % count)
-  }, [count])
-
-  // Auto-play timer (6s), respects page visibility to prevent background drain
+  // Auto-play lifecycle (respects user interaction reset and tab visibility)
   useEffect(() => {
-    if (isPaused || count <= 1) return
-    let timer: ReturnType<typeof setInterval> | null = null
-
-    const startTimer = () => {
-      if (timer) clearInterval(timer)
-      if (typeof document !== 'undefined' && document.hidden) return
-      timer = setInterval(() => {
-        moveLeft()
-      }, 6000)
-    }
+    restartAutoPlayTimer()
 
     const handleVisibilityChange = () => {
       if (typeof document !== 'undefined' && document.hidden) {
-        if (timer) clearInterval(timer)
-        timer = null
+        if (autoPlayTimerRef.current) {
+          clearTimeout(autoPlayTimerRef.current)
+          autoPlayTimerRef.current = null
+        }
       } else {
-        startTimer()
+        restartAutoPlayTimer()
       }
     }
 
-    startTimer()
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', handleVisibilityChange)
     }
     return () => {
-      if (timer) clearInterval(timer)
+      if (autoPlayTimerRef.current) {
+        clearTimeout(autoPlayTimerRef.current)
+        autoPlayTimerRef.current = null
+      }
       if (typeof document !== 'undefined') {
         document.removeEventListener('visibilitychange', handleVisibilityChange)
       }
     }
-  }, [isPaused, count, moveLeft])
+  }, [restartAutoPlayTimer])
 
   // Keyboard navigation (scoped to visible viewport to prevent hijacking other controls)
   useEffect(() => {
@@ -273,6 +321,15 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
   }, [moveLeft, moveRight])
 
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (stepTimerRef.current) {
+      clearTimeout(stepTimerRef.current)
+      stepTimerRef.current = null
+    }
+    if (dragResetTimerRef.current) {
+      clearTimeout(dragResetTimerRef.current)
+      dragResetTimerRef.current = null
+    }
+    setIsAccelerating(false)
     touchStartX.current = e.touches[0].clientX
     touchStartY.current = e.touches[0].clientY
     touchDeltaX.current = 0
@@ -308,6 +365,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
       Math.abs(touchDeltaX.current) > 40 &&
       Math.abs(touchDeltaX.current) > Math.abs(touchDeltaY.current) * 1.3
     ) {
+      restartAutoPlayTimer()
       if (touchDeltaX.current > 0) {
         moveRight()
       } else {
@@ -319,9 +377,13 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
     touchDeltaX.current = 0
     touchDeltaY.current = 0
     isSwipingHorizontal.current = null
-    // Reset dragging flag with 180ms safety window to prevent accidental link clicks after touch gesture
-    setTimeout(() => {
+    // Reset dragging flag with 180ms safety window via tracked timer to prevent accidental link clicks
+    if (dragResetTimerRef.current) {
+      clearTimeout(dragResetTimerRef.current)
+    }
+    dragResetTimerRef.current = setTimeout(() => {
       isDragging.current = false
+      dragResetTimerRef.current = null
     }, 180)
   }
 
@@ -338,12 +400,31 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
   const activeCoverUrl = activeItem
     ? resolveImageUrl(coverOf(activeItem, 'large'))
     : null
-  const activeTitle = activeItem?.nameCn || activeItem?.name
+
+  // 连滚加速期间保持 Meta 文本（标题、评分、在看人数）与环境光背景稳定，
+  // 避免高频步进时文字疯狂抽搐与重复光栅化全屏模糊背景；
+  // 采用 Ref 快照暂存，落座终点时天然直出，彻底消除多余的二次 React re-render 损耗
+  const stableMetaRef = useRef(activeItem)
+  const stableCoverRef = useRef(activeCoverUrl)
+
+  if (!isAccelerating && activeItem) {
+    stableMetaRef.current = activeItem
+    stableCoverRef.current = activeCoverUrl
+  }
+
+  const metaItem = isAccelerating
+    ? (stableMetaRef.current ?? activeItem)
+    : activeItem
+  const activeTitle = metaItem?.nameCn || metaItem?.name
   const activeScore =
-    activeItem && activeItem.ratingScore > 0
-      ? activeItem.ratingScore.toFixed(1)
+    metaItem && metaItem.ratingScore > 0
+      ? metaItem.ratingScore.toFixed(1)
       : null
-  const activeDoing = activeItem ? formatDoingCount(activeItem.doing) : ''
+  const activeDoing = metaItem ? formatDoingCount(metaItem.doing) : ''
+
+  const ambientCoverUrl = isAccelerating
+    ? (stableCoverRef.current ?? activeCoverUrl)
+    : activeCoverUrl
 
   // Structured ItemList microdata for SEO & GEO (uses authoritative official image URLs)
   const heroJsonLd = useMemo(() => {
@@ -365,10 +446,10 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
     }
   }, [displayItems])
 
-  // Reset background error state when active cover changes
+  // Reset background error state when ambient cover changes
   useEffect(() => {
     setBgImgError(false)
-  }, [activeCoverUrl])
+  }, [ambientCoverUrl])
 
   // Sync offsets after render to detect boundary jumps (flying cards)
   useEffect(() => {
@@ -409,7 +490,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
       />
 
       {/* 1. Dynamic Ambient Background Glow with smooth mask dissipation */}
-      {activeCoverUrl && !bgImgError && (
+      {ambientCoverUrl && !bgImgError && (
         <div
           className="pointer-events-none absolute inset-0 -z-10 overflow-hidden transition-all duration-700 ease-out"
           style={{
@@ -421,7 +502,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
           aria-hidden="true"
         >
           <img
-            src={activeCoverUrl}
+            src={ambientCoverUrl}
             alt=""
             loading="lazy"
             decoding="async"
@@ -437,7 +518,10 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
       {/* 2. Cover Flow 3D Stage Container (Balanced cinema stage for desktop, dialed back by ~1/9) */}
       <div
         className="relative mx-auto flex h-[270px] w-full items-center justify-center sm:h-[340px] md:h-[370px] lg:h-[390px] xl:h-[410px] max-w-5xl lg:max-w-6xl xl:max-w-[1360px] 2xl:max-w-[1480px]"
-        style={{ perspective: isDesktop ? '1700px' : '1200px' }}
+        style={{
+          perspective: isDesktop ? '1700px' : '1200px',
+          transformStyle: 'preserve-3d',
+        }}
       >
         {displayItems.map((item, index) => {
           const offset = getOffset(index)
@@ -453,14 +537,15 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
             prevOffset !== undefined &&
             Math.abs(offset - prevOffset) > count / 2
 
-          // 连滚加速期采用 220ms 高频敏捷缓动，常规单步与最终刹车期采用 520ms 饱满物理减速
-          const animDuration = isAccelerating ? '220ms' : '520ms'
+          // 连滚加速期采用 200ms 高频敏捷缓动，常规单步与最终刹车期采用 520ms 饱满物理减速
+          const animDuration = isAccelerating ? '200ms' : '520ms'
           const animTimingFn = isAccelerating
             ? 'cubic-bezier(0.25, 0.9, 0.3, 1)'
             : 'cubic-bezier(0.16, 1, 0.3, 1)'
 
-          // Pure GPU composited transform & opacity: 0 dynamic blur rasterization overhead
+          // Pure GPU composited transform & opacity: 常驻 GPU 合成层，避免图层动态提升导致的微掉帧
           let style: React.CSSProperties = {
+            willChange: 'transform, opacity',
             transition: isJumpingBoundary
               ? 'none'
               : `transform ${animDuration} ${animTimingFn}, opacity ${animDuration} ${animTimingFn}`,
@@ -618,15 +703,11 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
             }
           }
 
-          const isVisibleOnStage = isDesktop
-            ? Math.abs(offset) <= 3
-            : Math.abs(offset) <= 2
-
           return (
             <div
               key={item.id}
               onClick={() => {
-                if (isDragging.current) return
+                if (isDragging.current || isAccelerating) return
                 if (!isCenter) {
                   slideTo(index)
                 }
@@ -642,7 +723,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
                 to={`/subject/${item.id}`}
                 tabIndex={isCenter ? 0 : -1}
                 onClick={(e) => {
-                  if (isDragging.current) {
+                  if (isDragging.current || isAccelerating) {
                     e.preventDefault()
                     e.stopPropagation()
                     return
@@ -662,7 +743,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
                   <img
                     src={cover}
                     alt={title}
-                    loading={isVisibleOnStage ? 'eager' : 'lazy'}
+                    loading="eager"
                     decoding="async"
                     fetchPriority={isCenter ? 'high' : 'auto'}
                     referrerPolicy="no-referrer"
@@ -719,7 +800,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
       </div>
 
       {/* 3. Active Anime Spotlight Meta Info Panel (Comfortable breathing gap) */}
-      {activeItem && (
+      {metaItem && (
         <div className="mt-8 text-center sm:mt-11 md:mt-14">
           {/* Badges / Chips */}
           <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-2.5">
@@ -738,16 +819,16 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
           {/* Title - clickable direct to subject */}
           <h3 className="mt-3">
             <Link
-              to={`/subject/${activeItem.id}`}
+              to={`/subject/${metaItem.id}`}
               onMouseEnter={preloadVideoPlayer}
               className="inline-block truncate text-xl font-black text-[var(--kz-fg)] transition-colors hover:text-[var(--kz-accent)] sm:text-2xl md:text-3xl"
             >
               {activeTitle}
             </Link>
           </h3>
-          {activeItem.name && activeItem.name !== activeTitle && (
+          {metaItem.name && metaItem.name !== activeTitle && (
             <p className="mt-0.5 truncate text-xs text-[var(--kz-fg-dim)] sm:text-sm">
-              {activeItem.name}
+              {metaItem.name}
             </p>
           )}
 
@@ -759,7 +840,11 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
                 type="button"
                 onClick={() => slideTo(idx)}
                 aria-label={`切换到第 ${idx + 1} 部番剧`}
-                className={`h-1.5 rounded-full transition-all duration-300 ${
+                className={`h-1.5 rounded-full ${
+                  isAccelerating
+                    ? 'transition-none'
+                    : 'transition-all duration-300'
+                } ${
                   idx === activeIndex
                     ? 'w-7 bg-[var(--kz-accent)] shadow-sm'
                     : 'w-2 bg-[var(--kz-border)] hover:bg-[var(--kz-fg-muted)]'

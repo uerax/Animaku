@@ -4,6 +4,84 @@
 
 ---
 
+## [2026-09-05] 3D 轮播自动播放交互重置、手势定时器竞态根除与落座 0 额外渲染架构加固 (v1.3.6)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **自动播放 6 秒倒计时交互重置闭环**：
+     - 构建 `restartAutoPlayTimer`，在用户点击卡片 `slideTo`、点击左右箭头 `moveLeft/moveRight`、手势抬手翻页时即刻重置 6 秒倒计时；
+     - 彻底消除“用户刚刚手动翻页，1 秒内自动播放倒计时刚好到期又强行自动翻页”的生硬打断缺陷；
+  2. **根除移动端手势 `dragResetTimerRef` 悬挂定时器竞态 Bug**：
+     - 引入受控的 `dragResetTimerRef`，在 `handleTouchStart` 与下一次 `handleTouchEnd` 时显式清理悬挂定时器；
+     - 彻底杜绝连续快速划屏时旧定时器到期提前清空 `isDragging` 导致的误触底层卡片穿透跳转；
+  3. **统一移动端与桌面端 10 项数据缓冲池**：
+     - 将 `displayItems` 统一对齐为 `Math.min(limit, 10)`，使移动端完整享有全部 10 项番剧推荐与一致的 10 粒指示器圆点，同时提供更充裕的背面离屏环转缓冲，根除横竖屏切换时数据截断与坐标系突变；
+  4. **消除落座刹停时的二次 React re-render**：
+     - 摒弃连滚期间的多余 `useState`，重构为 `stableMetaRef` 与 `stableCoverRef` 快照暂存，落座刹停时在同一渲染周期内天然直出，彻底省去一次全量组件重渲染；
+     - 10 张核心焦点海报统一配置 `loading="eager"`，中心绑定 `fetchPriority="high"`，彻底杜绝转动过程中的任何白块闪烁与 DOM 属性震荡。
+- 涉及文件：
+  - apps/web/src/components/HeroCoverFlow.tsx
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/BUGS.md
+  - .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck` 与前端构建 `pnpm -F @animaku/web build` 验证 100% 通过。
+
+## [2026-09-05] 3D 海报轮播连滚飞转防误跳、TouchStart 触碰即刻制动与指示器防撕裂加固 (v1.3.5)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **加固连滚飞转期间防误触与路由误跳转安全防线**：
+     - 在卡片 Link 的 `onClick` 与卡片容器的 `onClick` 中增加 `isAccelerating` 拦截防护；
+     - 彻底根除轮播在连滚飞转阶段中间卡片掠过中央（`offset === 0`）时，用户触碰导致意外触发页面跳转出站的缺陷；
+  2. **手势触碰（TouchStart）即刻平稳制动**：
+     - 在 `handleTouchStart` 中同步清除连滚定时器（`clearTimeout(stepTimerRef.current)`）并将 `isAccelerating` 归零；
+     - 实现移动端手指接触屏幕瞬间即刻制动，符合直觉的触控物理响应；
+  3. **消除指示器圆点动画撕裂与 Meta 文字面板高频抽搐**：
+     - 在高速连滚（`isAccelerating = true`）期间，底部分页圆点动态切换为 `transition-none`，消除 300ms 宽度缓动被 50ms 定时器频繁打断撕裂的抖动；静止落座时恢复平滑展开过渡；
+     - 引入受控稳定的 `displayedItem`，连滚飞掠期间冻结 Meta 文字面板的高频重绘，落座终点时一次性平滑同步，视觉干净整洁。
+- 涉及文件：
+  - apps/web/src/components/HeroCoverFlow.tsx
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/BUGS.md
+  - .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck` 与前端构建 `pnpm -F @animaku/web build` 验证 100% 通过。
+
+## [2026-09-05] 修复 3D 海报轮播连滚加速与刹停节奏 Bug，并全链路加固 GPU 渲染性能防线 (v1.3.4)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **修复 2 步连滚时 React 18 批处理合并导致 `isAccelerating` 动效失效缺陷**：
+     - 重构 `slideTo` 步进调度器，跨越 2 步及以上时启动高速连滚（`isAccelerating = true`）；
+     - 中间飞驰阶段统一维持 200ms 高敏捷加速曲线（`cubic-bezier(0.25, 0.9, 0.3, 1)`），由定时器按 50~88ms 步进极速滑行；
+     - 仅在触发到达最终目标步时平滑解开加速（`isAccelerating = false`），消除倒数第二步提前减速被掐断的节奏颠簸，使目标卡片以 520ms 饱满的 `cubic-bezier(0.16, 1, 0.3, 1)` 自然物理减速平稳刹车落座；
+  2. **根除连滚期间全屏高斯模糊背景高频换源造成的 GPU 掉帧瓶颈**：
+     - 引入稳定受控的 `ambientCoverUrl`，在连滚加速期间（`isAccelerating` 为 true）冻结全屏环境光背景换源，杜绝浏览器在几十毫秒内反复触发全屏大半径高斯模糊（`blur-3xl`）与 `maskImage` 的重度 GPU 纹理光栅化；
+     - 仅在平稳落座（`!isAccelerating`）后平滑淡入更新背景，连滚过程满帧丝滑无微卡；
+  3. **3D 舞台与卡片常驻 GPU 合成层加固**：
+     - 3D 舞台容器显式配置 `transformStyle: 'preserve-3d'`；
+     - 卡片内联样式增设 `willChange: 'transform, opacity'`，消除旋转启停时的图层动态提升与销毁开销；
+  4. **DOM 属性防抖与状态防漂移**：
+     - 引入 `eagerIndicesRef` 记录曾处于视口可见区的卡片，避免转动过程中在 DOM 树上频繁来回切换 `loading="eager"` / `"lazy"`；
+     - 在 `slideTo`、`moveLeft` 与 `moveRight` 中原子同步 `activeIndexRef.current`，并增设 160ms 连击节流保护，防止快速狂点引发状态重入。
+- 涉及文件：
+  - apps/web/src/components/HeroCoverFlow.tsx
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/BUGS.md
+  - .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck` 与前端构建 `pnpm -F @animaku/web build` 验证 100% 通过。
+
 ## [2026-09-05] 3D 海报轮播双向平滑进出场动效、多步连贯滚动与物理操作方向修正 (v1.3.3)
 - 状态：已完成
 - 优先级：P0
