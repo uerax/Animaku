@@ -88,6 +88,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
   const [isPaused, setIsPaused] = useState(false)
   const [bgImgError, setBgImgError] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const isInViewportRef = useRef(true)
   const prevOffsetsRef = useRef<Record<string | number, number>>({})
   const stepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const autoPlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -143,13 +144,16 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
       clearTimeout(autoPlayTimerRef.current)
       autoPlayTimerRef.current = null
     }
-    if (isPaused || count <= 1) return
+    if (isPaused || count <= 1 || !isInViewportRef.current) return
     if (typeof document !== 'undefined' && document.hidden) return
     autoPlayTimerRef.current = setTimeout(() => {
       moveLeftRef.current()
       restartAutoPlayTimer()
     }, 6000)
   }, [isPaused, count])
+
+  const restartAutoPlayTimerRef = useRef(restartAutoPlayTimer)
+  restartAutoPlayTimerRef.current = restartAutoPlayTimer
 
   // 舞台整体向左移动（卡片向左平移流动，右侧卡片滑入）
   const moveLeft = useCallback(() => {
@@ -263,7 +267,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
     [count, restartAutoPlayTimer],
   )
 
-  // Auto-play lifecycle (respects user interaction reset and tab visibility)
+  // Auto-play lifecycle (respects user interaction reset, viewport intersection and tab visibility)
   useEffect(() => {
     restartAutoPlayTimer()
 
@@ -292,6 +296,33 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
     }
   }, [restartAutoPlayTimer])
 
+  // 视口感知调度器：当轮播完全滚出可视区域时静默自动播放定时器，重新进入视口时恢复并重置 6 秒倒计时
+  // 采用 Ref 保持最新调度引用，避免鼠标频繁移入移出（isPaused 改变）导致反复销毁重建 observer
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('IntersectionObserver' in window)) return
+    const el = containerRef.current
+    if (!el) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        const inView = Boolean(entry?.isIntersecting)
+        isInViewportRef.current = inView
+        if (!inView) {
+          if (autoPlayTimerRef.current) {
+            clearTimeout(autoPlayTimerRef.current)
+            autoPlayTimerRef.current = null
+          }
+        } else {
+          restartAutoPlayTimerRef.current()
+        }
+      },
+      { threshold: 0.05 },
+    )
+
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
   // Keyboard navigation (scoped to visible viewport to prevent hijacking other controls)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -302,13 +333,8 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
       ) {
         return
       }
-      // Check if carousel container is roughly visible within the viewport
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect()
-        const isVisible =
-          rect.bottom > 0 && rect.top < (window.innerHeight || 800)
-        if (!isVisible) return
-      }
+      // Check if carousel container is visible within the viewport (0 forced reflow via IntersectionObserver)
+      if (!isInViewportRef.current) return
 
       if (e.key === 'ArrowLeft') {
         moveLeft()
@@ -397,8 +423,19 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
     return diff
   }
 
+  // 预先缓存所有展示卡片的封面 URL（基于 displayItems 与 resolveImageUrl/host）
+  // 消除连滚期间（50~88ms/步）高频触发的正则匹配与字符串拼接 GC 开销；
+  // 同时由于 resolveImageUrl 依赖 host，用户在设置中更改图片源时将即时自动热更新
+  const coverMap = useMemo(() => {
+    const map = new Map<number | string, string>()
+    for (const item of displayItems) {
+      map.set(item.id, resolveImageUrl(coverOf(item, 'large')))
+    }
+    return map
+  }, [displayItems, resolveImageUrl])
+
   const activeCoverUrl = activeItem
-    ? resolveImageUrl(coverOf(activeItem, 'large'))
+    ? (coverMap.get(activeItem.id) || null)
     : null
 
   // 连滚加速期间保持 Meta 文本（标题、评分、在看人数）与环境光背景稳定，
@@ -525,7 +562,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
         {displayItems.map((item, index) => {
           const offset = getOffset(index)
           const isCenter = offset === 0
-          const cover = resolveImageUrl(coverOf(item, 'large'))
+          const cover = coverMap.get(item.id) ?? ''
           const title = item.nameCn || item.name
           const score =
             item.ratingScore > 0 ? item.ratingScore.toFixed(1) : null
@@ -628,9 +665,10 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
                 pointerEvents: 'none',
               }
             } else {
-              // Cards in deep background
+              // Cards in deep background: 处于舞台背部且完全透明，移除 willChange 释放非必要合成层显存
               style = {
                 ...style,
+                willChange: 'auto',
                 transform: 'translateX(0%) scale(0.3)',
                 zIndex: 0,
                 opacity: 0,
@@ -692,8 +730,10 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
                 pointerEvents: 'none',
               }
             } else {
+              // Cards in deep background: 处于舞台背部且完全透明，移除 willChange 释放非必要合成层显存
               style = {
                 ...style,
+                willChange: 'auto',
                 transform: 'translateX(0%) scale(0.4)',
                 zIndex: 0,
                 opacity: 0,

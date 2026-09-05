@@ -4,6 +4,32 @@
 
 ---
 
+## [2026-09-05] 3D 海报轮播封面 URL 规范预缓存、视口感知自动休眠与 GPU 合成层收拢加固 (v1.3.8)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **规范化封面 URL `useMemo` 预计算缓存**：
+     - 构建 `coverMap` 缓存池，严格绑定 `[displayItems, resolveImageUrl]` 依赖，消灭多步连滚飞驰（50~88ms/步）调度期间反复调用正则与字符串拼接带来的高频 GC 垃圾回收与 CPU 微卡顿；
+     - 深度融入 Zustand 设置响应链路，当用户在设置面板变更图片代理源时，`host` 驱动 `resolveImageUrl` 自动促使 `useMemo` 失效并热更新，实现设置即改即生效与连滚 0 抖动的完美统一；
+  2. **`IntersectionObserver` 视口感知自动休眠**：
+     - 引入轻量级 `isInViewportRef` 结合 `IntersectionObserver` 精准监听轮播容器；
+     - 当用户向下滚动浏览下方列表（今日放送、新番索引）导致轮播脱离屏幕时，彻底静默后台 6 秒自动播放定时器；滚回视口时平滑唤醒并重新起跑，杜绝离屏状态下的无意义 CPU 唤醒与移动端电量损耗；
+  3. **深层不可见卡片 `willChange: 'auto'` 规范收拢**：
+     - 在桌面端（|offset| > 4）与移动端（|offset| > 3）的深层完全隐藏背景卡片分支中，显式将 `willChange` 覆盖为 `'auto'`，释放不必要的常驻合成层；
+     - 同时严格保障舞台内可见区（桌面端 ±3，移动端 ±2）与淡入淡出缓冲区（桌面端 ±4，移动端 ±3）的高保真 GPU 合成层，杜绝滑动进入舞台时的图层临时提升与掉帧；
+  4. **键盘导航与视口状态统一，消除强制重排（Forced Reflow）**：
+     - 将键盘按键事件监听中的同步 `getBoundingClientRect()` 替换为异步更新的 `isInViewportRef.current` 检查，彻底消除任意按键触发的 Synchronous Forced Layout/Reflow，大幅减轻主线程负担。
+- 涉及文件：
+  - apps/web/src/components/HeroCoverFlow.tsx
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/BUGS.md
+  - .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck` 与前端生产构建 `pnpm -F @animaku/web build` 验证 100% 通过。
+
 ## [2026-09-05] 修复 3D 海报轮播 preserve-3d 与 2D zIndex 冲突导致的命中区域破碎缺陷 (v1.3.7)
 - 状态：已完成
 - 优先级：P1
