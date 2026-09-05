@@ -4,6 +4,35 @@
 
 ---
 
+## [2026-09-06] 热门聚焦 1:1 拟真 3D 骨架屏与渐进式图片淡入填充落地 (v1.3.11)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **共享几何参数与 3D 样式解耦**：
+     - 新建 `hero-cover-flow.constants.ts`，将 3D 舞台高度响应式类名、外层包裹容器类名、透视参数（`perspective: 1700px / 1200px`）、卡片尺寸类名及 `getHeroCardTransformStyle` 3D 变换样式计算函数统一收口管理；
+     - 彻底消除真实轮播与骨架屏双份配置漂移的长期维护隐患，确保几何对齐与布局位移为 0（CLS = 0）。
+  2. **1:1 拟真 3D 骨架屏实现**：
+     - 新增 `HeroCoverFlowSkeleton.tsx`，与真机 100% 镜像 5 张立体海报卡片、光影遮罩、中央高亮聚焦边框、桌面端左右翻页占位及底部微光信息栏（徽标胶囊、主副标题、10 项分页药丸骨架）；
+     - 复用全局 `.kz-skeleton` 微光流动动效，彻底告别原先单一大灰块造成的“首屏苍白/大块留白”缺陷。
+  3. **海报卡片内骨架占位与图片平滑淡入（Progressive Crossfade）**：
+     - 将海报图片封装为 `HeroCardPoster`，底层常驻 `kz-skeleton` 微光占位；
+     - 基于 `useLayoutEffect` 同步检测内存/本地缓存命中防闪烁，图片加载完成后通过 `opacity-0 -> opacity-100`（`transition-[transform,opacity] duration-500 ease-out`）平滑淡入原地填充，根除接口返回后图片拉取期间的底色裸露与闪白。
+  4. **首页挂载无缝替换**：
+     - 在 `HomePage.tsx` 中移除旧版 `animate-pulse` 大灰块，无缝挂载 `<HeroCoverFlowSkeleton />`。
+- 涉及文件：
+  - apps/web/src/components/hero-cover-flow.constants.ts
+  - apps/web/src/components/HeroCoverFlowSkeleton.tsx
+  - apps/web/src/components/HeroCoverFlow.tsx
+  - apps/web/src/pages/HomePage.tsx
+  - .claude/feature-map.md
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck` 与前端构建 `pnpm -F @animaku/web build` 验证 100% 通过。
+
 ## [2026-09-05] 修复 3D 海报轮播鼠标悬浮聚焦时圆角溢出逃逸与边框遮挡缺陷 (v1.3.10)
 - 状态：已完成
 - 优先级：P1

@@ -1,4 +1,4 @@
-import { memo, useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { memo, useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import type { BangumiItem } from '@animaku/shared'
 import {
@@ -10,6 +10,16 @@ import {
 } from '@animaku/shared'
 import { useSettingsStore } from '../stores/settings'
 import { preloadVideoPlayer } from '../player/lazy'
+import {
+  HERO_STAGE_CONTAINER_CLASS,
+  HERO_SECTION_WRAPPER_CLASS,
+  HERO_CARD_DIMENSIONS_CLASS,
+  HERO_PERSPECTIVE,
+  DESKTOP_MEDIA_QUERY,
+  getHeroCardTransformStyle,
+} from './hero-cover-flow.constants'
+
+export { HeroCoverFlowSkeleton } from './HeroCoverFlowSkeleton'
 
 interface HeroCoverFlowProps {
   items: BangumiItem[]
@@ -19,6 +29,68 @@ interface HeroCoverFlowProps {
 function escapeJsonLdScript(jsonStr: string): string {
   return jsonStr.replace(/<\/script/gi, '<\\/script')
 }
+
+interface HeroCardPosterProps {
+  cover: string
+  title: string
+  isCenter: boolean
+}
+
+const HeroCardPoster = memo(function HeroCardPoster({
+  cover,
+  title,
+  isCenter,
+}: HeroCardPosterProps) {
+  const [isLoaded, setIsLoaded] = useState(false)
+  const [hasError, setHasError] = useState(false)
+  const imgRef = useRef<HTMLImageElement>(null)
+
+  // 物理级 0 闪烁防线：在首帧 Paint 之前同步检查是否命中内存/本地缓存
+  useLayoutEffect(() => {
+    if (imgRef.current?.complete && imgRef.current.naturalWidth > 0) {
+      setIsLoaded(true)
+    }
+  }, [cover])
+
+  return (
+    <>
+      {/* 骨架微光占位层：图片未完全解码加载完成前持续占位，消除白屏 */}
+      {!isLoaded && !hasError && (
+        <div
+          className="kz-skeleton absolute inset-0 z-0 rounded-[inherit]"
+          aria-hidden="true"
+        />
+      )}
+
+      {cover && !hasError ? (
+        <img
+          ref={imgRef}
+          src={cover}
+          alt={title}
+          loading="eager"
+          decoding="async"
+          fetchPriority={isCenter ? 'high' : 'auto'}
+          referrerPolicy="no-referrer"
+          onLoad={() => setIsLoaded(true)}
+          onError={() => setHasError(true)}
+          className={`h-full w-full object-cover rounded-[inherit] transition-[transform,opacity] duration-500 ease-out group-hover:scale-105 ${
+            isLoaded ? 'opacity-100' : 'opacity-0'
+          }`}
+        />
+      ) : null}
+
+      {/* 无封面或加载失败回退 */}
+      {(!cover || hasError) && (
+        <div
+          className="absolute inset-0 -z-10 flex items-center justify-center bg-[var(--kz-bg-soft)] text-xs text-[var(--kz-fg-dim)] rounded-[inherit]"
+          aria-hidden="true"
+        >
+          无封面
+        </div>
+      )}
+    </>
+  )
+})
 
 function IconChevronLeft({ className = 'w-5 h-5' }: { className?: string }) {
   return (
@@ -120,7 +192,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const mq = window.matchMedia('(min-width: 768px)')
+    const mq = window.matchMedia(DESKTOP_MEDIA_QUERY)
     const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches)
     setIsDesktop(mq.matches)
     mq.addEventListener('change', handler)
@@ -500,7 +572,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
   return (
     <div
       ref={containerRef}
-      className="relative -mx-4 overflow-hidden touch-pan-y px-4 pt-6 pb-6 sm:mx-0 sm:px-6 sm:pt-8 sm:pb-8"
+      className={HERO_SECTION_WRAPPER_CLASS}
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       onTouchStart={handleTouchStart}
@@ -554,9 +626,11 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
 
       {/* 2. Cover Flow 3D Stage Container (Balanced cinema stage for desktop, dialed back by ~1/9) */}
       <div
-        className="relative mx-auto flex h-[270px] w-full items-center justify-center sm:h-[340px] md:h-[370px] lg:h-[390px] xl:h-[410px] max-w-5xl lg:max-w-6xl xl:max-w-[1360px] 2xl:max-w-[1480px]"
+        className={HERO_STAGE_CONTAINER_CLASS}
         style={{
-          perspective: isDesktop ? '1700px' : '1200px',
+          perspective: isDesktop
+            ? HERO_PERSPECTIVE.desktop
+            : HERO_PERSPECTIVE.mobile,
         }}
       >
         {displayItems.map((item, index) => {
@@ -579,167 +653,18 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
             ? 'cubic-bezier(0.25, 0.9, 0.3, 1)'
             : 'cubic-bezier(0.16, 1, 0.3, 1)'
 
-          // Pure GPU composited transform & opacity: 常驻 GPU 合成层，避免图层动态提升导致的微掉帧
-          let style: React.CSSProperties = {
-            willChange: 'transform, opacity',
+          // 统一使用共享的 3D 几何变换样式计算，确保与骨架屏 1:1 精确镜像
+          const baseTransformStyle = getHeroCardTransformStyle(offset, isDesktop)
+          const isDeepBackground =
+            !isCenter &&
+            (isDesktop ? Math.abs(offset) > 3 : Math.abs(offset) > 2)
+
+          const style: React.CSSProperties = {
+            ...baseTransformStyle,
+            willChange: isDeepBackground ? 'auto' : 'transform, opacity',
             transition: isJumpingBoundary
               ? 'none'
               : `transform ${animDuration} ${animTimingFn}, opacity ${animDuration} ${animTimingFn}`,
-          }
-
-          if (isCenter) {
-            style = {
-              ...style,
-              transform: 'translateX(0%) scale(1.08) translateZ(48px)',
-              zIndex: 30,
-              opacity: 1,
-            }
-          } else if (isDesktop) {
-            // Desktop: 7 cards visible in stage + 2 buffer cards (offset ±4) for seamless fade-in/out
-            if (offset === -1) {
-              style = {
-                ...style,
-                transform:
-                  'translateX(-90%) scale(0.90) rotateY(15deg) translateZ(10px)',
-                zIndex: 22,
-                opacity: 0.88,
-              }
-            } else if (offset === 1) {
-              style = {
-                ...style,
-                transform:
-                  'translateX(90%) scale(0.90) rotateY(-15deg) translateZ(10px)',
-                zIndex: 22,
-                opacity: 0.88,
-              }
-            } else if (offset === -2) {
-              style = {
-                ...style,
-                transform:
-                  'translateX(-176%) scale(0.76) rotateY(25deg) translateZ(-35px)',
-                zIndex: 15,
-                opacity: 0.62,
-              }
-            } else if (offset === 2) {
-              style = {
-                ...style,
-                transform:
-                  'translateX(176%) scale(0.76) rotateY(-25deg) translateZ(-35px)',
-                zIndex: 15,
-                opacity: 0.62,
-              }
-            } else if (offset === -3) {
-              style = {
-                ...style,
-                transform:
-                  'translateX(-256%) scale(0.64) rotateY(33deg) translateZ(-75px)',
-                zIndex: 8,
-                opacity: 0.36,
-              }
-            } else if (offset === 3) {
-              style = {
-                ...style,
-                transform:
-                  'translateX(256%) scale(0.64) rotateY(-33deg) translateZ(-75px)',
-                zIndex: 8,
-                opacity: 0.36,
-              }
-            } else if (offset === -4) {
-              // Desktop left entrance/exit buffer: completely transparent, provides seamless fade-in slide
-              style = {
-                ...style,
-                transform:
-                  'translateX(-326%) scale(0.50) rotateY(38deg) translateZ(-115px)',
-                zIndex: 2,
-                opacity: 0,
-                pointerEvents: 'none',
-              }
-            } else if (offset === 4) {
-              // Desktop right entrance/exit buffer: completely transparent, provides seamless fade-in slide
-              style = {
-                ...style,
-                transform:
-                  'translateX(326%) scale(0.50) rotateY(-38deg) translateZ(-115px)',
-                zIndex: 2,
-                opacity: 0,
-                pointerEvents: 'none',
-              }
-            } else {
-              // Cards in deep background: 处于舞台背部且完全透明，移除 willChange 释放非必要合成层显存
-              style = {
-                ...style,
-                willChange: 'auto',
-                transform: 'translateX(0%) scale(0.3)',
-                zIndex: 0,
-                opacity: 0,
-                pointerEvents: 'none',
-              }
-            }
-          } else {
-            // Mobile: 5 cards visible in stage + 2 buffer cards (offset ±3) for seamless fade-in/out
-            if (offset === -1) {
-              style = {
-                ...style,
-                transform:
-                  'translateX(-58%) scale(0.86) rotateY(16deg) translateZ(0px)',
-                zIndex: 20,
-                opacity: 0.65,
-              }
-            } else if (offset === 1) {
-              style = {
-                ...style,
-                transform:
-                  'translateX(58%) scale(0.86) rotateY(-16deg) translateZ(0px)',
-                zIndex: 20,
-                opacity: 0.65,
-              }
-            } else if (offset === -2) {
-              style = {
-                ...style,
-                transform:
-                  'translateX(-108%) scale(0.72) rotateY(26deg) translateZ(-40px)',
-                zIndex: 10,
-                opacity: 0.32,
-              }
-            } else if (offset === 2) {
-              style = {
-                ...style,
-                transform:
-                  'translateX(108%) scale(0.72) rotateY(-26deg) translateZ(-40px)',
-                zIndex: 10,
-                opacity: 0.32,
-              }
-            } else if (offset === -3) {
-              // Mobile left entrance/exit buffer: completely transparent
-              style = {
-                ...style,
-                transform:
-                  'translateX(-158%) scale(0.58) rotateY(34deg) translateZ(-75px)',
-                zIndex: 2,
-                opacity: 0,
-                pointerEvents: 'none',
-              }
-            } else if (offset === 3) {
-              // Mobile right entrance/exit buffer: completely transparent
-              style = {
-                ...style,
-                transform:
-                  'translateX(158%) scale(0.58) rotateY(-34deg) translateZ(-75px)',
-                zIndex: 2,
-                opacity: 0,
-                pointerEvents: 'none',
-              }
-            } else {
-              // Cards in deep background: 处于舞台背部且完全透明，移除 willChange 释放非必要合成层显存
-              style = {
-                ...style,
-                willChange: 'auto',
-                transform: 'translateX(0%) scale(0.4)',
-                zIndex: 0,
-                opacity: 0,
-                pointerEvents: 'none',
-              }
-            }
           }
 
           return (
@@ -752,7 +677,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
                 }
               }}
               style={style}
-              className={`absolute top-3 bottom-3 sm:top-4 sm:bottom-4 flex aspect-[2/3] cursor-pointer items-center justify-center overflow-hidden rounded-2xl sm:rounded-3xl shadow-xl [isolation:isolate] ${
+              className={`${HERO_CARD_DIMENSIONS_CLASS} cursor-pointer ${
                 isCenter
                   ? 'ring-2 ring-[var(--kz-accent)]/70 ring-offset-2 ring-offset-[var(--kz-bg)] shadow-2xl cursor-pointer'
                   : 'hover:opacity-90'
@@ -778,26 +703,11 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
                 onTouchStart={preloadVideoPlayer}
                 className="group relative h-full w-full select-none overflow-hidden rounded-[inherit] [isolation:isolate] [transform:translateZ(0)] [mask-image:radial-gradient(white,black)] [-webkit-mask-image:-webkit-radial-gradient(white,black)]"
               >
-                {cover ? (
-                  <img
-                    src={cover}
-                    alt={title}
-                    loading="eager"
-                    decoding="async"
-                    fetchPriority={isCenter ? 'high' : 'auto'}
-                    referrerPolicy="no-referrer"
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none'
-                    }}
-                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105 rounded-[inherit]"
-                  />
-                ) : null}
-                <div
-                  className="absolute inset-0 -z-10 flex items-center justify-center bg-[var(--kz-bg-soft)] text-xs text-[var(--kz-fg-dim)] rounded-[inherit]"
-                  aria-hidden="true"
-                >
-                  无封面
-                </div>
+                <HeroCardPoster
+                  cover={cover}
+                  title={title}
+                  isCenter={isCenter}
+                />
 
                 {/* Hidden semantic text for SEO crawlers and screen readers */}
                 <span className="sr-only">{title}</span>

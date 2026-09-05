@@ -6,7 +6,7 @@ import {
   BangumiGridSkeleton,
   ErrorState,
 } from '../components/ui'
-import { HeroCoverFlow } from '../components/HeroCoverFlow'
+import { HeroCoverFlow, HeroCoverFlowSkeleton } from '../components/HeroCoverFlow'
 import { useHistoryStore } from '../stores/history'
 import { Link } from 'react-router-dom'
 import { useEffect, useMemo } from 'react'
@@ -82,18 +82,15 @@ export function HomePage() {
   return (
     <div className="space-y-12 sm:space-y-14">
       {/* 顶部 3D Cover Flow 焦点舞台 */}
-      {trending.isLoading && (
-        <div className="relative -mx-4 overflow-hidden px-4 pt-6 pb-6 sm:mx-0 sm:px-6 sm:pt-8 sm:pb-8">
-          <div className="mx-auto h-[270px] w-full animate-pulse rounded-2xl bg-[var(--kz-bg-soft)]/60 sm:h-[340px] md:h-[370px] lg:h-[390px] xl:h-[410px] max-w-5xl lg:max-w-6xl xl:max-w-[1360px] 2xl:max-w-[1480px]" />
-          <div className="mx-auto mt-6 h-6 w-56 animate-pulse rounded-full bg-[var(--kz-bg-soft)]" />
-          <div className="mx-auto mt-3 h-4 w-40 animate-pulse rounded-full bg-[var(--kz-bg-soft)]/60" />
-        </div>
-      )}
-      {!trending.isLoading && heroItems.length >= 3 && (
+      {trending.isLoading ? (
+        <section aria-label="热门聚焦加载中">
+          <HeroCoverFlowSkeleton />
+        </section>
+      ) : heroItems.length >= 3 ? (
         <section aria-label="热门聚焦">
           <HeroCoverFlow items={heroItems} limit={10} />
         </section>
-      )}
+      ) : null}
 
       {recent.length > 0 && (
         <section>
