@@ -51,6 +51,9 @@ export const HeroCoverFlowSkeleton = memo(function HeroCoverFlowSkeleton() {
           perspective: isDesktop
             ? HERO_PERSPECTIVE.desktop
             : HERO_PERSPECTIVE.mobile,
+          WebkitPerspective: isDesktop
+            ? HERO_PERSPECTIVE.desktop
+            : HERO_PERSPECTIVE.mobile,
         }}
       >
         {HERO_SKELETON_OFFSETS.map((offset) => {

@@ -36,14 +36,28 @@ export const HERO_SKELETON_OFFSETS = [-2, -1, 0, 1, 2] as const
 /**
  * 核心 3D 变换样式计算函数（共享给真实轮播与拟真骨架屏）
  * 集中管理 transform / zIndex / opacity / pointerEvents，防止双端配置漂移
+ * 严格保持 Transform 函数签名绝对同构（translateX + scale + rotateY + translateZ），
+ * 强制 WebKit/Safari 执行逐项数值基元插值，杜绝 4x4 矩阵分解与四元数跨度计算缺陷导致动画失效。
  */
 export function getHeroCardTransformStyle(
   offset: number,
   isDesktop: boolean,
 ): CSSProperties {
+  const baseStyle = getHeroCardRawTransform(offset, isDesktop)
+  return {
+    ...baseStyle,
+    WebkitBackfaceVisibility: 'hidden',
+    backfaceVisibility: 'hidden',
+  }
+}
+
+function getHeroCardRawTransform(
+  offset: number,
+  isDesktop: boolean,
+): CSSProperties {
   if (offset === 0) {
     return {
-      transform: 'translateX(0%) scale(1.08) translateZ(48px)',
+      transform: 'translateX(0%) scale(1.08) rotateY(0deg) translateZ(48px)',
       zIndex: 30,
       opacity: 1,
     }
@@ -111,7 +125,8 @@ export function getHeroCardTransformStyle(
         }
       default:
         return {
-          transform: 'translateX(0%) scale(0.3)',
+          transform:
+            'translateX(0%) scale(0.3) rotateY(0deg) translateZ(-150px)',
           zIndex: 0,
           opacity: 0,
           pointerEvents: 'none',
@@ -165,7 +180,8 @@ export function getHeroCardTransformStyle(
       }
     default:
       return {
-        transform: 'translateX(0%) scale(0.4)',
+        transform:
+          'translateX(0%) scale(0.4) rotateY(0deg) translateZ(-100px)',
         zIndex: 0,
         opacity: 0,
         pointerEvents: 'none',

@@ -632,6 +632,9 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
           perspective: isDesktop
             ? HERO_PERSPECTIVE.desktop
             : HERO_PERSPECTIVE.mobile,
+          WebkitPerspective: isDesktop
+            ? HERO_PERSPECTIVE.desktop
+            : HERO_PERSPECTIVE.mobile,
         }}
       >
         {displayItems.map((item, index) => {
@@ -663,7 +666,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
             willChange: isDeepBackground ? 'auto' : 'transform, opacity',
             transition: isJumpingBoundary
               ? 'none'
-              : `transform ${animDuration} ${animTimingFn}, opacity ${animDuration} ${animTimingFn}`,
+              : `transform ${animDuration} ${animTimingFn}, -webkit-transform ${animDuration} ${animTimingFn}, opacity ${animDuration} ${animTimingFn}`,
           }
 
           return (

@@ -4,6 +4,36 @@
 
 ---
 
+## [2026-09-06] 修复 macOS Safari 热门聚焦 3D 轮播卡片移动动效失效缺陷 (v1.3.14)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **深层根因排查与算法失效定位**：
+     - 查明问题核心根因：`hero-cover-flow.constants.ts` 中，中央聚焦卡片（`offset === 0`）与离屏缓冲卡片（`default`）缺少 `rotateY`，导致各卡片状态的 CSS Transform 函数签名不一致；
+     - WebKit/Safari 无法执行高效的逐项数值插值（Pairwise Primitive Interpolation），被迫降级为 4x4 矩阵分解（Matrix Decomposition）。WebKit 在解算包含百分比位移（`translateX(-90%)`）与三维欧拉角时四元数插值断裂，直接导致动画瞬移或冻结；
+     - 容器与卡片缺少 `-webkit-perspective`、`WebkitBackfaceVisibility: 'hidden'` 及 `transition` 中的 `-webkit-transform` 厂商前缀。
+  2. **绝对同构 Transform 签名改造**：
+     - 在 `hero-cover-flow.constants.ts` 中严格对齐所有卡片状态（含桌面与移动端 `offset 0` 及 `default`）为统一的 4 元函数模板：`translateX(...) scale(...) rotateY(...) translateZ(...)`；
+     - 中央卡片显式补齐 `rotateY(0deg)`，离屏缓冲卡片补齐 `rotateY(0deg) translateZ(-150px / -100px)`，迫使 Safari 合成器线程 100% 走原生平滑数值插值。
+  3. **WebKit 硬件加速护城河加固**：
+     - 在 `getHeroCardTransformStyle` 中收口注入 `WebkitBackfaceVisibility: 'hidden'` 与 `backfaceVisibility: 'hidden'`，消除 3D 旋转面的深度撕裂与背面抖动；
+     - `HeroCoverFlow.tsx` 与 `HeroCoverFlowSkeleton.tsx` 舞台容器补齐 `WebkitPerspective`；
+     - 内联 `transition` 补齐 `-webkit-transform`。
+  4. **保留既有防护链路**：
+     - 完整保留 `<Link>` 上的 `-webkit-mask-image` 与全层级 `rounded-[inherit]` 防圆角刺穿链路，确保 3D 偏转下圆角裁切严密无溢出；
+     - 坚决不加回舞台容器的 `preserve-3d`，维持兄弟卡片 2D zIndex 层级独立性与 100% 点击命中。
+- 涉及文件：
+  - apps/web/src/components/hero-cover-flow.constants.ts
+  - apps/web/src/components/HeroCoverFlow.tsx
+  - apps/web/src/components/HeroCoverFlowSkeleton.tsx
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck` 与前端打包 `pnpm -F @animaku/web build` 验证 100% 通过。
+
 ## [2026-09-06] 热门聚焦海报移除鼠标悬浮缩放动效 (v1.3.13)
 - 状态：已完成
 - 优先级：P3
