@@ -4,6 +4,26 @@
 
 ---
 
+## [2026-09-05] 首页“继续观看”更名“历史观看”与移动端展示上限响应式适配 (v1.3.9)
+- 状态：已完成
+- 优先级：P3
+- 描述：
+  1. **文案更名**：
+     - 将首页模块标题从“继续观看”更名为“历史观看”，统一用户视觉认知与心智；
+  2. **移动端展示上限收敛为 2 个**：
+     - 基于纯响应式类名 `${idx >= 2 ? 'hidden sm:flex' : ''}`，在移动端（< 640px）将展示数量收敛为最多 2 个卡片，避免长条列表占用过多单屏高度；
+     - 平板与桌面端（>= 640px）保持完整展示最多 4 个卡片（sm:grid-cols-2 / lg:grid-cols-4），0 JS resize 监听损耗，0 SSR 水合抖动。
+- 涉及文件：
+  - apps/web/src/pages/HomePage.tsx
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/BUGS.md
+  - .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck` 与前端构建 `pnpm -F @animaku/web build` 验证 100% 通过。
+
 ## [2026-09-05] 3D 海报轮播封面 URL 规范预缓存、视口感知自动休眠与 GPU 合成层收拢加固 (v1.3.8)
 - 状态：已完成
 - 优先级：P2

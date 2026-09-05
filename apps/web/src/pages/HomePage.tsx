@@ -98,7 +98,7 @@ export function HomePage() {
       {recent.length > 0 && (
         <section>
           <div className="mb-4 sm:mb-5 flex items-center justify-between gap-3">
-            <h2 className="kz-section-title font-black">继续观看</h2>
+            <h2 className="kz-section-title font-black">历史观看</h2>
             <Link
               to="/history"
               className="text-[13px] font-semibold text-[var(--kz-accent)] hover:underline"
@@ -112,14 +112,16 @@ export function HomePage() {
             wider than the page shell / Bangumi grid.
           */}
           <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {recent.map((h) => (
+            {recent.map((h, idx) => (
               <Link
                 key={h.id}
                 to={`/play/${h.bangumiId}?plugin=${encodeURIComponent(h.pluginName)}&ep=${h.episode}${h.road > 0 ? `&road=${h.road}` : ''}`}
                 onMouseEnter={preloadVideoPlayer}
                 onFocus={preloadVideoPlayer}
                 onTouchStart={preloadVideoPlayer}
-                className="kz-surface kz-surface-interactive flex min-w-0 max-w-full items-center gap-3 overflow-hidden p-3"
+                className={`kz-surface kz-surface-interactive flex min-w-0 max-w-full items-center gap-3 overflow-hidden p-3 ${
+                  idx >= 2 ? 'hidden sm:flex' : ''
+                }`}
               >
                 {h.cover ? (
                   <img
