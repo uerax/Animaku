@@ -4,6 +4,28 @@
 
 ---
 
+## [2026-09-05] 修复 3D 海报轮播鼠标悬浮聚焦时圆角溢出逃逸与边框遮挡缺陷 (v1.3.10)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **深层根因排查**：
+     - 查明问题由多层复合机制引发：外层卡片容器虽然配置了 `rounded-2xl sm:rounded-3xl` 与 `overflow-hidden`，但内层子级包裹层 `<Link>` 仅设置了 `overflow-hidden`，缺失 `rounded-[inherit]`，导致 `<Link>` 自身的裁切矩形为 90 度直角矩形；
+     - 在 Chromium / WebKit 硬件加速合成管道中，当外层具备 3D Transform（`translateZ(48px)`）与 `willChange`，且子级 `img` 在悬浮时激活 `group-hover:scale-105` 时，GPU 合成器会将中间层 `Link` 与 `img` 提升为独立图层，导致外层父容器的 `border-radius` 裁切遮罩失效；
+     - `Link` 的直角溢出像素跨越了 `ring-offset-2` 的间隙，并因子图层在层叠上下文（Stacking Context）中自然覆盖父级 `box-shadow`（`ring-2`），造成视觉上海报四个尖角刺穿并覆盖发光边框。
+  2. **多层级防逃逸防御链路加固**：
+     - **全层级圆角严格继承**：为 `<Link>`、`<img>`、底部遮罩及渐变层统一追加 `rounded-[inherit]`，消除直角剪裁矩形；
+     - **Webkit Alpha 遮罩强制约束**：在 `<Link>` 上配置 `[mask-image:radial-gradient(white,black)] [-webkit-mask-image:-webkit-radial-gradient(white,black)]`，强制 Blink/WebKit 图层合成器执行高质量 Alpha 路径裁切，根除 GPU 图层在 3D 缩放状态下冲破圆角边界的浏览器底层 Bug；
+     - **层叠上下文隔离保护**：为外层容器与 `<Link>` 显式引入 `[isolation:isolate]` 与 `[transform:translateZ(0)]`，加固合成层边界，保障中央聚焦卡片的蓝色高亮边框（`ring-2`）完整、清晰、不被任何图片像素侵占或遮挡。
+- 涉及文件：
+  - apps/web/src/components/HeroCoverFlow.tsx
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+- 备注：已在本地浏览器实机环境中完成 Light/Dark 双模与悬浮聚焦动效验证，全仓 `pnpm typecheck` 与前端构建 `pnpm -F @animaku/web build` 验证 100% 通过。
+
 ## [2026-09-05] 首页“继续观看”更名“历史观看”与移动端展示上限响应式适配 (v1.3.9)
 - 状态：已完成
 - 优先级：P3

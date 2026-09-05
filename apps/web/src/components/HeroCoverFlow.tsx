@@ -752,7 +752,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
                 }
               }}
               style={style}
-              className={`absolute top-3 bottom-3 sm:top-4 sm:bottom-4 flex aspect-[2/3] cursor-pointer items-center justify-center overflow-hidden rounded-2xl sm:rounded-3xl shadow-xl ${
+              className={`absolute top-3 bottom-3 sm:top-4 sm:bottom-4 flex aspect-[2/3] cursor-pointer items-center justify-center overflow-hidden rounded-2xl sm:rounded-3xl shadow-xl [isolation:isolate] ${
                 isCenter
                   ? 'ring-2 ring-[var(--kz-accent)]/70 ring-offset-2 ring-offset-[var(--kz-bg)] shadow-2xl cursor-pointer'
                   : 'hover:opacity-90'
@@ -776,7 +776,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
                 onMouseEnter={preloadVideoPlayer}
                 onFocus={preloadVideoPlayer}
                 onTouchStart={preloadVideoPlayer}
-                className="group relative h-full w-full select-none overflow-hidden"
+                className="group relative h-full w-full select-none overflow-hidden rounded-[inherit] [isolation:isolate] [transform:translateZ(0)] [mask-image:radial-gradient(white,black)] [-webkit-mask-image:-webkit-radial-gradient(white,black)]"
               >
                 {cover ? (
                   <img
@@ -789,11 +789,11 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
                     onError={(e) => {
                       e.currentTarget.style.display = 'none'
                     }}
-                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105 rounded-[inherit]"
                   />
                 ) : null}
                 <div
-                  className="absolute inset-0 -z-10 flex items-center justify-center bg-[var(--kz-bg-soft)] text-xs text-[var(--kz-fg-dim)]"
+                  className="absolute inset-0 -z-10 flex items-center justify-center bg-[var(--kz-bg-soft)] text-xs text-[var(--kz-fg-dim)] rounded-[inherit]"
                   aria-hidden="true"
                 >
                   无封面
@@ -803,7 +803,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
                 <span className="sr-only">{title}</span>
 
                 {/* Poster dark bottom gradient */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent rounded-[inherit]" />
 
                 {/* Score (Bottom-right) */}
                 {score && (

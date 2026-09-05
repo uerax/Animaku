@@ -1,7 +1,7 @@
 {
   "name": "animaku",
   "private": true,
-  "version": "1.3.9",
+  "version": "1.3.10",
   "description": "Animaku — browser anime client: Bangumi metadata, plugin sources, danmaku, collections",
   "scripts": {
     "dev": "node scripts/dev.mjs",
