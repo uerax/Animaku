@@ -16,6 +16,10 @@ interface HeroCoverFlowProps {
   limit?: number
 }
 
+function escapeJsonLdScript(jsonStr: string): string {
+  return jsonStr.replace(/<\/script/gi, '<\\/script')
+}
+
 function IconChevronLeft({ className = 'w-5 h-5' }: { className?: string }) {
   return (
     <svg
@@ -77,8 +81,17 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
 
   const [activeIndex, setActiveIndex] = useState(0)
   const [isPaused, setIsPaused] = useState(false)
+  const [bgImgError, setBgImgError] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const prevOffsetsRef = useRef<Record<string | number, number>>({})
+
+  // Touch gesture and dragging state refs
   const touchStartX = useRef<number | null>(null)
+  const touchStartY = useRef<number | null>(null)
   const touchDeltaX = useRef<number>(0)
+  const touchDeltaY = useRef<number>(0)
+  const isSwipingHorizontal = useRef<boolean | null>(null)
+  const isDragging = useRef<boolean>(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -108,24 +121,58 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
     setActiveIndex((prev) => (prev - 1 + count) % count)
   }, [count])
 
-  // Auto-play timer (6s)
+  // Auto-play timer (6s), respects page visibility to prevent background drain
   useEffect(() => {
     if (isPaused || count <= 1) return
-    const timer = setInterval(() => {
-      nextSlide()
-    }, 6000)
-    return () => clearInterval(timer)
+    let timer: ReturnType<typeof setInterval> | null = null
+
+    const startTimer = () => {
+      if (timer) clearInterval(timer)
+      if (typeof document !== 'undefined' && document.hidden) return
+      timer = setInterval(() => {
+        nextSlide()
+      }, 6000)
+    }
+
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.hidden) {
+        if (timer) clearInterval(timer)
+        timer = null
+      } else {
+        startTimer()
+      }
+    }
+
+    startTimer()
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange)
+    }
+    return () => {
+      if (timer) clearInterval(timer)
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange)
+      }
+    }
   }, [isPaused, count, nextSlide])
 
-  // Keyboard navigation
+  // Keyboard navigation (scoped to visible viewport to prevent hijacking other controls)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (
         document.activeElement?.tagName === 'INPUT' ||
-        document.activeElement?.tagName === 'TEXTAREA'
+        document.activeElement?.tagName === 'TEXTAREA' ||
+        document.activeElement?.tagName === 'SELECT'
       ) {
         return
       }
+      // Check if carousel container is roughly visible within the viewport
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect()
+        const isVisible =
+          rect.bottom > 0 && rect.top < (window.innerHeight || 800)
+        if (!isVisible) return
+      }
+
       if (e.key === 'ArrowLeft') {
         prevSlide()
       } else if (e.key === 'ArrowRight') {
@@ -138,16 +185,40 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX
+    touchStartY.current = e.touches[0].clientY
     touchDeltaX.current = 0
+    touchDeltaY.current = 0
+    isSwipingHorizontal.current = null
+    isDragging.current = false
   }
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (touchStartX.current === null) return
-    touchDeltaX.current = e.touches[0].clientX - touchStartX.current
+    if (touchStartX.current === null || touchStartY.current === null) return
+    const dx = e.touches[0].clientX - touchStartX.current
+    const dy = e.touches[0].clientY - touchStartY.current
+    touchDeltaX.current = dx
+    touchDeltaY.current = dy
+
+    // Lock horizontal swipe only if horizontal movement clearly exceeds vertical scroll
+    if (
+      isSwipingHorizontal.current === null &&
+      (Math.abs(dx) > 8 || Math.abs(dy) > 8)
+    ) {
+      isSwipingHorizontal.current = Math.abs(dx) > Math.abs(dy) * 1.3
+    }
+
+    if (Math.abs(dx) > 10) {
+      isDragging.current = true
+    }
   }
 
   const handleTouchEnd = () => {
-    if (Math.abs(touchDeltaX.current) > 40) {
+    // Only trigger slide when gesture is confirmed horizontal and crosses threshold
+    if (
+      isSwipingHorizontal.current === true &&
+      Math.abs(touchDeltaX.current) > 40 &&
+      Math.abs(touchDeltaX.current) > Math.abs(touchDeltaY.current) * 1.3
+    ) {
       if (touchDeltaX.current > 0) {
         prevSlide()
       } else {
@@ -155,7 +226,14 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
       }
     }
     touchStartX.current = null
+    touchStartY.current = null
     touchDeltaX.current = 0
+    touchDeltaY.current = 0
+    isSwipingHorizontal.current = null
+    // Reset dragging flag on next tick to prevent accidental link clicks after swipe
+    setTimeout(() => {
+      isDragging.current = false
+    }, 80)
   }
 
   if (!displayItems.length) return null
@@ -180,6 +258,10 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
 
   // Structured ItemList microdata for SEO & GEO (uses authoritative official image URLs)
   const heroJsonLd = useMemo(() => {
+    const origin =
+      typeof window !== 'undefined' && window.location.origin
+        ? window.location.origin
+        : ''
     return {
       '@context': 'https://schema.org',
       '@type': 'ItemList',
@@ -188,14 +270,29 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
         '@type': 'ListItem',
         position: idx + 1,
         name: item.nameCn || item.name,
-        url: `/subject/${item.id}`,
+        url: `${origin}/subject/${item.id}`,
         image: toBangumiOfficialImageUrl(coverOf(item, 'large')),
       })),
     }
   }, [displayItems])
 
+  // Reset background error state when active cover changes
+  useEffect(() => {
+    setBgImgError(false)
+  }, [activeCoverUrl])
+
+  // Sync offsets after render to detect boundary jumps (flying cards)
+  useEffect(() => {
+    const nextOffsets: Record<string | number, number> = {}
+    displayItems.forEach((item, idx) => {
+      nextOffsets[item.id] = getOffset(idx)
+    })
+    prevOffsetsRef.current = nextOffsets
+  })
+
   return (
     <div
+      ref={containerRef}
       className="relative -mx-4 overflow-hidden px-4 pt-6 pb-6 sm:mx-0 sm:px-6 sm:pt-8 sm:pb-8"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
@@ -203,10 +300,12 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* Search Engine & Generative AI (GEO) structured metadata */}
+      {/* Search Engine & Generative AI (GEO) structured metadata (XSS escaped) */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(heroJsonLd) }}
+        dangerouslySetInnerHTML={{
+          __html: escapeJsonLdScript(JSON.stringify(heroJsonLd)),
+        }}
       />
 
       {/* Top & Bottom seamless gradient blending to eliminate any hard background cut */}
@@ -220,7 +319,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
       />
 
       {/* 1. Dynamic Ambient Background Glow with smooth mask dissipation */}
-      {activeCoverUrl && (
+      {activeCoverUrl && !bgImgError && (
         <div
           className="pointer-events-none absolute inset-0 -z-10 overflow-hidden transition-all duration-700 ease-out"
           style={{
@@ -232,9 +331,11 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
           aria-hidden="true"
         >
           <img
-            key={activeCoverUrl}
             src={activeCoverUrl}
             alt=""
+            loading="lazy"
+            decoding="async"
+            onError={() => setBgImgError(true)}
             className="h-full w-full scale-135 object-cover opacity-20 blur-3xl filter transition-opacity duration-1000 dark:opacity-30"
           />
           {/* Gentle edge dissipation */}
@@ -256,9 +357,17 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
           const score =
             item.ratingScore > 0 ? item.ratingScore.toFixed(1) : null
 
-          // 3D positioning calculation
+          // Detect circular boundary leap (-3 <-> +3 or -2 <-> +2) to disable transition and prevent flying cards across center
+          const prevOffset = prevOffsetsRef.current[item.id]
+          const isJumpingBoundary =
+            prevOffset !== undefined &&
+            Math.abs(offset - prevOffset) > count / 2
+
+          // Pure GPU composited transform & opacity: 0 dynamic blur rasterization overhead
           let style: React.CSSProperties = {
-            transition: 'all 520ms cubic-bezier(0.16, 1, 0.3, 1)',
+            transition: isJumpingBoundary
+              ? 'none'
+              : 'transform 520ms cubic-bezier(0.16, 1, 0.3, 1), opacity 520ms cubic-bezier(0.16, 1, 0.3, 1)',
           }
 
           if (isCenter) {
@@ -267,57 +376,56 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
               transform: 'translateX(0%) scale(1.08) translateZ(48px)',
               zIndex: 30,
               opacity: 1,
-              filter: 'drop-shadow(0 20px 32px rgba(0,0,0,0.65))',
             }
           } else if (isDesktop) {
             // Desktop: 7 cards with calibrated 8/9 offset scale for balanced breathing room
             if (offset === -1) {
               style = {
                 ...style,
-                transform: 'translateX(-90%) scale(0.90) rotateY(15deg) translateZ(10px)',
+                transform:
+                  'translateX(-90%) scale(0.90) rotateY(15deg) translateZ(10px)',
                 zIndex: 22,
                 opacity: 0.88,
-                filter: 'brightness(0.85) drop-shadow(0 12px 24px rgba(0,0,0,0.5))',
               }
             } else if (offset === 1) {
               style = {
                 ...style,
-                transform: 'translateX(90%) scale(0.90) rotateY(-15deg) translateZ(10px)',
+                transform:
+                  'translateX(90%) scale(0.90) rotateY(-15deg) translateZ(10px)',
                 zIndex: 22,
                 opacity: 0.88,
-                filter: 'brightness(0.85) drop-shadow(0 12px 24px rgba(0,0,0,0.5))',
               }
             } else if (offset === -2) {
               style = {
                 ...style,
-                transform: 'translateX(-176%) scale(0.76) rotateY(25deg) translateZ(-35px)',
+                transform:
+                  'translateX(-176%) scale(0.76) rotateY(25deg) translateZ(-35px)',
                 zIndex: 15,
                 opacity: 0.62,
-                filter: 'brightness(0.65) blur(0.2px)',
               }
             } else if (offset === 2) {
               style = {
                 ...style,
-                transform: 'translateX(176%) scale(0.76) rotateY(-25deg) translateZ(-35px)',
+                transform:
+                  'translateX(176%) scale(0.76) rotateY(-25deg) translateZ(-35px)',
                 zIndex: 15,
                 opacity: 0.62,
-                filter: 'brightness(0.65) blur(0.2px)',
               }
             } else if (offset === -3) {
               style = {
                 ...style,
-                transform: 'translateX(-256%) scale(0.64) rotateY(33deg) translateZ(-75px)',
+                transform:
+                  'translateX(-256%) scale(0.64) rotateY(33deg) translateZ(-75px)',
                 zIndex: 8,
-                opacity: 0.36,
-                filter: 'brightness(0.48) blur(0.5px)',
+                opacity: isJumpingBoundary ? 0 : 0.36,
               }
             } else if (offset === 3) {
               style = {
                 ...style,
-                transform: 'translateX(256%) scale(0.64) rotateY(-33deg) translateZ(-75px)',
+                transform:
+                  'translateX(256%) scale(0.64) rotateY(-33deg) translateZ(-75px)',
                 zIndex: 8,
-                opacity: 0.36,
-                filter: 'brightness(0.48) blur(0.5px)',
+                opacity: isJumpingBoundary ? 0 : 0.36,
               }
             } else {
               style = {
@@ -333,34 +441,34 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
             if (offset === -1) {
               style = {
                 ...style,
-                transform: 'translateX(-58%) scale(0.86) rotateY(16deg) translateZ(0px)',
+                transform:
+                  'translateX(-58%) scale(0.86) rotateY(16deg) translateZ(0px)',
                 zIndex: 20,
                 opacity: 0.65,
-                filter: 'brightness(0.75) drop-shadow(0 10px 20px rgba(0,0,0,0.5))',
               }
             } else if (offset === 1) {
               style = {
                 ...style,
-                transform: 'translateX(58%) scale(0.86) rotateY(-16deg) translateZ(0px)',
+                transform:
+                  'translateX(58%) scale(0.86) rotateY(-16deg) translateZ(0px)',
                 zIndex: 20,
                 opacity: 0.65,
-                filter: 'brightness(0.75) drop-shadow(0 10px 20px rgba(0,0,0,0.5))',
               }
             } else if (offset === -2) {
               style = {
                 ...style,
-                transform: 'translateX(-108%) scale(0.72) rotateY(26deg) translateZ(-40px)',
+                transform:
+                  'translateX(-108%) scale(0.72) rotateY(26deg) translateZ(-40px)',
                 zIndex: 10,
-                opacity: 0.32,
-                filter: 'brightness(0.45) blur(0.5px)',
+                opacity: isJumpingBoundary ? 0 : 0.32,
               }
             } else if (offset === 2) {
               style = {
                 ...style,
-                transform: 'translateX(108%) scale(0.72) rotateY(-26deg) translateZ(-40px)',
+                transform:
+                  'translateX(108%) scale(0.72) rotateY(-26deg) translateZ(-40px)',
                 zIndex: 10,
-                opacity: 0.32,
-                filter: 'brightness(0.45) blur(0.5px)',
+                opacity: isJumpingBoundary ? 0 : 0.32,
               }
             } else {
               style = {
@@ -377,14 +485,15 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
             <div
               key={item.id}
               onClick={() => {
+                if (isDragging.current) return
                 if (!isCenter) {
                   setActiveIndex(index)
                 }
               }}
               style={style}
-              className={`absolute top-3 bottom-3 sm:top-4 sm:bottom-4 flex aspect-[2/3] cursor-pointer items-center justify-center overflow-hidden rounded-2xl sm:rounded-3xl ${
+              className={`absolute top-3 bottom-3 sm:top-4 sm:bottom-4 flex aspect-[2/3] cursor-pointer items-center justify-center overflow-hidden rounded-2xl sm:rounded-3xl shadow-xl transition-all ${
                 isCenter
-                  ? 'ring-2 ring-[var(--kz-accent)]/70 ring-offset-2 ring-offset-[var(--kz-bg)] cursor-pointer'
+                  ? 'ring-2 ring-[var(--kz-accent)]/70 ring-offset-2 ring-offset-[var(--kz-bg)] shadow-2xl cursor-pointer'
                   : 'hover:opacity-90'
               }`}
             >
@@ -392,6 +501,10 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
                 to={`/subject/${item.id}`}
                 tabIndex={isCenter ? 0 : -1}
                 onClick={(e) => {
+                  if (isDragging.current) {
+                    e.preventDefault()
+                    return
+                  }
                   if (!isCenter) {
                     e.preventDefault()
                     setActiveIndex(index)
@@ -442,12 +555,12 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
           )
         })}
 
-        {/* Navigation Arrows */}
+        {/* Navigation Arrows (Desktop/Tablet) */}
         <button
           type="button"
           onClick={prevSlide}
           aria-label="上一部番剧"
-          className="absolute left-1 z-40 flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/40 text-white backdrop-blur-md transition-all hover:scale-110 hover:bg-black/70 sm:left-4 sm:h-12 sm:w-12 md:left-6"
+          className="absolute left-1 z-40 hidden sm:flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/40 text-white backdrop-blur-md transition-all hover:scale-110 hover:bg-black/70 sm:left-4 sm:h-12 sm:w-12 md:left-6"
         >
           <IconChevronLeft className="h-5 w-5 sm:h-6 sm:w-6" />
         </button>
@@ -456,7 +569,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
           type="button"
           onClick={nextSlide}
           aria-label="下一部番剧"
-          className="absolute right-1 z-40 flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/40 text-white backdrop-blur-md transition-all hover:scale-110 hover:bg-black/70 sm:right-4 sm:h-12 sm:w-12 md:right-6"
+          className="absolute right-1 z-40 hidden sm:flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/40 text-white backdrop-blur-md transition-all hover:scale-110 hover:bg-black/70 sm:right-4 sm:h-12 sm:w-12 md:right-6"
         >
           <IconChevronRight className="h-5 w-5 sm:h-6 sm:w-6" />
         </button>

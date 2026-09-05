@@ -7,7 +7,6 @@ import {
   ErrorState,
 } from '../components/ui'
 import { HeroCoverFlow } from '../components/HeroCoverFlow'
-import { useHeroSpotlight } from '../hooks/use-hero-spotlight'
 import { useHistoryStore } from '../stores/history'
 import { Link } from 'react-router-dom'
 import { useEffect, useMemo } from 'react'
@@ -17,14 +16,18 @@ import { preloadVideoPlayer } from '../player/lazy'
 const SECTION_LIMIT = 18
 
 export function HomePage() {
-  const heroSpotlight = useHeroSpotlight({ limit: 7 })
-
   const trending = useQuery({
     queryKey: ['trending', SECTION_LIMIT],
     queryFn: ({ signal }) => bangumiApi.trending(SECTION_LIMIT, 0, { signal }),
     staleTime: 2 * 60 * 60_000,
     gcTime: 12 * 60 * 60_000,
   })
+
+  // 深度复用 trending 首屏前 7 项作为焦点舞台数据，彻底消除重复的并发 API 请求
+  const heroItems = useMemo(
+    () => (trending.data?.data ? trending.data.data.slice(0, 7) : EMPTY_ARRAY),
+    [trending.data],
+  )
 
   const movies = useQuery({
     queryKey: ['home-movies', SECTION_LIMIT],
@@ -79,16 +82,16 @@ export function HomePage() {
   return (
     <div className="space-y-12 sm:space-y-14">
       {/* 顶部 3D Cover Flow 焦点舞台 */}
-      {heroSpotlight.isLoading && (
+      {trending.isLoading && (
         <div className="relative -mx-4 overflow-hidden px-4 pt-6 pb-6 sm:mx-0 sm:px-6 sm:pt-8 sm:pb-8">
           <div className="mx-auto h-[270px] w-full animate-pulse rounded-2xl bg-[var(--kz-bg-soft)]/60 sm:h-[340px] md:h-[370px] lg:h-[390px] xl:h-[410px] max-w-5xl lg:max-w-6xl xl:max-w-[1360px] 2xl:max-w-[1480px]" />
           <div className="mx-auto mt-6 h-6 w-56 animate-pulse rounded-full bg-[var(--kz-bg-soft)]" />
           <div className="mx-auto mt-3 h-4 w-40 animate-pulse rounded-full bg-[var(--kz-bg-soft)]/60" />
         </div>
       )}
-      {!heroSpotlight.isLoading && heroSpotlight.items.length >= 3 && (
+      {!trending.isLoading && heroItems.length >= 3 && (
         <section aria-label="热门聚焦">
-          <HeroCoverFlow items={heroSpotlight.items} limit={7} />
+          <HeroCoverFlow items={heroItems} limit={7} />
         </section>
       )}
 

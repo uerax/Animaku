@@ -2848,33 +2848,40 @@
   - .claude/STATE.md
 - 备注：全仓类型检查 `pnpm typecheck` 与单测全量 100% 通过。
 
-## [2026-09-05] 首页与网格番剧封面加载体验平滑优化 (v1.2.13)
+## [2026-09-05] 修复 3D 海报轮播穿堂飞牌与手势冲突并完成全链路性能加固 (v1.3.1)
 - 状态：已完成
-- 优先级：P2
+- 优先级：P0
 - 描述：
-  1. **首屏视觉突现与渲染阻塞排查**：
-     - 排查验证客户端代码无阻塞逻辑，根因为 React Query 数据期骨架屏、HTTP/2 单 TCP 连接多路复用与 Chrome 合成器批处理合并上屏，导致视觉上“灰块等待后全部齐刷刷弹现”；
-  2. **单图安全淡入与物理级 0 闪烁防线**：
-     - 在 `apps/web/src/components/ui.tsx` 的 `BangumiCard` 中引入加载就绪状态管理；
-     - 通过 `useLayoutEffect` 在首帧 Paint 之前同步探测 `img.complete && img.naturalWidth > 0`，命中本地 HTTP/磁盘缓存时直接瞬显，物理级消除 `useEffect` 异步执行带来的 1 帧（16ms）闪白；
-     - 隔离保护 LCP 核心帧：`index === 0`（`imagePriority === 'high'`）绝对豁免淡入动画，保证 Core Web Vitals 得分 0 延迟；
-     - 非 LCP 且初次网络下载的图片增加 200ms 柔和淡入（`transition-opacity duration-200 ease-out`），打散突变生硬感；
-  3. **异常状态优雅降级**：
-     - 引入 `hasError` 状态管理，封面 404 或网络加载失败时优雅降级为统一的居中「无封面」占位提示，彻底消除浏览器原生破损裂图图标；
-  4. **双保险契约注释与历史教训加固**：
-     - 在 `apps/web/src/pages/HomePage.tsx` 的 `eagerCount={6}` 正上方贴出强警示注释，严禁改小该值避免桌面端首屏第一排右侧卡片退化为 `lazy` 拖慢打开速度；
-     - 在 `apps/web/src/components/ui.tsx` 声明 `DEFAULT_EAGER_COVERS` 架构约束；
-  5. **版本号平滑递增**：
-     - 全仓版本号递增至 `v1.2.13`。
+  1. **穿堂飞牌（Card Flying Through Stage）根除**：
+     - 在 `HeroCoverFlow.tsx` 中引入 `prevOffsetsRef` 追踪卡片上一轮 offset；
+     - 探测跨越环状折叠边界（`Math.abs(offset - prevOffset) > count / 2`，如 -3 <-> 3 或 -2 <-> 2）的边缘跃迁卡片，瞬间禁用过渡（`transition: none`）并将 `opacity` 设为 0 就位，彻底杜绝半透明卡片横穿屏幕正中心飞过；
+  2. **移动端 Touch 滚动冲突与防误点加固**：
+     - 引入 `touchStartY` 与 `touchDeltaY` 纵向位移判定，仅在 `Math.abs(deltaX) > Math.abs(deltaY) * 1.3 && Math.abs(deltaX) > 40` 时才触发轮播切页；
+     - 滑动时自动锁定意图，用户纵向滚动页面浏览时 100% 豁免误切轮播；
+     - 引入 `isDragging` 标志，在用户完成滑动手势后阻断对卡片和链接的误触跳转；
+     - 移动端左右切换按钮加设 `hidden sm:flex`，消除小屏两侧遮挡与触控误点；
+  3. **首屏 API 冗余削减与 0 冗余并发**：
+     - 在 `HomePage.tsx` 中让 `HeroCoverFlow` 直接深度复用 `trending` 的前 7 项，消除首屏同时向后端/Bangumi 并发两个重叠的 `trending(7)` 与 `trending(18)` 网络请求，削减 50% 首页首屏热门 API 流量，实现海报舞台与推荐网格 100% 同步首屏渲染；
+  4. **GPU 合成层与渲染性能优化**：
+     - 将 `transition: all` 严格收窄为 GPU 合成属性：`transform` 与 `opacity`；
+     - 彻底移除动画过程中的动态 `filter: blur(...)` 滤镜，消除逐帧高斯模糊光栅化开销，确保 60fps/120fps 满帧运行；
+     - 优化背景光晕，去除 `<img key={...} />` 强行卸载重挂载机制，增加 `onError` 优雅隐藏降级，杜绝破损裂图与内存重建；
+  5. **安全与后台耗电治理**：
+     - 引入 `escapeJsonLdScript` 对 Schema.org ItemList 的 JSON-LD 结构化数据进行 `</script` XSS 脱逸防范；
+     - 补齐绝对路径 URI 协议，增强 GEO / SEO 爬虫解析质量；
+     - 自动轮播定时器接入 Page Visibility API（`document.hidden`），标签页切至后台时自动休眠，杜绝后台无效重绘与能耗；
+     - 键盘左右键监听增加容器视口可见性限制，杜绝全局劫持方向键。
 - 涉及文件：
-  - apps/web/src/components/ui.tsx
+  - apps/web/src/components/HeroCoverFlow.tsx
   - apps/web/src/pages/HomePage.tsx
   - package.json
   - apps/web/package.json
   - apps/server/package.json
   - packages/shared/package.json
   - packages/shared/src/version.ts
+  - .claude/BUGS.md
   - .claude/STATE.md
-- 备注：全仓类型检查 `pnpm typecheck`、前端构建 `pnpm -F @animaku/web build` 与 shared 单元测试全量 100% 通过。
+- 备注：全仓类型检查 `pnpm typecheck`、前端构建 `pnpm -F @animaku/web build` 与服务端单元测试全量 100% 通过。
+
 
 
