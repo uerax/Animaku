@@ -4,6 +4,39 @@
 
 ---
 
+## [2026-09-05] 3D 海报轮播双向平滑进出场动效、多步连贯滚动与物理操作方向修正 (v1.3.3)
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **构建“视口可见区 + 两翼进出场平滑渐变缓冲区”物理分层**：
+     - 在 `HomePage.tsx` 中将焦点轮播复用的 `trending` 数据池由 7 项扩容至 10 项（`limit={10}`），提供充裕的 3D 环形缓冲容量；
+     - 在 `HeroCoverFlow.tsx` 中增设 `offset === ±4`（桌面端）与 `offset === ±3`（移动端）完全透明（`opacity: 0`，`pointerEvents: 'none'`）的入场/退场缓冲区；
+     - 彻底根除因总卡片数等于可见卡片数导致的边缘卡片瞬间瞬移闪现，让新进卡片拥有由远及近、由淡至浓的平滑滑入轨迹（Fade-in Slide），退场卡片平滑淡出滑出（Fade-out Slide），与未移走的前一张卡片空间时间完全解耦、绝不重叠；
+  2. **根除点击第 2/3 张或远端指示器时的瞬间瞬移与直接覆盖 Bug，新增多步高频加速与惯性刹停动效**：
+     - 排查点击非中心较远卡片时因 `Math.abs(offset - prevOffset) > count / 2` 导致整整 3 张卡片被粗暴禁用 transition 瞬间闪现覆盖其他卡片的缺陷；
+     - 引入 `slideTo(targetIndex)` 物理连贯连滚步进调度器（Rapid Smooth Stepping），并支持高频加速滚盘动效（Inertial Accelerated Rolling）：
+       - 跨越 2 步及以上时启动 `isAccelerating`，每步压缩至 75~95ms 极速推进，卡片 transition 动态切换为 220ms 高敏捷曲线，如老虎机飞速旋转；
+       - 在距离目标终点还剩最后 1 步时自动平滑解除加速，目标卡片以 520ms 饱满的 `cubic-bezier(0.16, 1, 0.3, 1)` 自然物理减速刹车平稳落座；
+       - 彻底解决点击后几张时的拖沓感，手感既敏捷迅猛，又具备高级物理刹停质感，周边卡片轨迹 100% 连续可见；
+  3. **修正左右按钮与手势方向颠倒缺陷（对齐用户心理模型）**：
+     - 将原先容易产生认知失调的左右按键映射彻底理顺：点击左侧指向左的按钮 `<`、按键盘左键、以及手指向左滑动，统一触发 `moveLeft`（舞台整体向左平移流动）；
+     - 点击右侧指向右的按钮 `>`、按键盘右键、以及手指向右拉动，统一触发 `moveRight`（舞台整体向右平移流动）；
+     - 彻底消除“点击指向左却整体向右移”的认知割裂感；
+  4. **图片加载策略精细化**：
+     - 仅首屏视口内可见卡片（桌面前 7 张、移动前 5 张）设置为 `loading="eager"`，中心海报绑定 `fetchPriority="high"`；
+     - 缓冲区与背面深处卡片智能降级为 `loading="lazy"`，兼顾首屏即开与带宽节约。
+- 涉及文件：
+  - apps/web/src/pages/HomePage.tsx
+  - apps/web/src/components/HeroCoverFlow.tsx
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/BUGS.md
+  - .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck` 与前端生产构建 `pnpm -F @animaku/web build` 验证全部 100% 通过。
+
 ## [2026-09-05] 修复 3D 海报轮播跃迁隐身 Bug 与首屏图片加载反向优化，加固手势体系 (v1.3.2)
 - 状态：已完成
 - 优先级：P1

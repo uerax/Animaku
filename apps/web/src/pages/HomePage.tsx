@@ -23,9 +23,9 @@ export function HomePage() {
     gcTime: 12 * 60 * 60_000,
   })
 
-  // 深度复用 trending 首屏前 7 项作为焦点舞台数据，彻底消除重复的并发 API 请求
+  // 深度复用 trending 首屏前 10 项作为焦点舞台数据，提供充足的 3D 环形缓冲池，彻底消除重复的并发 API 请求
   const heroItems = useMemo(
-    () => (trending.data?.data ? trending.data.data.slice(0, 7) : EMPTY_ARRAY),
+    () => (trending.data?.data ? trending.data.data.slice(0, 10) : EMPTY_ARRAY),
     [trending.data],
   )
 
@@ -91,7 +91,7 @@ export function HomePage() {
       )}
       {!trending.isLoading && heroItems.length >= 3 && (
         <section aria-label="热门聚焦">
-          <HeroCoverFlow items={heroItems} limit={7} />
+          <HeroCoverFlow items={heroItems} limit={10} />
         </section>
       )}
 

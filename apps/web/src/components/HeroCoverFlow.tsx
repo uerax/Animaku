@@ -56,7 +56,7 @@ function IconChevronRight({ className = 'w-5 h-5' }: { className?: string }) {
 
 export const HeroCoverFlow = memo(function HeroCoverFlow({
   items,
-  limit = 5,
+  limit = 10,
 }: HeroCoverFlowProps) {
   const host =
     useSettingsStore((s) => s.bangumiImageHost) || DEFAULT_BANGUMI_IMAGE_HOST
@@ -74,16 +74,23 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
   )
 
   const displayItems = useMemo(() => {
-    const targetLimit = isDesktop ? Math.min(limit, 7) : 5
+    // 桌面端保留 10 项缓冲池（7 张视口可见 + 2 张入场/退场平滑缓冲区 + 1 张背面环转）
+    // 移动端保留 8 项缓冲池（5 张视口可见 + 2 张入场/退场平滑缓冲区 + 1 张背面环转）
+    const targetLimit = isDesktop ? Math.min(limit, 10) : Math.min(limit, 8)
     return items.slice(0, targetLimit)
   }, [items, limit, isDesktop])
   const count = displayItems.length
 
   const [activeIndex, setActiveIndex] = useState(0)
+  const activeIndexRef = useRef(activeIndex)
+  activeIndexRef.current = activeIndex
+
+  const [isAccelerating, setIsAccelerating] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
   const [bgImgError, setBgImgError] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const prevOffsetsRef = useRef<Record<string | number, number>>({})
+  const stepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Touch gesture and dragging state refs
   const touchStartX = useRef<number | null>(null)
@@ -93,6 +100,15 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
   const isSwipingHorizontal = useRef<boolean | null>(null)
   const isDragging = useRef<boolean>(false)
   const lastSlideTimeRef = useRef<number>(0)
+
+  // 组件卸载时清理连滚步进定时器
+  useEffect(() => {
+    return () => {
+      if (stepTimerRef.current) {
+        clearTimeout(stepTimerRef.current)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -112,19 +128,85 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
 
   const activeItem = displayItems[activeIndex] ?? displayItems[0]
 
-  const nextSlide = useCallback(() => {
+  // 平滑步进导航调度器：无论跨越多少张牌，均在最短环形路径上物理连续流动
+  // 点击第 2/3 张或远端指示器时启动极速连滚并在终点减速刹停，手感迅猛流畅
+  const slideTo = useCallback(
+    (targetIndex: number) => {
+      if (count <= 1) return
+      if (stepTimerRef.current) {
+        clearTimeout(stepTimerRef.current)
+        stepTimerRef.current = null
+      }
+
+      const current = activeIndexRef.current
+      let diff = targetIndex - current
+      if (diff > count / 2) diff -= count
+      if (diff < -count / 2) diff += count
+
+      if (diff === 0) return
+
+      const steps = Math.abs(diff)
+      const direction = diff > 0 ? 1 : -1
+
+      // 仅移动 1 步：以标准 520ms 饱满缓动平稳切至中心
+      if (steps === 1) {
+        setIsAccelerating(false)
+        setActiveIndex((prev) => (prev + direction + count) % count)
+        return
+      }
+
+      // 跨越 2 步或更多（如点击第 2、3 张或远端圆点）：
+      // 启动高速加速滚盘动效（Accelerated Rapid Rolling），每步 75~95ms 极速掠过
+      // 最后一步自动解除加速并以 520ms 自然物理减速刹车停在中心，手感迅猛且轻盈
+      setIsAccelerating(true)
+      const stepInterval =
+        steps === 2 ? 95 : steps === 3 ? 75 : Math.max(55, Math.floor(220 / steps))
+      let remaining = steps
+
+      const executeStep = () => {
+        setActiveIndex((prev) => (prev + direction + count) % count)
+        remaining--
+        if (remaining <= 1) {
+          // 到达最后一步时平滑解开加速，进入物理惯性减速刹停
+          setIsAccelerating(false)
+        }
+        if (remaining > 0) {
+          stepTimerRef.current = setTimeout(executeStep, stepInterval)
+        }
+      }
+
+      executeStep()
+    },
+    [count],
+  )
+
+  // 舞台整体向左移动（卡片向左平移流动，右侧卡片滑入）
+  const moveLeft = useCallback(() => {
     if (count <= 1) return
+    if (stepTimerRef.current) {
+      clearTimeout(stepTimerRef.current)
+      stepTimerRef.current = null
+    }
+    setIsAccelerating(false)
     const now = Date.now()
-    if (now - lastSlideTimeRef.current < 220) return
+    if (now - lastSlideTimeRef.current < 200) return
     lastSlideTimeRef.current = now
+    // activeIndex + 1 会使所有卡片 offset 减 1，X 轴整体向左平移
     setActiveIndex((prev) => (prev + 1) % count)
   }, [count])
 
-  const prevSlide = useCallback(() => {
+  // 舞台整体向右移动（卡片向右平移流动，左侧卡片滑入）
+  const moveRight = useCallback(() => {
     if (count <= 1) return
+    if (stepTimerRef.current) {
+      clearTimeout(stepTimerRef.current)
+      stepTimerRef.current = null
+    }
+    setIsAccelerating(false)
     const now = Date.now()
-    if (now - lastSlideTimeRef.current < 220) return
+    if (now - lastSlideTimeRef.current < 200) return
     lastSlideTimeRef.current = now
+    // activeIndex - 1 会使所有卡片 offset 加 1，X 轴整体向右平移
     setActiveIndex((prev) => (prev - 1 + count) % count)
   }, [count])
 
@@ -137,7 +219,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
       if (timer) clearInterval(timer)
       if (typeof document !== 'undefined' && document.hidden) return
       timer = setInterval(() => {
-        nextSlide()
+        moveLeft()
       }, 6000)
     }
 
@@ -160,7 +242,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
         document.removeEventListener('visibilitychange', handleVisibilityChange)
       }
     }
-  }, [isPaused, count, nextSlide])
+  }, [isPaused, count, moveLeft])
 
   // Keyboard navigation (scoped to visible viewport to prevent hijacking other controls)
   useEffect(() => {
@@ -181,14 +263,14 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
       }
 
       if (e.key === 'ArrowLeft') {
-        prevSlide()
+        moveLeft()
       } else if (e.key === 'ArrowRight') {
-        nextSlide()
+        moveRight()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [nextSlide, prevSlide])
+  }, [moveLeft, moveRight])
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX
@@ -227,9 +309,9 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
       Math.abs(touchDeltaX.current) > Math.abs(touchDeltaY.current) * 1.3
     ) {
       if (touchDeltaX.current > 0) {
-        prevSlide()
+        moveRight()
       } else {
-        nextSlide()
+        moveLeft()
       }
     }
     touchStartX.current = null
@@ -365,17 +447,23 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
           const score =
             item.ratingScore > 0 ? item.ratingScore.toFixed(1) : null
 
-          // Detect circular boundary leap (-3 <-> +3 or -2 <-> +2) to disable transition and prevent flying cards across center
+          // Detect circular boundary leap on invisible backside to prevent flying cards across center
           const prevOffset = prevOffsetsRef.current[item.id]
           const isJumpingBoundary =
             prevOffset !== undefined &&
             Math.abs(offset - prevOffset) > count / 2
 
+          // 连滚加速期采用 220ms 高频敏捷缓动，常规单步与最终刹车期采用 520ms 饱满物理减速
+          const animDuration = isAccelerating ? '220ms' : '520ms'
+          const animTimingFn = isAccelerating
+            ? 'cubic-bezier(0.25, 0.9, 0.3, 1)'
+            : 'cubic-bezier(0.16, 1, 0.3, 1)'
+
           // Pure GPU composited transform & opacity: 0 dynamic blur rasterization overhead
           let style: React.CSSProperties = {
             transition: isJumpingBoundary
               ? 'none'
-              : 'transform 520ms cubic-bezier(0.16, 1, 0.3, 1), opacity 520ms cubic-bezier(0.16, 1, 0.3, 1)',
+              : `transform ${animDuration} ${animTimingFn}, opacity ${animDuration} ${animTimingFn}`,
           }
 
           if (isCenter) {
@@ -386,7 +474,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
               opacity: 1,
             }
           } else if (isDesktop) {
-            // Desktop: 7 cards with calibrated 8/9 offset scale for balanced breathing room
+            // Desktop: 7 cards visible in stage + 2 buffer cards (offset ±4) for seamless fade-in/out
             if (offset === -1) {
               style = {
                 ...style,
@@ -435,17 +523,38 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
                 zIndex: 8,
                 opacity: 0.36,
               }
-            } else {
+            } else if (offset === -4) {
+              // Desktop left entrance/exit buffer: completely transparent, provides seamless fade-in slide
               style = {
                 ...style,
-                transform: 'translateX(0%) scale(0.4)',
+                transform:
+                  'translateX(-326%) scale(0.50) rotateY(38deg) translateZ(-115px)',
+                zIndex: 2,
+                opacity: 0,
+                pointerEvents: 'none',
+              }
+            } else if (offset === 4) {
+              // Desktop right entrance/exit buffer: completely transparent, provides seamless fade-in slide
+              style = {
+                ...style,
+                transform:
+                  'translateX(326%) scale(0.50) rotateY(-38deg) translateZ(-115px)',
+                zIndex: 2,
+                opacity: 0,
+                pointerEvents: 'none',
+              }
+            } else {
+              // Cards in deep background
+              style = {
+                ...style,
+                transform: 'translateX(0%) scale(0.3)',
                 zIndex: 0,
                 opacity: 0,
                 pointerEvents: 'none',
               }
             }
           } else {
-            // Mobile: 5 cards preserved with compact, ergonomic stage
+            // Mobile: 5 cards visible in stage + 2 buffer cards (offset ±3) for seamless fade-in/out
             if (offset === -1) {
               style = {
                 ...style,
@@ -478,10 +587,30 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
                 zIndex: 10,
                 opacity: 0.32,
               }
+            } else if (offset === -3) {
+              // Mobile left entrance/exit buffer: completely transparent
+              style = {
+                ...style,
+                transform:
+                  'translateX(-158%) scale(0.58) rotateY(34deg) translateZ(-75px)',
+                zIndex: 2,
+                opacity: 0,
+                pointerEvents: 'none',
+              }
+            } else if (offset === 3) {
+              // Mobile right entrance/exit buffer: completely transparent
+              style = {
+                ...style,
+                transform:
+                  'translateX(158%) scale(0.58) rotateY(-34deg) translateZ(-75px)',
+                zIndex: 2,
+                opacity: 0,
+                pointerEvents: 'none',
+              }
             } else {
               style = {
                 ...style,
-                transform: 'translateX(0%) scale(0.5)',
+                transform: 'translateX(0%) scale(0.4)',
                 zIndex: 0,
                 opacity: 0,
                 pointerEvents: 'none',
@@ -489,13 +618,17 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
             }
           }
 
+          const isVisibleOnStage = isDesktop
+            ? Math.abs(offset) <= 3
+            : Math.abs(offset) <= 2
+
           return (
             <div
               key={item.id}
               onClick={() => {
                 if (isDragging.current) return
                 if (!isCenter) {
-                  setActiveIndex(index)
+                  slideTo(index)
                 }
               }}
               style={style}
@@ -517,7 +650,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
                   if (!isCenter) {
                     e.preventDefault()
                     e.stopPropagation()
-                    setActiveIndex(index)
+                    slideTo(index)
                   }
                 }}
                 onMouseEnter={preloadVideoPlayer}
@@ -529,7 +662,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
                   <img
                     src={cover}
                     alt={title}
-                    loading="eager"
+                    loading={isVisibleOnStage ? 'eager' : 'lazy'}
                     decoding="async"
                     fetchPriority={isCenter ? 'high' : 'auto'}
                     referrerPolicy="no-referrer"
@@ -568,8 +701,8 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
         {/* Navigation Arrows (Desktop/Tablet) */}
         <button
           type="button"
-          onClick={prevSlide}
-          aria-label="上一部番剧"
+          onClick={moveLeft}
+          aria-label="向左滚动"
           className="absolute left-1 z-40 hidden sm:flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/40 text-white backdrop-blur-md transition-all hover:scale-110 hover:bg-black/70 sm:left-4 sm:h-12 sm:w-12 md:left-6"
         >
           <IconChevronLeft className="h-5 w-5 sm:h-6 sm:w-6" />
@@ -577,8 +710,8 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
 
         <button
           type="button"
-          onClick={nextSlide}
-          aria-label="下一部番剧"
+          onClick={moveRight}
+          aria-label="向右滚动"
           className="absolute right-1 z-40 hidden sm:flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/40 text-white backdrop-blur-md transition-all hover:scale-110 hover:bg-black/70 sm:right-4 sm:h-12 sm:w-12 md:right-6"
         >
           <IconChevronRight className="h-5 w-5 sm:h-6 sm:w-6" />
@@ -624,7 +757,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
               <button
                 key={idx}
                 type="button"
-                onClick={() => setActiveIndex(idx)}
+                onClick={() => slideTo(idx)}
                 aria-label={`切换到第 ${idx + 1} 部番剧`}
                 className={`h-1.5 rounded-full transition-all duration-300 ${
                   idx === activeIndex
