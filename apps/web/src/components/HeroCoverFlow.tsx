@@ -92,6 +92,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
   const touchDeltaY = useRef<number>(0)
   const isSwipingHorizontal = useRef<boolean | null>(null)
   const isDragging = useRef<boolean>(false)
+  const lastSlideTimeRef = useRef<number>(0)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -113,11 +114,17 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
 
   const nextSlide = useCallback(() => {
     if (count <= 1) return
+    const now = Date.now()
+    if (now - lastSlideTimeRef.current < 220) return
+    lastSlideTimeRef.current = now
     setActiveIndex((prev) => (prev + 1) % count)
   }, [count])
 
   const prevSlide = useCallback(() => {
     if (count <= 1) return
+    const now = Date.now()
+    if (now - lastSlideTimeRef.current < 220) return
+    lastSlideTimeRef.current = now
     setActiveIndex((prev) => (prev - 1 + count) % count)
   }, [count])
 
@@ -230,10 +237,10 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
     touchDeltaX.current = 0
     touchDeltaY.current = 0
     isSwipingHorizontal.current = null
-    // Reset dragging flag on next tick to prevent accidental link clicks after swipe
+    // Reset dragging flag with 180ms safety window to prevent accidental link clicks after touch gesture
     setTimeout(() => {
       isDragging.current = false
-    }, 80)
+    }, 180)
   }
 
   if (!displayItems.length) return null
@@ -293,12 +300,13 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
   return (
     <div
       ref={containerRef}
-      className="relative -mx-4 overflow-hidden px-4 pt-6 pb-6 sm:mx-0 sm:px-6 sm:pt-8 sm:pb-8"
+      className="relative -mx-4 overflow-hidden touch-pan-y px-4 pt-6 pb-6 sm:mx-0 sm:px-6 sm:pt-8 sm:pb-8"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
     >
       {/* Search Engine & Generative AI (GEO) structured metadata (XSS escaped) */}
       <script
@@ -417,7 +425,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
                 transform:
                   'translateX(-256%) scale(0.64) rotateY(33deg) translateZ(-75px)',
                 zIndex: 8,
-                opacity: isJumpingBoundary ? 0 : 0.36,
+                opacity: 0.36,
               }
             } else if (offset === 3) {
               style = {
@@ -425,7 +433,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
                 transform:
                   'translateX(256%) scale(0.64) rotateY(-33deg) translateZ(-75px)',
                 zIndex: 8,
-                opacity: isJumpingBoundary ? 0 : 0.36,
+                opacity: 0.36,
               }
             } else {
               style = {
@@ -460,7 +468,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
                 transform:
                   'translateX(-108%) scale(0.72) rotateY(26deg) translateZ(-40px)',
                 zIndex: 10,
-                opacity: isJumpingBoundary ? 0 : 0.32,
+                opacity: 0.32,
               }
             } else if (offset === 2) {
               style = {
@@ -468,7 +476,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
                 transform:
                   'translateX(108%) scale(0.72) rotateY(-26deg) translateZ(-40px)',
                 zIndex: 10,
-                opacity: isJumpingBoundary ? 0 : 0.32,
+                opacity: 0.32,
               }
             } else {
               style = {
@@ -491,7 +499,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
                 }
               }}
               style={style}
-              className={`absolute top-3 bottom-3 sm:top-4 sm:bottom-4 flex aspect-[2/3] cursor-pointer items-center justify-center overflow-hidden rounded-2xl sm:rounded-3xl shadow-xl transition-all ${
+              className={`absolute top-3 bottom-3 sm:top-4 sm:bottom-4 flex aspect-[2/3] cursor-pointer items-center justify-center overflow-hidden rounded-2xl sm:rounded-3xl shadow-xl ${
                 isCenter
                   ? 'ring-2 ring-[var(--kz-accent)]/70 ring-offset-2 ring-offset-[var(--kz-bg)] shadow-2xl cursor-pointer'
                   : 'hover:opacity-90'
@@ -503,10 +511,12 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
                 onClick={(e) => {
                   if (isDragging.current) {
                     e.preventDefault()
+                    e.stopPropagation()
                     return
                   }
                   if (!isCenter) {
                     e.preventDefault()
+                    e.stopPropagation()
                     setActiveIndex(index)
                   }
                 }}
@@ -519,9 +529,9 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
                   <img
                     src={cover}
                     alt={title}
-                    loading={index < 3 ? 'eager' : 'lazy'}
+                    loading="eager"
                     decoding="async"
-                    fetchPriority={index === 0 ? 'high' : 'auto'}
+                    fetchPriority={isCenter ? 'high' : 'auto'}
                     referrerPolicy="no-referrer"
                     onError={(e) => {
                       e.currentTarget.style.display = 'none'

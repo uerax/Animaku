@@ -4,6 +4,38 @@
 
 ---
 
+## [2026-09-05] 修复 3D 海报轮播跃迁隐身 Bug 与首屏图片加载反向优化，加固手势体系 (v1.3.2)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **根除边缘跃迁卡片 6 秒隐身丢牌 Bug**：
+     - 排查修复 `HeroCoverFlow.tsx` 中因 `opacity: isJumpingBoundary ? 0 : 0.36/0.32` 导致边缘卡片跃迁后整整 6 秒透明度为 0 的严重视觉缺陷；
+     - 明确“跃迁消除穿堂飞牌只需依赖 `transition: 'none'` 瞬间位移”，移除将 `opacity` 归零的副作用逻辑，两翼卡片瞬间就位并保持正常边缘透明度（桌面 0.36 / 移动 0.32），杜绝 7 张牌变 6 张牌的丢牌空缺；
+  2. **修复首屏左翼核心海报被误标为 lazy loading 的性能缺陷**：
+     - 纠正原先依赖原始数据下标 `index < 3` 导致视觉上左翼核心海报（offset -1/-2，对应 index 6/5）被误判为 `loading="lazy"` 的反向负优化；
+     - 严格对齐 Core Web Vitals 规范，将首屏视口内可见的全部 7 张海报统一设置为 `loading="eager"`，中心焦点海报精准绑定 `fetchPriority={isCenter ? 'high' : 'auto'}`，彻底杜绝左翼海报滞后与白块；
+  3. **移动端手势体系与防误触全链路加固**：
+     - 轮播外层容器增设 CSS `touch-pan-y`（`touch-action: pan-y`），在浏览器底层合成层明确纵向原生滚动与横向轮播手势边界，彻底根除横向滑屏时页面上下晃动与纵向滑动的仲裁延迟；
+     - 增设 `onTouchCancel={handleTouchEnd}` 防御监听，根除移动端手势被系统中断（如来电、通知、系统侧滑手势接管）时 `isDragging` 永久停留为 `true` 导致卡片点不动的偶发死锁缺陷；
+     - 将手势滑动结束后的防误触锁定延时由 80ms 提升至 180ms，为移动端慢速合成 click 事件留足安全防线，杜绝滑屏抬手误点跳转；
+     - 为翻页调用引入 220ms 轻量节流保护，防止极速连点打断 GPU 缓动动画或导致状态跳步；
+     - 非中心卡片点击事件补充 `e.stopPropagation()`，消除冒泡至父容器造成的重复 `setActiveIndex` 调用；
+  4. **代码整洁与样式解耦**：
+     - 移除卡片外层 DOM 的 `className` 中残留的 `transition-all`，消除与内联动态 `transition` 的样式竞争与冗余监听；
+     - 清理并删除全仓无任何引用的废弃文件 `apps/web/src/hooks/use-hero-spotlight.ts`，同步更新 `.claude/feature-map.md`。
+- 涉及文件：
+  - apps/web/src/components/HeroCoverFlow.tsx
+  - apps/web/src/hooks/use-hero-spotlight.ts (已删除)
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/BUGS.md
+  - .claude/feature-map.md
+  - .claude/STATE.md
+- 备注：通过全仓 TypeScript 类型检查 `pnpm typecheck`、前端生产构建 `pnpm build:web` 与全套单元测试，版本号递增至 v1.3.2。
+
 ## [2026-09-05] 首页 Hero 轮播 Meta 胶囊极简重构：移除 TOP 与连载冗余胶囊，升级观看人数为专属胶囊
 - 状态：已完成
 - 优先级：P2
