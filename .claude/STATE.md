@@ -4,6 +4,24 @@
 
 ---
 
+## [2026-09-06] 热门聚焦海报移除鼠标悬浮缩放动效 (v1.3.13)
+- 状态：已完成
+- 优先级：P3
+- 描述：
+  1. **取消卡片放大**：
+     - 在 `apps/web/src/components/HeroCoverFlow.tsx` 的 `HeroCardPoster` 组件中，移除海报图片标签上的 `group-hover:scale-105` 缩放类名；
+     - 将原有的 `transition-[transform,opacity]` 调整为 `transition-opacity duration-500 ease-out`，使图片在加载完成淡入后保持尺寸静止，消除鼠标滑过卡片时的突兀放大与裁切边缘抖动；
+     - 边缘光圈效果暂缓评估，后续按需求另行决策落地。
+- 涉及文件：
+  - apps/web/src/components/HeroCoverFlow.tsx
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck` 与前端打包 `pnpm -F @animaku/web build` 均已 100% 验证通过。
+
 ## [2026-09-06] 修复 3D 轮播 isDeepBackground 缓冲卡片合成层阈值回归缺陷 (v1.3.12)
 - 状态：已完成
 - 优先级：P1

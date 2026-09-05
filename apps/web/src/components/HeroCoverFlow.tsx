@@ -74,7 +74,7 @@ const HeroCardPoster = memo(function HeroCardPoster({
           referrerPolicy="no-referrer"
           onLoad={() => setIsLoaded(true)}
           onError={() => setHasError(true)}
-          className={`h-full w-full object-cover rounded-[inherit] transition-[transform,opacity] duration-500 ease-out group-hover:scale-105 ${
+          className={`h-full w-full object-cover rounded-[inherit] transition-opacity duration-500 ease-out ${
             isLoaded ? 'opacity-100' : 'opacity-0'
           }`}
         />
