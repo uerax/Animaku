@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, useState, useRef, useLayoutEffect } from 'react'
 import { Link } from 'react-router-dom'
 import type { BangumiItem } from '@animaku/shared'
 import {
@@ -52,6 +52,18 @@ export const BangumiCard = memo(function BangumiCard({
   const airLabel = airProgressLabel(item)
   const doingCount = formatDoingCount(item.doing)
   const eager = imagePriority !== 'lazy'
+  const isLcp = imagePriority === 'high'
+
+  const [isLoaded, setIsLoaded] = useState(false)
+  const [hasError, setHasError] = useState(false)
+  const imgRef = useRef<HTMLImageElement>(null)
+
+  // 物理级 0 闪烁防线：在首帧 Paint 之前同步检查是否命中本地缓存
+  useLayoutEffect(() => {
+    if (imgRef.current?.complete && imgRef.current.naturalWidth > 0) {
+      setIsLoaded(true)
+    }
+  }, [cover])
 
   const onCardWarmup = () => {
     preloadRoute('subject')
@@ -68,8 +80,9 @@ export const BangumiCard = memo(function BangumiCard({
       className="bangumi-card group flex flex-col overflow-hidden rounded-2xl bg-transparent transition-transform duration-200 hover:-translate-y-1"
     >
       <div className="bangumi-card-cover relative aspect-[3/4] overflow-hidden rounded-2xl bg-[var(--kz-bg-soft)] shadow-[0_10px_28px_rgba(0,0,0,0.18)] ring-1 ring-[var(--kz-border)]">
-        {cover ? (
+        {cover && !hasError ? (
           <img
+            ref={imgRef}
             src={cover}
             alt={item.nameCn || item.name || '动画封面'}
             referrerPolicy="no-referrer"
@@ -86,7 +99,15 @@ export const BangumiCard = memo(function BangumiCard({
             // Intrinsic hint for aspect ratio before CSS; common covers ~200px wide
             width={200}
             height={267}
-            className="h-full w-full object-cover"
+            onLoad={() => setIsLoaded(true)}
+            onError={() => setHasError(true)}
+            className={`h-full w-full object-cover ${
+              isLcp
+                ? 'opacity-100'
+                : isLoaded
+                  ? 'opacity-100 transition-opacity duration-200 ease-out'
+                  : 'opacity-0'
+            }`}
           />
         ) : (
           <div className="flex h-full items-center justify-center text-sm font-medium text-[var(--kz-fg-dim)]">
@@ -144,12 +165,17 @@ export const BangumiCard = memo(function BangumiCard({
   )
 })
 
-/** Above-fold cards on common phone/desktop grids (~2–6 cols × 3 rows). */
-const DEFAULT_EAGER_COVERS = 18
-
-/** Same track as live grid — skeleton must match or CLS returns. */
+/**
+ * 网格列数定义：最高响应式断点为 6 列 (lg/xl/2xl:grid-cols-6)
+ */
 const BANGUMI_GRID_CLASS =
   'grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 sm:gap-x-5 sm:gap-y-7 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-6 2xl:grid-cols-6'
+
+/**
+ * 组件默认 eager 数量（首屏两到三行封面）。
+ * 架构约束：任何情况下该默认值都必须保持 >= BANGUMI_GRID_CLASS 的最大列数（当前为 6）。
+ */
+const DEFAULT_EAGER_COVERS = 18
 
 export const BangumiGrid = memo(function BangumiGrid({
   items,

@@ -2787,3 +2787,33 @@
   - .claude/STATE.md
 - 备注：全仓类型检查 `pnpm typecheck` 与单测全量 100% 通过。
 
+## [2026-09-05] 首页与网格番剧封面加载体验平滑优化 (v1.2.13)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **首屏视觉突现与渲染阻塞排查**：
+     - 排查验证客户端代码无阻塞逻辑，根因为 React Query 数据期骨架屏、HTTP/2 单 TCP 连接多路复用与 Chrome 合成器批处理合并上屏，导致视觉上“灰块等待后全部齐刷刷弹现”；
+  2. **单图安全淡入与物理级 0 闪烁防线**：
+     - 在 `apps/web/src/components/ui.tsx` 的 `BangumiCard` 中引入加载就绪状态管理；
+     - 通过 `useLayoutEffect` 在首帧 Paint 之前同步探测 `img.complete && img.naturalWidth > 0`，命中本地 HTTP/磁盘缓存时直接瞬显，物理级消除 `useEffect` 异步执行带来的 1 帧（16ms）闪白；
+     - 隔离保护 LCP 核心帧：`index === 0`（`imagePriority === 'high'`）绝对豁免淡入动画，保证 Core Web Vitals 得分 0 延迟；
+     - 非 LCP 且初次网络下载的图片增加 200ms 柔和淡入（`transition-opacity duration-200 ease-out`），打散突变生硬感；
+  3. **异常状态优雅降级**：
+     - 引入 `hasError` 状态管理，封面 404 或网络加载失败时优雅降级为统一的居中「无封面」占位提示，彻底消除浏览器原生破损裂图图标；
+  4. **双保险契约注释与历史教训加固**：
+     - 在 `apps/web/src/pages/HomePage.tsx` 的 `eagerCount={6}` 正上方贴出强警示注释，严禁改小该值避免桌面端首屏第一排右侧卡片退化为 `lazy` 拖慢打开速度；
+     - 在 `apps/web/src/components/ui.tsx` 声明 `DEFAULT_EAGER_COVERS` 架构约束；
+  5. **版本号平滑递增**：
+     - 全仓版本号递增至 `v1.2.13`。
+- 涉及文件：
+  - apps/web/src/components/ui.tsx
+  - apps/web/src/pages/HomePage.tsx
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck`、前端构建 `pnpm -F @animaku/web build` 与 shared 单元测试全量 100% 通过。
+
+

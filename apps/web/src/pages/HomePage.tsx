@@ -156,6 +156,10 @@ export function HomePage() {
           <ErrorState error={trending.error} onRetry={() => trending.refetch()} />
         )}
         {trending.data && (
+          // 【性能与体验红线】：
+          // 此处的 eagerCount={6} 必须严格保持 >= 桌面端最大断点列数 (lg:grid-cols-6)。
+          // 严禁调小此数值（如改成 3 或 4），否则桌面端首屏第一排右侧的卡片会被错误判定为 loading="lazy"，
+          // 导致首屏右侧卡片出现明显的加载空缺与滞后，重新引入全站懒加载拖慢首屏的 Bug！
           <BangumiGrid items={trending.data.data} eagerCount={6} />
         )}
       </section>
