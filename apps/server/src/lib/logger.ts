@@ -386,6 +386,9 @@ export async function extractBusinessParams(
   const queryBvid = req.query('bvid')
   if (queryBvid) params.bvid = String(queryBvid).trim()
 
+  const queryInput = req.query('input')
+  if (queryInput) params.input = String(queryInput).trim()
+
   // 2. Extract from JSON Body (Safe clone)
   if (
     ['POST', 'PUT', 'PATCH'].includes(req.method) &&
@@ -498,6 +501,7 @@ function formatPrettyParams(params?: Record<string, unknown>): string {
   if (params.kw) parts.push(`kw="${params.kw}"`)
   if (params.bgmId) parts.push(`bgmId=${params.bgmId}`)
   if (params.bvid) parts.push(`bvid="${params.bvid}"`)
+  if (params.input) parts.push(`input="${params.input}"`)
 
   // Any other custom params
   const knownKeys = new Set([
@@ -508,6 +512,7 @@ function formatPrettyParams(params?: Record<string, unknown>): string {
     'bgmId',
     'bvid',
     'epId',
+    'input',
   ])
   for (const [k, v] of Object.entries(params)) {
     if (!knownKeys.has(k)) {

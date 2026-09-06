@@ -4,6 +4,35 @@
 
 ---
 
+## [2026-09-06] 修复 B 站 BV 号弹幕拉取 502 与机房 412 风控缺陷 (v1.4.9)
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **构建 UGC 视频分级解析双通道 (`apps/server/src/routes/bilibili-danmaku.ts`)**：
+     - **优先通道**：针对用户手动输入的 BV / AV 号，优先请求轻量专用的 `api.bilibili.com/x/player/pagelist` 播放器接口，彻底绕过 PC 网页端全量 `x/web-interface/view` 接口对海外机房 IDC IP 的 HTTP 412 风控拦截（服务器实测秒级返回 200）；
+     - **降级通道**：若 `pagelist` 未返回，降级使用 `x/web-interface/view` 兜底；
+     - 移除直连 GET 请求中多余的 `Origin: https://www.bilibili.com` 请求头，降低触发 B 站跨域安全防护的概率；
+  2. **弹幕压缩自适应解包 (`apps/server/src/routes/bilibili-danmaku.ts`)**：
+     - 引入 `zlib.unzipSync`，全自动检测并解压 `deflate`、`gzip` 与纯明文 XML 格式，彻底解决 B 站返回 `content-encoding: deflate` 时的解析乱码与异常；
+  3. **可观测性与日志提取优化 (`apps/server/src/lib/logger.ts`)**：
+     - 在路由全局 `catch` 块中补全 `console.error('[bilibili-danmaku] 拉取弹幕失败:', e)`，彻底杜绝静默 502；
+     - 在 `extractBusinessParams` 中提取 `input` 参数并在终端高亮打印（如 `input="BV16Abp66Etr"`），消除原先仅打印 `ep=1` 导致的业务排查混淆；
+  4. **测试覆盖与版本号递增**：
+     - 新增 `apps/server/src/routes/bilibili-danmaku.test.ts` 单元测试，涵盖输入校验与异常边界；
+     - 全仓 130 项自动化测试 100% 通过；全仓 `typecheck` 与 Web 生产构建 100% 通过；
+     - 项目版本号递增至 `v1.4.9`。
+- 涉及文件：
+  - apps/server/src/routes/bilibili-danmaku.ts
+  - apps/server/src/routes/bilibili-danmaku.test.ts
+  - apps/server/src/lib/logger.ts
+  - package.json
+  - apps/server/package.json
+  - apps/web/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+- 备注：已在本地端到端验证 `BV16Abp66Etr` 与 `BV1994Q63EDG` 秒级 200 成功拉取数百至数千条弹幕，彻底修复 502 缺陷。
+
 ## [2026-09-06] 凭据体系隔离与全量安全回归测试 (Step 5, v1.4.8)
 - 状态：已完成
 - 优先级：P1

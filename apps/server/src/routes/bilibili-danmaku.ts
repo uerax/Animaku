@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { gunzipSync } from 'node:zlib'
+import { gunzipSync, unzipSync } from 'node:zlib'
 import {
   parseDanmakuXml,
   parseBilibiliInput,
@@ -35,7 +35,6 @@ async function bilibiliFetch(url: string, init?: RequestInit): Promise<Response>
         'User-Agent': UA,
         Accept: '*/*',
         Referer: 'https://www.bilibili.com/',
-        Origin: 'https://www.bilibili.com',
         ...init?.headers,
       },
     },
@@ -408,45 +407,82 @@ bilibiliDanmakuRoutes.get('/bilibili', async (c) => {
             bvid: p.bvid,
           }))
         } else {
-          let ugcUrl = ''
-          if (target.type === 'bv') {
-            ugcUrl = `https://api.bilibili.com/x/web-interface/view?bvid=${encodeURIComponent(target.bvid)}`
-          } else if (target.type === 'av') {
-            ugcUrl = `https://api.bilibili.com/x/web-interface/view?aid=${target.aid}`
-          } else {
-            throw new Error('未知的 B 站资源类型')
-          }
-          const viewRes = await bilibiliFetch(ugcUrl)
-          if (!viewRes.ok) {
-            const t = await viewRes.text()
-            throw new Error(`B站视频信息 ${viewRes.status}: ${t.slice(0, 120)}`)
-          }
-          const viewJson = (await viewRes.json()) as {
-            code?: number
-            message?: string
-            data?: {
-              title?: string
-              cid?: number
-              bvid?: string
-              pages?: Array<{ cid: number; page: number; part?: string }>
+          let ugcPages: Array<{ cid: number; page: number; part?: string }> = []
+          const targetBvid = target.type === 'bv' ? target.bvid : ''
+          const targetAid = target.type === 'av' ? target.aid : 0
+
+          // 1. Primary: Lightweight, unthrottled pagelist API (avoids 412 WAF on IDC IPs)
+          const pagelistUrl = targetBvid
+            ? `https://api.bilibili.com/x/player/pagelist?bvid=${encodeURIComponent(targetBvid)}`
+            : targetAid
+              ? `https://api.bilibili.com/x/player/pagelist?aid=${targetAid}`
+              : ''
+
+          if (pagelistUrl) {
+            try {
+              const res = await bilibiliFetch(pagelistUrl)
+              if (res.ok) {
+                const json = (await res.json()) as {
+                  code?: number
+                  data?: Array<{ cid: number; page: number; part?: string }>
+                }
+                if (json.code === 0 && Array.isArray(json.data) && json.data.length > 0) {
+                  ugcPages = json.data
+                }
+              }
+            } catch {
+              /* fallback to view API */
             }
           }
-          if (viewJson.code !== 0 || !viewJson.data) {
-            throw new Error(viewJson.message || `B站返回 code=${viewJson.code}`)
+
+          // 2. Secondary fallback: View API if pagelist was unavailable
+          if (ugcPages.length === 0) {
+            let ugcUrl = ''
+            if (target.type === 'bv') {
+              ugcUrl = `https://api.bilibili.com/x/web-interface/view?bvid=${encodeURIComponent(target.bvid)}`
+            } else if (target.type === 'av') {
+              ugcUrl = `https://api.bilibili.com/x/web-interface/view?aid=${target.aid}`
+            } else {
+              throw new Error('未知的 B 站资源类型')
+            }
+            const viewRes = await bilibiliFetch(ugcUrl)
+            if (!viewRes.ok) {
+              const t = await viewRes.text()
+              throw new Error(`B站视频信息 ${viewRes.status}: ${t.slice(0, 120)}`)
+            }
+            const viewJson = (await viewRes.json()) as {
+              code?: number
+              message?: string
+              data?: {
+                title?: string
+                cid?: number
+                bvid?: string
+                pages?: Array<{ cid: number; page: number; part?: string }>
+              }
+            }
+            if (viewJson.code !== 0 || !viewJson.data) {
+              throw new Error(viewJson.message || `B站返回 code=${viewJson.code}`)
+            }
+            title = viewJson.data.title || ''
+            bvid = viewJson.data.bvid || targetBvid
+            ugcPages = viewJson.data.pages || []
           }
 
-          title = viewJson.data.title || ''
-          bvid = viewJson.data.bvid || (target.type === 'bv' ? target.bvid : '')
-          const ugcPages = viewJson.data.pages || []
+          if (ugcPages.length === 0) {
+            throw new Error('未找到分 P 列表')
+          }
+
+          bvid = bvid || targetBvid
           const pageInfo =
             ugcPages.find((p) => p.page === page) ||
             ugcPages[page - 1] ||
             ugcPages[0]
-          cid = pageInfo?.cid ?? viewJson.data.cid ?? 0
+          cid = pageInfo?.cid ?? 0
           if (!cid) {
             throw new Error('未找到分 P / cid')
           }
           part = pageInfo?.part || `P${page}`
+          title = title || part
           pages = ugcPages.map((p) => ({
             page: p.page,
             cid: p.cid,
@@ -454,7 +490,7 @@ bilibiliDanmakuRoutes.get('/bilibili', async (c) => {
           }))
         }
 
-        // Classic XML endpoint (often gzip). Fallback to list.so.
+        // Classic XML endpoint (often gzip or deflate). Fallback to list.so.
         let xml = ''
         const xmlUrls = [
           `https://comment.bilibili.com/${cid}.xml`,
@@ -471,11 +507,22 @@ bilibiliDanmakuRoutes.get('/bilibili', async (c) => {
             const buf = Buffer.from(
               await readArrayBufferLimited(res, MAX_DANMAKU_BYTES),
             )
-            // gzip magic
-            if (buf.length >= 2 && buf[0] === 0x1f && buf[1] === 0x8b) {
-              xml = gunzipSync(buf).toString('utf8')
-            } else {
-              xml = buf.toString('utf8')
+            // Auto-detect deflate / gzip / raw XML
+            try {
+              if (
+                buf.length >= 2 &&
+                ((buf[0] === 0x1f && buf[1] === 0x8b) || buf[0] === 0x78)
+              ) {
+                xml = unzipSync(buf).toString('utf8')
+              } else {
+                xml = buf.toString('utf8')
+              }
+            } catch {
+              try {
+                xml = unzipSync(buf).toString('utf8')
+              } catch {
+                xml = buf.toString('utf8')
+              }
             }
             if (xml.includes('<d ')) break
             lastErr = `${u} → empty danmaku`
@@ -515,6 +562,7 @@ bilibiliDanmakuRoutes.get('/bilibili', async (c) => {
       meta: result.meta,
     })
   } catch (e) {
+    console.error('[bilibili-danmaku] 拉取弹幕失败:', e)
     return c.json(
       {
         error: 'upstream',
