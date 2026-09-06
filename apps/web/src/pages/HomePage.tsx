@@ -81,6 +81,9 @@ export function HomePage() {
 
   return (
     <div className="space-y-12 sm:space-y-14">
+      {/* 语义化全站顶级主标题：对齐移动优先索引与无障碍辅助树，视觉上通过 sr-only 隐式呈现 */}
+      <h1 className="sr-only">Animaku 动漫 - 在线高清动画多源聚合弹幕平台</h1>
+
       {/* 顶部 3D Cover Flow 焦点舞台 */}
       {trending.isLoading ? (
         <section aria-label="热门聚焦加载中">

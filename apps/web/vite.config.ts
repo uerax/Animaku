@@ -68,7 +68,11 @@ export default defineConfig(({ mode }) => {
     get('BANGUMI_IMAGE') || get('VITE_BANGUMI_IMAGE_HOST') || get('BANGUMI_IMAGE_HOST'),
   )
 
-  const siteUrl = (get('VITE_SITE_URL') || get('SITE_URL') || '').trim().replace(/\/+$/, '')
+  const rawSiteUrl = (get('VITE_SITE_URL') || get('SITE_URL') || '').trim().replace(/\/+$/, '')
+  const siteUrl =
+    rawSiteUrl && !rawSiteUrl.startsWith('http://') && !rawSiteUrl.startsWith('https://')
+      ? `https://${rawSiteUrl}`
+      : rawSiteUrl
   const defaultTheme =
     (get('VITE_DEFAULT_THEME') || 'light').trim().toLowerCase() === 'dark'
       ? 'dark'
@@ -117,26 +121,72 @@ export default defineConfig(({ mode }) => {
         // Inject Google WebSite structured data (Site Name) dynamically from siteUrl if configured.
         name: 'animaku-seo-website-jsonld',
         transformIndexHtml(html: string) {
+          let hostnameBackup = ''
+          if (siteUrl) {
+            try {
+              const urlObj = new URL(siteUrl)
+              hostnameBackup = urlObj.hostname.toLowerCase()
+            } catch {
+              hostnameBackup = siteUrl
+                .replace(/^https?:\/\//i, '')
+                .split('/')[0]
+                .split(':')[0]
+                .toLowerCase()
+            }
+          }
+
+          const alternateName: string[] = ['Animaku 动漫', 'Animaku动漫']
+          if (
+            hostnameBackup &&
+            hostnameBackup !== 'localhost' &&
+            hostnameBackup !== '127.0.0.1' &&
+            !alternateName.includes(hostnameBackup)
+          ) {
+            alternateName.push(hostnameBackup)
+          }
+
           const jsonLd: Record<string, unknown> = {
             '@context': 'https://schema.org',
             '@type': 'WebSite',
             name: 'Animaku',
-            alternateName: ['Animaku 动漫', 'Animaku动漫'],
+            alternateName,
             description:
               'Animaku 多资源聚合的日漫番剧、剧场版动画在线观看，支持高性能自研弹幕播放、1080P 高清画质、画质超分、OP / ED智能跳过、Bangumi 每日更新时间表与追番历史，打造轻快稳定的二次元追番体验。',
             ...(siteUrl ? { url: `${siteUrl}/` } : {}),
+            ...(siteUrl
+              ? {
+                  potentialAction: {
+                    '@type': 'SearchAction',
+                    target: {
+                      '@type': 'EntryPoint',
+                      urlTemplate: `${siteUrl}/search?q={search_term_string}`,
+                    },
+                    'query-input': 'required name=search_term_string',
+                  },
+                }
+              : {}),
           }
+          const safeSiteUrl = siteUrl ? siteUrl.replace(/[<>"']/g, '') : ''
           const formatted = JSON.stringify(jsonLd, null, 2)
+            .replace(/<\/script/gi, '<\\/script')
             .split('\n')
             .map((line, idx) => (idx === 0 ? line : '      ' + line))
             .join('\n')
           const scriptTag = [
-            '    <!-- Google 网站名称结构化数据 (Site Name) -->',
             '    <script type="application/ld+json" data-animaku-jsonld="1">',
             `      ${formatted}`,
             '    </script>',
           ].join('\n')
-          return html.replace('<!--website-jsonld-->', scriptTag)
+
+          const canonicalTag = safeSiteUrl
+            ? `    <link rel="canonical" href="${safeSiteUrl}/" />\n`
+            : ''
+
+          return html
+            .replace('    <!--canonical-url-->\n', canonicalTag)
+            .replace('<!--canonical-url-->', canonicalTag)
+            .replace('    <!--website-jsonld-->', scriptTag)
+            .replace('<!--website-jsonld-->', scriptTag)
         },
       },
     ],

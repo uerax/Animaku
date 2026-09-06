@@ -554,11 +554,12 @@ export function Layout() {
           <NavLink
             to="/"
             className="flex shrink-0 items-center gap-2 font-semibold tracking-tight"
+            aria-label={`${b.productName} 首页`}
             onClick={() => setMenuOpen(false)}
           >
             <img
               src="/favicon-32x32.png"
-              alt=""
+              alt={b.productName}
               width={32}
               height={32}
               className="h-7 w-7 rounded-full ring-1 ring-[var(--kz-border)] sm:h-8 sm:w-8"

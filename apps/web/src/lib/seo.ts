@@ -94,7 +94,14 @@ export function formatDocumentTitle(pageTitle: string, siteName = SITE_NAME): st
 /** Prefer build-time public site URL; fall back to browser origin. */
 export function resolveSiteUrl(): string {
   const fromEnv = (import.meta.env.VITE_SITE_URL as string | undefined)?.trim()
-  if (fromEnv) return fromEnv.replace(/\/+$/, '')
+  if (fromEnv) {
+    const clean = fromEnv.replace(/\/+$/, '')
+    if (clean) {
+      return clean.startsWith('http://') || clean.startsWith('https://')
+        ? clean
+        : `https://${clean}`
+    }
+  }
   if (typeof window !== 'undefined' && window.location?.origin) {
     return window.location.origin.replace(/\/+$/, '')
   }
@@ -219,11 +226,36 @@ export function applyPageSeo(seo: PageSeo): void {
 export function buildWebsiteJsonLd(siteUrl = resolveSiteUrl()): Record<string, unknown> {
   const base = siteUrl ? siteUrl.replace(/\/+$/, '') : ''
   const url = base ? `${base}/` : undefined
+
+  let hostnameBackup = ''
+  if (base) {
+    try {
+      const urlObj = new URL(base.includes('://') ? base : `https://${base}`)
+      hostnameBackup = urlObj.hostname.toLowerCase()
+    } catch {
+      hostnameBackup = base
+        .replace(/^https?:\/\//i, '')
+        .split('/')[0]
+        .split(':')[0]
+        .toLowerCase()
+    }
+  }
+
+  const alternateName: string[] = ['Animaku 动漫', 'Animaku动漫']
+  if (
+    hostnameBackup &&
+    hostnameBackup !== 'localhost' &&
+    hostnameBackup !== '127.0.0.1' &&
+    !alternateName.includes(hostnameBackup)
+  ) {
+    alternateName.push(hostnameBackup)
+  }
+
   return {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
     name: SITE_NAME,
-    alternateName: ['Animaku 动漫', 'Animaku动漫'],
+    alternateName,
     description: DEFAULT_DESCRIPTION,
     ...(url ? { url } : {}),
     // Absolute SearchAction only when we know the public origin

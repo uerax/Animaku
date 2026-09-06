@@ -4,6 +4,47 @@
 
 ---
 
+## [2026-09-06] 加固 Google Site Name 结构化数据与首屏规范化链接 (v1.3.16)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **排查二级域名 Site Name 继承回退根本原因**：
+     - 用户站点 `**.eu.org` 首页虽然已有标准 WebSite JSON-LD，但在 Google 搜索中“出处”依然显示 `EU.org: free domain names since 1996`（`http://eu.org` 根域标题）；
+     - Google 对于二级免费子域名（`eu.org`）在独立实体置信度不足时，会触发最保守的父域 Fallback 继承机制；
+  2. **落地 Google 官方推荐 Workaround 加固策略**：
+     - **构建期动态注入 (`apps/web/vite.config.ts`)**：从配置的环境变量 `VITE_SITE_URL` / `SITE_URL` 中通过标准 URL 解析提取全小写域名 `hostname`（如 `bakasine.eu.org`），动态注入到 `WebSite` JSON-LD 的 `alternateName` 中，作为 Google 官方认可的保底备选名，阻断算法向父级根域回退；支持缺少协议头与带端口的安全过滤解析与自动补全 `https://`；
+     - **同构站内搜索 Action 对齐 (`vite.config.ts` & `seo.ts`)**：构建期注入的 WebSite 结构化数据与客户端 `buildWebsiteJsonLd` 保持 100% 同构，配置 `siteUrl` 时同步输出 `potentialAction: SearchAction`；
+     - **运行时自适应兜底 (`apps/web/src/lib/seo.ts`)**：在客户端 `buildWebsiteJsonLd` 中同步解析 `hostname` 注入 `alternateName`，支持无配置时自动根据当前浏览器 `window.location.origin` 动态提取，本地开发环境自动排除 `localhost`/`127.0.0.1`；`resolveSiteUrl` 强化协议头自动归一化；
+     - **首屏静态规范化链接 (`apps/web/index.html` & `vite.config.ts`)**：在首页静态 HTML 中根据 `siteUrl` 动态注入首屏 `<link rel="canonical" href="${safeSiteUrl}/" />`，消除 URL 变体对实体聚类的干扰；
+  3. **修复双 Canonical 冲突与服务端预渲染实体清洗缺陷**：
+     - **提取统一模板首页 SEO 清洗纯函数 (`apps/server/src/lib/seo-prerender.ts`)**：抽取 `stripTemplateHomepageSeo`，统一且干净地剔除模板中可能存在的 Canonical 标签、WebSite JSON-LD 结构化数据及其前置 HTML 注释，彻底消除了番剧详情页、404 页面及 SPA 子路由预渲染中的孤儿注释异味；
+     - **消除 Double Canonical Bug**：在 `renderSuccessPage` 中先行剥离模板可能自带的首屏 Canonical 标签，再注入唯一的番剧规范化链接，防止爬虫接收到两个冲突 Canonical；
+     - **清洗模板残留的首页 WebSite JSON-LD**：在 `renderSuccessPage` 中同步清理模板自带的 `WebSite` 结构化数据，确保番剧详情页只输出符合自身的 `TVSeries` 与 `BreadcrumbList`，杜绝向 Google 传递“全站页面均为根 WebSite 实体”的混淆信号；
+     - **404 页面规范化清理与 noindex 强化**：在 `render404Page` 中彻底移除 Canonical 与 WebSite 结构化数据标签，自动确保 `noindex,nofollow` 注入，避免不存在页面指向首页产生 Soft-404 隐患；
+     - **SPA 子路由与超时降级首屏实体安全隔断**：在 `getPreloadedHtmlForRoute`（访问 `/anime` 等子路由）以及 `handleSubjectPrerender` Case C 降级分支中，先行剥离静态首页 Canonical 与 WebSite JSON-LD，防止非首页被爬虫误判为首页镜像或产生实体混乱；
+     - **构建期 XSS 与属性注入安全加固 (`vite.config.ts`)**：对 JSON-LD 输出进行 `<\\/script` 逃逸闭合防御，对 `safeSiteUrl` 过滤 `<>"'` 杜绝属性注入漏洞；
+     - **移动优先索引（Mobile-First Indexing）品牌可见性强化 (`Layout.tsx` & `HomePage.tsx`)**：为 Logo 图片补全 `alt={b.productName}` 并添加显式 `aria-label`，首页顶部注入语义化 `sr-only` 顶级 `<h1>` 标题，彻底消除移动端爬虫因 CSS `hidden` 导致的可视品牌文本与 H1 盲区；
+     - **服务端 Origin 解析协议补全 (`apps/server/src/lib/seo-static.ts`)**：在 `resolvePublicOrigin` 中补齐协议头归一化，杜绝配置裸域名导致 sitemap.xml / robots.txt 输出相对 URL 的缺陷；
+     - **测试覆盖与边界断言 (`apps/server/src/lib/seo-prerender.test.ts`)**：新增真实模板自带 Canonical、WebSite、注释剥离以及 `render404Page` 场景下的多用例断言，覆盖清洗、单一性、Soft-404 防御与 Schema 准确性保障；
+  4. **版本号平滑递增**：
+     - 全仓版本号递增至 `v1.3.16`。
+- 涉及文件：
+  - apps/web/index.html
+  - apps/web/src/lib/seo.ts
+  - apps/web/vite.config.ts
+  - apps/web/src/components/Layout.tsx
+  - apps/web/src/pages/HomePage.tsx
+  - apps/server/src/lib/seo-prerender.ts
+  - apps/server/src/lib/seo-prerender.test.ts
+  - apps/server/src/lib/seo-static.ts
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck`、全仓 69 项单元测试（服务端 20 项、共享库 49 项）及 Vite 前端生产打包 `pnpm -F @animaku/web build` 均 100% 通过。
+
 ## [2026-09-06] 优化热门聚焦 3D 轮播物理阻尼动效消除 Safari 瞬移假死 (v1.3.15)
 - 状态：已完成
 - 优先级：P1
@@ -2662,7 +2703,7 @@
 - 优先级：P1
 - 描述：
   1. **排查根本原因**：
-     - `bakasine.eu.org` 为二级域名，在 Google 搜索结果中缺少明确的静态首屏 `WebSite` 结构化数据（JSON-LD）声明；
+     - `**.eu.org` 为二级域名，在 Google 搜索结果中缺少明确的静态首屏 `WebSite` 结构化数据（JSON-LD）声明；
      - Google 网站实体识别算法自动向上回退，抓取并继承了一级根域名 `eu.org` 首页的网站名称（`EU.org: free domain names since 1996`）；
   2. **全面修复与 SEO 动态参数化**：
      - **构建期动态注入 (`apps/web/vite.config.ts` & `index.html`)**：在 Vite 中接入 `animaku-seo-website-jsonld` HTML 转换插件，根据环境变量 `VITE_SITE_URL` / `SITE_URL` 动态将 `@type: WebSite`、`name: "Animaku"`、`alternateName: ["Animaku 动漫", "Animaku动漫"]` 与 `url` 注入到 `dist/index.html` 的首屏 `<head>` 中，拒绝代码硬编码；

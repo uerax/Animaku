@@ -29,7 +29,11 @@ export function resolvePublicOrigin(
   },
 ): string {
   const configured = siteUrlConfig.trim().replace(/\/+$/, '')
-  if (configured) return configured
+  if (configured) {
+    return configured.startsWith('http://') || configured.startsWith('https://')
+      ? configured
+      : `https://${configured}`
+  }
 
   const xfProto = (req.header('x-forwarded-proto') || '')
     .split(',')[0]

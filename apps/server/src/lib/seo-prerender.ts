@@ -160,19 +160,37 @@ export function getCachedSubjectPreloadTags(webRoot?: string): string {
 }
 
 /**
+ * Strips any static homepage canonical link and WebSite structured data (JSON-LD)
+ * along with any preceding comment from index.html template.
+ */
+export function stripTemplateHomepageSeo(html: string): string {
+  return html
+    .replace(/<link\s+[^>]*rel=["']canonical["'][^>]*\/?>\s*/gi, '')
+    .replace(/(?:<!--[^\n]*-->\s*)?<script\s+[^>]*data-animaku-jsonld=["']1["'][^>]*>[\s\S]*?<\/script>\s*/gi, '')
+}
+
+/**
  * Returns clean HTML template with route-specific modulepreload tags injected for SPA routes.
  */
 export function getPreloadedHtmlForRoute(webRoot: string, pathname: string): string | null {
   const template = getCleanTemplateHtml(webRoot)
   if (!template) return null
 
+  let html = template
+  const cleanPath = pathname.split('?')[0].split('#')[0]
+  // If requesting a non-home SPA route, strip the static homepage canonical tag & WebSite JSON-LD
+  // so search engines do not mistake the sub-route for a homepage mirror before JS hydrates.
+  if (cleanPath && cleanPath !== '/' && cleanPath !== '/index.html') {
+    html = stripTemplateHomepageSeo(html)
+  }
+
   const route = matchRouteName(pathname)
-  if (!route) return template
+  if (!route) return html
 
   const tags = templateCache?.routePreloadTags[route] || findRouteModulePreloadTags(webRoot, route)
-  if (!tags) return template
+  if (!tags) return html
 
-  return template.replace(/<\/head>/i, `${tags}\n  </head>`)
+  return html.replace(/<\/head>/i, `${tags}\n  </head>`)
 }
 
 export type SubjectSeoResult =
@@ -373,7 +391,9 @@ export function renderSuccessPage(
     )
   }
 
-  // 6. Inject Canonical, JSON-LD & Modulepreload into <head>
+  // 6. Strip any existing canonical link and homepage WebSite JSON-LD from template,
+  // then inject subject Canonical, JSON-LD (TVSeries + BreadcrumbList) & Modulepreload into <head>
+  html = stripTemplateHomepageSeo(html)
   const preloadSection = preloadTags ? `\n${preloadTags}` : ''
   const headInject = `  <link rel="canonical" href="${escapeHtml(canonicalUrl)}" />
     <script type="application/ld+json" data-animaku-jsonld="1">${escapeJsonLdScript(JSON.stringify(tvSeriesJson))}</script>
@@ -401,7 +421,7 @@ export function renderSuccessPage(
 /**
  * Prerender a genuine 404 Subject Not Found HTML page.
  */
-function render404Page(templateHtml: string, subjectId: number): string {
+export function render404Page(templateHtml: string, subjectId: number): string {
   let html = templateHtml
 
   const title404 = '番剧不存在 (404) · Animaku'
@@ -413,15 +433,30 @@ function render404Page(templateHtml: string, subjectId: number): string {
     `<meta name="description" content="${escapeHtml(desc404)}" />`,
   )
 
+  // 404 pages must never have a canonical link or website jsonld pointing to a valid page
+  html = stripTemplateHomepageSeo(html)
+
   // Inject noindex, nofollow for 404
-  html = html.replace(
-    /<meta\s+name="robots"\s+content="[\s\S]*?"\s*\/?>/i,
-    `<meta name="robots" content="noindex,nofollow" />`,
-  )
-  html = html.replace(
-    /<meta\s+name="googlebot"\s+content="[\s\S]*?"\s*\/?>/i,
-    `<meta name="googlebot" content="noindex,nofollow" />`,
-  )
+  if (/<meta\s+name="robots"\s+content="[\s\S]*?"\s*\/?>/i.test(html)) {
+    html = html.replace(
+      /<meta\s+name="robots"\s+content="[\s\S]*?"\s*\/?>/i,
+      `<meta name="robots" content="noindex,nofollow" />`,
+    )
+  } else {
+    html = html.replace(/<head>/i, '<head>\n    <meta name="robots" content="noindex,nofollow" />')
+  }
+
+  if (/<meta\s+name="googlebot"\s+content="[\s\S]*?"\s*\/?>/i.test(html)) {
+    html = html.replace(
+      /<meta\s+name="googlebot"\s+content="[\s\S]*?"\s*\/?>/i,
+      `<meta name="googlebot" content="noindex,nofollow" />`,
+    )
+  } else {
+    html = html.replace(
+      /<meta\s+name="robots"\s+content="noindex,nofollow"\s*\/?>/i,
+      `<meta name="robots" content="noindex,nofollow" />\n    <meta name="googlebot" content="noindex,nofollow" />`,
+    )
+  }
 
   // Noscript 404 notice
   const noscript404 = `      <noscript>
@@ -499,9 +534,10 @@ export async function handleSubjectPrerender(
     `[seo-prerender] fallback to default template for subject /${subjectId}:`,
     result.error,
   )
-  const fallbackHtml = preloadTags
-    ? template.replace(/<\/head>/i, `${preloadTags}\n  </head>`)
-    : template
+  let fallbackHtml = stripTemplateHomepageSeo(template)
+  if (preloadTags) {
+    fallbackHtml = fallbackHtml.replace(/<\/head>/i, `${preloadTags}\n  </head>`)
+  }
   return new Response(fallbackHtml, {
     status: 200,
     headers: {
