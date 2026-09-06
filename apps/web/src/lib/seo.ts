@@ -6,7 +6,7 @@
  * Absolute OG / canonical URLs need VITE_SITE_URL (or runtime origin fallback).
  */
 
-export const SITE_NAME = 'Animaku'
+export const SITE_NAME = 'Animaku 动漫'
 
 export const DEFAULT_DESCRIPTION =
   'Animaku 多资源聚合的日漫番剧、剧场版动画在线观看，支持高性能自研弹幕播放、1080P 高清画质、画质超分、OP / ED智能跳过、Bangumi 每日更新时间表与追番历史，打造轻快稳定的二次元追番体验。'
@@ -227,35 +227,11 @@ export function buildWebsiteJsonLd(siteUrl = resolveSiteUrl()): Record<string, u
   const base = siteUrl ? siteUrl.replace(/\/+$/, '') : ''
   const url = base ? `${base}/` : undefined
 
-  let hostnameBackup = ''
-  if (base) {
-    try {
-      const urlObj = new URL(base.includes('://') ? base : `https://${base}`)
-      hostnameBackup = urlObj.hostname.toLowerCase()
-    } catch {
-      hostnameBackup = base
-        .replace(/^https?:\/\//i, '')
-        .split('/')[0]
-        .split(':')[0]
-        .toLowerCase()
-    }
-  }
-
-  const alternateName: string[] = ['Animaku 动漫', 'Animaku动漫']
-  if (
-    hostnameBackup &&
-    hostnameBackup !== 'localhost' &&
-    hostnameBackup !== '127.0.0.1' &&
-    !alternateName.includes(hostnameBackup)
-  ) {
-    alternateName.push(hostnameBackup)
-  }
-
   return {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
     name: SITE_NAME,
-    alternateName,
+    alternateName: ['Animaku动漫', 'Animaku'],
     description: DEFAULT_DESCRIPTION,
     ...(url ? { url } : {}),
     // Absolute SearchAction only when we know the public origin

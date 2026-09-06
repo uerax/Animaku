@@ -4,6 +4,35 @@
 
 ---
 
+## [2026-09-07] 修复 Google 搜索 Site Name 结构化数据域名污染并统一全站品牌元数据 (v1.5.6)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **彻底移除 WebSite JSON-LD 结构化数据中的域名别名回退注入 (`vite.config.ts` & `seo.ts`)**：
+     - 彻底删除将 URL 提取的主机名（如 `bakasine.eu.org`）动态追加到 `alternateName` 的逻辑（`alternateName.push(hostnameBackup)`），严格对齐 Google 官方 Site Name 指南中严禁将域名或 URL 作为网站名称的规范；
+  2. **全面对齐站点首选主名称与备选名称**：
+     - 构建期注入与客户端运行时将 `WebSite.name` 规范统一为首选主名称 `'Animaku 动漫'`；
+     - 将 `alternateName` 纯净定义为 `['Animaku动漫', 'Animaku']`，杜绝爬虫将域名识别为网站名称候选项；
+  3. **多渠道品牌元数据一致性闭环**：
+     - 将客户端 `SITE_NAME`、`<meta property="og:site_name">` 与 `<meta name="application-name">` 统一为 `'Animaku 动漫'`；
+     - 将 `site.webmanifest` 应用名称对齐为 `"name": "Animaku 动漫"`，保留 `"short_name": "Animaku"`；
+     - 达成 `WebSite.name`、`<title>`、`<h1>`、`og:site_name` 与 `webmanifest` 的 100% 强一致性，为 Google 算法准确提取站点名称提供最高置信度；
+  4. **全仓构建与版本升级**：
+     - 全仓 136 项单元测试 100% 通过，全仓 `typecheck` 与生产打包 `pnpm build` 0 错误；
+     - 项目版本号递增至 `v1.5.6`。
+- 涉及文件：
+  - apps/web/vite.config.ts
+  - apps/web/src/lib/seo.ts
+  - apps/web/index.html
+  - apps/web/public/site.webmanifest
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+- 备注：经生产打包验证，生成的 `dist/index.html` 首屏输出纯净且规范的 `WebSite` JSON-LD，彻底消除了域名别名污染。
+
 ## [2026-09-07] 修复 Cookie 鉴权源直连 403 缺陷、废除 PlaybackRegistry SQLite 持久化并重构纯内存与零 I/O 媒体网关 (v1.5.3)
 - 状态：已完成
 - 优先级：P0

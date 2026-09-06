@@ -121,35 +121,11 @@ export default defineConfig(({ mode }) => {
         // Inject Google WebSite structured data (Site Name) dynamically from siteUrl if configured.
         name: 'animaku-seo-website-jsonld',
         transformIndexHtml(html: string) {
-          let hostnameBackup = ''
-          if (siteUrl) {
-            try {
-              const urlObj = new URL(siteUrl)
-              hostnameBackup = urlObj.hostname.toLowerCase()
-            } catch {
-              hostnameBackup = siteUrl
-                .replace(/^https?:\/\//i, '')
-                .split('/')[0]
-                .split(':')[0]
-                .toLowerCase()
-            }
-          }
-
-          const alternateName: string[] = ['Animaku 动漫', 'Animaku动漫']
-          if (
-            hostnameBackup &&
-            hostnameBackup !== 'localhost' &&
-            hostnameBackup !== '127.0.0.1' &&
-            !alternateName.includes(hostnameBackup)
-          ) {
-            alternateName.push(hostnameBackup)
-          }
-
           const jsonLd: Record<string, unknown> = {
             '@context': 'https://schema.org',
             '@type': 'WebSite',
-            name: 'Animaku',
-            alternateName,
+            name: 'Animaku 动漫',
+            alternateName: ['Animaku动漫', 'Animaku'],
             description:
               'Animaku 多资源聚合的日漫番剧、剧场版动画在线观看，支持高性能自研弹幕播放、1080P 高清画质、画质超分、OP / ED智能跳过、Bangumi 每日更新时间表与追番历史，打造轻快稳定的二次元追番体验。',
             ...(siteUrl ? { url: `${siteUrl}/` } : {}),
