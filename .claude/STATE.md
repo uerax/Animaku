@@ -3708,5 +3708,96 @@
   - .claude/STATE.md
 - 备注：全仓类型检查 `pnpm typecheck`、前后端全量单测（89 项测试）与生产打包构建全量 100% 通过。
 
+## [2026-09-06] 受控媒体网关与出站安全防御架构全链路加固 (v1.5.0)
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **前端权威媒体类型推导体系 (P0-1)**：
+     - 在 `apps/web/src/player/media/format.ts` 中废除字符串子串模糊猜解，实现基于 URL Pathname 状态机的严格类型决断 `inferMediaType`；
+     - 严格按四级优先级对齐：formatHint ('hls' | 'mp4') ➔ 受控网关路由 Pathname (/stream ➔ hls, /segment ➔ progressive) ➔ 严格扩展名后缀匹配 ➔ 保底 progressive；
+     - `VideoPlayer.tsx` 解构 `formatHint` 并全量接入 `inferMediaType` 与 `inferMediaMimeType`，杜绝 Safari/Hls.js 将受控 Ticket 误判为 Progressive MP4 导致的解复用器崩溃；
+  2. **媒体网关彻底绕过 Compression 中间件 (P0-2)**：
+     - 将 `apps/server/src/index.ts` 压缩跳过前缀由 `/api/media/proxy` 扩展为 `/api/media/` 全量媒体流网关；
+     - 杜绝二进制分片流被 Gzip 压缩从而破坏 HTTP 206 Partial Content / Range 协议，彻底消除视频拖拽 Seek 卡死与 CPU 暴涨；
+  3. **系统主密钥持久化与优雅迁移语义 (P0-3)**：
+     - 在 `apps/server/src/lib/media/ticket-codec.ts` 中实现系统主密钥生命周期闭环：优先沿用 SQLite (kvCache `system:media_system_master_key`) 已持久化 Key ➔ 环境变量 (MEDIA_SECRET/PROXY_TOKEN) ➔ 随机 32 字节 Hex 密钥持久化落盘并内存单例缓存；
+     - 服务重启或后续加入环境变量后，历史加密 Cookie 与 Ticket 依然 100% 保持解密能力；解密异常输出友好排查日志；
+  4. **Ticket Capability 语义隔离与路由契约固化 (P0-4)**：
+     - 固化能力不可升级原则：`/api/media/stream` 路由遇到 `typ === 'key'` 严格返回 403 (`forbidden_capability`)，严禁越权；
+     - `/api/media/segment` 路由支持 `typ === 'segment'` 与 `typ === 'key'` 二进制直发，遇到 `typ === 'playlist'` 容错内部转调改写管道；
+     - 任何外部 query `url=` 参数直接 400 拦截；
+  5. **前端受控 Ticket 业务修饰符装配 (P1-1)**：
+     - 修复 `apps/web/src/lib/playback-src.ts` 中受控 Ticket 被提前短路的问题；
+     - 恢复 `forceAdFilter`（追加 `&adFilter=1`）与 `forceProxy`（追加 `&stream=1`，标记 `full-proxy`）业务参数装配，杜绝向 Ticket 注入废弃的 `token` 参数；
+  6. **多级 Master Playlist 递归透传 adFilter (P1-2)**：
+     - 修复 `apps/server/src/lib/media/hls-pipeline.ts` 在改写 Master Playlist 下级子 Variant Playlist 时丢失父级 `adFilter=1` 的问题，确保二级分片列表广告过滤连续生效；
+  7. **fetchPublic 重定向规范化与 Socket 泄漏根治 (P1-3 & P1-4)**：
+     - 在 `apps/server/src/lib/private-host.ts` 中实现进入下一跳重定向循环前强制执行 `res.body?.cancel()`，彻底根除 Undici Socket 悬挂与连接池泄漏超时；
+     - 严格尊重调用方 `redirect: 'manual'` 契约，前置完成 Location 的 SSRF 与协议安全审查后直接返回 3xx 响应，保障 B 站 b23.tv 短链等业务无缝解析；
+     - 对齐 RFC 9110 状态流转（303 转 GET、301/302 POST 转 GET 清空 Body）并在跨域跳转时剥离 Authorization/Cookie/Host 敏感头；
+  8. **Safe Connector 原生连接能力与防 TOCTOU 固化 (P1-5)**：
+     - 废除硬编码直连 `records[0].address` 的脆弱逻辑；
+     - 将连接器 DNS lookup 固化在首轮已全量通过公网审计的 records 集合内，保留原始 hostname 与 servername 传递支持标准 TLS SNI 校验，交由底层 Node/Undici 原生自适应连接机制建立 Socket，彻底解决单栈 IPv4 环境连接双栈域名报网络不可达 (ENETUNREACH) 并阻断二次 DNS 漂移 (TOCTOU)；
+  9. **媒体生命周期层级收敛 (P1-6)**：
+     - 在 `apps/server/src/lib/media/playback-registry.ts` 与 `hls-pipeline.ts` 中收敛层级生命周期：PlaybackAsset 默认 4 小时、Playlist Ticket 30 分钟、Segment Ticket 动态跟随 Asset 剩余寿命（最高 4 小时），彻底消除长视频观影与长时间暂停后的 403 TOKEN_EXPIRED 报错；
+  10. **端口策略合规与误杀消除 (P2-1)**：
+     - 在 `apps/server/src/lib/source/source-registry.ts` 与全部专有适配器中移除写死的 `[80, 443, 8080, 8443]` 数组限制；
+     - 支持通过 `MEDIA_ALLOWED_PORTS` 环境变量配置特定端口限制，未配置时默认放行合法公网 Web 端口，由公网 IP 反向白名单与 Safe Connector 全权物理防御，杜绝非常规 CDN 端口误杀；
+  11. **版本号平滑递增**：
+     - 全仓版本号递增至 `v1.5.0`。
+- 涉及文件：
+  - apps/web/src/player/media/format.ts
+  - apps/web/src/player/media/format.test.ts
+  - apps/web/src/player/types.ts
+  - apps/web/src/player/VideoPlayer.tsx
+  - apps/web/src/lib/playback-src.ts
+  - apps/web/src/lib/playback-src.test.ts
+  - apps/web/tsconfig.json
+  - apps/server/src/index.ts
+  - apps/server/src/lib/media/ticket-codec.ts
+  - apps/server/src/lib/media/ticket-codec.test.ts
+  - apps/server/src/routes/media.ts
+  - apps/server/src/lib/media/playback-types.ts
+  - apps/server/src/lib/media/playback-registry.ts
+  - apps/server/src/lib/media/hls-pipeline.ts
+  - apps/server/src/lib/media/media-gateway.test.ts
+  - apps/server/src/lib/private-host.ts
+  - apps/server/src/lib/private-host.test.ts
+  - apps/server/src/lib/source/source-registry.ts
+  - apps/server/src/lib/source/source-registry.test.ts
+  - apps/server/src/lib/source/adapters/xifan-next.ts
+  - apps/server/src/lib/source/adapters/xifan.ts
+  - apps/server/src/lib/source/adapters/cycani.ts
+  - apps/server/src/lib/source/adapters/moonci.ts
+  - apps/server/src/lib/source/adapters/tvtfun.ts
+  - apps/server/src/lib/source/adapters/anime1.ts
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/BUGS.md
+  - .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck`（0 错误）、单元测试（共 143 项单测 100% 全部通过）与生产构建 `pnpm build` 全链路验证通过。
+
+## [2026-09-06] 彻底移除设置页已安装规则面板中的规则生态引导栏 (v1.5.2)
+- 状态：已完成
+- 优先级：P3
+- 描述：
+  1. **规则生态整行移除**：
+     - 依据要求，彻底移除 `apps/web/src/pages/SettingsPage.tsx` 中「已安装规则」顶部的「规则生态：...」提示与链接容器；
+     - 保持面板顶部说明简洁纯粹，仅保留优先级拖拽调整说明与导入按钮；
+  2. **版本号平滑递增**：
+     - 全仓版本号递增至 `v1.5.2`。
+- 涉及文件：
+  - apps/web/src/pages/SettingsPage.tsx
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck` 与前端打包构建 `pnpm -F @animaku/web build` 验证 100% 通过。
+
 
 

@@ -86,6 +86,7 @@ const MAX_START_WAIT_MS = 3_500
 export function VideoPlayer({
   title,
   src,
+  formatHint,
   initialTime = 0,
   comments,
   danmaku,
@@ -498,7 +499,7 @@ export function VideoPlayer({
   const resolveAuthoritativeDuration = useCallback((): number | null => {
     const video = videoRef.current
     if (!video) return null
-    const isHls = isM3u8(activeSrc)
+    const isHls = isM3u8(activeSrc, formatHint)
 
     if (isHls) {
       const hls = hlsRef.current
@@ -849,7 +850,7 @@ export function VideoPlayer({
       const startedAt = Date.now()
       let settled = false
 
-      const isHls = isM3u8(activeSrc)
+      const isHls = isM3u8(activeSrc, formatHint)
       const minStartBuffer = isHls
         ? MIN_START_BUFFER_HLS_SEC
         : MIN_START_BUFFER_MP4_SEC
@@ -969,7 +970,7 @@ export function VideoPlayer({
 
       const sourceEl = document.createElement('source')
       sourceEl.src = activeSrc
-      const mime = inferMediaMimeType(activeSrc)
+      const mime = inferMediaMimeType(activeSrc, formatHint)
       if (mime) {
         sourceEl.type = mime
       }
@@ -1127,7 +1128,7 @@ export function VideoPlayer({
       video.addEventListener('loadedmetadata', onReady, { once: true })
     }
 
-    if (isM3u8(activeSrc)) {
+    if (isM3u8(activeSrc, formatHint)) {
       // iOS WebKit (含所有浏览器) 与 macOS Safari 下优先走系统级 AVPlayer 原生 HLS
       if (preferNativeHls) {
         attachNativeHls()
@@ -2570,7 +2571,7 @@ export function VideoPlayer({
       volume: player.volume ?? 0.7,
       srMode: player.superResolution || 'off',
       srActive,
-      engine: isM3u8(activeSrc) ? 'HLS.js (MSE)' : 'Progressive MP4',
+      engine: isM3u8(activeSrc, formatHint) ? 'HLS.js (MSE)' : 'Progressive MP4',
       userAgent: navigator.userAgent,
     }
     void navigator.clipboard.writeText(JSON.stringify(statsObj, null, 2)).then(() => {
@@ -2651,7 +2652,7 @@ export function VideoPlayer({
     speed: player.speed || 1,
     videoCodec,
     audioCodec,
-    engine: isM3u8(activeSrc)
+    engine: isM3u8(activeSrc, formatHint)
       ? hlsRef.current
         ? 'Hls.js (MSE)'
         : 'Safari 原生 HLS'

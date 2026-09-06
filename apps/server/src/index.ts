@@ -91,9 +91,9 @@ app.use('/api/*', async (c, next) => {
 })
 
 // Compress API payloads (Danmaku XML/JSON, Bangumi metadata) and SPA static assets.
-// Skip binary video streams in media proxy to save CPU.
+// Skip all binary video streams and playlists in media gateway to preserve Range headers & save CPU.
 app.use('*', async (c, next) => {
-  if (c.req.path.startsWith('/api/media/proxy')) {
+  if (c.req.path.startsWith('/api/media/')) {
     return next()
   }
   return compress()(c, next)

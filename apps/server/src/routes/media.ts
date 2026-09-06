@@ -327,11 +327,19 @@ mediaRoutes.get('/stream', async (c) => {
     )
   }
 
-  // 3. 内部复用：若票据类型是 segment 或 key，直接内部处理，避免多余 302 hop
-  if (
-    verifyResult.payload.typ === 'segment' ||
-    verifyResult.payload.typ === 'key'
-  ) {
+  // 3. 能力不可升级门禁：Key ticket 严禁通过 /stream 访问（防越权）
+  if (verifyResult.payload.typ === 'key') {
+    return c.json(
+      {
+        error: 'forbidden_capability',
+        message: 'Key ticket 严禁通过 /stream 路由访问',
+      },
+      403,
+    )
+  }
+
+  // 4. 内部复用：若票据类型是 segment，直接内部进入分片/直连处理管道，避免多余 302 hop
+  if (verifyResult.payload.typ === 'segment') {
     return handleBinarySegment(c, verifyResult)
   }
 

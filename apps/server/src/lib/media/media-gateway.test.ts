@@ -101,6 +101,16 @@ test('hls-pipeline: rewrites multi-rendition master playlist to /api/media/strea
   if (verifyChild.valid) {
     assert.equal(verifyChild.normalizedSub, '720p.m3u8')
   }
+
+  // With adFilter = true
+  const rewrittenWithAdFilter = rewriteM3u8Ast(masterM3u8, asset, '', { playback, adFilter: true })
+  const streamLinesWithAd = rewrittenWithAdFilter
+    .split('\n')
+    .filter((l) => l.startsWith('/api/media/stream?t='))
+  assert.equal(streamLinesWithAd.length, 2)
+  for (const line of streamLinesWithAd) {
+    assert.ok(line.includes('&adFilter=1'), `Expected child playlist URL to contain &adFilter=1: ${line}`)
+  }
 })
 
 test('mediaRoutes: strictly rejects url query parameter with 400', async () => {
@@ -176,4 +186,26 @@ test('mediaRoutes: internal cross-dispatch handles segment ticket on /stream wit
   assert.equal(res.status, 302)
   assert.equal(res.headers.get('location'), 'https://apn.moedot.net/d/wo/2607/ep1.mp4')
 })
+
+test('mediaRoutes: key ticket on /stream is strictly rejected with 403 (Capability cannot be elevated)', async () => {
+  const asset = playbackRegistry.registerAsset({
+    source: 'xifan',
+    baseUrl: 'https://cdn1.xifan.cc/series/ep1/master.m3u8',
+  })
+
+  // Issue key ticket
+  const ticket = playbackRegistry.issueTicket({
+    aid: asset.assetId,
+    src: 'xifan',
+    typ: 'key',
+    sub: 'enc.key',
+  })
+
+  // Requesting key ticket on /stream must be 403 forbidden
+  const res = await mediaRoutes.request(`/stream?t=${encodeURIComponent(ticket)}`)
+  assert.equal(res.status, 403)
+  const json = (await res.json()) as { error: string }
+  assert.equal(json.error, 'forbidden_capability')
+})
+
 

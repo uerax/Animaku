@@ -16,9 +16,7 @@ export const anime1Adapter: SourceAdapter = {
   id: 'anime1',
   name: 'Anime1',
   tier: 'tier_b',
-  capabilities: {
-    allowedPorts: [80, 443, 8080, 8443],
-  },
+  capabilities: {},
   async search(keyword: string) {
     return searchAnime1(ANIME1_RULE, keyword)
   },

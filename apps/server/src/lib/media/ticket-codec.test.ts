@@ -8,7 +8,12 @@ import {
   decryptTicketPayload,
   encryptCredentials,
   decryptCredentials,
+  getDefaultMediaKey,
+  _resetDefaultMediaKeyForTest,
+  SYSTEM_KEY_NAMESPACE,
+  MASTER_KEY_KV_KEY,
 } from './ticket-codec'
+import { kvCache } from '../../db/repositories/kv-cache'
 import {
   PLAYBACK_TICKET_AUDIENCE,
   type PlaybackTicketPayloadV1,
@@ -196,3 +201,23 @@ test('ticket-codec: encryptCredentials & decryptCredentials handles string and o
     decryptCredentials(tampered, key)
   })
 })
+
+test('ticket-codec: getDefaultMediaKey persists key and reuses across restarts', () => {
+  // 1. Reset memory cache
+  _resetDefaultMediaKeyForTest()
+
+  // 2. Call getDefaultMediaKey, should generate/resolve a key
+  const key1 = getDefaultMediaKey()
+  assert.equal(Buffer.isBuffer(key1), true)
+  assert.equal(key1.length, 32)
+
+  // Verify it is stored in kvCache
+  const stored = kvCache.get(SYSTEM_KEY_NAMESPACE, MASTER_KEY_KV_KEY)
+  assert.equal(stored, key1.toString('hex'))
+
+  // 3. Reset memory cache to simulate process restart
+  _resetDefaultMediaKeyForTest()
+  const key2 = getDefaultMediaKey()
+  assert.deepEqual(key2, key1)
+})
+

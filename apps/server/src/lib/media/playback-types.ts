@@ -135,6 +135,7 @@ export interface VerifyTicketFailure {
     | 'TOKEN_EXPIRED'
     | 'TOKEN_REVOKED'
     | 'TYPE_MISMATCH'
+    | 'FORBIDDEN_CAPABILITY'
     | 'UNSAFE_PATH'
     | 'ASSET_NOT_FOUND'
     | 'ASSET_EXPIRED'

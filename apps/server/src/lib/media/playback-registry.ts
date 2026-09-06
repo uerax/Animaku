@@ -19,10 +19,10 @@ import {
   validateSubPath,
 } from './ticket-codec'
 
-const DEFAULT_ASSET_TTL_MS = 2 * 60 * 60 * 1000 // 2 hours
-const DEFAULT_PLAYLIST_TTL_SEC = 15 * 60 // 15 minutes (TTL 15m)
-const DEFAULT_SEGMENT_TTL_SEC = 60 * 60 // 60 minutes (TTL 60m)
-const DEFAULT_KEY_TTL_SEC = 60 * 60 // 60 minutes (TTL 60m)
+export const DEFAULT_ASSET_TTL_MS = 4 * 60 * 60 * 1000 // 4 hours (覆盖长剧集与长电影观影)
+export const DEFAULT_PLAYLIST_TTL_SEC = 30 * 60 // 30 minutes (用于动态拉取/刷新播放列表)
+export const DEFAULT_SEGMENT_TTL_SEC = 4 * 60 * 60 // 4 hours
+export const DEFAULT_KEY_TTL_SEC = 4 * 60 * 60 // 4 hours
 
 const KV_NS_ASSET = 'playback_asset'
 const KV_NS_REVOKED_JTI = 'revoked_jti'
@@ -290,25 +290,28 @@ export class PlaybackRegistry {
       throw new Error(`Cannot issue ticket: unsafe sub path (${pathCheck.error})`)
     }
 
-    // 确定有效时长
+    // 确定有效时长（动态跟随 Asset 剩余寿命，覆盖 2~4 小时观影需求）
+    const nowMs = Date.now()
+    const nowSec = Math.floor(nowMs / 1000)
+    const assetRemainingSec = Math.max(
+      60,
+      Math.floor((asset.expiresAt - nowMs) / 1000),
+    )
+
     let ttlSec = input.ttlSec
     if (!ttlSec || ttlSec <= 0) {
       switch (input.typ) {
         case 'playlist':
-          ttlSec = DEFAULT_PLAYLIST_TTL_SEC
+          ttlSec = Math.min(DEFAULT_PLAYLIST_TTL_SEC, assetRemainingSec)
           break
         case 'segment':
-          ttlSec = DEFAULT_SEGMENT_TTL_SEC
-          break
         case 'key':
-          ttlSec = DEFAULT_KEY_TTL_SEC
+          ttlSec = Math.min(DEFAULT_SEGMENT_TTL_SEC, assetRemainingSec)
           break
         default:
-          ttlSec = DEFAULT_PLAYLIST_TTL_SEC
+          ttlSec = Math.min(DEFAULT_PLAYLIST_TTL_SEC, assetRemainingSec)
       }
     }
-
-    const nowSec = Math.floor(Date.now() / 1000)
     const jti = `jti_${randomBytes(12).toString('hex')}`
 
     const payload: PlaybackTicketPayloadV1 = {

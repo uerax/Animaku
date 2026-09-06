@@ -16,9 +16,7 @@ export const moonciAdapter: SourceAdapter = {
   id: 'moonci',
   name: '月之祠',
   tier: 'tier_a',
-  capabilities: {
-    allowedPorts: [80, 443, 8080, 8443],
-  },
+  capabilities: {},
   async search(keyword: string) {
     return searchMoonci(MOONCI_RULE, keyword)
   },

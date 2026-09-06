@@ -117,7 +117,7 @@ export class SourceRegistry {
    * 出站公网 Web 安全门禁 (Public Web Egress Gate)
    * 1. 协议严格限定为 http: / https:
    * 2. 物理层拦截私有 IP / 内网穿透 / 环回 / 云元数据 (assertPublicHttpUrl)
-   * 3. 端口限定为 Web 端口 (默认 80, 443, 8080, 8443)
+   * 3. 辅助性端口合规（优先适配器声明 ➔ MEDIA_ALLOWED_PORTS 环境变量，未配置默认放行合法端口）
    * 4. 若适配器显式声明了 allowedHosts 则做补充检查；通用规则源天然安全放行
    */
   validateEgress(
@@ -144,12 +144,29 @@ export class SourceRegistry {
         ? 443
         : 80
 
-    const adapter = sourceId ? this.getAdapter(sourceId) : null
-    const allowedPorts = adapter?.capabilities.allowedPorts || [
-      80, 443, 8080, 8443,
-    ]
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      return {
+        valid: false,
+        reason: `Invalid port "${parsed.port}": must be between 1 and 65535`,
+      }
+    }
 
-    if (allowedPorts.length > 0 && !allowedPorts.includes(port)) {
+    const adapter = sourceId ? this.getAdapter(sourceId) : null
+    let allowedPorts: number[] | null = null
+
+    if (
+      adapter?.capabilities.allowedPorts &&
+      adapter.capabilities.allowedPorts.length > 0
+    ) {
+      allowedPorts = adapter.capabilities.allowedPorts
+    } else if (process.env.MEDIA_ALLOWED_PORTS) {
+      allowedPorts = process.env.MEDIA_ALLOWED_PORTS
+        .split(',')
+        .map((p) => Number(p.trim()))
+        .filter((p) => Number.isInteger(p) && p >= 1 && p <= 65535)
+    }
+
+    if (allowedPorts && allowedPorts.length > 0 && !allowedPorts.includes(port)) {
       return {
         valid: false,
         reason: `Port ${port} not permitted by egress policy (allowed: ${allowedPorts.join(', ')})`,

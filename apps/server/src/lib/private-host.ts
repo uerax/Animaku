@@ -204,6 +204,7 @@ export type DnsLookupFn = (
 /**
  * 构建底层安全 Undici Connector
  * 在 TCP Socket 连接握手前强制进行 IP 审计与双栈一票否决
+ * 利用 Undici/Node.js 原生底层连接能力结合已审计通过的 DNS 集合建连，保留 SNI，防 TOCTOU 与单栈网络不可达
  */
 export function createSafeConnector(customLookup?: DnsLookupFn) {
   const defaultConnector = buildConnector({})
@@ -257,13 +258,28 @@ export function createSafeConnector(customLookup?: DnsLookupFn) {
           }
         }
 
-        // 锁定已审计通过的首个 IP 直连，保留 servername 支持 TLS SNI
-        const pinnedOpts = {
-          ...opts,
-          hostname: records[0].address,
-          servername: opts.servername || hostname,
-        }
-        defaultConnector(pinnedOpts, cb)
+        // 4. 底层原生连接交付（防 TOCTOU 与单栈 IPv4/IPv6 不可达）：
+        // 将连接器 lookup 固定在已通过公网审计的 DNS records 集合内，
+        // 传递原始 hostname 保持 TLS SNI 证书验证，
+        // 杜绝二次未经审计的 DNS 查找与漂移。
+        const auditedConnector = buildConnector({
+          lookup: (_host, lookupOpts: any, lookupCb: any) => {
+            if (typeof lookupOpts === 'function') {
+              lookupCb = lookupOpts
+              lookupOpts = {}
+            }
+            if (lookupOpts?.all) {
+              lookupCb(null, records)
+            } else {
+              const family = lookupOpts?.family
+              const matched = family ? records.find((rec) => rec.family === family) : null
+              const chosen = matched || records[0]
+              lookupCb(null, chosen.address, chosen.family)
+            }
+          },
+        })
+
+        auditedConnector(opts, cb)
       })
       .catch((err) => cb(err, null))
   }
@@ -275,8 +291,12 @@ export const safeDispatcher = new Agent({
 })
 
 /**
- * Fetch with redirect: manual — re-check every Location against isPrivateHost.
- * Max 5 hops. Throws Error on private target / too many redirects.
+ * Fetch with safe public host boundary & RFC 9110 redirect pipeline.
+ * - Enforces zero-leak socket release via res.body.cancel() before next hops.
+ * - Respects callers' { redirect: 'manual' } by auditing Location then returning 3xx immediately.
+ * - Strictly aligns RFC 9110 method mutation (301/302 POST->GET, 303->GET) and body discarding.
+ * - Strips cross-origin sensitive headers (Authorization, Cookie, Host) on origin switch.
+ * - Throws Error on private target / SSRF violation / too many redirects.
  */
 export async function fetchPublic(
   input: string | URL,
@@ -290,6 +310,8 @@ export async function fetchPublic(
 ): Promise<Response> {
   const timeoutMs = opts.timeoutMs ?? 20_000
   const maxRedirects = opts.maxRedirects ?? 5
+  const callerRedirectMode = init.redirect ?? 'follow'
+
   let current =
     typeof input === 'string'
       ? assertPublicHttpUrl(input)
@@ -298,9 +320,9 @@ export async function fetchPublic(
     throw new Error('禁止访问内网地址')
   }
 
-  const baseHeaders = new Headers(init.headers || {})
-  const method = (init.method || 'GET').toUpperCase()
-  const body = init.body
+  const currentHeaders = new Headers(init.headers || {})
+  let currentMethod = (init.method || 'GET').toUpperCase()
+  let currentBody: BodyInit | null | undefined = init.body
   const dispatcher = opts.dispatcher || safeDispatcher
 
   for (let hop = 0; hop <= maxRedirects; hop++) {
@@ -315,9 +337,9 @@ export async function fetchPublic(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       res = await (undiciFetch as any)(current.toString(), {
         ...init,
-        method,
-        headers: baseHeaders,
-        body: method === 'GET' || method === 'HEAD' ? undefined : body,
+        method: currentMethod,
+        headers: currentHeaders,
+        body: currentMethod === 'GET' || currentMethod === 'HEAD' ? undefined : currentBody,
         redirect: 'manual',
         signal,
         dispatcher,
@@ -332,17 +354,65 @@ export async function fetchPublic(
     if (res.status >= 300 && res.status < 400) {
       const loc = res.headers.get('location')
       if (!loc) return res
+
+      let nextUrl: URL
       try {
-        current = new URL(loc, current)
+        nextUrl = new URL(loc, current)
       } catch {
+        if (res.body) {
+          try { await res.body.cancel() } catch {}
+        }
         throw new Error(`重定向 Location 无效: ${loc}`)
       }
-      if (current.protocol !== 'http:' && current.protocol !== 'https:') {
+
+      if (nextUrl.protocol !== 'http:' && nextUrl.protocol !== 'https:') {
+        if (res.body) {
+          try { await res.body.cancel() } catch {}
+        }
         throw new Error('重定向仅支持 http/https')
       }
-      if (isPrivateHost(current.hostname)) {
+
+      if (isPrivateHost(nextUrl.hostname)) {
+        if (res.body) {
+          try { await res.body.cancel() } catch {}
+        }
         throw new Error('禁止重定向到内网地址')
       }
+
+      // 尊重调用方显式设置的 redirect: 'manual' 契约（如 b23 短链提取 Location）
+      if (callerRedirectMode === 'manual') {
+        return res
+      }
+
+      // Socket 释放闭环：进入下一跳前必须强制取消当前响应体，释放底层 socket
+      if (res.body) {
+        try {
+          await res.body.cancel()
+        } catch {
+          /* ignore cancel error */
+        }
+      }
+
+      // RFC 9110 状态流转
+      const previousOrigin = current.origin
+      if (res.status === 303) {
+        currentMethod = 'GET'
+        currentBody = undefined
+      } else if (res.status === 301 || res.status === 302) {
+        if (currentMethod === 'POST') {
+          currentMethod = 'GET'
+          currentBody = undefined
+        }
+      }
+
+      // 跨域重定向敏感请求头脱敏
+      if (nextUrl.origin !== previousOrigin) {
+        currentHeaders.delete('authorization')
+        currentHeaders.delete('cookie')
+        currentHeaders.delete('host')
+      }
+
+      current = nextUrl
       continue
     }
 

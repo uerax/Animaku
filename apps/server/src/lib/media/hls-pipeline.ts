@@ -133,17 +133,17 @@ export function rewriteM3u8Ast(
       finalSub = ''
     }
 
-    const ttlSec = typ === 'playlist' ? 15 * 60 : 60 * 60
+    // 动态生命周期：由 PlaybackRegistry 依据层级模型自动决断（Playlist 30m，Segment 4h 且跟随 Asset 剩余寿命）
     const ticket = playback.issueTicket({
       aid: targetAsset.assetId,
       src: asset.source,
       typ,
       sub: finalSub,
-      ttlSec,
     })
 
     if (typ === 'playlist') {
-      return `/api/media/stream?t=${encodeURIComponent(ticket)}`
+      const query = options.adFilter ? '&adFilter=1' : ''
+      return `/api/media/stream?t=${encodeURIComponent(ticket)}${query}`
     }
     return `/api/media/segment?t=${encodeURIComponent(ticket)}`
   }

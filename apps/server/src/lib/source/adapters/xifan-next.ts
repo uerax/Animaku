@@ -16,9 +16,7 @@ export const xifanNextAdapter: SourceAdapter = {
   id: 'xifan-next',
   name: '稀饭Next',
   tier: 'tier_a',
-  capabilities: {
-    allowedPorts: [80, 443, 8080, 8443],
-  },
+  capabilities: {},
   async search(keyword: string) {
     return searchXifanNext(XIFAN_NEXT_RULE, keyword)
   },

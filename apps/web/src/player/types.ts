@@ -47,6 +47,7 @@ export interface DanmakuPanelState {
 export interface VideoPlayerProps {
   title?: string
   src: string
+  formatHint?: 'hls' | 'mp4' | string
   initialTime?: number
   comments: DanmakuComment[]
   danmaku: DanmakuSettings

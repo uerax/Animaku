@@ -70,13 +70,27 @@ test('source-registry: validateEgress enforces protocol, standard web ports, and
   assert.equal(badScheme.valid, false)
   assert.match(badScheme.reason || '', /disallowed protocol/i)
 
-  // 5. 非法端口拦截 (6379, 22, 3306)
-  const badPort = registry.validateEgress(
-    'https://next.xifanacg.com:6379/data',
+  // 5. 端口策略合规与误杀消除测试：
+  // 默认情况下合法公网非标端口 (如 9000) 正常放行，避免合法源误杀
+  const customPortOk = registry.validateEgress(
+    'https://next.xifanacg.com:9000/data',
     'xifan',
   )
-  assert.equal(badPort.valid, false)
-  assert.match(badPort.reason || '', /port 6379 not permitted/i)
+  assert.equal(customPortOk.valid, true)
+
+  // 当显式配置 MEDIA_ALLOWED_PORTS 环境变量时执行端口合规过滤
+  const prevEnv = process.env.MEDIA_ALLOWED_PORTS
+  try {
+    process.env.MEDIA_ALLOWED_PORTS = '80,443,8080,8443'
+    const badPort = registry.validateEgress(
+      'https://next.xifanacg.com:6379/data',
+      'xifan',
+    )
+    assert.equal(badPort.valid, false)
+    assert.match(badPort.reason || '', /port 6379 not permitted/i)
+  } finally {
+    process.env.MEDIA_ALLOWED_PORTS = prevEnv
+  }
 
   // 6. 私有 IP / 回环 SSRF 物理层严格拦截
   const loopback = registry.validateEgress(

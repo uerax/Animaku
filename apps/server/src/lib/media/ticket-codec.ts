@@ -6,6 +6,7 @@ import {
 } from 'node:crypto'
 import { posix } from 'node:path'
 import { config } from '../../config'
+import { kvCache } from '../../db/repositories/kv-cache'
 import {
   PLAYBACK_TICKET_AUDIENCE,
   type PlaybackTicketPayloadV1,
@@ -17,8 +18,11 @@ const IV_LENGTH = 12 // 96 bits for AES-GCM
 const AUTH_TAG_LENGTH = 16 // 128 bits for AES-GCM
 const MIN_TOKEN_BUFFER_LENGTH = IV_LENGTH + AUTH_TAG_LENGTH // 28 bytes
 
-// In-memory fallback key if neither MEDIA_SECRET nor PROXY_TOKEN is set
-const ephemeralFallbackKey = randomBytes(32)
+export const SYSTEM_KEY_NAMESPACE = 'system'
+export const MASTER_KEY_KV_KEY = 'media_system_master_key'
+
+// Singleton in-memory cache for authoritative master key
+let cachedMasterKey: Buffer | null = null
 
 /**
  * 派生标准的 32 字节 AES-256 密钥
@@ -34,14 +38,52 @@ export function deriveKey(secret: string | Buffer): Buffer {
 }
 
 /**
- * 获取系统默认媒体密钥
+ * 获取系统权威媒体主密钥（优先 SQLite 持久化 ➔ 环境变量 ➔ 随机生成并落盘）
  */
 export function getDefaultMediaKey(): Buffer {
-  const configuredSecret = config.mediaSecret || config.proxyToken
-  if (configuredSecret) {
-    return deriveKey(configuredSecret)
+  if (cachedMasterKey) {
+    return cachedMasterKey
   }
-  return ephemeralFallbackKey
+
+  try {
+    // 1. 查询 SQLite (kvCache) 中是否存在已持久化的系统主密钥
+    const persistedKeyHex = kvCache.get<string>(SYSTEM_KEY_NAMESPACE, MASTER_KEY_KV_KEY)
+    if (persistedKeyHex && typeof persistedKeyHex === 'string') {
+      const buf = Buffer.from(persistedKeyHex, 'hex')
+      if (buf.length === 32) {
+        cachedMasterKey = buf
+        return cachedMasterKey
+      }
+    }
+  } catch {
+    // 忽略未初始化 SQLite 环境异常
+  }
+
+  // 2. 不存在持久化 Key 时，检查环境变量
+  const configuredSecret = config.mediaSecret || config.proxyToken
+  let resolvedKey: Buffer
+  if (configuredSecret) {
+    resolvedKey = deriveKey(configuredSecret)
+  } else {
+    resolvedKey = randomBytes(32)
+  }
+
+  // 3. 将决断出的 Key 写入 SQLite 作为权威 master key，内存单例缓存
+  try {
+    kvCache.set(SYSTEM_KEY_NAMESPACE, MASTER_KEY_KV_KEY, resolvedKey.toString('hex'))
+  } catch {
+    // 忽略初始化前写入异常
+  }
+
+  cachedMasterKey = resolvedKey
+  return cachedMasterKey
+}
+
+/**
+ * 测试辅助：重置单例内存缓存
+ */
+export function _resetDefaultMediaKeyForTest(): void {
+  cachedMasterKey = null
 }
 
 /**
@@ -204,7 +246,8 @@ export function decryptTicketPayload(
       decipher.update(ciphertext),
       decipher.final(),
     ]).toString('utf8')
-  } catch {
+  } catch (err) {
+    console.warn('[ticket-codec] 凭据解密失败（可能由密钥变更引起），建议客户端刷新重新解析选集:', (err as Error).message)
     throw new Error('Decryption failed or ticket tampered with')
   }
 
@@ -303,12 +346,18 @@ export function decryptCredentials<T = string>(
   const authTag = buffer.subarray(IV_LENGTH, IV_LENGTH + AUTH_TAG_LENGTH)
   const ciphertext = buffer.subarray(IV_LENGTH + AUTH_TAG_LENGTH)
 
-  const decipher = createDecipheriv('aes-256-gcm', key, iv)
-  decipher.setAuthTag(authTag)
-  const plaintext = Buffer.concat([
-    decipher.update(ciphertext),
-    decipher.final(),
-  ]).toString('utf8')
+  let plaintext: string
+  try {
+    const decipher = createDecipheriv('aes-256-gcm', key, iv)
+    decipher.setAuthTag(authTag)
+    plaintext = Buffer.concat([
+      decipher.update(ciphertext),
+      decipher.final(),
+    ]).toString('utf8')
+  } catch (err) {
+    console.warn('[ticket-codec] 凭据解密失败（可能由密钥变更引起），建议客户端刷新重新解析选集:', (err as Error).message)
+    throw new Error('Credentials decryption failed or corrupted')
+  }
 
   try {
     return JSON.parse(plaintext) as T

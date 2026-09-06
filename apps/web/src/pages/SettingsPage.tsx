@@ -936,31 +936,9 @@ export function SettingsPage() {
       >
         {/* 顶部操作与说明栏 */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="space-y-1">
-            <p className="text-xs sm:text-sm text-[var(--kz-fg-muted)] leading-relaxed">
-              列表首位为播放时的默认源。可拖拽或按 ▲▼ 调整优先级顺序。
-            </p>
-            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-[var(--kz-fg-dim)]">
-              <span>规则生态：</span>
-              <a
-                href="https://github.com/AniBakaBaka/AniBakaRule"
-                target="_blank"
-                rel="noreferrer"
-                className="kz-link"
-              >
-                AniBakaRule
-              </a>
-              <span>·</span>
-              <a
-                href="https://github.com/Predidit/KazumiRules"
-                target="_blank"
-                rel="noreferrer"
-                className="kz-link"
-              >
-                KazumiRules
-              </a>
-            </div>
-          </div>
+          <p className="text-xs sm:text-sm text-[var(--kz-fg-muted)] leading-relaxed">
+            列表首位为播放时的默认源。可拖拽或按 ▲▼ 调整优先级顺序。
+          </p>
           <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"

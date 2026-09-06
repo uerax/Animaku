@@ -1,12 +1,39 @@
-export function isM3u8(url: string) {
+export type MediaType = 'hls' | 'progressive'
+
+export function inferMediaType(
+  url: string,
+  formatHint?: 'hls' | 'mp4' | string,
+): MediaType {
+  if (formatHint === 'hls') return 'hls'
+  if (formatHint === 'mp4') return 'progressive'
+  if (!url || typeof url !== 'string') return 'progressive'
+
   try {
-    const d = decodeURIComponent(url).toLowerCase()
-    return d.includes('.m3u8') || d.includes('mpegurl')
+    const base = typeof window !== 'undefined' ? window.location.origin : 'http://localhost'
+    const parsed = new URL(url, base)
+    const pathname = parsed.pathname.toLowerCase()
+
+    if (pathname === '/api/media/stream') return 'hls'
+    if (pathname === '/api/media/segment') return 'progressive'
+
+    if (pathname.endsWith('.m3u8') || pathname.endsWith('.m3u')) return 'hls'
+    if (
+      pathname.endsWith('.mp4') ||
+      pathname.endsWith('.m4v') ||
+      pathname.endsWith('.ts') ||
+      pathname.endsWith('.webm')
+    ) {
+      return 'progressive'
+    }
   } catch {
-    const u = url.toLowerCase()
-    return u.includes('.m3u8') || u.includes('mpegurl')
+    /* ignore parse error */
   }
+
+  return 'progressive'
 }
+
+export const isM3u8 = (url: string, formatHint?: string) =>
+  inferMediaType(url, formatHint) === 'hls'
 
 /**
  * Infer explicit MIME type for HTML5 <source> elements.
@@ -14,20 +41,19 @@ export function isM3u8(url: string) {
  * extensions like .mp3 (e.g. CYCani CDN), omitting type="video/mp4" causes
  * AVURLAsset to classify the asset as audio-only, rendering a black screen.
  */
-export function inferMediaMimeType(url: string): string {
-  if (!url) return 'video/mp4'
+export function inferMediaMimeType(url: string, formatHint?: string): string {
+  if (inferMediaType(url, formatHint) === 'hls') {
+    return 'application/vnd.apple.mpegurl'
+  }
+  if (!url || typeof url !== 'string') return 'video/mp4'
   try {
-    const d = decodeURIComponent(url).toLowerCase()
-    if (d.includes('.webm')) return 'video/webm'
-    if (d.includes('.ogg') || d.includes('.ogv')) return 'video/ogg'
-    if (d.includes('.m3u8') || d.includes('mpegurl')) return 'application/vnd.apple.mpegurl'
-    if (d.includes('.mp4') || d.includes('.m4v') || d.includes('.mov') || d.includes('.ts')) return 'video/mp4'
+    const base = typeof window !== 'undefined' ? window.location.origin : 'http://localhost'
+    const parsed = new URL(url, base)
+    const pathname = parsed.pathname.toLowerCase()
+    if (pathname.endsWith('.webm')) return 'video/webm'
+    if (pathname.endsWith('.ogg') || pathname.endsWith('.ogv')) return 'video/ogg'
   } catch {
-    const u = url.toLowerCase()
-    if (u.includes('.webm')) return 'video/webm'
-    if (u.includes('.ogg') || u.includes('.ogv')) return 'video/ogg'
-    if (u.includes('.m3u8') || u.includes('mpegurl')) return 'application/vnd.apple.mpegurl'
-    if (u.includes('.mp4') || u.includes('.m4v') || u.includes('.mov') || u.includes('.ts')) return 'video/mp4'
+    /* ignore parse error */
   }
   // Default to standard MP4 for all online progressive video streams
   return 'video/mp4'

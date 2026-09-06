@@ -69,6 +69,7 @@ export function inferPlaybackTransit(src: string, mode: PlaybackSrcMode): Playba
   if (mode === 'direct') return 'direct'
   if (!src) return 'full-proxy'
   if (isTicketStream(src)) {
+    if (/[?&]stream=(?:1|true)(?:&|$)/.test(src)) return 'full-proxy'
     return src.includes('/segment') ? 'full-proxy' : 'playlist-proxy'
   }
   // Cookie / fullProxy → server rewrite keeps every URI on proxy
@@ -167,12 +168,31 @@ export function pickPlaybackSrc(opts: {
 
   // 2. 当确实需要走服务端代理时（开启了服务器代理 / 需带 Cookie 鉴权 / 过滤分集广告 / 直连不可用）：
   if (rawProxy) {
-    // 现代 Ticket 受控媒体流（Ticket 自身已自包含鉴权与防篡改，直接返回，不再拼接多余 token / adFilter 等旧参数）
+    // 现代 Ticket 受控媒体流：装配受控业务选项（adFilter, stream 代拉），严禁向 Ticket 注入废弃的 token
     if (isTicketStream(rawProxy)) {
+      let ticketUrl = rawProxy
+
+      // 若 forceAdFilter 为 true 且当前为 /stream 路由，追加 &adFilter=1
+      if (
+        opts.forceAdFilter &&
+        (ticketUrl.startsWith('/api/media/stream') || ticketUrl.includes('/api/media/stream'))
+      ) {
+        if (!/[?&]adFilter=/.test(ticketUrl)) {
+          ticketUrl = setProxyQueryFlag(ticketUrl, 'adFilter', '1')
+        }
+      }
+
+      // 若 forceProxy 为 true，在分片或流请求上追加 &stream=1（通知网关禁止 302 丢回源站，开启流式代拉）
+      if (opts.forceProxy) {
+        if (!/[?&]stream=/.test(ticketUrl)) {
+          ticketUrl = setProxyQueryFlag(ticketUrl, 'stream', '1')
+        }
+      }
+
       return {
-        src: rawProxy,
+        src: ticketUrl,
         mode: 'proxy',
-        transit: inferPlaybackTransit(rawProxy, 'proxy'),
+        transit: inferPlaybackTransit(ticketUrl, 'proxy'),
         canTryDirect: false,
       }
     }

@@ -16,9 +16,7 @@ export const cycaniAdapter: SourceAdapter = {
   id: 'cycani',
   name: '次元城动画',
   tier: 'tier_a',
-  capabilities: {
-    allowedPorts: [80, 443, 8080, 8443],
-  },
+  capabilities: {},
   async search(keyword: string) {
     return searchCycani(CYCANI_RULE, keyword)
   },

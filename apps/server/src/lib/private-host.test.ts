@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
-import type { AddressInfo } from 'node:net'
+import net, { type AddressInfo } from 'node:net'
 import { Agent } from 'undici'
 import {
   isPublicIp,
@@ -292,3 +292,57 @@ test('private-host: fetchPublic blocks 302 redirects to private addresses and ni
     server.close()
   }
 })
+
+test('private-host: fetchPublic respects redirect: manual with audited Location', async () => {
+  const server = createServer((req, res) => {
+    if (req.url === '/short-link') {
+      res.writeHead(302, { Location: 'https://example.com/target-video' })
+      res.end('redirecting')
+      return
+    }
+    if (req.url === '/evil-redirect') {
+      res.writeHead(302, { Location: 'http://127.0.0.1:9999/secret' })
+      res.end('evil')
+      return
+    }
+    res.writeHead(200)
+    res.end('ok')
+  })
+
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()))
+  const port = (server.address() as AddressInfo).port
+
+  try {
+    const mockDnsLookup = async () => [{ address: '1.1.1.1', family: 4 }]
+    // Connector that intercepts redirector.com and routes to local test port
+    const testConnector = (opts: any, cb: any) => {
+      const socket = net.connect({ host: '127.0.0.1', port }, () => {
+        cb(null, socket)
+      })
+    }
+    const testDispatcher = new Agent({ connect: testConnector as any })
+
+    // 1. Valid manual redirect returns 302 with Location header intact
+    const res = await fetchPublic(
+      'http://redirector.com/short-link',
+      { redirect: 'manual' },
+      { dispatcher: testDispatcher },
+    )
+    assert.equal(res.status, 302)
+    assert.equal(res.headers.get('location'), 'https://example.com/target-video')
+
+    // 2. Malicious manual redirect to internal address is blocked
+    await assert.rejects(
+      () =>
+        fetchPublic(
+          'http://redirector.com/evil-redirect',
+          { redirect: 'manual' },
+          { dispatcher: testDispatcher },
+        ),
+      /禁止重定向到内网地址/,
+    )
+  } finally {
+    server.close()
+  }
+})
+
