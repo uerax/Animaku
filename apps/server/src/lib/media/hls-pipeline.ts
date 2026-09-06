@@ -51,9 +51,12 @@ function computeRelativeSub(
 
   // 2. 如果同源且位于同一路径前缀下
   if (targetUrl.origin === baseUrl.origin) {
-    const baseDir = posix.dirname(baseUrl.pathname)
-    if (targetUrl.pathname.startsWith(baseDir + '/')) {
-      const candidate = targetUrl.pathname.slice(baseDir.length + 1)
+    const baseDir = baseUrl.pathname.endsWith('/')
+      ? baseUrl.pathname.slice(0, -1) || '/'
+      : posix.dirname(baseUrl.pathname)
+    const baseDirPrefix = baseDir === '/' ? '/' : `${baseDir}/`
+    if (targetUrl.pathname.startsWith(baseDirPrefix)) {
+      const candidate = targetUrl.pathname.slice(baseDirPrefix.length)
       const query = targetUrl.search || ''
       const subWithQuery = query ? `${candidate}${query}` : candidate
       const check = validateSubPath(subWithQuery)
@@ -246,7 +249,14 @@ export function rewriteM3u8Ast(
     }
 
     // 4. URI 数据行改写
-    if (nextIsVariantPlaylist || trimmed.toLowerCase().includes('.m3u8')) {
+    // 提取 URI 的路径部分（剔除 Query 参数），并排查 nextIsSegment
+    // 防止切片 URL 参数中携带 .m3u8（如 ?orig=video.m3u8）导致误判为子播放列表
+    const uriPath = trimmed.split('?')[0].toLowerCase()
+    const looksLikePlaylist =
+      nextIsVariantPlaylist ||
+      (!nextIsSegment && (uriPath.endsWith('.m3u8') || uriPath.endsWith('.m3u')))
+
+    if (looksLikePlaylist) {
       nextIsVariantPlaylist = false
       nextIsSegment = false
       try {

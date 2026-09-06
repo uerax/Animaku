@@ -3863,5 +3863,37 @@
   - .claude/STATE.md
 - 备注：全仓类型检查 `pnpm typecheck`（0 错误）、全量单元测试（133 项单测 100% 全部通过）与生产打包构建 `pnpm build` 全链路验证通过。
 
+## [2026-09-07] HLS 切片参数防误判、根路径相对切片修复与零自动回退代理铁律固化 (v1.5.5)
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **HLS 切片参数防误判修复 (Bug 1)**：
+     - 在 `apps/server/src/lib/media/hls-pipeline.ts` 中优化 URI 数据行改写分支：优先根据前置标签状态（`nextIsSegment`）锁定切片身份，并在判断是否为播放列表时严格仅提取无 Query 的 URL Pathname 检查 `.m3u8` / `.m3u` 后缀；
+     - 彻底消除分片 Query 携带 `.m3u8` 回传参数（如 `?source=origin.m3u8`）导致被错误签发为 Playlist Ticket（`/stream`）并引发网关文本解析溢出/解码器崩溃的缺陷；
+  2. **根路径及目录型 baseUrl 相对切片前缀修复 (Bug 3)**：
+     - 在 `apps/server/src/lib/media/hls-pipeline.ts` 的 `computeRelativeSub` 中适配根路径目录（`baseDir === '/' ? '/' : `${baseDir}/``）及以 `/` 结尾的目录型 baseUrl（`baseUrl.pathname.endsWith('/') ? baseUrl.pathname.slice(0, -1) || '/' : posix.dirname(baseUrl.pathname)`）；
+     - 彻底修复 `posix.dirname('/hls/')` 返回 `'/'` 导致绝对路径同源切片前缀误判、计算出重复目录 `hls/ep1/hls/ep1/seg.ts` 引发 404 死链的严重缺陷；
+     - 修复 `posix.dirname('/index.m3u8')` 返回 `'/'` 导致拼接出 `'//'` 使同源根目录切片前缀匹配全部失效、强制降级调用 `registerAsset` 创建子资产的内存抖动缺陷；
+  3. **固化“严禁直连失败自动降级回退代理（Zero Auto Proxy Fallback）”铁律 (决策 2)**：
+     - 用户明确指示并授权固化：客户端直连 CDN 播放失败时，**严禁**静默或隐式自动降级到服务端代理（Fallback to Proxy）偷跑服务器带宽与流量；
+     - 直连失败必须明确报错并引导用户手动切换视频源或线路，绝不向服务器代理引流，严格保护自建服务器 VPS 带宽；
+     - 该铁律已持久化写入项目协作规则 `CLAUDE.md`、用户长期记忆 Memory 与开发指南 `docs/video-source-integration.md`；
+  4. **配套单元测试与全仓验证**：
+     - 在 `apps/server/src/lib/media/media-gateway.test.ts` 中补充切片带参含 `.m3u8` 改写断言及根路径相对切片复用父资产断言，单测通过率 100%；
+  5. **版本号平滑递增**：
+     - 全仓版本号递增至 `v1.5.5`。
+- 涉及文件：
+  - apps/server/src/lib/media/hls-pipeline.ts
+  - apps/server/src/lib/media/media-gateway.test.ts
+  - CLAUDE.md
+  - docs/video-source-integration.md
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck`（0 错误）、服务端与前端全量单元测试（81 项测试全部通过）验证无误。
+
 
 

@@ -269,4 +269,125 @@ test('mediaRoutes: key ticket on /stream is strictly rejected with 403 (Capabili
   assert.equal(json.error, 'forbidden_capability')
 })
 
+test('hls-pipeline: correctly classifies segment carrying .m3u8 in query string as segment ticket', () => {
+  const key = randomBytes(32)
+  const playback = new PlaybackRegistry({ key, kv: kvCache })
+
+  const asset = playback.registerAsset({
+    source: 'xifan',
+    baseUrl: 'https://cdn1.xifan.cc/series/ep1/index.m3u8',
+  })
+
+  // A media playlist where segment query parameter contains '.m3u8'
+  const sampleM3u8 = `#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:10
+#EXTINF:9.0,
+chunk-001.ts?source=origin_stream.m3u8&expires=2026-09-07T12:00:00Z
+#EXT-X-ENDLIST`
+
+  const rewritten = rewriteM3u8Ast(sampleM3u8, asset, '', { playback })
+
+  // Must rewrite to /api/media/segment, NEVER /api/media/stream
+  assert.ok(rewritten.includes('/api/media/segment?t='))
+  assert.equal(rewritten.includes('/api/media/stream?t='), false)
+
+  const segMatch = rewritten.match(/\/api\/media\/segment\?t=([^&\n\r]+)/)
+  assert.ok(segMatch)
+  const ticket = decodeURIComponent(segMatch[1])
+  const verify = playback.verifyTicket(ticket, 'segment')
+  assert.equal(verify.valid, true)
+  if (verify.valid) {
+    assert.equal(verify.payload.typ, 'segment')
+    assert.equal(verify.normalizedSub, 'chunk-001.ts?source=origin_stream.m3u8&expires=2026-09-07T12:00:00Z')
+  }
+})
+
+test('hls-pipeline: correctly computes relativeSub when baseUrl is at root path', () => {
+  const key = randomBytes(32)
+  const playback = new PlaybackRegistry({ key, kv: kvCache })
+
+  const asset = playback.registerAsset({
+    source: 'cycani',
+    baseUrl: 'https://cdn.example.com/index.m3u8',
+  })
+
+  const sampleM3u8 = `#EXTM3U
+#EXT-X-VERSION:3
+#EXTINF:10.0,
+/seg-001.ts
+#EXTINF:10.0,
+seg-002.ts
+#EXT-X-ENDLIST`
+
+  const rewritten = rewriteM3u8Ast(sampleM3u8, asset, '', { playback })
+
+  const segLines = rewritten.split('\n').filter((l) => l.startsWith('/api/media/segment?t='))
+  assert.equal(segLines.length, 2)
+
+  // Both segments should reuse the parent asset without triggering extra sub-asset registrations
+  const ticket0 = decodeURIComponent(segLines[0].split('t=')[1])
+  const verify0 = playback.verifyTicket(ticket0, 'segment')
+  assert.equal(verify0.valid, true)
+  if (verify0.valid) {
+    assert.equal(verify0.payload.aid, asset.assetId)
+    assert.equal(verify0.normalizedSub, 'seg-001.ts')
+  }
+
+  const ticket1 = decodeURIComponent(segLines[1].split('t=')[1])
+  const verify1 = playback.verifyTicket(ticket1, 'segment')
+  assert.equal(verify1.valid, true)
+  if (verify1.valid) {
+    assert.equal(verify1.payload.aid, asset.assetId)
+    assert.equal(verify1.normalizedSub, 'seg-002.ts')
+  }
+})
+
+test('hls-pipeline: correctly computes relativeSub when baseUrl has trailing directory slash', () => {
+  const key = randomBytes(32)
+  const playback = new PlaybackRegistry({ key, kv: kvCache })
+
+  const asset = playback.registerAsset({
+    source: 'tvtfun',
+    baseUrl: 'https://cdn.example.com/hls/ep1/',
+  })
+
+  const sampleM3u8 = `#EXTM3U
+#EXT-X-VERSION:3
+#EXTINF:10.0,
+/hls/ep1/chunk-001.ts
+#EXTINF:10.0,
+chunk-002.ts
+#EXT-X-ENDLIST`
+
+  const rewritten = rewriteM3u8Ast(sampleM3u8, asset, '', { playback })
+
+  const segLines = rewritten.split('\n').filter((l) => l.startsWith('/api/media/segment?t='))
+  assert.equal(segLines.length, 2)
+
+  // Segment 1 (absolute path in m3u8)
+  const ticket0 = decodeURIComponent(segLines[0].split('t=')[1])
+  const verify0 = playback.verifyTicket(ticket0, 'segment')
+  assert.equal(verify0.valid, true)
+  if (verify0.valid) {
+    assert.equal(verify0.payload.aid, asset.assetId)
+    // Must NOT be 'hls/ep1/chunk-001.ts'
+    assert.equal(verify0.normalizedSub, 'chunk-001.ts')
+    const resolvedUrl = playback.resolveAssetUrl(asset, verify0.normalizedSub)
+    assert.equal(resolvedUrl, 'https://cdn.example.com/hls/ep1/chunk-001.ts')
+  }
+
+  // Segment 2 (relative path in m3u8)
+  const ticket1 = decodeURIComponent(segLines[1].split('t=')[1])
+  const verify1 = playback.verifyTicket(ticket1, 'segment')
+  assert.equal(verify1.valid, true)
+  if (verify1.valid) {
+    assert.equal(verify1.payload.aid, asset.assetId)
+    assert.equal(verify1.normalizedSub, 'chunk-002.ts')
+    const resolvedUrl = playback.resolveAssetUrl(asset, verify1.normalizedSub)
+    assert.equal(resolvedUrl, 'https://cdn.example.com/hls/ep1/chunk-002.ts')
+  }
+})
+
+
 
