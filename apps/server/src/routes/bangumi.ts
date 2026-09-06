@@ -19,7 +19,10 @@ import {
 } from '@animaku/shared'
 import { config } from '../config'
 import { bangumiFetch, getBearerToken } from '../lib/http'
-import { setCommentsCdnHeaders } from '../lib/cdn-cache-headers'
+import {
+  setCommentsCdnHeaders,
+  setBangumiListCdnHeaders,
+} from '../lib/cdn-cache-headers'
 import {
   BANGUMI_CACHE_TTL,
   cacheDelete,
@@ -73,7 +76,10 @@ bangumiRoutes.get('/calendar', async (c) => {
   if (bypass) cacheDelete(key)
   else {
     const hit = cacheGet<{ data: BangumiItem[][] }>(key)
-    if (hit) return c.json(hit, 200, cacheHeaders(true))
+    if (hit) {
+      setBangumiListCdnHeaders(c, bypass)
+      return c.json(hit, 200, cacheHeaders(true))
+    }
   }
 
   // Determine candidate URLs based on target host
@@ -170,6 +176,7 @@ bangumiRoutes.get('/calendar', async (c) => {
 
   const payload = { data: days }
   cacheSet(key, payload, BANGUMI_CACHE_TTL.calendar)
+  setBangumiListCdnHeaders(c, bypass)
   return c.json(payload, 200, cacheHeaders(false))
 })
 
@@ -191,7 +198,10 @@ bangumiRoutes.get('/trending', async (c) => {
   if (bypass) cacheDelete(key)
   else {
     const hit = cacheGet<{ data: BangumiItem[] }>(key)
-    if (hit) return c.json(hit, 200, cacheHeaders(true))
+    if (hit) {
+      setBangumiListCdnHeaders(c, bypass)
+      return c.json(hit, 200, cacheHeaders(true))
+    }
   }
 
   let items: BangumiItem[] = []
@@ -217,7 +227,7 @@ bangumiRoutes.get('/trending', async (c) => {
                 ? {
                     ...subjectRaw,
                     watchers: e.watchers ?? subjectRaw.watchers,
-                    count: e.count ?? subjectRaw.count,
+                    heat: e.count ?? subjectRaw.heat,
                   }
                 : subjectRaw
             items.push(slimItem(parseBangumiItem(subject)))
@@ -280,6 +290,7 @@ bangumiRoutes.get('/trending', async (c) => {
 
   const payload = { data: items }
   cacheSet(key, payload, BANGUMI_CACHE_TTL.trending)
+  setBangumiListCdnHeaders(c, bypass)
   return c.json(payload, 200, cacheHeaders(false))
 })
 

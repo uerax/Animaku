@@ -100,6 +100,8 @@ export interface BangumiItem {
   totalEpisodes: number
   /** Doing/watching count from collection.doing or watchers (0 when unknown) */
   doing?: number
+  /** Trending heat score (0 when unknown) */
+  heat?: number
 }
 
 export interface BangumiEpisode {
@@ -307,19 +309,38 @@ export function formatDoingLabel(count: number | undefined | null): string | nul
 }
 
 /**
- * Bottom-left badge text on covers: e.g. `连载中 · 2.1k人在看` | `已完结` | `未开播` | null.
+ * Compact format for trending heat score (e.g. 4566 -> '4.6k', 12500 -> '1.3w').
+ */
+export function formatHeatCount(count: number | undefined | null): string {
+  return formatDoingCount(count)
+}
+
+/**
+ * Formatted label for heat score: e.g. `🔥 4.6k 热度` | `🔥 850 热度` | null.
+ */
+export function formatHeatLabel(count: number | undefined | null): string | null {
+  const text = formatHeatCount(count)
+  return text ? `🔥 ${text} 热度` : null
+}
+
+/**
+ * Bottom-left badge text on covers: e.g. `连载中 · 🔥 4.6k热度` | `连载中 · 2.1k人在看` | `已完结` | `未开播` | null.
  */
 export function airBadgeLabel(
-  item: Pick<BangumiItem, 'airDate' | 'eps'> & { doing?: number },
+  item: Pick<BangumiItem, 'airDate' | 'eps'> & { doing?: number; heat?: number },
   now: Date = new Date(),
 ): string | null {
   const statusLabel = airProgressLabel(item, now)
-  const doingText = formatDoingCount(item.doing)
-  if (statusLabel && doingText) {
-    return `${statusLabel} · ${doingText}人在看`
+  const statText = item.heat
+    ? `🔥 ${formatHeatCount(item.heat)} 热度`
+    : item.doing
+      ? `${formatDoingCount(item.doing)}人在看`
+      : null
+  if (statusLabel && statText) {
+    return `${statusLabel} · ${statText}`
   }
   if (statusLabel) return statusLabel
-  if (doingText) return `${doingText}人在看`
+  if (statText) return statText
   return null
 }
 
@@ -327,10 +348,13 @@ export function parseBangumiItem(json: Record<string, unknown>): BangumiItem {
   const rating = (json.rating as Record<string, unknown>) || {}
   const collection = (json.collection as Record<string, unknown>) || {}
   const doingRaw = Number(
-    collection.doing ?? json.doing ?? json.watchers ?? json.count ?? 0,
+    collection.doing ?? json.doing ?? json.watchers ?? 0,
   )
   const doing =
     Number.isFinite(doingRaw) && doingRaw > 0 ? Math.trunc(doingRaw) : undefined
+  const heatRaw = Number(json.heat ?? json.count ?? 0)
+  const heat =
+    Number.isFinite(heatRaw) && heatRaw > 0 ? Math.trunc(heatRaw) : undefined
   const imagesRaw = json.images as Record<string, string> | undefined
   const image = typeof json.image === 'string' ? json.image : ''
   const nameCnRaw =
@@ -396,6 +420,7 @@ export function parseBangumiItem(json: Record<string, unknown>): BangumiItem {
     eps,
     totalEpisodes,
     doing,
+    heat,
   }
 }
 

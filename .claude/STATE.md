@@ -3958,5 +3958,40 @@
   - .claude/STATE.md
 - 备注：全仓类型检查 `pnpm typecheck`（0 错误）、服务端与前端全量单元测试（81 项测试全部通过）验证无误。
 
+## [2026-09-07] 热门热度与在看人数语义解耦、日历热门CDN响应头加固与规则文档修正 (v1.5.8)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **共享类型新增 heat 字段与解析解耦 (P1-1)**：
+     - 在 `packages/shared/src/bangumi.ts` 中为 `BangumiItem` 显式扩展 `heat?: number` 属性；
+     - 优化 `parseBangumiItem` 解析逻辑：`doing` 严格仅从 `collection.doing`、`json.doing`、`json.watchers` 中提取，剔除 `json.count` 模糊兜底；`heat` 从 `json.heat ?? json.count` 中安全解析；
+     - 导出 `formatHeatCount`、`formatHeatLabel` 与升级 `airBadgeLabel`，支持 `🔥 XXX 热度` 与 `XXX 人在看` 双轨视觉输出；
+  2. **服务端热门热度装配与 CDN 标头补齐 (P1-2)**：
+     - 在 `apps/server/src/routes/bangumi.ts` 的 `trending` 路由中，将 next.bgm 的 `e.count` 明确注入为 `heat` 属性，彻底根除“热度分冒充在看人数”缺陷；
+     - 在 `apps/server/src/lib/cdn-cache-headers.ts` 中新增 `setBangumiListCdnHeaders`（2 小时边缘 TTL，支持客户端 `?refresh=1` / `no-cache` 穿透）；
+     - 在 `apps/server/src/routes/bangumi.ts` 的 `calendar` 与 `trending` 成功响应中统一调用 `setBangumiListCdnHeaders` 下发 `Cache-Control: public, max-age=0, s-maxage=7200`，彻底解决 Cloudflare 规则 4 缺失源站响应头导致缓存被绕过的关键隐患；
+  3. **前端卡片与 3D 轮播图热度视觉升级 (P1-3)**：
+     - 在 `apps/web/src/components/HeroCoverFlow.tsx` 中优先提取 `activeHeat`，在聚焦舞台呈现 `🔥 4.6k 热度`，无 heat 时保底展示在看人数；
+     - 在 `apps/web/src/components/ui.tsx` 的 `BangumiCard` 中支持封面左下角统计信息双轨展示：热门条目显示 `🔥 4.6k 热度`，时间表、番剧库、剧场版等普通条目展示 `2.1k 人在看`，语义清晰分明；
+  4. **Cloudflare CDN 规则文档修正 (P1-4)**：
+     - 更新 `docs/cloudflare-cdn-rules.md`：规则 2 剔除冗余的 `/api/bilibili/danmaku/` 路径；规则 4 剔除过时的 `/api/plugin/catalog` 并更新为 `/api/source/list`；同步补充源站 `setBangumiListCdnHeaders` 响应头说明与穿透机制；
+  5. **版本号平滑递增**：
+     - 全仓版本号递增至 `v1.5.8`。
+- 涉及文件：
+  - packages/shared/src/bangumi.ts
+  - packages/shared/src/bangumi.test.ts
+  - apps/server/src/lib/cdn-cache-headers.ts
+  - apps/server/src/routes/bangumi.ts
+  - apps/web/src/components/HeroCoverFlow.tsx
+  - apps/web/src/components/ui.tsx
+  - docs/cloudflare-cdn-rules.md
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck`（0 错误）、全量单元测试（139 项单测 100% 全部通过）与生产打包构建 `pnpm build` 全链路验证通过。
+
 
 

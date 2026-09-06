@@ -73,6 +73,12 @@ test('airBadgeLabel: label combinations', () => {
     '已完结 · 520人在看',
   )
 
+  // Airing with heat count (trending items)
+  assert.equal(
+    airBadgeLabel({ airDate: '2026-07-06', eps: 12, heat: 4566 }, fixedNow),
+    '连载中 · 🔥 4.6k 热度',
+  )
+
   // Upcoming without doing count
   assert.equal(
     airBadgeLabel({ airDate: '2026-10-01', eps: 12 }, fixedNow),
@@ -80,7 +86,7 @@ test('airBadgeLabel: label combinations', () => {
   )
 })
 
-test('parseBangumiItem: doing count extraction', () => {
+test('parseBangumiItem: doing and heat count extraction', () => {
   // Official calendar item
   const item1 = parseBangumiItem({
     id: 123,
@@ -88,6 +94,7 @@ test('parseBangumiItem: doing count extraction', () => {
     collection: { doing: 2058 },
   })
   assert.equal(item1.doing, 2058)
+  assert.equal(item1.heat, undefined)
 
   // Next calendar format
   const item2 = parseBangumiItem({
@@ -96,12 +103,24 @@ test('parseBangumiItem: doing count extraction', () => {
     watchers: 2052,
   })
   assert.equal(item2.doing, 2052)
+  assert.equal(item2.heat, undefined)
 
-  // Next trending format
+  // Next trending format: count is trending heat, not doing
   const item3 = parseBangumiItem({
     id: 123,
     name: 'Test',
     count: 4301,
   })
-  assert.equal(item3.doing, 4301)
+  assert.equal(item3.doing, undefined)
+  assert.equal(item3.heat, 4301)
+
+  // Explicit heat property
+  const item4 = parseBangumiItem({
+    id: 123,
+    name: 'Test',
+    collection: { doing: 1200 },
+    heat: 5800,
+  })
+  assert.equal(item4.doing, 1200)
+  assert.equal(item4.heat, 5800)
 })

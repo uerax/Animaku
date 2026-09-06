@@ -4,6 +4,7 @@ import type { BangumiItem } from '@animaku/shared'
 import {
   coverOf,
   formatDoingCount,
+  formatHeatCount,
   bangumiImageUrl,
   toBangumiOfficialImageUrl,
   DEFAULT_BANGUMI_IMAGE_HOST,
@@ -530,7 +531,8 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
     metaItem && metaItem.ratingScore > 0
       ? metaItem.ratingScore.toFixed(1)
       : null
-  const activeDoing = metaItem ? formatDoingCount(metaItem.doing) : ''
+  const activeHeat = metaItem?.heat ? formatHeatCount(metaItem.heat) : ''
+  const activeDoing = metaItem?.doing ? formatDoingCount(metaItem.doing) : ''
 
   const ambientCoverUrl = isAccelerating
     ? (stableCoverRef.current ?? activeCoverUrl)
@@ -760,11 +762,16 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
                 <span className="text-amber-400 text-[13px]">★</span> {activeScore} 分
               </span>
             )}
-            {activeDoing && (
+            {activeHeat ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--kz-bg-elevated)] px-3 py-1 text-xs font-medium text-[var(--kz-fg-muted)] border border-[var(--kz-border)] backdrop-blur-md shadow-xs">
+                <span className="text-rose-500 dark:text-rose-400 text-xs leading-none" aria-hidden>🔥</span>
+                <span className="font-bold tabular-nums text-rose-500 dark:text-rose-400">{activeHeat}</span> 热度
+              </span>
+            ) : activeDoing ? (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--kz-bg-elevated)] px-3 py-1 text-xs font-medium text-[var(--kz-fg-muted)] border border-[var(--kz-border)] backdrop-blur-md shadow-xs">
                 <span className="font-bold tabular-nums text-amber-500 dark:text-amber-400">{activeDoing}</span> 人在看
               </span>
-            )}
+            ) : null}
           </div>
 
           {/* Title - clickable direct to subject */}

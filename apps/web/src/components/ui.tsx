@@ -6,6 +6,7 @@ import {
   coverOf,
   estimateAirProgress,
   formatDoingCount,
+  formatHeatCount,
 } from '@animaku/shared'
 import { preloadVideoPlayer } from '../player/lazy'
 import { preloadRoute } from '../lib/route-preload'
@@ -50,6 +51,7 @@ export const BangumiCard = memo(function BangumiCard({
   // Derived at render from cached airDate/eps (not frozen inside list TTL).
   const air = estimateAirProgress(item)
   const airLabel = airProgressLabel(item)
+  const heatCount = formatHeatCount(item.heat)
   const doingCount = formatDoingCount(item.doing)
   const eager = imagePriority !== 'lazy'
   const isLcp = imagePriority === 'high'
@@ -134,8 +136,20 @@ export const BangumiCard = memo(function BangumiCard({
           className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/85 via-black/45 to-transparent"
           aria-hidden
         />
-        {/* bottom-left watchers: unboxed text with highlighted number and muted label */}
-        {doingCount && (
+        {/* bottom-left stats: unboxed text with highlighted number and muted label (heat for trending, watchers for regular) */}
+        {heatCount ? (
+          <span className="absolute bottom-1.5 left-2.5 flex max-w-[60%] items-baseline gap-1 truncate text-xs drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
+            <span className="text-[11px] leading-none" aria-hidden>
+              🔥
+            </span>
+            <span className="font-bold tabular-nums text-rose-300">
+              {heatCount}
+            </span>
+            <span className="text-[11px] font-normal text-white/80">
+              热度
+            </span>
+          </span>
+        ) : doingCount ? (
           <span className="absolute bottom-1.5 left-2.5 flex max-w-[60%] items-baseline gap-1 truncate text-xs drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
             <span className="font-bold tabular-nums text-amber-300">
               {doingCount}
@@ -144,7 +158,7 @@ export const BangumiCard = memo(function BangumiCard({
               人在看
             </span>
           </span>
-        )}
+        ) : null}
         {score && (
           <span className="absolute bottom-1 right-2.5 text-lg font-black italic tracking-tight text-white tabular-nums drop-shadow-[0_2px_4px_rgba(0,0,0,0.85)] sm:text-xl">
             {score}
