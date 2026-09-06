@@ -3370,5 +3370,38 @@
   - .claude/STATE.md
 - 备注：全仓类型检查 `pnpm typecheck`、前端构建 `pnpm -F @animaku/web build` 与单元测试全部 100% 通过。
 
+## [2026-09-06] 解耦服务端媒体代理 God Route 为高内聚流水线架构 (v1.4.2)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **God Route 拆解与架构收敛**：
+     - 将原 689 行混杂并发记账、超时、防盗链、SSRF、M3U8 解析改写与流式管道的 `apps/server/src/routes/media.ts` 彻底解耦为 3 个高内聚独立模块与 1 个极简编排路由（行数降幅超 60%）；
+     - 新增 `apps/server/src/lib/media/stream-tracker.ts`：单一职责管理 IP 并发连接防刷，包装 ReadableStream 保证在读取完成/关闭/异常时 100% 释放并发计数；
+     - 新增 `apps/server/src/lib/media/media-fetcher.ts`：封装外链/回环 Referer 自动拟真、连接阶段两阶段超时控制、以及上游 401/403 宽松源容灾自动重试；
+     - 新增 `apps/server/src/lib/media/m3u8-pipeline.ts`：封装 M3U8 文本体积限制读取、广告过滤集成、URI/KEY/MAP 改写管道、以及 VOD/Live 缓存策略计算；
+     - `apps/server/src/routes/media.ts` 仅保留参数校验、权限矩阵决断（Auth / FullProxy / LAN）与响应分发编排；
+  2. **测试与质量工程加固**：
+     - 新增 `stream-tracker.test.ts`、`media-fetcher.test.ts`、`m3u8-pipeline.test.ts`，涵盖限流并发、流生命周期、防盗链适配、混合模式与点播缓存等全链路单元测试，全部 100% 通过；
+     - 修复 `apps/server/package.json` 测试 glob 模式使其正确递归扫描深层单元测试；
+     - 同步更新 `.claude/feature-map.md`；
+  3. **版本号平滑递增**：
+     - 全仓版本号递增至 `v1.4.2`。
+- 涉及文件：
+  - apps/server/src/lib/media/stream-tracker.ts
+  - apps/server/src/lib/media/stream-tracker.test.ts
+  - apps/server/src/lib/media/media-fetcher.ts
+  - apps/server/src/lib/media/media-fetcher.test.ts
+  - apps/server/src/lib/media/m3u8-pipeline.ts
+  - apps/server/src/lib/media/m3u8-pipeline.test.ts
+  - apps/server/src/routes/media.ts
+  - apps/server/package.json
+  - package.json
+  - apps/web/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/feature-map.md
+  - .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck`、前后端全量单测（89 项测试）与生产打包构建全量 100% 通过。
+
 
 

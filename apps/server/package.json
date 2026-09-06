@@ -1,6 +1,6 @@
 {
   "name": "@animaku/server",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,7 +8,7 @@
     "start": "node dist/index.js",
     "start:tsx": "tsx src/index.ts",
     "build": "node ../../scripts/build-server.mjs",
-    "test": "tsx --test src/**/*.test.ts",
+    "test": "tsx --test \"src/**/*.test.ts\" \"src/**/**/*.test.ts\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "tsc -p tsconfig.json --noEmit"
   },
