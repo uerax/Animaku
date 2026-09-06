@@ -1,7 +1,7 @@
+import type { Context } from 'hono'
 import { Hono } from 'hono'
-import { config } from '../config'
-import { canUseMediaProxy, clientRemoteAddress } from '../lib/access'
-import { isPrivateHost, assertPublicHttpUrl } from '../lib/private-host'
+import { clientRemoteAddress } from '../lib/access'
+import { assertPublicHttpUrl } from '../lib/private-host'
 import {
   acquireStream,
   releaseStream,
@@ -12,56 +12,30 @@ import {
   cancelBody,
 } from '../lib/media/media-fetcher'
 import {
-  isM3u8Path,
-  isM3u8Response,
   readTextLimited,
-  processM3u8Playlist,
   MAX_M3U8_BYTES,
-  type RewriteOpts,
 } from '../lib/media/m3u8-pipeline'
 import { playbackRegistry } from '../lib/media/playback-registry'
 import { sourceRegistry } from '../lib/source/source-registry'
 import { rewriteM3u8Ast } from '../lib/media/hls-pipeline'
+import type { VerifyTicketResult } from '../lib/media/playback-types'
 
 export const mediaRoutes = new Hono()
 
 // =========================================================================
-// 新一代受控媒体分发网关 (Step 2-B: No-URL Parameter Media Gateway)
+// 新一代受控媒体分发网关 (No-URL Parameter Media Gateway)
 // =========================================================================
 
 /**
- * GET /api/media/stream?t=...
- * 播放列表受控分发网关（严格拦截 url 参数，执行 Content-Type 门禁与全要素 HLS AST 改写）
+ * 处理 HLS M3U8 播放列表文本分发与全要素 AST 改写
  */
-mediaRoutes.get('/stream', async (c) => {
-  // 1. 彻底拦截 url 参数注入
-  if (c.req.query('url') !== undefined) {
-    return c.json(
-      {
-        error: 'forbidden_params',
-        message: '直接通过 url 参数请求已被彻底禁止。请使用 Opaque Ticket ?t=...',
-      },
-      400,
-    )
-  }
-
-  const t = (c.req.query('t') || '').trim()
-  if (!t) {
-    return c.json({ error: 'bad_request', message: '缺少播放票据凭证 t' }, 400)
-  }
-
-  // 2. 验票门禁 (Playlist Ticket)
-  const verifyResult = playbackRegistry.verifyTicket(t, 'playlist')
-  if (!verifyResult.valid) {
-    return c.json(
-      { error: verifyResult.code, message: verifyResult.reason },
-      403,
-    )
-  }
-
+async function handlePlaylistStream(
+  c: Context,
+  verifyResult: VerifyTicketResult & { valid: true },
+) {
   const { asset, normalizedSub } = verifyResult
 
-  // 3. IP 并发流控
+  // 1. IP 并发流控
   const clientIp = clientRemoteAddress(c) || 'unknown'
   if (!acquireStream(clientIp)) {
     return c.json(
@@ -74,7 +48,7 @@ mediaRoutes.get('/stream', async (c) => {
     )
   }
 
-  // 4. 解析目标媒体地址并执行出站白名单审计
+  // 2. 解析目标媒体地址并执行出站白名单审计
   const targetUrlStr = playbackRegistry.resolveAssetUrl(asset, normalizedSub)
   let target: URL
   try {
@@ -103,7 +77,7 @@ mediaRoutes.get('/stream', async (c) => {
     )
   }
 
-  // 5. 组装出站请求与敏感凭据解密
+  // 3. 组装出站请求与敏感凭据解密
   const cookie =
     playbackRegistry.getDecryptedCredentials<string>(asset) || ''
   const referer =
@@ -131,7 +105,7 @@ mediaRoutes.get('/stream', async (c) => {
 
   const { upstream } = fetchResult
 
-  // 6. EgressPolicyEngine 响应头门禁（严格拒绝 text/html）
+  // 4. EgressPolicyEngine 响应头门禁（严格拒绝 text/html）
   const contentType = (upstream.headers.get('content-type') || '').toLowerCase()
   if (
     contentType.includes('text/html') ||
@@ -149,7 +123,7 @@ mediaRoutes.get('/stream', async (c) => {
     )
   }
 
-  // 7. 读取并执行全要素 HLS AST 改写
+  // 5. 读取并执行全要素 HLS AST 改写
   let rawText: string
   try {
     rawText = await readTextLimited(upstream, MAX_M3U8_BYTES)
@@ -181,50 +155,18 @@ mediaRoutes.get('/stream', async (c) => {
     'Cache-Control': 'public, max-age=60',
     'Access-Control-Allow-Origin': '*',
   })
-})
+}
 
 /**
- * GET /api/media/segment?t=...
- * 媒体分片与密钥分发网关（支持 302 零流量直连与全量流式代拉）
+ * 处理媒体分片与二进制流（MP4 / TS / Key）分发
  */
-mediaRoutes.get('/segment', async (c) => {
-  // 1. 拦截 url 参数注入
-  if (c.req.query('url') !== undefined) {
-    return c.json(
-      {
-        error: 'forbidden_params',
-        message: '直接通过 url 参数请求已被彻底禁止。请使用 Opaque Ticket ?t=...',
-      },
-      400,
-    )
-  }
-
-  const t = (c.req.query('t') || '').trim()
-  if (!t) {
-    return c.json({ error: 'bad_request', message: '缺少播放票据凭证 t' }, 400)
-  }
-
-  // 2. 验票门禁 (Segment 或 Key Ticket)
-  const verifyResult = playbackRegistry.verifyTicket(t)
-  if (!verifyResult.valid) {
-    return c.json(
-      { error: verifyResult.code, message: verifyResult.reason },
-      403,
-    )
-  }
-
+async function handleBinarySegment(
+  c: Context,
+  verifyResult: VerifyTicketResult & { valid: true },
+) {
   const { payload, asset, normalizedSub } = verifyResult
-  if (payload.typ !== 'segment' && payload.typ !== 'key') {
-    return c.json(
-      {
-        error: 'TYPE_MISMATCH',
-        message: `此接口仅接受 segment 或 key 类型的 Ticket，当前为 ${payload.typ}`,
-      },
-      400,
-    )
-  }
 
-  // 3. 解析目标分片地址
+  // 1. 解析目标分片地址
   const targetUrlStr = playbackRegistry.resolveAssetUrl(asset, normalizedSub)
   let target: URL
   try {
@@ -233,7 +175,7 @@ mediaRoutes.get('/segment', async (c) => {
     return c.json({ error: 'bad_request', message: '目标地址无效' }, 400)
   }
 
-  // 4. 302 安全校验 (防止 Open Redirect 开放重定向攻击)
+  // 2. 出站安全校验
   const egressCheck = sourceRegistry.validateEgress(target.href, asset.source)
   if (!egressCheck.valid) {
     return c.json(
@@ -258,7 +200,7 @@ mediaRoutes.get('/segment', async (c) => {
   const cookie =
     playbackRegistry.getDecryptedCredentials<string>(asset) || ''
 
-  // 5. 解密密钥 (Key) 模式：直接代拉透传 16 字节密钥（解决跨域与防盗链）
+  // 3. 解密密钥 (Key) 模式：直接代拉透传 16 字节密钥（解决跨域与防盗链）
   if (payload.typ === 'key') {
     const fetchResult = await fetchMediaWithFallback(target, {
       referer,
@@ -281,7 +223,7 @@ mediaRoutes.get('/segment', async (c) => {
     })
   }
 
-  // 6. 媒体分片模式：
+  // 4. 媒体分片 / 直链模式：
   // 若存在敏感 Cookie 凭据（如 Anime1），必须通过服务端代拉；
   // 否则默认启用 302 零带宽直连模式（VPS 0 流量消耗，极速 CDN 直连）。
   const requiresProxyStream = Boolean(cookie) || c.req.query('stream') === '1'
@@ -291,7 +233,7 @@ mediaRoutes.get('/segment', async (c) => {
     return c.redirect(target.href, 302)
   }
 
-  // 7. 全量代拉流式传输
+  // 5. 全量代拉流式传输
   const clientIp = clientRemoteAddress(c) || 'unknown'
   if (!acquireStream(clientIp)) {
     return c.json(
@@ -337,76 +279,107 @@ mediaRoutes.get('/segment', async (c) => {
 
   if (!upstream.body) {
     releaseStream(clientIp)
+    return new Response(null, {
+      status: upstream.status,
+      headers: resHeaders,
+    })
   }
 
-  const trackedBody = upstream.body
-    ? createTrackedStream(
-        upstream.body as ReadableStream<Uint8Array>,
-        () => releaseStream(clientIp),
-      )
-    : null
+  const trackedBody = createTrackedStream(
+    upstream.body as ReadableStream<Uint8Array>,
+    () => releaseStream(clientIp),
+  )
 
   return new Response(trackedBody, {
     status: upstream.status,
     headers: resHeaders,
   })
+}
+
+/**
+ * GET /api/media/stream?t=...
+ * 播放列表受控分发网关（严格拦截 url 参数，执行 Content-Type 门禁与全要素 HLS AST 改写）
+ * 自适应兼容：若收到合法的 segment 票据（如 MP4 直链），直接内部进入分片/直连处理管道，免去多余重定向
+ */
+mediaRoutes.get('/stream', async (c) => {
+  // 1. 彻底拦截 url 参数注入
+  if (c.req.query('url') !== undefined) {
+    return c.json(
+      {
+        error: 'forbidden_params',
+        message: '直接通过 url 参数请求已被彻底禁止。请使用 Opaque Ticket ?t=...',
+      },
+      400,
+    )
+  }
+
+  const t = (c.req.query('t') || '').trim()
+  if (!t) {
+    return c.json({ error: 'bad_request', message: '缺少播放票据凭证 t' }, 400)
+  }
+
+  // 2. 验票门禁
+  const verifyResult = playbackRegistry.verifyTicket(t)
+  if (!verifyResult.valid) {
+    return c.json(
+      { error: verifyResult.code, message: verifyResult.reason },
+      403,
+    )
+  }
+
+  // 3. 内部复用：若票据类型是 segment 或 key，直接内部处理，避免多余 302 hop
+  if (
+    verifyResult.payload.typ === 'segment' ||
+    verifyResult.payload.typ === 'key'
+  ) {
+    return handleBinarySegment(c, verifyResult)
+  }
+
+  return handlePlaylistStream(c, verifyResult)
+})
+
+/**
+ * GET /api/media/segment?t=...
+ * 媒体分片与密钥分发网关（支持 302 零流量直连与全量流式代拉）
+ * 自适应兼容：若收到合法的 playlist 票据，直接内部进入播放列表处理管道
+ */
+mediaRoutes.get('/segment', async (c) => {
+  // 1. 拦截 url 参数注入
+  if (c.req.query('url') !== undefined) {
+    return c.json(
+      {
+        error: 'forbidden_params',
+        message: '直接通过 url 参数请求已被彻底禁止。请使用 Opaque Ticket ?t=...',
+      },
+      400,
+    )
+  }
+
+  const t = (c.req.query('t') || '').trim()
+  if (!t) {
+    return c.json({ error: 'bad_request', message: '缺少播放票据凭证 t' }, 400)
+  }
+
+  // 2. 验票门禁
+  const verifyResult = playbackRegistry.verifyTicket(t)
+  if (!verifyResult.valid) {
+    return c.json(
+      { error: verifyResult.code, message: verifyResult.reason },
+      403,
+    )
+  }
+
+  // 3. 内部复用：若票据类型是 playlist，直接内部调用播放列表处理管道
+  if (verifyResult.payload.typ === 'playlist') {
+    return handlePlaylistStream(c, verifyResult)
+  }
+
+  return handleBinarySegment(c, verifyResult)
 })
 
 // =========================================================================
 // 历史兼容路由防御 (/api/media/proxy 严禁开放 url 参数)
 // =========================================================================
-
-interface AuthCheckResult {
-  allowed: boolean
-  status?: 403
-  payload?: Record<string, unknown>
-}
-
-function checkMediaProxyAuth(
-  hasMediaAuth: boolean,
-  target: URL,
-  cookie: string,
-  fullProxyRequested: boolean,
-): AuthCheckResult {
-  if (!hasMediaAuth) {
-    if (cookie) {
-      return {
-        allowed: false,
-        status: 403,
-        payload: {
-          error: 'forbidden',
-          message:
-            '带 Cookie 鉴权的媒体代理当前需管理员口令或局域网访问。',
-        },
-      }
-    }
-    if (fullProxyRequested) {
-      return {
-        allowed: false,
-        status: 403,
-        payload: {
-          error: 'forbidden',
-          message:
-            '全量媒体流代理当前需管理员口令或局域网访问。',
-        },
-      }
-    }
-    if (!isM3u8Path(target)) {
-      return {
-        allowed: false,
-        status: 403,
-        payload: {
-          error: 'forbidden',
-          message:
-            '媒体分片与流代理当前需管理员口令或局域网访问。',
-          hint: 'M3U8 播放列表文本解析免密可用；TS/MP4 视频流分片请由浏览器直连 CDN',
-        },
-      }
-    }
-  }
-
-  return { allowed: true }
-}
 
 mediaRoutes.get('/proxy', async (c) => {
   // 彻底拦截 url 参数注入（消灭开放代理漏洞）
@@ -429,4 +402,3 @@ mediaRoutes.get('/proxy', async (c) => {
     400,
   )
 })
-

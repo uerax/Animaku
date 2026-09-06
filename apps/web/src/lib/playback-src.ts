@@ -68,7 +68,9 @@ export function playbackTransitLabel(transit: PlaybackTransit): string {
 export function inferPlaybackTransit(src: string, mode: PlaybackSrcMode): PlaybackTransit {
   if (mode === 'direct') return 'direct'
   if (!src) return 'full-proxy'
-  if (isTicketStream(src)) return 'playlist-proxy'
+  if (isTicketStream(src)) {
+    return src.includes('/segment') ? 'full-proxy' : 'playlist-proxy'
+  }
   // Cookie / fullProxy → server rewrite keeps every URI on proxy
   if (proxyRequiresAuth(src) || proxyHasFullProxy(src)) return 'full-proxy'
   // adFilter without the above → hybrid rewrite (segments absolute CDN)
@@ -139,34 +141,18 @@ export function pickPlaybackSrc(opts: {
   transit: PlaybackTransit
   canTryDirect: boolean
 } {
-  let proxy = (opts.proxyUrl || '').trim()
-  if (opts.forceAdFilter && proxy) {
-    proxy = withAdFilter(proxy)
-  }
-  if (opts.forceProxy && proxy) {
-    proxy = withFullProxy(proxy)
-  }
-  if (opts.proxyToken && proxy) {
-    proxy = withProxyToken(proxy, opts.proxyToken)
-  }
-
-  // 优先直接使用现代 Ticket 受控媒体流
-  if (isTicketStream(proxy)) {
-    return {
-      src: proxy,
-      mode: 'proxy',
-      transit: 'playlist-proxy',
-      canTryDirect: false,
-    }
-  }
-
+  const rawProxy = (opts.proxyUrl || '').trim()
   const play = (opts.playUrl || '').trim()
+
   const needProxyForAds =
-    Boolean(opts.forceAdFilter) || proxyHasAdFilter(proxy)
+    Boolean(opts.forceAdFilter) || proxyHasAdFilter(rawProxy)
+
+  // 1. 直连 CDN 优先策略（节省服务器宝贵带宽）：
+  // 只要源站有直接可用 CDN 链接，且不需要强制代理、不需要 Cookie 鉴权、未开启广告过滤，首选直连源站！
   const canTryDirect =
     Boolean(play) &&
     /^https?:\/\//i.test(play) &&
-    !proxyRequiresAuth(proxy) &&
+    !proxyRequiresAuth(rawProxy) &&
     !needProxyForAds &&
     !opts.forceProxy
 
@@ -178,7 +164,30 @@ export function pickPlaybackSrc(opts: {
       canTryDirect: true,
     }
   }
-  if (proxy) {
+
+  // 2. 当确实需要走服务端代理时（开启了服务器代理 / 需带 Cookie 鉴权 / 过滤分集广告 / 直连不可用）：
+  if (rawProxy) {
+    // 现代 Ticket 受控媒体流（Ticket 自身已自包含鉴权与防篡改，直接返回，不再拼接多余 token / adFilter 等旧参数）
+    if (isTicketStream(rawProxy)) {
+      return {
+        src: rawProxy,
+        mode: 'proxy',
+        transit: inferPlaybackTransit(rawProxy, 'proxy'),
+        canTryDirect: false,
+      }
+    }
+
+    let proxy = rawProxy
+    if (opts.forceAdFilter && proxy) {
+      proxy = withAdFilter(proxy)
+    }
+    if (opts.forceProxy && proxy) {
+      proxy = withFullProxy(proxy)
+    }
+    if (opts.proxyToken && proxy) {
+      proxy = withProxyToken(proxy, opts.proxyToken)
+    }
+
     return {
       src: proxy,
       mode: 'proxy',

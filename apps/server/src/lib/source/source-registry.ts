@@ -8,6 +8,7 @@ import type {
   SourceResolveOutput,
   SourceMetadata,
 } from './source-types'
+import { xifanNextAdapter } from './adapters/xifan-next'
 import { xifanAdapter } from './adapters/xifan'
 import { cycaniAdapter } from './adapters/cycani'
 import { moonciAdapter } from './adapters/moonci'
@@ -23,9 +24,9 @@ export interface SourceRegistryOptions {
  * SourceRegistry 统一受控视频源注册表与网络能力校验中心
  *
  * 核心安全职责：
- * 1. 固化适配器清单与契约，彻底在网络边界隔离外部动态规则与任意 URL 参数；
- * 2. 强制落实精确 Host 与 Web Port 出站白名单；
- * 3. 产出受控 PlaybackAsset 并返回客户端完全透明的 /api/media/stream?t=... 票据流。
+ * 1. 固化专有适配器清单，支持传统与现代源完全独立运作；
+ * 2. 统一出站公网安全门禁（协议 + 标准 Web 端口 + 物理层 SSRF/环回阻断），抵御 CDN 动态轮换；
+ * 3. 兼容规则引擎通用源，产出受控 PlaybackAsset 并根据媒体类型返回正确的 Ticket 播放入口。
  */
 export class SourceRegistry {
   private readonly adapters = new Map<string, SourceAdapter>()
@@ -35,6 +36,7 @@ export class SourceRegistry {
     this.playback = options.playback || defaultPlaybackRegistry
 
     const initialAdapters = options.adapters || [
+      xifanNextAdapter,
       xifanAdapter,
       cycaniAdapter,
       moonciAdapter,
@@ -56,11 +58,47 @@ export class SourceRegistry {
   }
 
   /**
-   * 获取指定视频源适配器
+   * 获取指定视频源适配器（支持名称与别名标准化归一查找）
    */
   getAdapter(sourceId: string): SourceAdapter | null {
     if (!sourceId) return null
-    return this.adapters.get(sourceId.toLowerCase().trim()) || null
+    const normalized = sourceId.toLowerCase().trim()
+    const direct = this.adapters.get(normalized)
+    if (direct) return direct
+
+    // 别名标准化匹配
+    if (
+      normalized === 'xifan-next' ||
+      normalized === 'xifan_next' ||
+      normalized === 'xifannext' ||
+      normalized === '稀饭next'
+    ) {
+      return this.adapters.get('xifan-next') || null
+    }
+    if (
+      normalized === 'xifan' ||
+      normalized === '稀饭动漫' ||
+      normalized === '稀饭'
+    ) {
+      return this.adapters.get('xifan') || null
+    }
+    if (
+      normalized === 'cycani' ||
+      normalized === '次元城' ||
+      normalized === '次元城动画'
+    ) {
+      return this.adapters.get('cycani') || null
+    }
+    if (normalized === 'moonci' || normalized === '月之祠') {
+      return this.adapters.get('moonci') || null
+    }
+    if (normalized === 'tvtfun') {
+      return this.adapters.get('tvtfun') || null
+    }
+    if (normalized === 'anime1' || normalized === 'anime1.me') {
+      return this.adapters.get('anime1') || null
+    }
+    return null
   }
 
   /**
@@ -71,22 +109,21 @@ export class SourceRegistry {
       id: a.id,
       name: a.name,
       tier: a.tier,
-      allowedHostsCount: a.capabilities.allowedHosts.length,
+      allowedHostsCount: a.capabilities.allowedHosts?.length,
     }))
   }
 
   /**
-   * 出站网络能力与精确域名/端口策略审计 (Egress Host Policy)
+   * 出站公网 Web 安全门禁 (Public Web Egress Gate)
+   * 1. 协议严格限定为 http: / https:
+   * 2. 物理层拦截私有 IP / 内网穿透 / 环回 / 云元数据 (assertPublicHttpUrl)
+   * 3. 端口限定为 Web 端口 (默认 80, 443, 8080, 8443)
+   * 4. 若适配器显式声明了 allowedHosts 则做补充检查；通用规则源天然安全放行
    */
   validateEgress(
     urlStr: string,
-    sourceId: string,
+    sourceId?: string,
   ): { valid: boolean; reason?: string } {
-    const adapter = this.getAdapter(sourceId)
-    if (!adapter) {
-      return { valid: false, reason: `Unknown source adapter: ${sourceId}` }
-    }
-
     let parsed: URL
     try {
       parsed = new URL(urlStr)
@@ -107,22 +144,42 @@ export class SourceRegistry {
         ? 443
         : 80
 
-    if (!adapter.capabilities.allowedPorts.includes(port)) {
+    const adapter = sourceId ? this.getAdapter(sourceId) : null
+    const allowedPorts = adapter?.capabilities.allowedPorts || [
+      80, 443, 8080, 8443,
+    ]
+
+    if (allowedPorts.length > 0 && !allowedPorts.includes(port)) {
       return {
         valid: false,
-        reason: `Port ${port} not permitted by source capability policy (allowed: ${adapter.capabilities.allowedPorts.join(', ')})`,
+        reason: `Port ${port} not permitted by egress policy (allowed: ${allowedPorts.join(', ')})`,
       }
     }
 
-    const hostname = parsed.hostname.toLowerCase()
-    const isAllowed = adapter.capabilities.allowedHosts.some(
-      (h) => h.toLowerCase() === hostname,
-    )
+    if (
+      adapter?.capabilities.allowedHosts &&
+      adapter.capabilities.allowedHosts.length > 0
+    ) {
+      const hostname = parsed.hostname.toLowerCase()
+      const isAllowed = adapter.capabilities.allowedHosts.some(
+        (h) => h.toLowerCase() === hostname,
+      )
+      if (!isAllowed) {
+        return {
+          valid: false,
+          reason: `Host "${hostname}" is not declared in allowedHosts for source "${sourceId}"`,
+        }
+      }
+    }
 
-    if (!isAllowed) {
+    try {
+      assertPublicHttpUrl(urlStr, '媒体出站')
+    } catch (err) {
       return {
         valid: false,
-        reason: `Host "${hostname}" is not declared in allowedHosts for source "${sourceId}"`,
+        reason:
+          (err as Error).message ||
+          'Disallowed target IP: private / internal hosts forbidden',
       }
     }
 
@@ -169,7 +226,7 @@ export class SourceRegistry {
       throw new Error(`Source ${sourceId} failed to resolve media URL`)
     }
 
-    // 2. 出站域名/端口白名单审计
+    // 2. 出站安全审计
     const egressCheck = this.validateEgress(raw.mediaUrl, sourceId)
     if (!egressCheck.valid) {
       throw new Error(`Egress policy check failed: ${egressCheck.reason}`)
@@ -201,10 +258,12 @@ export class SourceRegistry {
       sub: '',
     })
 
+    const endpoint = isMp4 ? '/api/media/segment' : '/api/media/stream'
+
     // 6. 返回纯受控 DTO
     return {
       source: sourceId,
-      streamUrl: `/api/media/stream?t=${encodeURIComponent(ticket)}`,
+      streamUrl: `${endpoint}?t=${encodeURIComponent(ticket)}`,
       ticket,
       format,
       expiresAt: asset.expiresAt,

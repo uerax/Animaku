@@ -8,15 +8,15 @@ import type {
  */
 export interface SourceCapabilities {
   /**
-   * 精确域名白名单（禁止泛通配符，防子域劫持接管）
-   * 仅匹配声明的精确 FQDN（不区分大小写）
+   * 可选精确域名白名单（仅用于有特殊隔离要求的专有源）
+   * 若不配置，则由公网安全门禁（assertPublicHttpUrl）统一管控，自动支持多 CDN 轮换与动态直链
    */
-  allowedHosts: string[]
+  allowedHosts?: string[]
 
   /**
    * 允许的标准 Web 端口，默认仅限 [80, 443, 8080, 8443]
    */
-  allowedPorts: number[]
+  allowedPorts?: number[]
 }
 
 /**
@@ -79,5 +79,5 @@ export interface SourceMetadata {
   id: string
   name: string
   tier: 'tier_a' | 'tier_b'
-  allowedHostsCount: number
+  allowedHostsCount?: number
 }

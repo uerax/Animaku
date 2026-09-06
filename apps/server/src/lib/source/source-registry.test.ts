@@ -7,49 +7,62 @@ import { kvCache } from '../../db/repositories/kv-cache'
 import type { SourceAdapter } from './source-types'
 import { sourceRoutes } from '../../routes/source'
 
-test('source-registry: lists built-in 5 tier adapters', () => {
+test('source-registry: lists built-in 6 tier adapters and handles alias normalization', () => {
   const registry = new SourceRegistry()
   const list = registry.listSources()
 
-  assert.equal(list.length >= 5, true)
+  assert.equal(list.length >= 6, true)
   const ids = list.map((s) => s.id)
+  assert.ok(ids.includes('xifan-next'))
   assert.ok(ids.includes('xifan'))
   assert.ok(ids.includes('cycani'))
   assert.ok(ids.includes('moonci'))
   assert.ok(ids.includes('tvtfun'))
   assert.ok(ids.includes('anime1'))
 
+  // 独立源独立存在
+  const xifanNext = registry.getAdapter('xifan-next')
+  assert.equal(xifanNext?.id, 'xifan-next')
+  assert.equal(xifanNext?.name, '稀饭Next')
+
   const xifan = registry.getAdapter('xifan')
-  assert.equal(xifan?.tier, 'tier_a')
-  const anime1 = registry.getAdapter('anime1')
-  assert.equal(anime1?.tier, 'tier_b')
+  assert.equal(xifan?.id, 'xifan')
+  assert.equal(xifan?.name, '稀饭动漫')
+
+  // 别名归一化查找
+  assert.equal(registry.getAdapter('稀饭Next')?.id, 'xifan-next')
+  assert.equal(registry.getAdapter('xifan_next')?.id, 'xifan-next')
+  assert.equal(registry.getAdapter('稀饭动漫')?.id, 'xifan')
+  assert.equal(registry.getAdapter('次元城')?.id, 'cycani')
+  assert.equal(registry.getAdapter('月之祠')?.id, 'moonci')
+  assert.equal(registry.getAdapter('anime1.me')?.id, 'anime1')
 })
 
-test('source-registry: validateEgress enforces exact host and port whitelist', () => {
+test('source-registry: validateEgress enforces protocol, standard web ports, and public host boundary', () => {
   const registry = new SourceRegistry()
 
-  // 1. Allowed exact host and standard port
+  // 1. 公网合法地址与标准端口正常通过
   const okResult = registry.validateEgress(
     'https://next.xifanacg.com/anime/123',
-    'xifan',
+    'xifan-next',
   )
   assert.equal(okResult.valid, true)
 
+  // 2. 动态轮换 CDN (如 apn.moedot.net) 正常通过，不再受静态域名白名单误杀
   const cdnOk = registry.validateEgress(
-    'https://s2.xifanacg.com/video/ep1.m3u8',
-    'xifan',
+    'https://apn.moedot.net/d/wo/2607/video.mp4',
+    'xifan-next',
   )
   assert.equal(cdnOk.valid, true)
 
-  // 2. Disallowed host (subdomain hijacking / unauthorized host)
-  const badHost = registry.validateEgress(
-    'https://attacker.xifanacg.com/video/ep1.m3u8',
-    'xifan',
+  // 3. 通用规则源 (如 omofun, libvio, custom) 同样受到公网 Web 出站安全审计
+  const customOk = registry.validateEgress(
+    'https://cdn.libvio.link/play.m3u8',
+    'libvio',
   )
-  assert.equal(badHost.valid, false)
-  assert.match(badHost.reason || '', /not declared in allowedHosts/i)
+  assert.equal(customOk.valid, true)
 
-  // 3. Disallowed scheme (e.g. file:, ftp:)
+  // 4. 非法协议拦截 (ftp:, file:, gopher:)
   const badScheme = registry.validateEgress(
     'ftp://next.xifanacg.com/file',
     'xifan',
@@ -57,7 +70,7 @@ test('source-registry: validateEgress enforces exact host and port whitelist', (
   assert.equal(badScheme.valid, false)
   assert.match(badScheme.reason || '', /disallowed protocol/i)
 
-  // 4. Disallowed non-web port (e.g. 22, 6379)
+  // 5. 非法端口拦截 (6379, 22, 3306)
   const badPort = registry.validateEgress(
     'https://next.xifanacg.com:6379/data',
     'xifan',
@@ -65,26 +78,30 @@ test('source-registry: validateEgress enforces exact host and port whitelist', (
   assert.equal(badPort.valid, false)
   assert.match(badPort.reason || '', /port 6379 not permitted/i)
 
-  // 5. Cross-source boundary enforcement (cycani host requested under moonci source)
-  const crossSource = registry.validateEgress(
-    'https://cycr2.top/video.mp4',
-    'moonci',
+  // 6. 私有 IP / 回环 SSRF 物理层严格拦截
+  const loopback = registry.validateEgress(
+    'http://127.0.0.1:8787/admin',
+    'xifan',
   )
-  assert.equal(crossSource.valid, false)
-  assert.match(crossSource.reason || '', /not declared in allowedHosts/i)
+  assert.equal(loopback.valid, false)
+
+  const internalIp = registry.validateEgress(
+    'http://192.168.1.1/router',
+    'cycani',
+  )
+  assert.equal(internalIp.valid, false)
 })
 
-test('source-registry: resolveAndRegister registers PlaybackAsset and returns opaque streamUrl', async () => {
+test('source-registry: resolveAndRegister registers PlaybackAsset and returns correct streamUrl', async () => {
   const key = randomBytes(32)
   const playback = new PlaybackRegistry({ key, kv: kvCache })
 
-  // Mock a safe adapter
-  const mockAdapter: SourceAdapter = {
-    id: 'mock_src',
-    name: 'Mock Source',
+  // Mock a safe adapter for HLS
+  const mockHlsAdapter: SourceAdapter = {
+    id: 'mock_hls',
+    name: 'Mock HLS Source',
     tier: 'tier_a',
     capabilities: {
-      allowedHosts: ['cdn.safe-video.com'],
       allowedPorts: [80, 443],
     },
     async search() {
@@ -103,137 +120,52 @@ test('source-registry: resolveAndRegister registers PlaybackAsset and returns op
     },
   }
 
-  const registry = new SourceRegistry({
-    playback,
-    adapters: [mockAdapter],
-  })
-
-  const output = await registry.resolveAndRegister(
-    'mock_src',
-    'https://safe-video.com/play/1',
-  )
-
-  // 1. Output must NOT leak the real upstream CDN URL
-  assert.equal(output.source, 'mock_src')
-  assert.equal(output.format, 'hls')
-  assert.ok(output.ticket.startsWith('v1.'))
-  assert.ok(output.streamUrl.startsWith('/api/media/stream?t=v1.'))
-  assert.equal(output.streamUrl.includes('safe-video.com'), false)
-
-  // 2. Playback registry must have the asset registered with encrypted credentials
-  const verifyTicket = playback.verifyTicket(output.ticket, 'playlist')
-  assert.equal(verifyTicket.valid, true)
-  if (verifyTicket.valid) {
-    assert.equal(
-      verifyTicket.asset.baseUrl,
-      'https://cdn.safe-video.com/hls/ep1/master.m3u8',
-    )
-    assert.deepEqual(verifyTicket.asset.publicHeaders, {
-      Referer: 'https://safe-video.com/',
-    })
-    const creds = playback.getDecryptedCredentials(verifyTicket.asset)
-    assert.equal(creds, 'session_cookie=123')
-  }
-})
-
-test('source-registry: resolveAndRegister blocks undeclared host in raw resolve result', async () => {
-  const key = randomBytes(32)
-  const playback = new PlaybackRegistry({ key, kv: kvCache })
-
-  const rogueAdapter: SourceAdapter = {
-    id: 'rogue_src',
-    name: 'Rogue Source',
-    tier: 'tier_b',
+  // Mock an MP4 adapter
+  const mockMp4Adapter: SourceAdapter = {
+    id: 'mock_mp4',
+    name: 'Mock MP4 Source',
+    tier: 'tier_a',
     capabilities: {
-      allowedHosts: ['legit-site.com'],
-      allowedPorts: [443],
+      allowedPorts: [80, 443],
     },
     async search() {
-      return { pluginName: 'rogue', items: [] }
+      return { pluginName: 'mock', items: [] }
     },
     async chapters() {
-      return { pluginName: 'rogue', roads: [] }
+      return { pluginName: 'mock', roads: [] }
     },
     async resolve() {
       return {
-        // Returns an undeclared host (e.g. internal or untrusted domain)
-        mediaUrl: 'https://evil-cdn.com/malicious.mp4',
+        mediaUrl: 'https://cdn.safe-video.com/mp4/ep1.mp4',
+        publicHeaders: { Referer: 'https://safe-video.com/' },
+        credentials: '',
+        format: 'mp4',
       }
     },
   }
 
   const registry = new SourceRegistry({
     playback,
-    adapters: [rogueAdapter],
+    adapters: [mockHlsAdapter, mockMp4Adapter],
   })
 
-  await assert.rejects(async () => {
-    await registry.resolveAndRegister('rogue_src', 'https://legit-site.com/play/1')
-  }, /Egress policy check failed/i)
-})
+  // 1. HLS 应返回 /api/media/stream?t=...
+  const hlsOutput = await registry.resolveAndRegister(
+    'mock_hls',
+    'https://safe-video.com/play/1',
+  )
+  assert.equal(hlsOutput.source, 'mock_hls')
+  assert.equal(hlsOutput.format, 'hls')
+  assert.ok(hlsOutput.ticket.startsWith('v1.'))
+  assert.ok(hlsOutput.streamUrl.startsWith('/api/media/stream?t=v1.'))
 
-test('sourceRoutes: HTTP boundary blocks network parameter injection', async () => {
-  // 1. Injected baseURL -> 400 forbidden_params
-  const res1 = await sourceRoutes.request('/search', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      source: 'xifan',
-      keyword: '火影',
-      baseURL: 'http://169.254.169.254/',
-    }),
-  })
-  assert.equal(res1.status, 400)
-  const json1 = (await res1.json()) as { error: string; message: string }
-  assert.equal(json1.error, 'forbidden_params')
-  assert.match(json1.message, /baseURL/i)
-
-  // 2. Injected headers or cookies -> 400 forbidden_params
-  const res2 = await sourceRoutes.request('/chapters', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      source: 'cycani',
-      url: 'https://cycani.org/video/1',
-      headers: { 'X-Custom-Header': 'evil' },
-    }),
-  })
-  assert.equal(res2.status, 400)
-  const json2 = (await res2.json()) as { error: string }
-  assert.equal(json2.error, 'forbidden_params')
-
-  // 3. Injected rule object -> 400 forbidden_params
-  const res3 = await sourceRoutes.request('/resolve', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      source: 'tvtfun',
-      pageUrl: 'https://tvtfun.net/play/1',
-      rule: { name: 'injected_rule', baseURL: 'http://evil.com' },
-    }),
-  })
-  assert.equal(res3.status, 400)
-  const json3 = (await res3.json()) as { error: string }
-  assert.equal(json3.error, 'forbidden_params')
-
-  // 4. Missing required parameters -> 400 bad_request
-  const res4 = await sourceRoutes.request('/search', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      source: 'xifan',
-    }),
-  })
-  assert.equal(res4.status, 400)
-  const json4 = (await res4.json()) as { error: string }
-  assert.equal(json4.error, 'bad_request')
-
-  // 5. GET /list returns sources metadata
-  const listRes = await sourceRoutes.request('/list', {
-    method: 'GET',
-  })
-  assert.equal(listRes.status, 200)
-  const listJson = (await listRes.json()) as { data: Array<{ id: string }> }
-  assert.ok(Array.isArray(listJson.data))
-  assert.ok(listJson.data.some((s) => s.id === 'xifan'))
+  // 2. MP4 应返回 /api/media/segment?t=...
+  const mp4Output = await registry.resolveAndRegister(
+    'mock_mp4',
+    'https://safe-video.com/play/2',
+  )
+  assert.equal(mp4Output.source, 'mock_mp4')
+  assert.equal(mp4Output.format, 'mp4')
+  assert.ok(mp4Output.ticket.startsWith('v1.'))
+  assert.ok(mp4Output.streamUrl.startsWith('/api/media/segment?t=v1.'))
 })

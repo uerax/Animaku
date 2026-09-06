@@ -156,3 +156,24 @@ test('mediaRoutes: /segment returns 302 redirect in high performance mode and pr
   const location = res.headers.get('location')
   assert.equal(location, 'https://s2.xifanacg.com/video/seg-001.ts')
 })
+
+test('mediaRoutes: internal cross-dispatch handles segment ticket on /stream without 403 TYPE_MISMATCH', async () => {
+  const asset = playbackRegistry.registerAsset({
+    source: 'xifan-next',
+    baseUrl: 'https://apn.moedot.net/d/wo/2607/ep1.mp4',
+  })
+
+  // Issue segment ticket (e.g. MP4)
+  const ticket = playbackRegistry.issueTicket({
+    aid: asset.assetId,
+    src: 'xifan-next',
+    typ: 'segment',
+    sub: '',
+  })
+
+  // Requesting via /stream?t=... should adapt gracefully without TYPE_MISMATCH 403
+  const res = await mediaRoutes.request(`/stream?t=${encodeURIComponent(ticket)}`)
+  assert.equal(res.status, 302)
+  assert.equal(res.headers.get('location'), 'https://apn.moedot.net/d/wo/2607/ep1.mp4')
+})
+

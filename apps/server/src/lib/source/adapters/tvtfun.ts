@@ -17,15 +17,6 @@ export const tvtfunAdapter: SourceAdapter = {
   name: 'TvTFun',
   tier: 'tier_a',
   capabilities: {
-    allowedHosts: [
-      'www.tvtfun.net',
-      'tvtfun.net',
-      'tvtfun.com',
-      'www.tvtfun.com',
-      'api.tvtfun.net',
-      'cdn.tvtfun.net',
-      'stream.tvtfun.net',
-    ],
     allowedPorts: [80, 443, 8080, 8443],
   },
   async search(keyword: string) {

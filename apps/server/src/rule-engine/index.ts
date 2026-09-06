@@ -1598,9 +1598,10 @@ function wrapResolveWithTicket(
       typ: isMp4 ? 'segment' : 'playlist',
       sub: '',
     })
+    const endpoint = isMp4 ? '/api/media/segment' : '/api/media/stream'
     return {
       ...result,
-      proxyUrl: `/api/media/stream?t=${encodeURIComponent(ticket)}`,
+      proxyUrl: `${endpoint}?t=${encodeURIComponent(ticket)}`,
     }
   } catch (err) {
     console.warn(

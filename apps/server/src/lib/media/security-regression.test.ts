@@ -189,22 +189,22 @@ test('Security Matrix 5: Tampered, expired or revoked tickets strictly rejected 
   assert.equal(((await res3.json()) as any).error, 'TOKEN_REVOKED')
 })
 
-test('Security Matrix 6: 302 Open Redirect reflection blocked', async () => {
-  // Register an asset pointing to an illegal/unauthorized external host
+test('Security Matrix 6: 302 Open Redirect reflection to internal targets blocked', async () => {
+  // Register an asset pointing to an internal / loopback host (SSRF reflection attempt)
   const rogueAsset = playbackRegistry.registerAsset({
-    source: 'xifan',
-    baseUrl: 'https://evil-unauthorized-host.com/stream.m3u8',
+    source: 'xifan-next',
+    baseUrl: 'http://127.0.0.1:8787/admin/keys',
   })
 
   // Force issue segment ticket
   const ticket = playbackRegistry.issueTicket({
     aid: rogueAsset.assetId,
-    src: 'xifan',
+    src: 'xifan-next',
     typ: 'segment',
     sub: 'chunk.ts',
   })
 
-  // /segment must intercept the unauthorized host and refuse 302
+  // /segment must intercept the internal host and refuse 302
   const res = await mediaRoutes.request(`/segment?t=${encodeURIComponent(ticket)}`)
   assert.equal(res.status, 403)
   assert.notEqual(res.status, 302)

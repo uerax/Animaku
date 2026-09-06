@@ -17,18 +17,6 @@ export const anime1Adapter: SourceAdapter = {
   name: 'Anime1',
   tier: 'tier_b',
   capabilities: {
-    allowedHosts: [
-      'anime1.me',
-      'v.anime1.me',
-      'v2.anime1.me',
-      'v3.anime1.me',
-      'v4.anime1.me',
-      'v5.anime1.me',
-      'v6.anime1.me',
-      'v7.anime1.me',
-      'v8.anime1.me',
-      'v9.anime1.me',
-    ],
     allowedPorts: [80, 443, 8080, 8443],
   },
   async search(keyword: string) {

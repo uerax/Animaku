@@ -1,32 +1,32 @@
 import type { PluginRule } from '@animaku/shared'
 import {
-  searchMoonci,
-  chaptersMoonci,
-  resolveMoonci,
-} from '../../moonci'
+  searchXifanNext,
+  chaptersXifanNext,
+  resolveXifanNext,
+} from '../../xifan-next'
 import type { SourceAdapter, RawResolveResult } from '../source-types'
 
-const MOONCI_RULE: PluginRule = {
-  name: 'moonci',
+const XIFAN_NEXT_RULE: PluginRule = {
+  name: 'xifan-next',
   version: '1.0.0',
-  baseURL: 'https://www.moonci.com',
+  baseURL: 'https://next.xifanacg.com',
 }
 
-export const moonciAdapter: SourceAdapter = {
-  id: 'moonci',
-  name: '月之祠',
+export const xifanNextAdapter: SourceAdapter = {
+  id: 'xifan-next',
+  name: '稀饭Next',
   tier: 'tier_a',
   capabilities: {
     allowedPorts: [80, 443, 8080, 8443],
   },
   async search(keyword: string) {
-    return searchMoonci(MOONCI_RULE, keyword)
+    return searchXifanNext(XIFAN_NEXT_RULE, keyword)
   },
   async chapters(source: string) {
-    return chaptersMoonci(MOONCI_RULE, source)
+    return chaptersXifanNext(XIFAN_NEXT_RULE, source)
   },
   async resolve(pageUrl: string): Promise<RawResolveResult> {
-    const res = await resolveMoonci(MOONCI_RULE, pageUrl)
+    const res = await resolveXifanNext(XIFAN_NEXT_RULE, pageUrl)
     const isMp4 =
       res.contentType === 'video/mp4' ||
       res.playUrl.toLowerCase().includes('.mp4')

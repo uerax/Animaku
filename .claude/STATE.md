@@ -4,6 +4,51 @@
 
 ---
 
+## [2026-09-06] 废除静态域名白名单并重构受控媒体网关与自适应多媒体路由 (v1.4.10)
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **废弃脆弱的静态 `allowedHosts` 域名限制，升级为公网安全出站门禁 (`apps/server/src/lib/source/source-registry.ts`)**：
+     - 彻底删除对具体 FQDN 域名的写死限制，解决视频源 CDN 轮换、多级反代及对象存储（如 `apn.moedot.net`、`pan.wo.cn` 等）导致的 403 误杀；
+     - 强化物理层 SSRF 熔断（`assertPublicHttpUrl` 与 Undici `SafeConnector`），严格限制仅允许 `http:` 与 `https:` 协议及标准 Web 端口，在底层杜绝内网穿透与 DNS 重绑定；
+  2. **严格拆分 `xifan` 与 `xifan-next` 为两个完全独立的源**：
+     - 新建 `apps/server/src/lib/source/adapters/xifan-next.ts`：独立维护现代 Next.js + Supabase 架构的稀饭Next；
+     - 重构 `apps/server/src/lib/source/adapters/xifan.ts`：独立维护传统 MacCMS 架构的稀饭动漫；
+     - `SourceRegistry` 引入别名标准化映射（如 `稀饭Next`/`xifan_next` -> `xifan-next`，`稀饭动漫` -> `xifan`，`次元城` -> `cycani` 等）；
+     - 支持规则引擎通用源（`libvio`、`omofun`、`mxdm` 及自定义规则）天然安全上架，由公网安全门禁统一防护；
+  3. **修复 MP4 与 M3U8 路由/票据类型错位并实现网关内部自适应复用 (`apps/server/src/routes/media.ts` & `rule-engine/index.ts`)**：
+     - 解析签发端按媒体格式正确下发入口（MP4 下发 `/api/media/segment?t=...`，M3U8 下发 `/api/media/stream?t=...`）；
+     - `/api/media/stream` 与 `/api/media/segment` 实现内部跨类型直调（若 `/stream` 收到 `segment` 票据内部直接走二进制分片处理管道），彻底消除 `TYPE_MISMATCH` 403 错误并避免多余的 302 HTTP 跳转；
+  4. **前端受控 Ticket 媒体流纯净装配 (`apps/web/src/lib/playback-src.ts`)**：
+     - `pickPlaybackSrc` 在识别到 Opaque Ticket 流时优先短路返回，禁止追加 `&token=123456` 等多余 query 参数；
+     - `inferPlaybackTransit` 针对 `/segment` 正确识别为单文件流；
+  5. **测试覆盖与版本升级**：
+     - 更新 `source-registry.test.ts`、`media-gateway.test.ts`、`security-regression.test.ts`；
+     - 全仓 129 项测试 100% 通过，全仓 `typecheck`、`lint`、`build` 0 错误；
+     - 项目版本号递增至 `v1.4.10`。
+- 涉及文件：
+  - apps/server/src/lib/source/source-types.ts
+  - apps/server/src/lib/source/source-registry.ts
+  - apps/server/src/lib/source/adapters/xifan-next.ts
+  - apps/server/src/lib/source/adapters/xifan.ts
+  - apps/server/src/lib/source/adapters/cycani.ts
+  - apps/server/src/lib/source/adapters/moonci.ts
+  - apps/server/src/lib/source/adapters/tvtfun.ts
+  - apps/server/src/lib/source/adapters/anime1.ts
+  - apps/server/src/rule-engine/index.ts
+  - apps/server/src/routes/media.ts
+  - apps/web/src/lib/playback-src.ts
+  - apps/server/src/lib/source/source-registry.test.ts
+  - apps/server/src/lib/media/security-regression.test.ts
+  - apps/server/src/lib/media/media-gateway.test.ts
+  - package.json
+  - apps/server/package.json
+  - apps/web/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+- 备注：已验证针对 `https://apn.moedot.net/d/wo/2607/%E5%B0%BC%E5%8F%A408.mp4` 的 MP4 直链在 `/stream` 及 `/segment` 均秒级正常响应并直连播放，彻底消除 403 缺陷。
+
 ## [2026-09-06] 修复 B 站 BV 号弹幕拉取 502 与机房 412 风控缺陷 (v1.4.9)
 - 状态：已完成
 - 优先级：P0

@@ -17,17 +17,6 @@ export const cycaniAdapter: SourceAdapter = {
   name: '次元城动画',
   tier: 'tier_a',
   capabilities: {
-    allowedHosts: [
-      'www.cycani.org',
-      'cycani.org',
-      'cycani.com',
-      'www.cycani.com',
-      'cycr2.top',
-      'v.cycr2.top',
-      'cf.cycr2.top',
-      'r2.cycr2.top',
-      'vod.cycani.org',
-    ],
     allowedPorts: [80, 443, 8080, 8443],
   },
   async search(keyword: string) {
