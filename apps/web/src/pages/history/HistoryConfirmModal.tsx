@@ -30,6 +30,16 @@ export function HistoryConfirmModal({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isOpen, onClose])
 
+  // 弹窗开启时锁定底层 body 滚动，防止移动端与桌面端穿透滑动
+  useEffect(() => {
+    if (!isOpen) return
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prevOverflow
+    }
+  }, [isOpen])
+
   if (!isOpen) return null
 
   return (
@@ -67,6 +77,7 @@ export function HistoryConfirmModal({
           </button>
           <button
             type="button"
+            autoFocus
             onClick={() => {
               onConfirm()
               onClose()

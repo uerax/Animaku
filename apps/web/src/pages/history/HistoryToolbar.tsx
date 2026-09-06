@@ -21,6 +21,7 @@ export function HistoryToolbar({
   hasItems,
   isAllSelected,
   selectedCount,
+  totalCount,
   onToggleSelectAll,
   onBatchDelete,
 }: HistoryToolbarProps) {
@@ -105,7 +106,8 @@ export function HistoryToolbar({
             <button
               type="button"
               onClick={onToggleSelectAll}
-              className="flex items-center gap-1.5 font-medium text-[var(--kz-accent)] hover:underline"
+              disabled={totalCount === 0}
+              className="flex items-center gap-1.5 font-medium text-[var(--kz-accent)] hover:underline disabled:cursor-not-allowed disabled:opacity-40"
             >
               <span>{isAllSelected ? '取消全选' : '全选全部'}</span>
             </button>

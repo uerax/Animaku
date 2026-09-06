@@ -9,6 +9,7 @@ import {
 } from '@animaku/shared'
 import { preloadVideoPlayer } from '../../player/lazy'
 import { preloadRoute } from '../../lib/route-preload'
+import { useSettingsStore } from '../../stores/settings'
 
 interface HistoryCardProps {
   entry: WatchHistoryEntry
@@ -25,13 +26,16 @@ export function HistoryCard({
   onToggleSelect,
   onDelete,
 }: HistoryCardProps) {
+  const bangumiImageHost = useSettingsStore((s) => s.bangumiImageHost)
   const pct = getPlaybackPercentage(entry.position, entry.duration)
   const finished = isPlaybackFinished(entry.position, entry.duration)
   const relTime = formatRelativeWatchTime(entry.updatedAt)
 
   const resumeQ = new URLSearchParams()
   if (entry.pluginName) resumeQ.set('plugin', entry.pluginName)
-  if (entry.episode) resumeQ.set('ep', String(entry.episode))
+  if (typeof entry.episode === 'number' && !Number.isNaN(entry.episode)) {
+    resumeQ.set('ep', String(entry.episode))
+  }
   if (entry.road > 0) resumeQ.set('road', String(entry.road))
 
   const playUrl = `/play/${entry.bangumiId}?${resumeQ.toString()}`
@@ -45,8 +49,23 @@ export function HistoryCard({
   return (
     <div
       onClick={isBatchMode ? () => onToggleSelect(entry.id) : undefined}
+      role={isBatchMode ? 'checkbox' : undefined}
+      aria-checked={isBatchMode ? isSelected : undefined}
+      tabIndex={isBatchMode ? 0 : undefined}
+      onKeyDown={
+        isBatchMode
+          ? (e) => {
+              if (e.key === ' ' || e.key === 'Enter') {
+                e.preventDefault()
+                onToggleSelect(entry.id)
+              }
+            }
+          : undefined
+      }
       className={`group relative flex items-center gap-3 sm:gap-4 rounded-xl border p-3 transition-all ${
-        isBatchMode ? 'cursor-pointer' : ''
+        isBatchMode
+          ? 'cursor-pointer select-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-[var(--kz-accent)]'
+          : ''
       } ${
         isSelected
           ? 'border-[var(--kz-accent)] bg-[var(--kz-accent-soft)]/40 shadow-xs'
@@ -87,7 +106,6 @@ export function HistoryCard({
         onClick={(e) => {
           if (isBatchMode) {
             e.preventDefault()
-            onToggleSelect(entry.id)
           }
         }}
         onMouseEnter={onWarmup}
@@ -97,7 +115,7 @@ export function HistoryCard({
       >
         {entry.cover ? (
           <img
-            src={bangumiImageUrl(entry.cover)}
+            src={bangumiImageUrl(entry.cover, bangumiImageHost)}
             alt={entry.title}
             referrerPolicy="no-referrer"
             loading="lazy"
@@ -132,7 +150,6 @@ export function HistoryCard({
             onClick={(e) => {
               if (isBatchMode) {
                 e.preventDefault()
-                onToggleSelect(entry.id)
               }
             }}
             onMouseEnter={onWarmup}

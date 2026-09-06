@@ -13,7 +13,7 @@ export function HistoryStatsBar({ stats }: HistoryStatsBarProps) {
         <span className="inline-block h-2 w-2 rounded-full bg-[var(--kz-accent)]" />
         <span className="text-[var(--kz-fg-muted)]">累计记录</span>
         <span className="font-semibold text-[var(--kz-fg)]">
-          {stats.totalCount} 部番剧
+          {stats.totalCount} 条记录
         </span>
       </div>
 
@@ -22,7 +22,7 @@ export function HistoryStatsBar({ stats }: HistoryStatsBarProps) {
       <div className="flex items-center gap-2">
         <span className="text-[var(--kz-fg-muted)]">今日观看</span>
         <span className="font-semibold text-[var(--kz-accent)]">
-          {stats.todayCount} 部
+          {stats.todayCount} 集
         </span>
       </div>
 
@@ -31,7 +31,7 @@ export function HistoryStatsBar({ stats }: HistoryStatsBarProps) {
       <div className="flex items-center gap-2">
         <span className="text-[var(--kz-fg-muted)]">已看完</span>
         <span className="font-semibold text-emerald-500">
-          {stats.finishedCount} 部
+          {stats.finishedCount} 集
         </span>
       </div>
 

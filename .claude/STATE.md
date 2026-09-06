@@ -3337,5 +3337,38 @@
   - .claude/STATE.md
 - 备注：全仓类型检查 `pnpm typecheck`、前端构建 `pnpm -F @animaku/web build` 与服务端单元测试全量 100% 通过。
 
+## [2026-09-06] 修复历史记录批量删除与事件对冲等全链路缺陷 (v1.4.1)
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **搜索过滤与批量选择状态联动重置（双重保底防护）**：
+     - 在 `HistoryPage.tsx` 中增加 `searchQuery` 监听：当搜索关键词变更时立即清空 `selectedIds`，杜绝旧过滤条件下不可见记录残留；
+     - 在 `handleBatchDelete` 执行层增加求交集过滤防护（严格仅取 `filteredItems` 与 `selectedIds` 共有交集执行 `removeMany`），实现逻辑与执行双保险；
+     - 在 `HistoryToolbar.tsx` 中为全选按钮增加 `totalCount === 0` 禁用保护，消除无匹配项时的空全选伪交互；
+  2. **HistoryCard 批量选择冒泡对冲缺陷修复与无障碍增强**：
+     - 彻底修复 `HistoryCard.tsx` 中封面与标题 `<Link>` 在 `isBatchMode` 下因缺少冒泡拦截导致 `onToggleSelect` 被执行两次相互抵消的致命 Bug，由外层容器统一响应切换；
+     - 外层卡片补充 `role="checkbox"`、`aria-checked` 与空格/回车键盘监听，实现完整的无障碍辅助与键盘批量选择；
+     - 修复 `entry.episode === 0` 时因 falsy 判断导致续播参数丢失的问题；
+     - 封面微缩图引入 `useSettingsStore` 的 `bangumiImageHost`，使历史卡片完全遵循用户配置的自定义图片 CDN 源；
+  3. **HistoryStore merge 阶段同集多源旧历史数据无感清洗收敛**：
+     - 在 `useHistoryStore` 持久化 `merge` 回调中增加单集单源一次性收敛逻辑，按时间最新原则自动清洗历史旧数据中的多插件同集记录，并规范化为 `${bangumiId}::ep${episode}` 键名；
+  4. **弹窗与统计交互细节优化**：
+     - `HistoryConfirmModal.tsx` 增加 `document.body.style.overflow = 'hidden'` 滚动锁与确认按钮 `autoFocus`，防止背景滚动穿透；
+     - `HistoryStatsBar.tsx` 将文案精准调整为“X 条记录”与“今日观看 X 集”，与新架构模型保持完全自洽。
+- 涉及文件：
+  - apps/web/src/pages/HistoryPage.tsx
+  - apps/web/src/pages/history/HistoryCard.tsx
+  - apps/web/src/pages/history/HistoryToolbar.tsx
+  - apps/web/src/pages/history/HistoryConfirmModal.tsx
+  - apps/web/src/pages/history/HistoryStatsBar.tsx
+  - apps/web/src/stores/history.ts
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck`、前端构建 `pnpm -F @animaku/web build` 与单元测试全部 100% 通过。
+
 
 

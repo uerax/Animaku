@@ -94,9 +94,29 @@ export const useHistoryStore = create<HistoryState>()(
       partialize: (s) => ({ items: s.items }),
       merge: (persisted, current) => {
         const p = (persisted || {}) as Partial<HistoryState>
+        const rawItems = Array.isArray(p.items) ? p.items : current.items
+        // 一次性无感收敛历史旧数据：同一番剧同一集数仅保留最新一条记录（不区分 plugin，消除同集多源冗余）
+        const seen = new Set<string>()
+        const deduplicated: WatchHistoryEntry[] = []
+        for (const item of rawItems) {
+          if (!item || !item.bangumiId) continue
+          const key = `${item.bangumiId}::ep${item.episode ?? 1}`
+          if (!seen.has(key)) {
+            seen.add(key)
+            deduplicated.push({
+              ...item,
+              id: historyId(
+                item.bangumiId,
+                item.pluginName,
+                item.episode ?? 1,
+                item.road ?? 0,
+              ),
+            })
+          }
+        }
         return {
           ...current,
-          items: Array.isArray(p.items) ? p.items : current.items,
+          items: deduplicated.slice(0, MAX_ITEMS),
         }
       },
     },

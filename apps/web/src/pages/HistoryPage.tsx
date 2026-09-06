@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react'
+import { useMemo, useState, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   groupWatchHistory,
@@ -60,6 +60,11 @@ export function HistoryPage() {
     )
   }, [items, searchQuery])
 
+  // 当搜索关键词变化时，联动清空选择状态，避免跨检索条件误删不可见记录
+  useEffect(() => {
+    setSelectedIds(new Set())
+  }, [searchQuery])
+
   // 业界四段式时间轴分组
   const groups = useMemo(
     () => groupWatchHistory(filteredItems),
@@ -109,20 +114,26 @@ export function HistoryPage() {
 
   // 批量删除
   const handleBatchDelete = useCallback(() => {
-    if (selectedIds.size === 0) return
+    // 双重安全防护：严格仅对当前可见且被勾选的记录执行删除
+    const targetIds = filteredItems
+      .filter((item) => selectedIds.has(item.id))
+      .map((item) => item.id)
+
+    if (targetIds.length === 0) return
+
     setModalState({
       isOpen: true,
       title: '批量删除所选记录',
-      description: `确定要永久删除所选的 ${selectedIds.size} 条观看记录吗？此操作无法撤销。`,
+      description: `确定要永久删除所选的 ${targetIds.length} 条观看记录吗？此操作无法撤销。`,
       confirmText: '确认删除',
       isDanger: true,
       onConfirm: () => {
-        removeMany(Array.from(selectedIds))
+        removeMany(targetIds)
         setSelectedIds(new Set())
         setIsBatchMode(false)
       },
     })
-  }, [selectedIds, removeMany])
+  }, [filteredItems, selectedIds, removeMany])
 
   // 清空整组记录（如“清空今天”）
   const handleClearGroup = useCallback(
