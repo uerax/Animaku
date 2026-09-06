@@ -3822,24 +3822,46 @@
   - .claude/STATE.md
 - 备注：全仓类型检查 `pnpm typecheck`（0 错误）、单元测试（共 143 项单测 100% 全部通过）与生产构建 `pnpm build` 全链路验证通过。
 
-## [2026-09-06] 彻底移除设置页已安装规则面板中的规则生态引导栏 (v1.5.2)
+## [2026-09-07] 媒体网关流式改写透传、客户端重试续播与格式推导链路闭环修复 (v1.5.4)
 - 状态：已完成
-- 优先级：P3
+- 优先级：P0
 - 描述：
-  1. **规则生态整行移除**：
-     - 依据要求，彻底移除 `apps/web/src/pages/SettingsPage.tsx` 中「已安装规则」顶部的「规则生态：...」提示与链接容器；
-     - 保持面板顶部说明简洁纯粹，仅保留优先级拖拽调整说明与导入按钮；
-  2. **版本号平滑递增**：
-     - 全仓版本号递增至 `v1.5.2`。
+  1. **HLS 强制服务器代理 (stream=1) 全要素透传 (Bug 1)**：
+     - 在 `apps/server/src/routes/media.ts` 中解析 `forceProxy = c.req.query('stream') === '1' || c.req.query('stream') === 'true'` 并传递给 `rewriteM3u8Ast(..., { adFilter, forceProxy })`；
+     - 在 `apps/server/src/lib/media/hls-pipeline.ts` 中完善 `RewriteHlsOptions`，在签发子 Playlist 与 Segment 票据时追加 `&stream=1`；
+     - 在 `media.ts` 的 `handleBinarySegment` 中对齐 `stream === '1' || stream === 'true'` 判定，确保强制代理模式下切片流式代拉，彻底消除切片被 302 丢回直连导致的 CORS 或跨域网络超时错误；
+  2. **客户端凭据失效自动重新解析与静默续播闭环 (Bug 2)**：
+     - 在 `apps/web/src/player/VideoPlayer.tsx` 中移除已过时的 `/[?&]cookie=/` 孤立正则校验；
+     - 提升 `tryAuthRefresh` 作用域至全播放器核心生命周期，对所有挂载 `onMediaAuthExpiredRef` 的受控媒体流（包含 `/api/media/` 与 `cookie=`）开放；
+     - 在 Progressive MP4 `onMediaError` / `onStalled`、原生 HLS `onHlsError` 以及 Hls.js 的 `HlsCtor.Events.ERROR` 网络错误遇 401/403 响应码时，统一触发 `tryAuthRefresh()` 执行 `onMediaAuthExpired(pos)`，实现服务端重启或 Ticket 到期后的无感选集重新解析与无缝断点续播；
+  3. **串联 formatHint 媒体类型推导链路 (Bug 3)**：
+     - 在 `apps/web/src/lib/use-watch-session.ts` 中基于 `resolve.data?.data.contentType` 或 `resolve.data?.data.format` 严格推导 `formatHint: 'hls' | 'mp4'`，并挂载于 `WatchSession` 导出对象；
+     - 在 `apps/web/src/pages/WatchPage.tsx` 中向 `<VideoPlayerSuspense formatHint={w.formatHint} ... />` 透传该属性，彻底消除无标准后缀直连 HLS 源被误判为 Progressive MP4 导致的解码器崩溃；
+  4. **精细化 validateSubPath 冒号校验防资产缓存击穿 (Bug 4)**：
+     - 在 `apps/server/src/lib/media/ticket-codec.ts` 中精细化拆分 Path 与 Query 参数，仅对 Query 之前的 Path 部分执行冒号 URI Scheme 拦截与目录穿越校验，放行携带 ISO 8601 时间戳或鉴权签名的合法 Query 切片（如 `expires=2026-09-07T12:00:00Z`）；
+     - 在 `apps/server/src/lib/media/hls-pipeline.ts` 的 `computeRelativeSub` 中适配带参相对切片，避免合法切片被降级走单个独立资产登记，彻底阻断冲破 `MAX_ASSETS_CAPACITY = 10_000` 容量红线引发的正常媒体资产误淘汰；
+  5. **覆盖 #EXT-X-MEDIA 标签改写 (Bug 5)**：
+     - 在 `apps/server/src/lib/media/hls-pipeline.ts` 中扩展属性标签匹配，覆盖 `#EXT-X-MEDIA` 中的 `URI="..."` 引用；
+     - 依据 HLS RFC 8216 规范，将音频轨（AUDIO）与外挂字幕轨（SUBTITLES）作为 `typ: 'playlist'` 签发受控 Ticket 并改写为 `/api/media/stream?t=...`，彻底解决多音轨/外挂字幕场景下的 404 问题；
+  6. **版本号平滑递增**：
+     - 全仓版本号递增至 `v1.5.4`。
 - 涉及文件：
-  - apps/web/src/pages/SettingsPage.tsx
+  - apps/server/src/lib/media/hls-pipeline.ts
+  - apps/server/src/routes/media.ts
+  - apps/server/src/lib/media/ticket-codec.ts
+  - apps/server/src/lib/media/ticket-codec.test.ts
+  - apps/server/src/lib/media/media-gateway.test.ts
+  - apps/web/src/player/VideoPlayer.tsx
+  - apps/web/src/lib/use-watch-session.ts
+  - apps/web/src/pages/WatchPage.tsx
   - package.json
   - apps/web/package.json
   - apps/server/package.json
   - packages/shared/package.json
   - packages/shared/src/version.ts
+  - .claude/BUGS.md
   - .claude/STATE.md
-- 备注：全仓类型检查 `pnpm typecheck` 与前端打包构建 `pnpm -F @animaku/web build` 验证 100% 通过。
+- 备注：全仓类型检查 `pnpm typecheck`（0 错误）、全量单元测试（133 项单测 100% 全部通过）与生产打包构建 `pnpm build` 全链路验证通过。
 
 
 

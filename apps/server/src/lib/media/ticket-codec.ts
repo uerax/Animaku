@@ -118,23 +118,28 @@ export function validateSubPath(sub: string | undefined | null): {
     return { valid: false, normalized: '', error: 'Sub path contains backslash' }
   }
 
+  // 分离 Path 与 Query 参数（仅在 Path 上进行严格路径穿越与冒号 Scheme 校验，放行合法 Query 带参切片如时间戳）
+  const qIndex = sub.indexOf('?')
+  const pathPart = qIndex >= 0 ? sub.slice(0, qIndex) : sub
+  const queryPart = qIndex >= 0 ? sub.slice(qIndex + 1) : ''
+
   // 严格拦截协议相对路径 (//)
-  if (sub.startsWith('//')) {
+  if (pathPart.startsWith('//')) {
     return { valid: false, normalized: '', error: 'Sub path cannot be protocol-relative' }
   }
 
   // 严格拦截绝对路径 (/ 开头)
-  if (sub.startsWith('/')) {
+  if (pathPart.startsWith('/')) {
     return { valid: false, normalized: '', error: 'Sub path cannot be absolute' }
   }
 
-  // 严格拦截协议前缀 (包含冒号 : 如 http:, javascript:, file:)
-  if (sub.includes(':')) {
+  // 严格拦截路径部分的协议前缀或冒号 (包含冒号 : 如 http:, javascript:, file:)
+  if (pathPart.includes(':')) {
     return { valid: false, normalized: '', error: 'Sub path cannot contain URI schemes or colon' }
   }
 
   // 逐段审计与解码校验，防御 URL 编码穿透 (如 %2e%2e%2f)
-  const segments = sub.split('/')
+  const segments = pathPart.split('/')
   for (const segment of segments) {
     if (segment === '') {
       return { valid: false, normalized: '', error: 'Sub path contains empty segment or consecutive slashes' }
@@ -160,11 +165,12 @@ export function validateSubPath(sub: string | undefined | null): {
   }
 
   // 使用 posix.normalize 最终校验路径走向
-  const normalized = posix.normalize(sub)
-  if (normalized.startsWith('../') || normalized === '..' || normalized.startsWith('/')) {
+  const normalizedPath = posix.normalize(pathPart)
+  if (normalizedPath.startsWith('../') || normalizedPath === '..' || normalizedPath.startsWith('/')) {
     return { valid: false, normalized: '', error: 'Sub path resolves outside root' }
   }
 
+  const normalized = queryPart ? `${normalizedPath}?${queryPart}` : normalizedPath
   return { valid: true, normalized }
 }
 

@@ -10,6 +10,7 @@ import { validateSubPath } from './ticket-codec'
 
 export interface RewriteHlsOptions {
   adFilter?: boolean
+  forceProxy?: boolean
   playback?: PlaybackRegistry
   source?: SourceRegistry
 }
@@ -28,14 +29,16 @@ function computeRelativeSub(
     : baseUrl
 
   const targetUrl = new URL(targetUri, currentPlaylistUrl)
+  const [targetUriPath] = targetUri.split('?')
 
   // 1. 如果原始 URI 就是相对路径 (没有 scheme 且不以 / 开头)
   if (
-    !targetUri.includes(':') &&
+    !targetUriPath.includes(':') &&
     !targetUri.startsWith('//') &&
     !targetUri.startsWith('/')
   ) {
-    const parentDir = currentSub ? posix.dirname(currentSub) : ''
+    const currentSubPath = currentSub ? currentSub.split('?')[0] : ''
+    const parentDir = currentSubPath ? posix.dirname(currentSubPath) : ''
     const candidate =
       parentDir && parentDir !== '.'
         ? posix.join(parentDir, targetUri)
@@ -176,10 +179,14 @@ export function rewriteM3u8Ast(
     })
 
     if (typ === 'playlist') {
-      const query = options.adFilter ? '&adFilter=1' : ''
+      const q: string[] = []
+      if (options.adFilter) q.push('adFilter=1')
+      if (options.forceProxy) q.push('stream=1')
+      const query = q.length > 0 ? `&${q.join('&')}` : ''
       return `/api/media/stream?t=${encodeURIComponent(ticket)}${query}`
     }
-    return `/api/media/segment?t=${encodeURIComponent(ticket)}`
+    const query = options.forceProxy ? '&stream=1' : ''
+    return `/api/media/segment?t=${encodeURIComponent(ticket)}${query}`
   }
 
   for (let i = 0; i < lines.length; i++) {
@@ -191,10 +198,18 @@ export function rewriteM3u8Ast(
       continue
     }
 
-    // 1. 处理属性标签行中的 URI 引用：#EXT-X-KEY / #EXT-X-MAP
-    if (trimmed.startsWith('#EXT-X-KEY') || trimmed.startsWith('#EXT-X-MAP')) {
-      const isKey = trimmed.startsWith('#EXT-X-KEY')
-      const typ: PlaybackTicketType = isKey ? 'key' : 'segment'
+    // 1. 处理属性标签行中的 URI 引用：#EXT-X-KEY / #EXT-X-MAP / #EXT-X-MEDIA
+    if (
+      trimmed.startsWith('#EXT-X-KEY') ||
+      trimmed.startsWith('#EXT-X-MAP') ||
+      trimmed.startsWith('#EXT-X-MEDIA')
+    ) {
+      let typ: PlaybackTicketType = 'segment'
+      if (trimmed.startsWith('#EXT-X-KEY')) {
+        typ = 'key'
+      } else if (trimmed.startsWith('#EXT-X-MEDIA')) {
+        typ = 'playlist'
+      }
 
       const rewrittenLine = line.replace(
         /URI=(["'])([^"']+)\1/gi,

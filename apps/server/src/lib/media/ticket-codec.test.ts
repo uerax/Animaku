@@ -49,6 +49,15 @@ test('ticket-codec: validateSubPath allows safe relative paths and empty sub', (
   const safe4 = validateSubPath('key.key')
   assert.equal(safe4.valid, true)
   assert.equal(safe4.normalized, 'key.key')
+
+  // Query parameter with colons (e.g. ISO 8601 timestamp / CDN authentication)
+  const safeWithColonQuery = validateSubPath('seg-001.ts?expires=2026-09-07T12:00:00Z&token=abc')
+  assert.equal(safeWithColonQuery.valid, true)
+  assert.equal(safeWithColonQuery.normalized, 'seg-001.ts?expires=2026-09-07T12:00:00Z&token=abc')
+
+  const safeNestedWithQuery = validateSubPath('ep01/seg-002.ts?time=12:30:00')
+  assert.equal(safeNestedWithQuery.valid, true)
+  assert.equal(safeNestedWithQuery.normalized, 'ep01/seg-002.ts?time=12:30:00')
 })
 
 test('ticket-codec: validateSubPath strictly blocks directory traversal and protocol injection', () => {
@@ -74,6 +83,7 @@ test('ticket-codec: validateSubPath strictly blocks directory traversal and prot
 
   // Protocol / Scheme injections
   assert.equal(validateSubPath('http://evil.com/stream.m3u8').valid, false)
+  assert.equal(validateSubPath('http://evil.com/stream.m3u8?time=12:00:00').valid, false)
   assert.equal(validateSubPath('https://evil.com/stream.m3u8').valid, false)
   assert.equal(validateSubPath('//evil.com/stream.m3u8').valid, false)
   assert.equal(validateSubPath('javascript:alert(1)').valid, false)
@@ -82,6 +92,7 @@ test('ticket-codec: validateSubPath strictly blocks directory traversal and prot
   // Control characters & null bytes
   assert.equal(validateSubPath('foo\0bar.ts').valid, false)
   assert.equal(validateSubPath('foo\r\nbar.ts').valid, false)
+  assert.equal(validateSubPath('seg.ts?foo\0bar').valid, false)
 })
 
 test('ticket-codec: encryptTicketPayload enforces random 12B IV and formats v1. prefix', () => {

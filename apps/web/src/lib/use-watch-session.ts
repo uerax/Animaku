@@ -34,6 +34,7 @@ import {
   type Road,
   type DanmakuSettings,
   type PlayerSettings,
+  type ResolvePlayResult,
 } from '@animaku/shared'
 import { bangumiApi } from './bangumi'
 import { pluginApi } from './plugin-api'
@@ -226,6 +227,7 @@ export type WatchSession = {
   keywordTargetPlugin: PluginMeta | null
   setKeywordTargetPlugin: (p: PluginMeta | null) => void
   mediaSrc: string
+  formatHint?: 'hls' | 'mp4'
   playbackMode: 'direct' | 'proxy'
   /** direct | playlist-proxy (ad hybrid) | full-proxy — for WatchMeta hint */
   playbackTransit: PlaybackTransit
@@ -1811,6 +1813,31 @@ export function useWatchSession(bangumiId: number): WatchSession {
       }),
     [playUrl, proxyUrl, preferMediaProxy, forceAdFilter, proxyToken, requiresProxy],
   )
+  const formatHint = useMemo<'hls' | 'mp4' | undefined>(() => {
+    if (!episode) return undefined
+    const resData = resolve.data?.data as
+      | (ResolvePlayResult & { format?: string })
+      | undefined
+    if (!resData) return undefined
+    const fmt = resData.format?.toLowerCase()
+    if (fmt === 'hls' || fmt === 'm3u8') return 'hls'
+    if (fmt === 'mp4' || fmt === 'progressive') return 'mp4'
+    const ct = resData.contentType?.toLowerCase()
+    if (ct) {
+      if (
+        ct.includes('application/vnd.apple.mpegurl') ||
+        ct.includes('application/x-mpegurl') ||
+        ct.includes('audio/mpegurl')
+      ) {
+        return 'hls'
+      }
+      if (ct.includes('video/mp4') || ct.includes('video/webm')) {
+        return 'mp4'
+      }
+    }
+    return undefined
+  }, [episode, resolve.data?.data])
+
   const mediaSrc = episode ? playback.src : ''
   const effectiveResume =
     resumeOverrideRef.current != null
@@ -1979,6 +2006,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     keywordTargetPlugin,
     setKeywordTargetPlugin: setManualKeywordTargetPlugin,
     mediaSrc,
+    formatHint,
     playbackMode: playback.mode,
     /** direct | playlist-proxy (ad hybrid) | full-proxy — for WatchMeta hint */
     playbackTransit: playback.transit,

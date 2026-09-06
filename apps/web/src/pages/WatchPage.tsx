@@ -332,6 +332,7 @@ export function WatchPage() {
       {w.mediaSrc && (
         <VideoPlayerSuspense
           key={w.playerKey}
+          formatHint={w.formatHint}
           title={
             w.title
               ? `${w.title}${w.episode ? ` 第 ${w.episode.episode} 集` : ''}`

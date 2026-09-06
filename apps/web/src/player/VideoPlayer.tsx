@@ -956,6 +956,33 @@ export function VideoPlayer({
       })
     }
 
+    const isControlledOrProxy =
+      activeSrc.includes('/api/media/') || /[?&]cookie=/.test(activeSrc)
+
+    const tryAuthRefresh = () => {
+      if (!alive() || authRetryRef.current) return false
+      if (!isControlledOrProxy || !onMediaAuthExpiredRef.current) {
+        return false
+      }
+      authRetryRef.current = true
+      const pos = video.currentTime || 0
+      setMediaError('')
+      setLoading(true)
+      setOffsetHint('播放凭证失效，正在重新获取…')
+      window.clearTimeout(offsetHintTimer.current)
+      offsetHintTimer.current = window.setTimeout(
+        () => setOffsetHint(''),
+        4000,
+      )
+      void Promise.resolve(onMediaAuthExpiredRef.current(pos)).catch(() => {
+        if (!alive()) return
+        setLoading(false)
+        setBufferingUi(false)
+        setMediaError('凭证刷新失败，建议切换视频源')
+      })
+      return true
+    }
+
     /**
      * Progressive mp4/webm path.
      * Use <source type="..."> instead of bare video.src so WebKit/AVFoundation receives
@@ -987,31 +1014,6 @@ export function VideoPlayer({
       video.addEventListener('durationchange', onDurationChange)
       ;(video as HTMLVideoElement & { __durationChange?: () => void }).__durationChange = onDurationChange
 
-      const tryAuthRefresh = () => {
-        if (!alive() || authRetryRef.current) return false
-        // cookie-backed progressive sources (anime1 etc.)
-        if (!/[?&]cookie=/.test(activeSrc) || !onMediaAuthExpiredRef.current) {
-          return false
-        }
-        authRetryRef.current = true
-        const pos = video.currentTime || 0
-        setMediaError('')
-        setLoading(true)
-        setOffsetHint('播放凭证失效，正在重新获取…')
-        window.clearTimeout(offsetHintTimer.current)
-        offsetHintTimer.current = window.setTimeout(
-          () => setOffsetHint(''),
-          4000,
-        )
-        void Promise.resolve(onMediaAuthExpiredRef.current(pos)).catch(() => {
-          if (!alive()) return
-          setLoading(false)
-          setBufferingUi(false)
-          setMediaError('凭证刷新失败，建议切换视频源')
-        })
-        return true
-      }
-
       const onMediaError = () => {
         if (!alive()) return
         if (tryAuthRefresh()) return
@@ -1037,7 +1039,7 @@ export function VideoPlayer({
       // Mid-play 403 often surfaces as stalled buffer; probe proxy once
       const onStalled = () => {
         if (!alive()) return
-        if (!/[?&]cookie=/.test(activeSrc) || !onMediaAuthExpiredRef.current) return
+        if (!isControlledOrProxy || !onMediaAuthExpiredRef.current) return
         if (authRetryRef.current) {
           // If already retried auth once, probe if it failed again and surface clear terminal state
           void fetch(activeSrc, {
@@ -1117,6 +1119,7 @@ export function VideoPlayer({
       sourceEl.type = 'application/vnd.apple.mpegurl'
       const onHlsError = () => {
         if (!alive()) return
+        if (tryAuthRefresh()) return
         setLoading(false)
         setMediaError('原生 HLS 加载失败，建议切换视频源')
         reportLoadFailed('native_hls')
@@ -1216,6 +1219,16 @@ export function VideoPlayer({
                 }
                 console.error('[player] hls fatal', data.type, data.details)
                 if (data.type === HlsCtor.ErrorTypes.NETWORK_ERROR) {
+                  const responseCode =
+                    data.response?.code ||
+                    (data.context as { xhr?: { status?: number } } | undefined)
+                      ?.xhr?.status
+                  if (
+                    (responseCode === 401 || responseCode === 403) &&
+                    tryAuthRefresh()
+                  ) {
+                    return
+                  }
                   setLoading(false)
                   setBufferingUi(false)
                   setMediaError(`网络连接错误 ${data.details || ''}，建议切换视频源`)

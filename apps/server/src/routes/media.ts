@@ -145,9 +145,12 @@ async function handlePlaylistStream(
 
   const adFilter =
     c.req.query('adFilter') === '1' || c.req.query('adFilter') === 'true'
+  const forceProxy =
+    c.req.query('stream') === '1' || c.req.query('stream') === 'true'
 
   const rewrittenM3u8 = rewriteM3u8Ast(rawText, asset, normalizedSub, {
     adFilter,
+    forceProxy,
   })
 
   return c.body(rewrittenM3u8, 200, {
@@ -226,7 +229,10 @@ async function handleBinarySegment(
   // 4. 媒体分片 / 直链模式：
   // 若存在敏感 Cookie 凭据（如 Anime1），必须通过服务端代拉；
   // 否则默认启用 302 零带宽直连模式（VPS 0 流量消耗，极速 CDN 直连）。
-  const requiresProxyStream = Boolean(cookie) || c.req.query('stream') === '1'
+  const requiresProxyStream =
+    Boolean(cookie) ||
+    c.req.query('stream') === '1' ||
+    c.req.query('stream') === 'true'
 
   if (!requiresProxyStream) {
     // 302 零流量高性能直连

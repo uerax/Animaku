@@ -111,6 +111,67 @@ test('hls-pipeline: rewrites multi-rendition master playlist to /api/media/strea
   for (const line of streamLinesWithAd) {
     assert.ok(line.includes('&adFilter=1'), `Expected child playlist URL to contain &adFilter=1: ${line}`)
   }
+
+  // With forceProxy = true
+  const rewrittenWithForceProxy = rewriteM3u8Ast(masterM3u8, asset, '', { playback, forceProxy: true })
+  const streamLinesWithForceProxy = rewrittenWithForceProxy
+    .split('\n')
+    .filter((l) => l.startsWith('/api/media/stream?t='))
+  assert.equal(streamLinesWithForceProxy.length, 2)
+  for (const line of streamLinesWithForceProxy) {
+    assert.ok(line.includes('&stream=1'), `Expected child playlist URL to contain &stream=1: ${line}`)
+  }
+
+  // Media playlist with forceProxy = true: segments must contain &stream=1
+  const mediaM3u8 = `#EXTM3U
+#EXTINF:6.0,
+seg-001.ts
+#EXT-X-ENDLIST`
+  const rewrittenMediaProxy = rewriteM3u8Ast(mediaM3u8, asset, '', { playback, forceProxy: true })
+  assert.ok(rewrittenMediaProxy.includes('/api/media/segment?t='))
+  assert.ok(rewrittenMediaProxy.includes('&stream=1'))
+})
+
+test('hls-pipeline: rewrites #EXT-X-MEDIA audio and subtitle playlist URIs with opaque tickets', () => {
+  const key = randomBytes(32)
+  const playback = new PlaybackRegistry({ key, kv: kvCache })
+
+  const asset = playback.registerAsset({
+    source: 'cycani',
+    baseUrl: 'https://cycr2.top/vod/master.m3u8',
+  })
+
+  const m3u8WithMedia = `#EXTM3U
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio",NAME="Japanese",DEFAULT=YES,AUTOSELECT=YES,URI="audio/ja.m3u8"
+#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="Chinese",DEFAULT=YES,URI="subs/zh.m3u8"
+#EXT-X-STREAM-INF:BANDWIDTH=2560000,AUDIO="audio",SUBTITLES="subs"
+1080p.m3u8`
+
+  const rewritten = rewriteM3u8Ast(m3u8WithMedia, asset, '', { playback })
+
+  assert.equal(rewritten.includes('audio/ja.m3u8'), false)
+  assert.equal(rewritten.includes('subs/zh.m3u8'), false)
+
+  // Both AUDIO and SUBTITLES URIs must be rewritten as /api/media/stream?t=...
+  const audioMatch = rewritten.match(/#EXT-X-MEDIA:TYPE=AUDIO,[^\n]*URI="([^"]+)"/)
+  assert.ok(audioMatch)
+  assert.ok(audioMatch[1].startsWith('/api/media/stream?t=v1.'))
+  const audioTicket = decodeURIComponent(audioMatch[1].split('t=')[1])
+  const verifyAudio = playback.verifyTicket(audioTicket, 'playlist')
+  assert.equal(verifyAudio.valid, true)
+  if (verifyAudio.valid) {
+    assert.equal(verifyAudio.normalizedSub, 'audio/ja.m3u8')
+  }
+
+  const subsMatch = rewritten.match(/#EXT-X-MEDIA:TYPE=SUBTITLES,[^\n]*URI="([^"]+)"/)
+  assert.ok(subsMatch)
+  assert.ok(subsMatch[1].startsWith('/api/media/stream?t=v1.'))
+  const subsTicket = decodeURIComponent(subsMatch[1].split('t=')[1])
+  const verifySubs = playback.verifyTicket(subsTicket, 'playlist')
+  assert.equal(verifySubs.valid, true)
+  if (verifySubs.valid) {
+    assert.equal(verifySubs.normalizedSub, 'subs/zh.m3u8')
+  }
 })
 
 test('mediaRoutes: strictly rejects url query parameter with 400', async () => {
