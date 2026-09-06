@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import type { PluginCatalogItem, PluginMeta } from '@animaku/shared'
+import type { PluginMeta } from '@animaku/shared'
 import {
-  catalogItemStatus,
   comparePluginOrder,
   PLAYER_SPEEDS,
   bangumiOAuthUrl,
@@ -116,8 +115,6 @@ function renderPluginBadge(p: PluginMeta) {
   )
 }
 
-type CatalogSort = 'lastUpdate' | 'name'
-
 export function SettingsPage() {
   const b = getSiteBranding()
   const bangumiToken = useSettingsStore((s) => s.bangumiToken)
@@ -159,12 +156,6 @@ export function SettingsPage() {
   const [tokenMsg, setTokenMsg] = useState('')
   const [pluginMsg, setPluginMsg] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
-
-  const [useMirror, setUseMirror] = useState(false)
-  const [catalogSort, setCatalogSort] = useState<CatalogSort>('lastUpdate')
-  const [catalogFilter, setCatalogFilter] = useState('')
-  const [installing, setInstalling] = useState<string | null>(null)
-  const [batchBusy, setBatchBusy] = useState(false)
 
   useEffect(() => {
     setTokenInput(bangumiToken)
@@ -391,8 +382,6 @@ export function SettingsPage() {
     setDragOverName(null)
   }, [])
 
-  const [activeShop, setActiveShop] = useState<'anibaka' | 'kazumi'>('anibaka')
-
   // 折叠卡片状态管理（支持本地持久化记忆）
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
     try {
@@ -406,7 +395,6 @@ export function SettingsPage() {
       'bangumi-token': true,
       'oped-center': false,
       'installed-plugins': true,
-      'rule-catalog': false,
       'player-settings': true,
       'danmaku-settings': false,
       'nav-settings': false,
@@ -437,7 +425,6 @@ export function SettingsPage() {
         'bangumi-token',
         'oped-center',
         'installed-plugins',
-        'rule-catalog',
         'player-settings',
         'danmaku-settings',
         'nav-settings',
@@ -457,42 +444,6 @@ export function SettingsPage() {
     enabled: Boolean(bangumiToken),
     retry: false,
   })
-
-  const catalog = useQuery({
-    queryKey: ['plugin-catalog', activeShop, useMirror],
-    queryFn: ({ signal }) => pluginApi.catalog(activeShop, useMirror, { signal }),
-    staleTime: 5 * 60_000,
-    retry: 1,
-  })
-
-  const installedById = useMemo(() => {
-    const map = new Map<string, PluginMeta>()
-    for (const p of plugins) {
-      map.set(p.id.toLowerCase(), p)
-    }
-    return map
-  }, [plugins])
-
-  const catalogItems = useMemo(() => {
-    const items = [...(catalog.data?.data ?? [])]
-    if (catalogSort === 'lastUpdate') {
-      items.sort((a, b) => b.lastUpdate - a.lastUpdate)
-    } else {
-      items.sort((a, b) =>
-        (a.title || a.name).toLowerCase().localeCompare((b.title || b.name).toLowerCase()),
-      )
-    }
-    const q = catalogFilter.trim().toLowerCase()
-    if (!q) return items
-    return items.filter(
-      (i) =>
-        i.name.toLowerCase().includes(q) ||
-        (i.title && i.title.toLowerCase().includes(q)) ||
-        (i.author && i.author.toLowerCase().includes(q)) ||
-        (i.intro && i.intro.toLowerCase().includes(q)) ||
-        (i.labels && i.labels.some((l) => l.toLowerCase().includes(q))),
-    )
-  }, [catalog.data?.data, catalogSort, catalogFilter])
 
   async function saveToken() {
     setBangumiToken(tokenInput.trim())
@@ -519,83 +470,6 @@ export function SettingsPage() {
       setPluginMsg(`成功导入 ${n} 条规则（仅保存在本机）`)
     } catch (e) {
       setPluginMsg(e instanceof Error ? e.message : '导入失败')
-    }
-  }
-
-  async function installFromCatalog(item: PluginCatalogItem) {
-    setInstalling(item.name)
-    setPluginMsg('')
-    try {
-      const key = (item.id || item.name).toLowerCase()
-      const shop = item.shop || activeShop
-      const local =
-        installedById.get(`${key}-${shop}`) || installedById.get(`${key}-builtin`)
-      const isUpdate = Boolean(local)
-      const res = await pluginApi.download(item.name, shop, useMirror)
-      const validated = validatePluginLocal(res.data)
-      if (!validated.ok || !validated.rule) {
-        throw new Error(validated.message || '规则校验失败')
-      }
-      importRule(validated.rule, { source: 'catalog' })
-      setPluginMsg(
-        isUpdate
-          ? `已更新 ${item.title || item.name} 至 v${validated.rule.version}`
-          : `已安装 ${item.title || item.name} v${validated.rule.version}`,
-      )
-    } catch (e) {
-      setPluginMsg(
-        e instanceof Error ? e.message : `安装 ${item.title || item.name} 失败`,
-      )
-    } finally {
-      setInstalling(null)
-    }
-  }
-
-  async function updateAllFromCatalog() {
-    if (!catalog.data?.data?.length) return
-    setBatchBusy(true)
-    setPluginMsg('')
-    let updated = 0
-    let failed = 0
-    try {
-      for (const item of catalog.data.data) {
-        const key = (item.id || item.name).toLowerCase()
-        const shop = item.shop || activeShop
-        const local = installedById.get(`${key}-${shop}`) || installedById.get(`${key}-builtin`)
-        const status = catalogItemStatus(local, item)
-        if (status !== 'update') continue
-        try {
-          const shop = item.shop || activeShop
-          const res = await pluginApi.download(item.name, shop, useMirror)
-          const validated = validatePluginLocal(res.data)
-          if (!validated.ok || !validated.rule) {
-            failed++
-            continue
-          }
-          importRule(validated.rule, { source: 'catalog' })
-          updated++
-        } catch {
-          failed++
-        }
-      }
-      setPluginMsg(
-        updated
-          ? `已更新 ${updated} 条${failed ? `，失败 ${failed}` : ''}`
-          : failed
-            ? `更新失败 ${failed} 条`
-            : '没有可更新的规则',
-      )
-    } finally {
-      setBatchBusy(false)
-    }
-  }
-
-  function formatLastUpdate(ms: number) {
-    if (!ms) return ''
-    try {
-      return new Date(ms).toLocaleString()
-    } catch {
-      return String(ms)
     }
   }
 
@@ -1444,275 +1318,7 @@ export function SettingsPage() {
         </ul>
       </CollapsibleSection>
 
-      {/* 6. 规则仓库 */}
-      <CollapsibleSection
-        id="rule-catalog"
-        icon="🏪"
-        title="规则仓库"
-        summary={activeShop === 'anibaka' ? '⭐ AniBaka 规则库 (34+)' : '📦 Kazumi 规则库 (遗留)'}
-        isOpen={Boolean(openSections['rule-catalog'])}
-        onToggle={() => toggleSection('rule-catalog')}
-      >
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-          <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
-            <label className="flex items-center gap-1.5 text-[var(--kz-fg-muted)] cursor-pointer">
-              <input
-                type="checkbox"
-                checked={useMirror}
-                onChange={(e) => setUseMirror(e.target.checked)}
-              />
-              使用镜像
-            </label>
-            <button
-              type="button"
-              onClick={() => void catalog.refetch()}
-              disabled={catalog.isFetching}
-              className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1 text-xs text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] disabled:opacity-50 cursor-pointer"
-            >
-              {catalog.isFetching ? '刷新中…' : '刷新目录'}
-            </button>
-            <button
-              type="button"
-              onClick={() => void updateAllFromCatalog()}
-              disabled={batchBusy || catalog.isLoading || !catalog.data}
-              className="rounded-lg bg-[var(--kz-accent)] px-2.5 py-1 text-xs font-medium text-white hover:bg-[var(--kz-accent-hover)] disabled:opacity-50 cursor-pointer"
-            >
-              {batchBusy ? '更新中…' : '更新全部'}
-            </button>
-          </div>
-        </div>
-
-        {/* Shop Switcher Tabs */}
-        <div className="flex rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] p-1 gap-1">
-          <button
-            type="button"
-            onClick={() => setActiveShop('anibaka')}
-            className={`flex-1 rounded-lg py-1.5 px-2 text-xs font-medium transition-all text-center ${
-              activeShop === 'anibaka'
-                ? 'bg-[var(--kz-bg-elevated)] text-[var(--kz-fg)] shadow-sm'
-                : 'text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)]'
-            }`}
-          >
-            <span>⭐ AniBaka 规则库</span>
-            <span className="hidden sm:inline text-[10px] text-emerald-400 font-semibold ml-1">(推荐 · 34+现代源)</span>
-            <span className="sm:hidden ml-1 rounded-full bg-emerald-500/15 px-1.5 py-0.2 text-[9px] text-emerald-400 font-semibold">34+</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveShop('kazumi')}
-            className={`flex-1 rounded-lg py-1.5 px-2 text-xs font-medium transition-all text-center ${
-              activeShop === 'kazumi'
-                ? 'bg-[var(--kz-bg-elevated)] text-[var(--kz-fg)] shadow-sm'
-                : 'text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)]'
-            }`}
-          >
-            <span>📦 Kazumi 规则库</span>
-            <span className="hidden sm:inline text-[10px] text-[var(--kz-fg-dim)] ml-1">(遗留源)</span>
-            <span className="sm:hidden ml-1 text-[9px] text-[var(--kz-fg-dim)]">旧</span>
-          </button>
-        </div>
-
-        <p className="text-xs text-[var(--kz-fg-muted)] leading-relaxed">
-          {activeShop === 'anibaka' ? (
-            <>
-              从{' '}
-              <a
-                href="https://github.com/AniBakaBaka/AniBakaRule"
-                className="kz-link"
-                target="_blank"
-                rel="noreferrer"
-              >
-                AniBakaBaka/AniBakaRule
-              </a>{' '}
-              选择流水线规则安装。支持多步请求、解密与自动过盾。
-            </>
-          ) : (
-            <>
-              从{' '}
-              <a
-                href="https://github.com/Predidit/KazumiRules"
-                className="kz-link"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Predidit/KazumiRules
-              </a>{' '}
-              选择传统规则安装（部分老规则可能失效）。
-            </>
-          )}
-        </p>
-
-        <div className="flex flex-wrap gap-2">
-          <input
-            value={catalogFilter}
-            onChange={(e) => setCatalogFilter(e.target.value)}
-            placeholder="筛选规则名称、标签或简介…"
-            className="min-w-[9rem] flex-1 rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-1.5 text-xs sm:text-sm"
-          />
-          <select
-            value={catalogSort}
-            onChange={(e) => setCatalogSort(e.target.value as CatalogSort)}
-            className="rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1.5 text-xs sm:text-sm cursor-pointer"
-          >
-            <option value="name">按名称排序</option>
-            <option value="lastUpdate">按更新时间</option>
-          </select>
-        </div>
-
-        {catalog.isError && (
-          <div className="rounded-xl border border-red-900/50 bg-red-950/30 p-3 text-sm text-red-300">
-            {(catalog.error as Error).message || '无法访问规则仓库'}
-            <div className="mt-2 flex gap-2">
-              <button
-                type="button"
-                className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2 py-1 text-xs text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)]"
-                onClick={() => setUseMirror((v) => !v)}
-              >
-                {useMirror ? '改用直连' : '改用镜像'}
-              </button>
-              <button
-                type="button"
-                className="rounded-lg bg-red-900/50 px-2 py-1 text-xs text-red-200 hover:bg-red-900"
-                onClick={() => void catalog.refetch()}
-              >
-                重试
-              </button>
-            </div>
-          </div>
-        )}
-
-        {catalog.isLoading && (
-          <div className="text-sm text-[var(--kz-fg-muted)]">加载目录中…</div>
-        )}
-
-        {catalog.data && (
-          <div className="truncate text-xs text-[var(--kz-fg-dim)]">
-            来源：{catalog.data.source}
-          </div>
-        )}
-
-        <ul className="max-h-[28rem] space-y-2.5 overflow-y-auto pr-1">
-          {catalogItems.map((item) => {
-            const key = (item.id || item.name).toLowerCase()
-            const shop = item.shop || activeShop
-            const local = installedById.get(`${key}-${shop}`) || installedById.get(`${key}-builtin`)
-            const status = catalogItemStatus(local, item)
-            const busy = installing === item.name
-            const label =
-              status === 'install'
-                ? '安装'
-                : status === 'update'
-                  ? '更新'
-                  : '已安装'
-            return (
-              <li
-                key={`${item.shop || activeShop}-${item.name}`}
-                className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] p-3 sm:p-3.5 transition-all hover:border-[var(--kz-accent-ring)]"
-              >
-                <div className="flex min-w-0 flex-1 items-start gap-2.5 sm:gap-3">
-                  {item.badge ? (
-                    <img
-                      src={item.badge}
-                      alt=""
-                      className="h-6 w-6 sm:h-7 sm:w-7 shrink-0 rounded-lg object-contain bg-black/10 p-0.5 mt-0.5"
-                      onError={(e) => {
-                        ;(e.target as HTMLElement).style.display = 'none'
-                      }}
-                    />
-                  ) : null}
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                      <span className="font-semibold text-xs sm:text-sm text-[var(--kz-fg)]">
-                        {item.title || item.name}
-                      </span>
-                      {item.title && item.title !== item.name && (
-                        <span className="font-mono text-[11px] text-[var(--kz-fg-dim)]">
-                          ({item.name})
-                        </span>
-                      )}
-                      <span className="rounded border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] px-1.5 py-0.2 text-[9px] sm:text-[10px] text-[var(--kz-fg-muted)]">
-                        v{item.version}
-                      </span>
-                      {item.labels && item.labels.map((lbl) => (
-                        <span
-                          key={lbl}
-                          className={`rounded px-1.5 py-0.2 text-[9px] sm:text-[10px] font-medium border ${
-                            lbl.includes('无广告') || lbl.includes('超清')
-                              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                              : lbl.includes('少广告') || lbl.includes('高清')
-                                ? 'bg-sky-500/10 border-sky-500/30 text-sky-400'
-                                : 'bg-[var(--kz-bg-elevated)] border-[var(--kz-border)] text-[var(--kz-fg-muted)]'
-                          }`}
-                        >
-                          {lbl}
-                        </span>
-                      ))}
-                      {item.antiCrawlerEnabled && (
-                        <span className="rounded bg-amber-950 px-1.5 py-0.2 text-[9px] sm:text-[10px] text-amber-300">
-                          captcha
-                        </span>
-                      )}
-                    </div>
-                    {item.intro && (
-                      <div className="line-clamp-2 text-xs text-[var(--kz-fg-muted)] leading-relaxed">
-                        {item.intro}
-                      </div>
-                    )}
-                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[10px] sm:text-[11px] text-[var(--kz-fg-dim)]">
-                      {item.site && (
-                        <a
-                          href={item.site}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="kz-link truncate max-w-[12rem] sm:max-w-[16rem]"
-                          title={item.site}
-                        >
-                          {item.site}
-                        </a>
-                      )}
-                      {item.author && <span>作者：{item.author}</span>}
-                      {item.lastUpdate > 0 && (
-                        <span>更新：{formatLastUpdate(item.lastUpdate)}</span>
-                      )}
-                      {local && (
-                        <span
-                          className={
-                            status === 'update'
-                              ? 'text-amber-500 dark:text-amber-400 font-medium'
-                              : 'text-emerald-500 dark:text-emerald-400/90 font-medium'
-                          }
-                        >
-                          · 本地已装 v{local.version}
-                          {status === 'update' && '（有新版本）'}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-end gap-2 shrink-0 self-end sm:self-center">
-                  <button
-                    type="button"
-                    disabled={status === 'installed' || busy}
-                    onClick={() => void installFromCatalog(item)}
-                    className={
-                      status === 'update'
-                        ? 'rounded-xl bg-emerald-600 dark:bg-emerald-500 px-3 py-1.5 sm:px-4 sm:py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 dark:hover:bg-emerald-400 active:scale-95 transition-all cursor-pointer select-none disabled:opacity-50'
-                        : status === 'install'
-                          ? 'rounded-xl bg-[var(--kz-fg)] px-3 py-1.5 sm:px-4 sm:py-2 text-xs font-semibold text-[var(--kz-bg)] shadow-sm hover:opacity-90 active:scale-95 transition-all cursor-pointer select-none disabled:opacity-50'
-                          : 'rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] px-3 py-1.5 sm:px-4 sm:py-2 text-xs font-medium text-[var(--kz-fg-muted)] opacity-60 cursor-default select-none'
-                    }
-                  >
-                    {busy ? (status === 'update' ? '更新中…' : '安装中…') : label}
-                  </button>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
-      </CollapsibleSection>
-
-      {/* 7. 播放器偏好 */}
+      {/* 6. 播放器偏好 */}
       <CollapsibleSection
         id="player-settings"
         icon="🎬"

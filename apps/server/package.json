@@ -1,6 +1,6 @@
 {
   "name": "@animaku/server",
-  "version": "1.4.2",
+  "version": "1.4.8",
   "private": true,
   "type": "module",
   "scripts": {
@@ -19,6 +19,7 @@
     "cheerio": "^1.2.0",
     "hono": "^4.7.5",
     "opencc-js": "^1.4.1",
+    "undici": "^8.10.2",
     "xpath": "^0.0.34"
   },
   "devDependencies": {

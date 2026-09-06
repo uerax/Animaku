@@ -7,7 +7,6 @@ import type {
   PluginSearchResult,
   PluginChapterResult,
   ResolvePlayResult,
-  PluginCatalogItem,
 } from '@animaku/shared'
 
 type SignalOpt = { signal?: AbortSignal; /** Bypass server plugin result cache */ refresh?: boolean }
@@ -148,25 +147,37 @@ export const pluginApi = {
         opts?.refresh,
       ),
     ),
-  /** Rules index.json via server proxy (AniBaka or Kazumi) */
-  catalog: (
-    shop: 'anibaka' | 'kazumi' = 'anibaka',
-    mirror = false,
-    opts?: SignalOpt,
-  ) =>
-    api<{ data: PluginCatalogItem[]; source: string; shop: string }>(
-      `/api/plugin/catalog?shop=${shop}${mirror ? '&mirror=1' : ''}`,
-      { signal: opts?.signal },
-    ),
-  /** Download a single rule body by name */
-  download: (
-    name: string,
-    shop: 'anibaka' | 'kazumi' = 'anibaka',
-    mirror = false,
-    opts?: SignalOpt,
-  ) =>
-    api<{ data: PluginRule; source: string; shop: string }>(
-      `/api/plugin/catalog/${encodeURIComponent(name)}?shop=${shop}${mirror ? '&mirror=1' : ''}`,
-      { signal: opts?.signal },
-    ),
+}
+
+export const sourceApi = {
+  list: (opts?: SignalOpt) =>
+    api<{ data: Array<{ id: string; name: string; tier: string }> }>('/api/source/list', {
+      signal: opts?.signal,
+    }),
+  search: (source: string, keyword: string, opts?: SignalOpt) =>
+    api<{ data: PluginSearchResult }>('/api/source/search', {
+      method: 'POST',
+      body: JSON.stringify({ source, keyword }),
+      signal: opts?.signal,
+    }),
+  chapters: (source: string, url: string, opts?: SignalOpt) =>
+    api<{ data: PluginChapterResult }>('/api/source/chapters', {
+      method: 'POST',
+      body: JSON.stringify({ source, url }),
+      signal: opts?.signal,
+    }),
+  resolve: (source: string, pageUrl: string, opts?: SignalOpt) =>
+    api<{
+      data: {
+        source: string
+        streamUrl: string
+        ticket: string
+        format: 'hls' | 'mp4'
+        expiresAt: number
+      }
+    }>('/api/source/resolve', {
+      method: 'POST',
+      body: JSON.stringify({ source, pageUrl }),
+      signal: opts?.signal,
+    }),
 }

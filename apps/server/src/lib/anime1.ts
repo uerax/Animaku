@@ -16,6 +16,7 @@ import type {
   SearchItem,
 } from '@animaku/shared'
 import { config } from '../config'
+import { fetchPublic } from './private-host'
 import { keywordVariantsZh } from './opencc-s2t'
 
 const SITE = 'https://anime1.me'
@@ -61,11 +62,13 @@ async function fetchText(
   for (const headers of [h(opts.referer), h()]) {
     let res: Response
     try {
-      res = await fetch(url, {
-        headers,
-        redirect: 'follow',
-        signal: AbortSignal.timeout(opts.timeoutMs ?? 15_000),
-      })
+      res = await fetchPublic(
+        url,
+        {
+          headers,
+        },
+        { timeoutMs: opts.timeoutMs ?? 15_000 },
+      )
     } catch (e) {
       // Network-level failure — different headers won't change routing, stop.
       throw e instanceof Error ? e : new Error(String(e))
@@ -458,19 +461,21 @@ export async function resolveAnime1(
   const apireq = apireqMatch[1]
   diagnostics.push('已提取 data-apireq')
 
-  const apiRes = await fetch(API, {
-    method: 'POST',
-    headers: {
-      'User-Agent': UA,
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Origin: SITE,
-      Referer: abs,
-      Accept: 'application/json, text/javascript, */*; q=0.01',
+  const apiRes = await fetchPublic(
+    API,
+    {
+      method: 'POST',
+      headers: {
+        'User-Agent': UA,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Origin: SITE,
+        Referer: abs,
+        Accept: 'application/json, text/javascript, */*; q=0.01',
+      },
+      body: `d=${apireq}`,
     },
-    body: `d=${apireq}`,
-    redirect: 'follow',
-    signal: AbortSignal.timeout(15_000),
-  })
+    { timeoutMs: 15_000 },
+  )
 
   const cookie = cookiesFromResponse(apiRes)
   const text = await apiRes.text()

@@ -291,21 +291,65 @@ export function formatBytes(bytes: number | undefined): string {
 }
 
 // ==========================================
-// 4. Business Parameter Extraction
+// 4. Business Parameter Extraction & Redaction
 // ==========================================
 
-const SENSITIVE_KEYS = new Set(['token', 'password', 'secret', 'authorization', 'key'])
+const SENSITIVE_KEYS = new Set([
+  'token',
+  'proxytoken',
+  'adminsecret',
+  'password',
+  'secret',
+  'authorization',
+  'key',
+  'cookie',
+  'cookies',
+  't',
+  'ticket',
+  'credentials',
+  'x-animaku-proxy-token',
+  'x-admin-secret',
+])
 
 export function sanitizeParams(obj: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(obj)) {
-    if (SENSITIVE_KEYS.has(k.toLowerCase())) {
+    const lower = k.toLowerCase()
+    if (
+      SENSITIVE_KEYS.has(lower) ||
+      lower.endsWith('token') ||
+      lower.endsWith('secret') ||
+      lower.endsWith('key')
+    ) {
       result[k] = '***'
     } else if (v !== undefined && v !== null && v !== '') {
       result[k] = v
     }
   }
   return result
+}
+
+export function sanitizeUrlPath(rawPath: string): string {
+  try {
+    const qIndex = rawPath.indexOf('?')
+    if (qIndex === -1) return rawPath
+    const pathPart = rawPath.slice(0, qIndex)
+    const searchPart = rawPath.slice(qIndex + 1)
+    const searchParams = new URLSearchParams(searchPart)
+    for (const key of Array.from(searchParams.keys())) {
+      const lower = key.toLowerCase()
+      if (
+        SENSITIVE_KEYS.has(lower) ||
+        lower.endsWith('token') ||
+        lower.endsWith('secret')
+      ) {
+        searchParams.set(key, '***')
+      }
+    }
+    return `${pathPart}?${searchParams.toString()}`
+  } catch {
+    return rawPath
+  }
 }
 
 export async function extractBusinessParams(

@@ -1,7 +1,7 @@
 import type { Context } from 'hono'
 import type { BangumiItem } from '@animaku/shared'
 import { config } from '../config'
-import { isPrivateHost } from './private-host'
+import { isPrivateHost, fetchPublic } from './private-host'
 import { getClientIp } from './logger'
 import { clientRemoteAddress } from './access'
 import { fetchSitemapSubjects, SITEMAP_STATIC_PATHS } from './seo-static'
@@ -97,15 +97,18 @@ async function postIndexNowBatch(
   }
 
   try {
-    const res = await fetch(INDEXNOW_API, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8',
-        'User-Agent': config.productUserAgent,
+    const res = await fetchPublic(
+      INDEXNOW_API,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'User-Agent': config.productUserAgent,
+        },
+        body: JSON.stringify(payload),
       },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(INDEXNOW_TIMEOUT_MS),
-    })
+      { timeoutMs: INDEXNOW_TIMEOUT_MS },
+    )
 
     const status = res.status
     if (status === 200 || status === 202) {
@@ -344,14 +347,9 @@ export async function submitFullSitemapToIndexNow(
 export function isAuthorizedAdmin(c: Context): boolean {
   const secret = config.adminSecret
   if (secret) {
-    const hdr =
-      c.req.header('x-admin-secret') ||
-      c.req.header('x-animaku-proxy-token') ||
-      c.req.header('x-aniku-proxy-token') ||
-      c.req.header('x-proxy-token') ||
-      ''
+    const hdr = c.req.header('x-admin-secret') || ''
     if (hdr && hdr === secret) return true
-    const q = c.req.query('secret') || c.req.query('token') || ''
+    const q = c.req.query('secret') || ''
     if (q && q === secret) return true
     return false
   }

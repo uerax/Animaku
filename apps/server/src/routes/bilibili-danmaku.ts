@@ -6,6 +6,7 @@ import {
   type BilibiliTarget,
 } from '@animaku/shared'
 import { config } from '../config'
+import { fetchPublic } from '../lib/private-host'
 import { setDanmakuCdnHeaders } from '../lib/cdn-cache-headers'
 import { cacheGetOrSet, wantsCacheBypass } from '../lib/ttl-cache'
 import { getBilibiliTargetByBangumiId } from '../lib/bangumi-data'
@@ -26,21 +27,20 @@ const BILI_TIMEOUT_MS = 15_000
 const MAX_DANMAKU_BYTES = 4_000_000
 
 async function bilibiliFetch(url: string, init?: RequestInit): Promise<Response> {
-  return fetch(url, {
-    ...init,
-    headers: {
-      'User-Agent': UA,
-      Accept: '*/*',
-      Referer: 'https://www.bilibili.com/',
-      Origin: 'https://www.bilibili.com',
-      ...init?.headers,
+  return fetchPublic(
+    url,
+    {
+      ...init,
+      headers: {
+        'User-Agent': UA,
+        Accept: '*/*',
+        Referer: 'https://www.bilibili.com/',
+        Origin: 'https://www.bilibili.com',
+        ...init?.headers,
+      },
     },
-    signal:
-      init?.signal ||
-      (typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal
-        ? AbortSignal.timeout(BILI_TIMEOUT_MS)
-        : undefined),
-  })
+    { timeoutMs: BILI_TIMEOUT_MS },
+  )
 }
 
 /** Resolve media_id (md28229015) to season_id (ss3578) */

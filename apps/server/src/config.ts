@@ -140,6 +140,16 @@ export const config = {
    */
   proxyToken: (process.env.PROXY_TOKEN || '').trim(),
   /**
+   * Dedicated secret for signing and encrypting media playback tickets (AES-256-GCM).
+   * Falls back to PROXY_TOKEN if MEDIA_SECRET / TICKET_SECRET is not explicitly set.
+   */
+  mediaSecret: (
+    process.env.MEDIA_SECRET ||
+    process.env.TICKET_SECRET ||
+    process.env.PROXY_TOKEN ||
+    ''
+  ).trim(),
+  /**
    * When false (default): /api/media/proxy only allows HLS playlists (.m3u8)
    * and forces hybrid rewrite (segments stay on CDN). fullProxy / cookie mp4
    * are rejected. Set MEDIA_FULL_PROXY=1 to allow ts/mp4/full segment tunnel
@@ -226,13 +236,9 @@ export const config = {
   ).trim(),
   /**
    * Dedicated Admin secret token for protected operations (e.g. POST /api/admin/indexnow).
-   * Falls back to PROXY_TOKEN if ADMIN_SECRET is not explicitly configured.
+   * Strictly isolated from PROXY_TOKEN (no fallback).
    */
-  adminSecret: (
-    process.env.ADMIN_SECRET ||
-    process.env.PROXY_TOKEN ||
-    ''
-  ).trim(),
+  adminSecret: (process.env.ADMIN_SECRET || '').trim(),
   /**
    * Enable/disable IndexNow automatic & manual submissions (default: false).
    * Must be explicitly set to 1/true in production .env to prevent local dev test leakage.

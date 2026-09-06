@@ -43,6 +43,15 @@ export function proxyHasFullProxy(proxyUrl: string | undefined | null): boolean 
   return /[?&]fullProxy=(?:1|true)(?:&|$)/.test(proxyUrl)
 }
 
+/** Whether URL is a modern ticket-based media stream */
+export function isTicketStream(url: string | undefined | null): boolean {
+  if (!url) return false
+  return (
+    url.startsWith('/api/media/stream') ||
+    url.startsWith('/api/media/segment')
+  )
+}
+
 /** Short UI label for WatchMeta (简介条). */
 export function playbackTransitLabel(transit: PlaybackTransit): string {
   switch (transit) {
@@ -59,6 +68,7 @@ export function playbackTransitLabel(transit: PlaybackTransit): string {
 export function inferPlaybackTransit(src: string, mode: PlaybackSrcMode): PlaybackTransit {
   if (mode === 'direct') return 'direct'
   if (!src) return 'full-proxy'
+  if (isTicketStream(src)) return 'playlist-proxy'
   // Cookie / fullProxy → server rewrite keeps every URI on proxy
   if (proxyRequiresAuth(src) || proxyHasFullProxy(src)) return 'full-proxy'
   // adFilter without the above → hybrid rewrite (segments absolute CDN)
@@ -139,6 +149,17 @@ export function pickPlaybackSrc(opts: {
   if (opts.proxyToken && proxy) {
     proxy = withProxyToken(proxy, opts.proxyToken)
   }
+
+  // 优先直接使用现代 Ticket 受控媒体流
+  if (isTicketStream(proxy)) {
+    return {
+      src: proxy,
+      mode: 'proxy',
+      transit: 'playlist-proxy',
+      canTryDirect: false,
+    }
+  }
+
   const play = (opts.playUrl || '').trim()
   const needProxyForAds =
     Boolean(opts.forceAdFilter) || proxyHasAdFilter(proxy)

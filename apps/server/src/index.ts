@@ -15,7 +15,7 @@ import { bangumiRoutes } from './routes/bangumi'
 import { danmakuRoutes } from './routes/danmaku'
 import { bilibiliDanmakuRoutes } from './routes/bilibili-danmaku'
 import { pluginRoutes } from './routes/plugin'
-import { pluginCatalogRoutes } from './routes/plugin-catalog'
+import { sourceRoutes } from './routes/source'
 import { mediaRoutes } from './routes/media'
 import { statsRoutes } from './routes/stats'
 import {
@@ -198,7 +198,7 @@ app.route('/api/bangumi', bangumiRoutes)
 app.route('/api/danmaku', danmakuRoutes)
 app.route('/api/danmaku', bilibiliDanmakuRoutes)
 app.route('/api/plugin', pluginRoutes)
-app.route('/api/plugin', pluginCatalogRoutes)
+app.route('/api/source', sourceRoutes)
 app.route('/api/media', mediaRoutes)
 app.route('/api/stats', statsRoutes)
 

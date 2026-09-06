@@ -14,6 +14,7 @@ import { config } from '../config'
 import { assertPublicHttpUrl, fetchPublic } from '../lib/private-host'
 import { isReleaseRule, resolveReleaseBaseUrl, invalidateReleaseCache } from '../lib/release'
 import { simplifiedToTraditional } from '../lib/opencc-s2t'
+import { playbackRegistry } from '../lib/media/playback-registry'
 
 const MEDIA_RE =
   /(https?:\/\/[^\s"'<>\\]+?\.(?:m3u8|mp4)(?:\?[^\s"'<>\\]*)?)/gi
@@ -1563,7 +1564,7 @@ function finishResolve(
   // Per-rule HLS ad filter (global force is applied client-side on proxy URL)
   if (rule.adBlocker) params.set('adFilter', '1')
   const proxyUrl = `/api/media/proxy?${params.toString()}`
-  return {
+  return wrapResolveWithTicket(rule, {
     playUrl,
     proxyUrl,
     referer,
@@ -1572,6 +1573,41 @@ function finishResolve(
       Referer: referer,
     },
     diagnostics,
+  })
+}
+
+function wrapResolveWithTicket(
+  rule: PluginRule,
+  result: ResolvePlayResult,
+): ResolvePlayResult {
+  if (!result || !result.playUrl) return result
+  try {
+    const isMp4 =
+      result.contentType === 'video/mp4' ||
+      result.playUrl.toLowerCase().includes('.mp4')
+    const cookie = result.headers?.Cookie || result.headers?.cookie
+    const asset = playbackRegistry.registerAsset({
+      source: rule.name || 'custom',
+      baseUrl: result.playUrl,
+      publicHeaders: result.headers,
+      credentials: cookie,
+    })
+    const ticket = playbackRegistry.issueTicket({
+      aid: asset.assetId,
+      src: rule.name || 'custom',
+      typ: isMp4 ? 'segment' : 'playlist',
+      sub: '',
+    })
+    return {
+      ...result,
+      proxyUrl: `/api/media/stream?t=${encodeURIComponent(ticket)}`,
+    }
+  } catch (err) {
+    console.warn(
+      '[rule-engine] Failed to issue ticket for resolved media:',
+      err,
+    )
+    return result
   }
 }
 
@@ -1590,7 +1626,7 @@ export async function resolvePlay(
   {
     const { isCycaniRule, resolveCycani } = await import('../lib/cycani')
     if (isCycaniRule(rule)) {
-      return await resolveCycani(rule, pageUrl)
+      return wrapResolveWithTicket(rule, await resolveCycani(rule, pageUrl))
     }
   }
 
@@ -1598,7 +1634,7 @@ export async function resolvePlay(
   {
     const { isAnime1Rule, resolveAnime1 } = await import('../lib/anime1')
     if (isAnime1Rule(rule)) {
-      return await resolveAnime1(rule, pageUrl)
+      return wrapResolveWithTicket(rule, await resolveAnime1(rule, pageUrl))
     }
   }
 
@@ -1606,7 +1642,7 @@ export async function resolvePlay(
   {
     const { isXifanNextRule, resolveXifanNext } = await import('../lib/xifan-next')
     if (isXifanNextRule(rule)) {
-      return await resolveXifanNext(rule, pageUrl)
+      return wrapResolveWithTicket(rule, await resolveXifanNext(rule, pageUrl))
     }
   }
 
@@ -1614,7 +1650,7 @@ export async function resolvePlay(
   {
     const { isTvTFunRule, resolveTvTFun } = await import('../lib/tvtfun')
     if (isTvTFunRule(rule)) {
-      return await resolveTvTFun(rule, pageUrl)
+      return wrapResolveWithTicket(rule, await resolveTvTFun(rule, pageUrl))
     }
   }
 
@@ -1622,7 +1658,7 @@ export async function resolvePlay(
   {
     const { isMoonciRule, resolveMoonci } = await import('../lib/moonci')
     if (isMoonciRule(rule)) {
-      return await resolveMoonci(rule, pageUrl)
+      return wrapResolveWithTicket(rule, await resolveMoonci(rule, pageUrl))
     }
   }
 
@@ -1630,7 +1666,7 @@ export async function resolvePlay(
   {
     const { isAnxRule, resolveAnx } = await import('../lib/anibaka-adapter')
     if (isAnxRule(rule)) {
-      return await resolveAnx(rule, pageUrl)
+      return wrapResolveWithTicket(rule, await resolveAnx(rule, pageUrl))
     }
   }
 

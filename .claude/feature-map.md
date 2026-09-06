@@ -39,6 +39,9 @@
 - bangumi-oped 客户端加载与区间解析：`apps/web/src/lib/bangumi-oped.ts`
 
 ## 5. 视频源体系、规则引擎与适配器 (Video Sources & Custom Adapters)
+- 受控视频源注册表与网络能力校验 (SourceRegistry & Egress Policy)：`apps/server/src/lib/source/source-registry.ts`, `apps/server/src/lib/source/source-types.ts`
+- 固化适配器实现：`apps/server/src/lib/source/adapters/` (xifan, cycani, moonci, tvtfun, anime1)
+- 视频源受控 HTTP 端点 (/api/source/*)：`apps/server/src/routes/source.ts`
 - 视频源规则引擎调度：`apps/server/src/rule-engine/index.ts`, `apps/server/src/rule-engine/api.ts`
 - 专有适配器：
   - xifan-next (稀饭动漫 1080P MP4 竞速/解析)：`apps/server/src/lib/xifan-next.ts`
@@ -47,7 +50,7 @@
   - moonci (月之祠 1080P MP4 直链与分流)：`apps/server/src/lib/moonci.ts`
   - anime1 / omofun：`apps/server/src/lib/anime1.ts`, `apps/server/src/lib/omofun.ts`
   - anibaka-adapter (AniBaka anx-rule/2 流水线算子解释器与解密)：`apps/server/src/lib/anibaka-adapter.ts`
-- 视频源路由端点：`apps/server/src/routes/plugin.ts`, `apps/server/src/routes/plugin-catalog.ts`
+- 视频源路由端点：`apps/server/src/routes/plugin.ts`
 - 客户端视频源 API 桥接：`apps/web/src/lib/plugin-api.ts`
 - 客户端视频源 Store 与版本控制：`apps/web/src/stores/plugins.ts`
 - 视频源看板与多源探活组件：`apps/web/src/pages/watch/SourceBoard.tsx`
@@ -70,7 +73,10 @@
 - 历史兼容路由 (/play/:id & /subject/:id)：`apps/web/src/pages/PlayPage.tsx`, `apps/web/src/pages/SubjectPage.tsx`
 
 ## 7. 媒体流代理与广告过滤 (Media Proxy & M3U8 Ad Filter)
-- 服务端媒体流代理路由编排：`apps/server/src/routes/media.ts`
+- 服务端媒体流代理与受控分发网关：`apps/server/src/routes/media.ts`
+- HLS AST 全要素结构改写管线：`apps/server/src/lib/media/hls-pipeline.ts`
+- 播放凭据编解码与路径安全门禁 (AES-256-GCM Opaque Ticket)：`apps/server/src/lib/media/ticket-codec.ts`, `apps/server/src/lib/media/playback-types.ts`
+- 媒体资产模型与双层 JTI 吊销仓储 (PlaybackRegistry)：`apps/server/src/lib/media/playback-registry.ts`
 - 媒体流并发控制与生命周期追踪：`apps/server/src/lib/media/stream-tracker.ts`
 - 媒体源请求与容灾降级调度：`apps/server/src/lib/media/media-fetcher.ts`
 - M3U8 播放列表清洗与 URI 改写管道：`apps/server/src/lib/media/m3u8-pipeline.ts`

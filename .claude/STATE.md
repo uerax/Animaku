@@ -4,6 +4,237 @@
 
 ---
 
+## [2026-09-06] 凭据体系隔离与全量安全回归测试 (Step 5, v1.4.8)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **密钥体系权责隔离 (`apps/server/src/config.ts` & `indexnow.ts`)**：
+     - `ADMIN_SECRET`（管理运维/索引/提交）与 `PROXY_TOKEN`（媒体播放流代理）完全解耦，严禁跨权限 fallback；
+     - `isAuthorizedAdmin` 仅认准 `ADMIN_SECRET`，拒绝任何使用 `PROXY_TOKEN` 冒领管理员运维权限；
+  2. **出站与访问日志敏感信息全面脱敏 (`apps/server/src/lib/logger.ts`)**：
+     - 扩展 `SENSITIVE_KEYS`（涵盖 `token`, `ticket`, `adminSecret`, `proxyToken`, `cookie`, `credentials` 等），自动对出站及业务参数进行 `***` 掩码脱敏；
+     - 新增 `sanitizeUrlPath`，自动过滤 URL Query 中的凭据参数，杜绝凭据泄漏在访问日志中；
+  3. **固化自动化安全回归测试矩阵 (`apps/server/src/lib/media/security-regression.test.ts`)**：
+     - **矩阵 1: SSRF / DNS Rebinding 物理拦截**：私有 IP 字面量过滤与双栈混合解析一票否决；
+     - **矩阵 2: 302 跳转内网与 nip.io 拦截**：针对 302 跳转至环回口与 nip.io 域名的全链路阻断；
+     - **矩阵 3: EgressPolicyEngine 响应头门禁**：对上游返回 `text/html`（403/WAF/登录伪装）直接 502 熔断；
+     - **矩阵 4: 未授权直接请求 ?url=... 400 拦截**：对媒体网关与受控源接口的所有网络参数注入拦截；
+     - **矩阵 5: 伪造/过期/吊销 Ticket 403 拦截**：针对篡改、超期与 JTI 黑名单吊销的完备测试；
+     - **矩阵 6: 302 开放重定向 (Open Redirect) 反射拦截**：防止分片重定向至未经允许的第三方域名；
+     - **矩阵 7: 密钥隔离与日志脱敏验证**；
+  4. **全仓流水线 100% 验证与版本号平滑递增**：
+     - 服务端测试套件扩充至 73 项全部通过；共享包 55 项测试全部通过（全仓累计 128 项单测 100% 通过）；
+     - `pnpm lint`、`pnpm typecheck`、`pnpm build` 全流程无错误顺利完成；
+     - 项目版本号递增至 `v1.4.8`。
+- 涉及文件：
+  - apps/server/src/config.ts
+  - apps/server/src/lib/indexnow.ts
+  - apps/server/src/lib/logger.ts
+  - apps/server/src/lib/private-host.ts
+  - apps/server/src/lib/private-host.test.ts
+  - apps/server/src/lib/media/security-regression.test.ts
+  - .claude/feature-map.md
+  - .claude/BUGS.md
+  - .claude/STATE.md
+  - package.json
+  - apps/server/package.json
+  - apps/web/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+- 备注：全流程 5 大重构阶段已全部完成并闭环落地。
+
+## [2026-09-06] 彻底移除前端规则商场与历史包袱 (Step 4, v1.4.7)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **服务端下线规则商场路由**：
+     - 彻底删除 `apps/server/src/routes/plugin-catalog.ts`，从服务根主入口 `apps/server/src/index.ts` 卸载 `/api/plugin/catalog` 动态规则下发与镜像路由；
+  2. **前端设置页彻底精简 (`apps/web/src/pages/SettingsPage.tsx`)**：
+     - 完全移除规则仓库面板、规则卡片列表、镜像开关、分类筛选、排序逻辑、单条/批量从市场安装更新等冗余代码；
+     - 清理无用的状态与已废弃类型导入，大幅精简设置页体积；
+  3. **前端 API 与播放管道全面对接 Ticket 流 (`plugin-api.ts`, `playback-src.ts`)**：
+     - 在 `plugin-api.ts` 新增受控 `sourceApi`（`list`, `search`, `chapters`, `resolve`）；
+     - 在 `playback-src.ts` 增加 `isTicketStream` 识别引擎，播放器自动锁定受控票据流作为第一优先级来源（`mode: 'proxy'`, `transit: 'playlist-proxy'`），彻底告别历史明文 URL 代理；
+  4. **全套流水线构建与单测验证**：
+     - 全仓 66 项测试 100% 通过，`pnpm typecheck` 0 错误，前端 Vite 生产构建顺利打包成功；
+     - 项目版本号递增至 `v1.4.7`。
+- 涉及文件：
+  - apps/server/src/routes/plugin-catalog.ts (已删除)
+  - apps/server/src/index.ts
+  - apps/web/src/pages/SettingsPage.tsx
+  - apps/web/src/lib/plugin-api.ts
+  - apps/web/src/lib/playback-src.ts
+  - apps/server/src/rule-engine/index.ts
+  - .claude/feature-map.md
+  - .claude/BUGS.md
+  - .claude/STATE.md
+  - package.json
+  - apps/server/package.json
+  - apps/web/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+- 备注：Step 4 已完整闭环。
+
+## [2026-09-06] 媒体分发网关与 HLS AST 改写管线 (Step 2-B, v1.4.6)
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **构建完全无 url 参数的受控媒体网关 (`apps/server/src/routes/media.ts`)**：
+     - 新增受控端点 `GET /api/media/stream?t=...`（M3U8 播放列表）与 `GET /api/media/segment?t=...`（分片与密钥）；
+     - 入口全局拦截：任何带有 `?url=...` 的请求一律直接 400 拒绝，彻底杜绝开放反代利用入口；
+     - 严格验票审计：校验版本、受众（`aud: "media"`）、有效时间戳、JTI 双层黑名单与对应资产状态机；
+  2. **EgressPolicyEngine 响应头门禁**：
+     - 拉取 M3U8 上游响应时，严格检测 `Content-Type`，凡命中 `text/html`、`application/xhtml+xml` 直接 502 熔断拦截，秒杀上游 403 页面、Cloudflare 盾页伪装与 HTML 注入；
+  3. **HLS AST 管线化全要素结构改写 (`apps/server/src/lib/media/hls-pipeline.ts`)**：
+     - **`#EXT-X-STREAM-INF` 多码率变体子列表** ➔ 签发 Playlist Ticket (TTL 15m) 改写为 `/api/media/stream?t=...`；
+     - **`#EXT-X-KEY` AES-128 解密密钥** ➔ 签发 Key Ticket (TTL 60m) 改写为 `URI="/api/media/segment?t=..."`；
+     - **`#EXT-X-MAP` fMP4 初始化切片** ➔ 签发 Segment Ticket (TTL 60m) 改写为 `URI="/api/media/segment?t=..."`；
+     - **`#EXTINF` 媒体分片** ➔ 签发 Segment Ticket (TTL 60m) 改写为 `/api/media/segment?t=...`；
+     - 对跨目录、跨 CDN 域名的切片自动上架子资产登记，全流程不向客户端泄露任何真实第三方 CDN 地址；
+  4. **302 零流量高性能重定向与 Open Redirect 安全校验**：
+     - 默认无 Cookie 模式（xifan, cycani, moonci, tvtfun）：客户端请求 `/segment?t=...` 验票通过后，返回 `302 Found` 重定向至真实 CDN，VPS 媒体带宽开销为 0；
+     - 302 安全校验：在发出 302 前，强制经由 `EgressPolicyEngine` 进行 Scheme、精确 Host 白名单、Web 端口与物理层 `assertPublicHttpUrl` 审计，杜绝开放重定向漏洞；
+     - 凭据代拉模式（Anime1 Cookie）：流式代理传输分片。
+  5. **单测覆盖与版本号平滑递增**：
+     - 新增 `apps/server/src/lib/media/media-gateway.test.ts`，覆盖全要素 HLS AST 改写、url 参数注入 400 拦截、票据损坏/过期拦截、302 高性能直连重定向；
+     - 服务端测试套件扩充至 66 项 100% 通过；全仓 `typecheck` 0 错误；
+     - 项目版本号递增至 `v1.4.6`。
+- 涉及文件：
+  - apps/server/src/lib/media/hls-pipeline.ts
+  - apps/server/src/routes/media.ts
+  - apps/server/src/lib/media/media-gateway.test.ts
+  - .claude/feature-map.md
+  - .claude/BUGS.md
+  - .claude/STATE.md
+  - package.json
+  - apps/server/package.json
+  - apps/web/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+- 备注：Step 2-B 已完整闭环。
+
+## [2026-09-06] 视频源注册表与网络能力声明 (Step 3-A, v1.4.5)
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **HTTP 边界彻底消灭网络配置与动态规则注入 (`apps/server/src/routes/source.ts`)**：
+     - 新增全新受控视频源路由 `/api/source/*`（`search`, `chapters`, `resolve`, `list`）；
+     - 入口实行严格黑名单参数防御审计：严禁请求体中包含 `baseURL`、`searchURL`、`headers`、`cookies`、`customHost`、`rule` 等字段，杜绝任何外部参数篡改请求目标与反代穿透；
+  2. **SourceAdapter 统一契约与固化首发 5 大视频源 (`apps/server/src/lib/source/`)**：
+     - 首发固化 Tier A 标准源（`xifan`, `cycani`, `moonci`, `tvtfun`）与 Tier B 专有源（`anime1`）；
+     - 强制声明 `allowedHosts`：严格采用精确 FQDN 域名声明（如 `cdn1.xifan.cc`、`next.xifanacg.com`、`api.tvtfun.net` 等），坚决禁止泛通配符，防子域名劫持与内网投毒；
+     - 声明 `allowedPorts`：仅限 `[80, 443, 8080, 8443]` 标准 Web 端口；
+  3. **出站网络策略校验与受控资产上架 (`apps/server/src/lib/source/source-registry.ts`)**：
+     - 实现 `validateEgress` 出站网络策略门禁，任何未经白名单声明的 Host/Port 均直接拦截阻断；
+     - 适配器执行 `resolve` 获取原始媒体后，先经 Egress 审计与物理层 `assertPublicHttpUrl` 双重校验，再向 `PlaybackRegistry` 登记合法的 `PlaybackAsset`；
+     - 统一签发初始 Opaque Ticket，向客户端返回 `/api/media/stream?t=...` 受控流地址，客户端全程不接触任何第三方真实流媒体 URL；
+  4. **全要素单测覆盖与版本号递增**：
+     - 新增 `apps/server/src/lib/source/source-registry.test.ts`，全量覆盖 5 大固化源枚举、Egress 精确 Host 与 Port 门禁校验、资产受控上架与 URL 隐藏、非法网络参数注入 400 拦截；
+     - 服务端测试套件扩充至 61 项 100% 通过；全仓 `typecheck` 0 错误；
+     - 项目版本号递增至 `v1.4.5`。
+- 涉及文件：
+  - apps/server/src/lib/source/source-types.ts
+  - apps/server/src/lib/source/source-registry.ts
+  - apps/server/src/lib/source/adapters/xifan.ts
+  - apps/server/src/lib/source/adapters/cycani.ts
+  - apps/server/src/lib/source/adapters/moonci.ts
+  - apps/server/src/lib/source/adapters/tvtfun.ts
+  - apps/server/src/lib/source/adapters/anime1.ts
+  - apps/server/src/lib/source/source-registry.test.ts
+  - apps/server/src/routes/source.ts
+  - apps/server/src/index.ts
+  - .claude/feature-map.md
+  - .claude/BUGS.md
+  - .claude/STATE.md
+  - package.json
+  - apps/server/package.json
+  - apps/web/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+- 备注：Step 3-A 已完整闭环。
+
+## [2026-09-06] 播放凭据编解码器与资产会话仓储 (Step 2-A, v1.4.4)
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **构建版本化 Opaque Ticket 编解码引擎 (`apps/server/src/lib/media/ticket-codec.ts` & `playback-types.ts`)**：
+     - **标准 Payload 规范 (PlaybackTicketPayloadV1)**：严密封装 `v: 1`、`aud: "media"`（受众严格隔离）、`jti`（唯一 Token ID）、`aid`（资产 ID）、`src`（视频源 ID）、`typ` ('playlist' | 'segment' | 'key')、`sub`（规范化相对路径）以及 `exp`（秒级时间戳）；
+     - **底层加密规范 (AES-256-GCM)**：输出 `v1.${base64url(12B_IV + 16B_AuthTag + Ciphertext)}`，强制 `crypto.randomBytes(12)` 动态随机 IV，绝对禁止 IV 复用；
+     - **全方位路径穿透与协议注入门禁 (`validateSubPath`)**：严格拦截目录穿越（`..`、`.`、`%2e%2e`）、绝对路径（`/` 开头）、反斜杠（`\`）、协议前缀（`http:`、`file:`、`:`）、协议相对路径（`//`）及空字节/控制字符；
+     - **敏感凭据隔离保护 (`encryptCredentials` / `decryptCredentials`)**：上游视频源所需的 Cookie 等敏感信息同样经 AES-256-GCM 独立加密存储，消灭凭据明文驻留或泄露隐患。
+  2. **构建 PlaybackRegistry 资产仓储与整条播放链级联控制 (`apps/server/src/lib/media/playback-registry.ts`)**：
+     - **PlaybackAsset 数据模型**：包含 `assetId`、`source`、`trustLevel`、`status` ('active' | 'expired' | 'revoked' | 'blocked')、`baseUrl`、`publicHeaders`、`encryptedCredentials`、`expiresAt` 等全要素；
+     - **资产状态机与级联吊销**：实现 `revokeAsset` 与 `blockAsset`，支持对整条播放链（全集会话）一键主动拉黑撤销；一旦资产状态非 `active` 或过期，其下游签发的所有 Ticket 无论自身是否到期均瞬间失效拒绝服务。
+  3. **双层 JTI 吊销黑名单与防重启丢失机制**：
+     - **L1 内存负向过滤**：基于 Map/Set 毫秒级 0 延迟过滤已吊销 Token；
+     - **L2 SQLite 真实持久化**：基于 `kv_cache`（namespace: `'revoked_jti'`）落地过期时间与 TTL，保证服务重启后吊销状态依然强效拦截；
+     - 自动回填：查询命中 L2 时自动回填 L1 内存，兼顾极速验证与持久化可靠性。
+  4. **全要素纯逻辑测试矩阵覆盖**：
+     - 新增 `ticket-codec.test.ts` 与 `playback-registry.test.ts`；
+     - 覆盖资产注册/提取、凭据加解密、IV 随机性、AES-GCM 防篡改校验、受众隔离、路径穿透拦截、Token 过期判定、JTI 双层黑名单与重启恢复、资产状态机联动级联失效；
+     - 服务端测试套件扩充至 56 项 100% 通过；全仓 `typecheck` 0 错误；
+     - 项目版本号平滑递增至 `v1.4.4`。
+- 涉及文件：
+  - apps/server/src/lib/media/playback-types.ts
+  - apps/server/src/lib/media/ticket-codec.ts
+  - apps/server/src/lib/media/ticket-codec.test.ts
+  - apps/server/src/lib/media/playback-registry.ts
+  - apps/server/src/lib/media/playback-registry.test.ts
+  - apps/server/src/config.ts
+  - .claude/feature-map.md
+  - .claude/BUGS.md
+  - .claude/STATE.md
+  - package.json
+  - apps/server/package.json
+  - apps/web/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+- 备注：Step 2-A 核心凭据编解码与资产会话仓储已全量交付并闭环验证，等待用户指令推进下一步。
+
+## [2026-09-06] 出站网络安全边界与物理层 SSRF 熔断 (Step 1, v1.4.3)
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **显式引入 Undici 依赖并构建 Socket 层 SafeConnector (`apps/server/package.json` & `apps/server/src/lib/private-host.ts`)**：
+     - 在 `apps/server` 引入 `undici` 依赖，基于 `Agent({ connect: createSafeConnector() })` 彻底下沉安全控制权至底层 Socket 连接握手阶段；
+     - 彻底消除应用层 pre-lookup 与 fetch 之间的 TOCTOU 竞态漏洞，无论 DNS TTL 怎样变换，TCP 连接握手前必须通过连接器审计；
+  2. **实现工业级严格反向白名单 `isPublicIp(ip: string): boolean`**：
+     - **IPv4 全量非公网过滤**：`0.0.0.0/8` (当前网络), `10.0.0.0/8` (私网), `100.64.0.0/10` (CGNAT), `127.0.0.0/8` (回环), `169.254.0.0/16` (Link-local/云元数据 IMDS), `172.16.0.0/12` (私网), `192.0.0.0/24` (IETF 分配), `192.0.2.0/24` (TEST-NET-1), `192.88.99.0/24` (6to4 中继), `192.168.0.0/16` (私网), `198.18.0.0/15` (基准测试), `198.51.100.0/24` (TEST-NET-2), `203.0.113.0/24` (TEST-NET-3), `224.0.0.0/4` (组播), `240.0.0.0/4` (保留/广播 `255.255.255.255`)，严格防御八进制前导零解析欺骗；
+     - **IPv6 与多模态解包**：涵盖 `::`, `::1`, `fc00::/7` (ULA), `fe80::/10` (Link-local), `ff00::/8` (组播), `2001:db8::/32` (文档), `100::/64` (丢弃), `2001:10::/28` & `2001:20::/28`；
+     - **IPv4-mapped 递归解包**：深度解析并递归校验 `::ffff:a.b.c.d`, `::ffff:0:a.b.c.d`, `::ffff:aabb:ccdd` 及 `64:ff9b::`，彻底阻断利用 IPv6 映射逃逸访问 IPv4 私网；
+  3. **DNS 全量解析 `all: true` 与双栈混合“一票否决”**：
+     - 在 SafeConnector 中对目标域名使用 `dns.lookup(hostname, { all: true })` 遍历获取所有 A 与 AAAA 记录；
+     - 严格落实一票否决：只要解析结果中包含任意一个非公网地址（例如 A 为公网但 AAAA 为 `::1`），整个域名直接判定为危险请求并拒绝握手；
+     - 锁定已验证 IP 直连，同时显式透传原始 `servername`，确保 TLS SNI 握手、证书 SAN 匹配与 HTTP/2 虚拟主机 100% 兼容；
+  4. **`fetchPublic` 专用 Safe Dispatcher 与 Redirect 全流程闭环**：
+     - 采用 Per-request `dispatcher: safeDispatcher`，杜绝 `setGlobalDispatcher` 污染 Node 全局网络栈；
+     - `assertPublicHttpUrl` 严格限制只支持 `http:`/`https:`，拦截未知协议与内网字面量；
+     - `redirect: 'manual'` 每一跳 Location 均重新校验并强制走 `safeDispatcher`，阻断 302 跳转内网；
+     - 全仓收敛出站请求：`bilibiliFetch`、`anime1`、`dandanGet`、`bangumiFetch`、`indexnow`、`bangumi-data` 等全部统一走 `fetchPublic`；
+  5. **测试覆盖与版本号平滑递增**：
+     - 新增 `apps/server/src/lib/private-host.test.ts`，涵盖 IPv4/IPv6 各私网网段、IPv4-mapped 解包、`127.0.0.1.nip.io` 拦截、双栈混合 A/AAAA 一票否决、302 跳转拦截等测试；
+     - 服务端 42 项测试、共享包 55 项测试全部 100% 通过；全仓 `typecheck` 0 错误；
+     - 项目版本号递增至 `v1.4.3`。
+- 涉及文件：
+  - apps/server/package.json
+  - apps/server/src/lib/private-host.ts
+  - apps/server/src/lib/private-host.test.ts
+  - apps/server/src/routes/bilibili-danmaku.ts
+  - apps/server/src/lib/anime1.ts
+  - apps/server/src/lib/dandan.ts
+  - apps/server/src/lib/http.ts
+  - apps/server/src/lib/indexnow.ts
+  - apps/server/src/lib/bangumi-data.ts
+  - apps/server/src/routes/plugin-catalog.ts
+  - pnpm-lock.yaml
+  - package.json
+  - apps/web/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/BUGS.md
+  - .claude/STATE.md
+- 备注：Step 1 出站网络物理层防御已彻底落地闭环并验证通过，按照指示在 Step 1 完成后暂停，等待用户下一步深入讨论。
+
 ## [2026-09-06] 重构历史观看页面为流媒体经典时间轴流 (v1.4.0)
 - 状态：已完成
 - 优先级：P1

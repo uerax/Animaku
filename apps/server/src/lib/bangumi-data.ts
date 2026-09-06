@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { bangumiDataRepo, kvCache, type AnimeBangumiMapping } from '../db'
+import { fetchPublic } from './private-host'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -63,12 +64,13 @@ export async function syncBangumiDataRemote(): Promise<boolean> {
 
     for (const cdnUrl of CDN_URLS) {
       try {
-        const res = await fetch(cdnUrl, {
-          headers: { 'User-Agent': 'Animaku/1.0' },
-          signal: typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal
-            ? AbortSignal.timeout(30_000)
-            : undefined,
-        })
+        const res = await fetchPublic(
+          cdnUrl,
+          {
+            headers: { 'User-Agent': 'Animaku/1.0' },
+          },
+          { timeoutMs: 30_000 },
+        )
         if (res.ok) {
           rawData = (await res.json()) as { items?: Array<Record<string, unknown>> }
           if (rawData?.items && rawData.items.length > 0) {

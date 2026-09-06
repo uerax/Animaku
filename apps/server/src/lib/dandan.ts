@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { config } from '../config'
+import { fetchPublic } from './private-host'
 
 /**
  * agefans-enhance 内置的弹弹客户端凭证（userscript 直连 API 用的同一对）。
@@ -89,13 +90,13 @@ export async function dandanGet(
     headers['X-AppSecret'] = appSecret
   }
 
-  const res = await fetch(url, {
-    headers,
-    signal:
-      typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal
-        ? AbortSignal.timeout(15_000)
-        : undefined,
-  })
+  const res = await fetchPublic(
+    url,
+    {
+      headers,
+    },
+    { timeoutMs: 15_000 },
+  )
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`弹弹 API ${res.status}: ${text.slice(0, 200)}`)

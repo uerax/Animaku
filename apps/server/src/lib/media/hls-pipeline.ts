@@ -1,0 +1,227 @@
+import { posix } from 'node:path'
+import { filterM3u8AdsIfApplicable } from '@animaku/shared'
+import {
+  playbackRegistry,
+  type PlaybackRegistry,
+} from './playback-registry'
+import { sourceRegistry, type SourceRegistry } from '../source/source-registry'
+import type { PlaybackAsset, PlaybackTicketType } from './playback-types'
+import { validateSubPath } from './ticket-codec'
+
+export interface RewriteHlsOptions {
+  adFilter?: boolean
+  playback?: PlaybackRegistry
+  source?: SourceRegistry
+}
+
+/**
+ * 计算相对于 asset.baseUrl 的规范化相对路径
+ */
+function computeRelativeSub(
+  targetUri: string,
+  baseUrl: URL,
+  currentSub: string,
+): { relativeSub: string | null; targetUrl: URL } {
+  // 当前播放列表的实际 URL
+  const currentPlaylistUrl = currentSub
+    ? new URL(currentSub, baseUrl)
+    : baseUrl
+
+  const targetUrl = new URL(targetUri, currentPlaylistUrl)
+
+  // 1. 如果原始 URI 就是相对路径 (没有 scheme 且不以 / 开头)
+  if (
+    !targetUri.includes(':') &&
+    !targetUri.startsWith('//') &&
+    !targetUri.startsWith('/')
+  ) {
+    const parentDir = currentSub ? posix.dirname(currentSub) : ''
+    const candidate =
+      parentDir && parentDir !== '.'
+        ? posix.join(parentDir, targetUri)
+        : targetUri
+    const check = validateSubPath(candidate)
+    if (check.valid) {
+      return { relativeSub: check.normalized, targetUrl }
+    }
+  }
+
+  // 2. 如果同源且位于同一路径前缀下
+  if (targetUrl.origin === baseUrl.origin) {
+    const baseDir = posix.dirname(baseUrl.pathname)
+    if (targetUrl.pathname.startsWith(baseDir + '/')) {
+      const candidate = targetUrl.pathname.slice(baseDir.length + 1)
+      const query = targetUrl.search || ''
+      const subWithQuery = query ? `${candidate}${query}` : candidate
+      const check = validateSubPath(subWithQuery)
+      if (check.valid) {
+        return { relativeSub: check.normalized, targetUrl }
+      }
+    }
+  }
+
+  return { relativeSub: null, targetUrl }
+}
+
+/**
+ * HLS AST 管线化全要素结构改写
+ *
+ * 覆盖改写：
+ * - #EXT-X-STREAM-INF (变体多码率子列表) ➔ 签发 Playlist Ticket (TTL 15m)
+ * - #EXT-X-KEY (AES-128 解密密钥) ➔ 签发 Key Ticket (TTL 60m)
+ * - #EXT-X-MAP (fMP4 初始化切片 init.mp4) ➔ 签发 Segment Ticket (TTL 60m)
+ * - #EXTINF (媒体切片 .ts / .m4s / .mp4) ➔ 签发 Segment Ticket (TTL 60m)
+ */
+export function rewriteM3u8Ast(
+  rawM3u8: string,
+  asset: PlaybackAsset,
+  currentSub: string = '',
+  options: RewriteHlsOptions = {},
+): string {
+  const playback = options.playback || playbackRegistry
+  const srcRegistry = options.source || sourceRegistry
+
+  let text = rawM3u8
+  const baseUrl = new URL(asset.baseUrl)
+
+  // 1. 广告过滤清洗
+  if (options.adFilter) {
+    try {
+      const currentUrl = currentSub
+        ? new URL(currentSub, baseUrl).toString()
+        : asset.baseUrl
+      const filtered = filterM3u8AdsIfApplicable(text, currentUrl)
+      text = filtered.content
+    } catch {
+      // 过滤异常优雅降级
+    }
+  }
+
+  const lines = text.split('\n')
+  const rewrittenLines: string[] = []
+
+  let nextIsVariantPlaylist = false
+  let nextIsSegment = false
+
+  function issueTicketForUri(uri: string, typ: PlaybackTicketType): string {
+    const trimmed = uri.trim()
+    if (!trimmed) return uri
+
+    const { relativeSub, targetUrl } = computeRelativeSub(
+      trimmed,
+      baseUrl,
+      currentSub,
+    )
+
+    let targetAsset = asset
+    let finalSub = ''
+
+    if (relativeSub !== null) {
+      finalSub = relativeSub
+    } else {
+      // 跨目录或跨 CDN 域名：登记子资产
+      targetAsset = playback.registerAsset({
+        source: asset.source,
+        baseUrl: targetUrl.href,
+        trustLevel: asset.trustLevel,
+        publicHeaders: asset.publicHeaders,
+        credentials: asset.encryptedCredentials
+          ? playback.getDecryptedCredentials(asset) || undefined
+          : undefined,
+        ttlMs: Math.max(1000, asset.expiresAt - Date.now()),
+      })
+      finalSub = ''
+    }
+
+    const ttlSec = typ === 'playlist' ? 15 * 60 : 60 * 60
+    const ticket = playback.issueTicket({
+      aid: targetAsset.assetId,
+      src: asset.source,
+      typ,
+      sub: finalSub,
+      ttlSec,
+    })
+
+    if (typ === 'playlist') {
+      return `/api/media/stream?t=${encodeURIComponent(ticket)}`
+    }
+    return `/api/media/segment?t=${encodeURIComponent(ticket)}`
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const trimmed = line.trim()
+
+    if (!trimmed) {
+      rewrittenLines.push(line)
+      continue
+    }
+
+    // 1. 处理属性标签行中的 URI 引用：#EXT-X-KEY / #EXT-X-MAP
+    if (trimmed.startsWith('#EXT-X-KEY') || trimmed.startsWith('#EXT-X-MAP')) {
+      const isKey = trimmed.startsWith('#EXT-X-KEY')
+      const typ: PlaybackTicketType = isKey ? 'key' : 'segment'
+
+      const rewrittenLine = line.replace(
+        /URI=(["'])([^"']+)\1/gi,
+        (_m, quote: string, uri: string) => {
+          try {
+            const proxied = issueTicketForUri(uri, typ)
+            return `URI=${quote}${proxied}${quote}`
+          } catch {
+            return `URI=${quote}${uri}${quote}`
+          }
+        },
+      )
+      rewrittenLines.push(rewrittenLine)
+      continue
+    }
+
+    // 2. 状态标识标记
+    if (trimmed.startsWith('#EXT-X-STREAM-INF')) {
+      nextIsVariantPlaylist = true
+      rewrittenLines.push(line)
+      continue
+    }
+
+    if (trimmed.startsWith('#EXTINF')) {
+      nextIsSegment = true
+      rewrittenLines.push(line)
+      continue
+    }
+
+    // 3. 注释或其他非 URI 标签
+    if (trimmed.startsWith('#')) {
+      rewrittenLines.push(line)
+      continue
+    }
+
+    // 4. URI 数据行改写
+    if (nextIsVariantPlaylist || trimmed.toLowerCase().includes('.m3u8')) {
+      nextIsVariantPlaylist = false
+      nextIsSegment = false
+      try {
+        const proxied = issueTicketForUri(trimmed, 'playlist')
+        rewrittenLines.push(proxied)
+      } catch {
+        rewrittenLines.push(line)
+      }
+      continue
+    }
+
+    if (nextIsSegment || !trimmed.startsWith('#')) {
+      nextIsSegment = false
+      try {
+        const proxied = issueTicketForUri(trimmed, 'segment')
+        rewrittenLines.push(proxied)
+      } catch {
+        rewrittenLines.push(line)
+      }
+      continue
+    }
+
+    rewrittenLines.push(line)
+  }
+
+  return rewrittenLines.join('\n')
+}

@@ -1,4 +1,5 @@
 import { config } from '../config'
+import { fetchPublic } from './private-host'
 
 const DEFAULT_TIMEOUT_MS = 15_000
 
@@ -64,12 +65,7 @@ export async function bangumiFetch(
   }
   const { token: _t, timeoutMs, ...rest } = init
   const ms = timeoutMs ?? DEFAULT_TIMEOUT_MS
-  const { signal, clear } = withTimeoutSignal(rest, ms)
-  try {
-    return await fetch(url, { ...rest, headers, signal })
-  } finally {
-    clear()
-  }
+  return fetchPublic(url, { ...rest, headers }, { timeoutMs: ms })
 }
 
 export function getBearerToken(authHeader: string | undefined): string | null {
