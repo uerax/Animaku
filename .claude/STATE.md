@@ -4,6 +4,33 @@
 
 ---
 
+## [2026-09-06] 优化热门聚焦 3D 轮播物理阻尼动效消除 Safari 瞬移假死 (v1.3.15)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **真机性能实测与深层根因锁定**：
+     - 在 macOS Safari 实机控制台基于 `requestAnimationFrame` 逐帧采样，证实 CSS `transition` 底层完整执行了 520ms（`transitionstart` -> `transitionend`，0 次 `transitioncancel`）；
+     - 查明视觉“瞬移”真实物理根因：原使用的 `cubic-bezier(0.16, 1, 0.3, 1)` 曲线在数学上极度陡峭（前 16% 时间已冲刺 66% 位移），叠加上切页瞬间层叠上下文重排带来的微小提交延迟，导致高速位移帧被集中吞噬，后半段 300ms 几乎静止（总位移仅 9px），肉眼视觉直接判定为“瞬间跳变”；
+  2. **物理阻尼缓动函数重构**：
+     - 将常规单步与最终刹车期的缓动曲线彻底替换为饱满自然的阻尼曲线 `cubic-bezier(0.25, 1, 0.5, 1)`，并将时长校准为 `480ms`；
+     - 位移在整条时间轴上均匀释放，既保证起步敏捷，又拥有肉眼清晰可辨的平滑滑移轨迹与饱满减速落座过程；
+  3. **规范化 Transition 声明**：
+     - 清理卡片样式中重复冗余的 `-webkit-transform` 属性别名，收敛为标准的 `transform` 与 `opacity` 过渡；
+  4. **全链路防护链路 100% 保持**：
+     - 坚决不触碰 `<Link>` 上的 `[transform:translateZ(0)]`、`[isolation:isolate]` 与 `-webkit-mask-image` 防刺穿防线，防止海报圆角溢出遮挡蓝色发光边框的旧 Bug 复发；
+     - 保持现有卡片几何层级与 2D zIndex 命中区域绝对稳定；
+  5. **版本号平滑递增**：
+     - 全仓版本号递增至 `v1.3.15`。
+- 涉及文件：
+  - apps/web/src/components/HeroCoverFlow.tsx
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+- 备注：已在 Safari 实机完成多轮逐帧采样验证，全仓类型检查 `pnpm typecheck` 验证 100% 通过。
+
 ## [2026-09-06] 修复 macOS Safari 热门聚焦 3D 轮播卡片移动动效失效缺陷 (v1.3.14)
 - 状态：已完成
 - 优先级：P1

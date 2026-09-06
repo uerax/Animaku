@@ -651,11 +651,11 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
             prevOffset !== undefined &&
             Math.abs(offset - prevOffset) > count / 2
 
-          // 连滚加速期采用 200ms 高频敏捷缓动，常规单步与最终刹车期采用 520ms 饱满物理减速
-          const animDuration = isAccelerating ? '200ms' : '520ms'
+          // 连滚加速期采用 200ms 高频敏捷缓动，常规单步与最终刹车期采用 480ms 自然物理阻尼缓动
+          const animDuration = isAccelerating ? '200ms' : '480ms'
           const animTimingFn = isAccelerating
             ? 'cubic-bezier(0.25, 0.9, 0.3, 1)'
-            : 'cubic-bezier(0.16, 1, 0.3, 1)'
+            : 'cubic-bezier(0.25, 1, 0.5, 1)'
 
           // 统一使用共享的 3D 几何变换样式计算，确保与骨架屏 1:1 精确镜像
           const baseTransformStyle = getHeroCardTransformStyle(offset, isDesktop)
@@ -666,7 +666,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
             willChange: isDeepBackground ? 'auto' : 'transform, opacity',
             transition: isJumpingBoundary
               ? 'none'
-              : `transform ${animDuration} ${animTimingFn}, -webkit-transform ${animDuration} ${animTimingFn}, opacity ${animDuration} ${animTimingFn}`,
+              : `transform ${animDuration} ${animTimingFn}, opacity ${animDuration} ${animTimingFn}`,
           }
 
           return (
