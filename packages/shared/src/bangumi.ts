@@ -100,6 +100,8 @@ export interface BangumiItem {
   totalEpisodes: number
   /** Doing/watching count from collection.doing or watchers (0 when unknown) */
   doing?: number
+  /** Collect/watched count from collection.collect (0 when unknown) */
+  collect?: number
   /** Trending heat score (0 when unknown) */
   heat?: number
 }
@@ -316,26 +318,49 @@ export function formatHeatCount(count: number | undefined | null): string {
 }
 
 /**
- * Formatted label for heat score: e.g. `🔥 4.6k 热度` | `🔥 850 热度` | null.
+ * Formatted label for heat score: e.g. `4.6k 热度` | `850 热度` | null.
  */
 export function formatHeatLabel(count: number | undefined | null): string | null {
   const text = formatHeatCount(count)
-  return text ? `🔥 ${text} 热度` : null
+  return text ? `${text} 热度` : null
 }
 
 /**
- * Bottom-left badge text on covers: e.g. `连载中 · 🔥 4.6k热度` | `连载中 · 2.1k人在看` | `已完结` | `未开播` | null.
+ * Compact format for watched/collect counters (e.g. 2058 -> '2.1k', 58658 -> '5.9w').
+ */
+export function formatCollectCount(count: number | undefined | null): string {
+  return formatDoingCount(count)
+}
+
+/**
+ * Formatted label for watched/collect count: e.g. `5.9w 看过` | `850 看过` | null.
+ */
+export function formatCollectLabel(count: number | undefined | null): string | null {
+  const text = formatCollectCount(count)
+  return text ? `${text} 看过` : null
+}
+
+/**
+ * Bottom-left badge text on covers: e.g. `连载中 · 4.6k热度` | `已完结 · 5.9w看过` | `连载中 · 2.1k人在看` | `已完结` | `未开播` | null.
  */
 export function airBadgeLabel(
-  item: Pick<BangumiItem, 'airDate' | 'eps'> & { doing?: number; heat?: number },
+  item: Pick<BangumiItem, 'airDate' | 'eps'> & {
+    doing?: number
+    heat?: number
+    collect?: number
+  },
   now: Date = new Date(),
 ): string | null {
   const statusLabel = airProgressLabel(item, now)
   const statText = item.heat
-    ? `🔥 ${formatHeatCount(item.heat)} 热度`
-    : item.doing
-      ? `${formatDoingCount(item.doing)}人在看`
-      : null
+    ? `${formatHeatCount(item.heat)} 热度`
+    : statusLabel === '已完结' && item.collect
+      ? `${formatCollectCount(item.collect)} 看过`
+      : item.doing
+        ? `${formatDoingCount(item.doing)}人在看`
+        : item.collect
+          ? `${formatCollectCount(item.collect)} 看过`
+          : null
   if (statusLabel && statText) {
     return `${statusLabel} · ${statText}`
   }
@@ -352,6 +377,11 @@ export function parseBangumiItem(json: Record<string, unknown>): BangumiItem {
   )
   const doing =
     Number.isFinite(doingRaw) && doingRaw > 0 ? Math.trunc(doingRaw) : undefined
+  const collectRaw = Number(
+    collection.collect ?? json.collect ?? 0,
+  )
+  const collect =
+    Number.isFinite(collectRaw) && collectRaw > 0 ? Math.trunc(collectRaw) : undefined
   const heatRaw = Number(json.heat ?? json.count ?? 0)
   const heat =
     Number.isFinite(heatRaw) && heatRaw > 0 ? Math.trunc(heatRaw) : undefined
@@ -420,6 +450,7 @@ export function parseBangumiItem(json: Record<string, unknown>): BangumiItem {
     eps,
     totalEpisodes,
     doing,
+    collect,
     heat,
   }
 }

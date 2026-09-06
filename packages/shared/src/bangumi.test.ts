@@ -76,7 +76,19 @@ test('airBadgeLabel: label combinations', () => {
   // Airing with heat count (trending items)
   assert.equal(
     airBadgeLabel({ airDate: '2026-07-06', eps: 12, heat: 4566 }, fixedNow),
-    '连载中 · 🔥 4.6k 热度',
+    '连载中 · 4.6k 热度',
+  )
+
+  // Finished with collect count
+  assert.equal(
+    airBadgeLabel({ airDate: '2026-01-10', eps: 12, collect: 58658 }, fixedNow),
+    '已完结 · 5.9w 看过',
+  )
+
+  // Finished with both doing and collect count (prefers collect for finished)
+  assert.equal(
+    airBadgeLabel({ airDate: '2026-01-10', eps: 12, doing: 322, collect: 58658 }, fixedNow),
+    '已完结 · 5.9w 看过',
   )
 
   // Upcoming without doing count
@@ -86,14 +98,15 @@ test('airBadgeLabel: label combinations', () => {
   )
 })
 
-test('parseBangumiItem: doing and heat count extraction', () => {
-  // Official calendar item
+test('parseBangumiItem: doing, collect and heat count extraction', () => {
+  // Official calendar/search item with doing and collect
   const item1 = parseBangumiItem({
     id: 123,
     name: 'Test',
-    collection: { doing: 2058 },
+    collection: { doing: 2058, collect: 47017 },
   })
   assert.equal(item1.doing, 2058)
+  assert.equal(item1.collect, 47017)
   assert.equal(item1.heat, undefined)
 
   // Next calendar format

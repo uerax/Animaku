@@ -7,6 +7,7 @@ import {
   estimateAirProgress,
   formatDoingCount,
   formatHeatCount,
+  formatCollectCount,
 } from '@animaku/shared'
 import { preloadVideoPlayer } from '../player/lazy'
 import { preloadRoute } from '../lib/route-preload'
@@ -52,7 +53,18 @@ export const BangumiCard = memo(function BangumiCard({
   const air = estimateAirProgress(item)
   const airLabel = airProgressLabel(item)
   const heatCount = formatHeatCount(item.heat)
+  const collectCount = formatCollectCount(item.collect)
   const doingCount = formatDoingCount(item.doing)
+
+  // 剧场版/OVA/电影或已完结作品优先使用“看过”人数，连载中番剧展示“人在看”
+  const isMovieOrOva = item.tags?.some(
+    (t) => t.name === '剧场版' || t.name === 'OVA' || t.name === '电影',
+  )
+  const preferCollect = Boolean(
+    collectCount &&
+      (isMovieOrOva || air.status === 'finished' || !doingCount),
+  )
+
   const eager = imagePriority !== 'lazy'
   const isLcp = imagePriority === 'high'
 
@@ -136,17 +148,23 @@ export const BangumiCard = memo(function BangumiCard({
           className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/85 via-black/45 to-transparent"
           aria-hidden
         />
-        {/* bottom-left stats: unboxed text with highlighted number and muted label (heat for trending, watchers for regular) */}
+        {/* bottom-left stats: unboxed text with highlighted number and muted label (heat for trending, watched for movies/OVA/finished, watchers for airing) */}
         {heatCount ? (
           <span className="absolute bottom-1.5 left-2.5 flex max-w-[60%] items-baseline gap-1 truncate text-xs drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
-            <span className="text-[11px] leading-none" aria-hidden>
-              🔥
-            </span>
-            <span className="font-bold tabular-nums text-rose-300">
+            <span className="font-bold tabular-nums text-amber-300">
               {heatCount}
             </span>
             <span className="text-[11px] font-normal text-white/80">
               热度
+            </span>
+          </span>
+        ) : preferCollect ? (
+          <span className="absolute bottom-1.5 left-2.5 flex max-w-[60%] items-baseline gap-1 truncate text-xs drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
+            <span className="font-bold tabular-nums text-amber-300">
+              {collectCount}
+            </span>
+            <span className="text-[11px] font-normal text-white/80">
+              看过
             </span>
           </span>
         ) : doingCount ? (
@@ -156,6 +174,15 @@ export const BangumiCard = memo(function BangumiCard({
             </span>
             <span className="text-[11px] font-normal text-white/80">
               人在看
+            </span>
+          </span>
+        ) : collectCount ? (
+          <span className="absolute bottom-1.5 left-2.5 flex max-w-[60%] items-baseline gap-1 truncate text-xs drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
+            <span className="font-bold tabular-nums text-amber-300">
+              {collectCount}
+            </span>
+            <span className="text-[11px] font-normal text-white/80">
+              看过
             </span>
           </span>
         ) : null}

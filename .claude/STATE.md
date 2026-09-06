@@ -3993,5 +3993,34 @@
   - .claude/STATE.md
 - 备注：全仓类型检查 `pnpm typecheck`（0 错误）、全量单元测试（139 项单测 100% 全部通过）与生产打包构建 `pnpm build` 全链路验证通过。
 
+## [2026-09-07] 剧场版与OVA看过统计字段扩展、角标文案升级与热门番剧卡片去火苗微调 (v1.5.9)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **扩展 collect 看过统计契约与解析 (P1-1)**：
+     - 在 `packages/shared/src/bangumi.ts` 的 `BangumiItem` 模型中新增 `collect?: number`（看过总人数）字段；
+     - 在 `parseBangumiItem` 中提取 `collection.collect ?? json.collect`，保留剧场版、OVA 及已完结番剧上万量级的真实看过人数；
+     - 导出 `formatCollectCount` 与 `formatCollectLabel` 辅助函数，升级 `airBadgeLabel`；
+  2. **剧场版与 OVA 精准呈现“看过” (P1-2)**：
+     - 在 `apps/web/src/components/ui.tsx` 的 `BangumiCard` 中增加智能判定：若条目包含“剧场版/OVA/电影”标签或已完结，且拥有 `collect` 数据，封面左下角优先呈现 `5.9w 看过`（如《你的名字。》、《千与千寻》），彻底消除短篇/电影类作品仅显示几百个在看人数的违和感；
+     - 连载中新番继续展示 `2.1k 人在看`；
+  3. **热门番剧卡片去火苗微调 (P1-3)**：
+     - `BangumiCard` 热门条目去掉了 🔥 emoji，以统一整洁的排版呈现 `4.6k 热度`；
+     - 首页 `HeroCoverFlow`（3D 轮播图舞台）完整保留 `🔥 4.6k 热度` 的大屏氛围感；
+  4. **版本号平滑递增**：
+     - 全仓版本号递增至 `v1.5.9`。
+- 涉及文件：
+  - packages/shared/src/bangumi.ts
+  - packages/shared/src/bangumi.test.ts
+  - apps/web/src/components/ui.tsx
+  - apps/web/src/components/HeroCoverFlow.tsx
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck`（0 错误）、单元测试（139 项单测全部通过）与全量生产构建 `pnpm build` 验证通过。
+
 
 
