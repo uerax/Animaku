@@ -95,7 +95,7 @@
 - 番剧索引与分类筛选页：`apps/web/src/pages/AnimePage.tsx`
 - 搜索结果页：`apps/web/src/pages/SearchPage.tsx`
 - 收藏/追番页：`apps/web/src/pages/CollectPage.tsx`
-- 播放历史页：`apps/web/src/pages/HistoryPage.tsx`
+- 播放历史页与时间轴流：`apps/web/src/pages/HistoryPage.tsx`, `apps/web/src/pages/history/`
 - 设置与功能中心页：`apps/web/src/pages/SettingsPage.tsx`
 - 404 与全局异常/不存在页面：`apps/web/src/pages/NotFoundPage.tsx`
 - 公共 UI 基础组件 (番剧卡片、骨架屏、状态容器)：`apps/web/src/components/ui.tsx`

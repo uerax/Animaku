@@ -1326,17 +1326,12 @@ export function VideoPlayer({
         lastSkipTRef.current = t
         return
       }
-      // Progress → history; store also debounces localStorage (~12s)
-      if (now - lastSaveRef.current >= 10_000) {
-        lastSaveRef.current = now
-        onProgressRef.current?.(t, d)
-      }
 
       const p = playerRef.current
       const prevT = lastSkipTRef.current
       lastSkipTRef.current = t
 
-      // 累加实际有效播放时长并在满 STATS_VALID_PLAY_THRESHOLD_SEC 秒时上报播放统计并写入已看记录
+      // 累加实际有效播放时长并在满 STATS_VALID_PLAY_THRESHOLD_SEC (15s) 秒时上报播放统计、标记已看并首次正式写入观看历史
       if (
         !playViewReportedRef.current &&
         bangumiId &&
@@ -1353,12 +1348,15 @@ export function VideoPlayer({
             const epNum = typeof episodeNumber === 'number' ? episodeNumber : 0
             void statsApi.recordPlayView(bangumiId, epNum).catch(() => {})
             useWatchedStore.getState().markWatched(bangumiId, epNum)
+            // 达到 15s 有效播放门槛，首次正式计入观看历史
+            lastSaveRef.current = now
+            onProgressRef.current?.(t, d)
           }
         }
       }
       lastPlaySecTickRef.current = t
 
-      // 完播兜底：单集播放接近末尾（>= 85% 且视频时长有效）自动记录已看
+      // 完播兜底：单集播放接近末尾（>= 85% 且视频时长有效）自动记录已看（纯客户端选集标记，严禁在未满 15s 自然播放前虚增服务端播放量）
       if (
         bangumiId &&
         bangumiId > 0 &&
@@ -1367,6 +1365,12 @@ export function VideoPlayer({
         t / d >= 0.85
       ) {
         useWatchedStore.getState().markWatched(bangumiId, episodeNumber)
+      }
+
+      // 周期保存历史进度：仅在达到有效播放门槛（满 15s）后，每 10s 同步一次最新进度
+      if (playViewReportedRef.current && now - lastSaveRef.current >= 10_000) {
+        lastSaveRef.current = now
+        onProgressRef.current?.(t, d)
       }
 
       if (isSeekingRef.current || skipBusyRef.current || t >= d - 3) return
@@ -1443,7 +1447,12 @@ export function VideoPlayer({
       setPaused(true)
       showBarRef.current = true
       setShowBar(true)
-      if (Number.isFinite(video.duration) && video.duration > 0) {
+      // 暂停时仅在已达到有效播放门槛后保存进度，防止未看满 15s 误触暂停写入垃圾历史
+      if (
+        playViewReportedRef.current &&
+        Number.isFinite(video.duration) &&
+        video.duration > 0
+      ) {
         onProgressRef.current?.(video.currentTime, video.duration)
       }
     }

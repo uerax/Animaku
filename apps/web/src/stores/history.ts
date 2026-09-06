@@ -21,6 +21,7 @@ interface HistoryState {
     entry: Omit<WatchHistoryEntry, 'id' | 'updatedAt'> & { id?: string },
   ) => void
   remove: (id: string) => void
+  removeMany: (ids: string[]) => void
   clear: () => void
   get: (id: string) => WatchHistoryEntry | undefined
   forBangumi: (bangumiId: number) => WatchHistoryEntry | undefined
@@ -46,10 +47,14 @@ export const useHistoryStore = create<HistoryState>()(
         }
         set((s) => {
           const prev = Array.isArray(s.items) ? s.items : []
-          // Newest-first without full re-sort: drop old id, unshift, cap
+          // Newest-first: 同一番剧的同一集数只保留一条最新记录（不区分 plugin，保存最后看的那个源）
           const rest: WatchHistoryEntry[] = []
           for (const i of prev) {
-            if (i.id !== id) rest.push(i)
+            const isSameBangumiAndEp =
+              i.bangumiId === entry.bangumiId && i.episode === entry.episode
+            if (i.id !== id && !isSameBangumiAndEp) {
+              rest.push(i)
+            }
           }
           return {
             items: [full, ...rest].slice(0, MAX_ITEMS),
@@ -62,6 +67,15 @@ export const useHistoryStore = create<HistoryState>()(
             (i) => i.id !== id,
           ),
         })),
+      removeMany: (ids) => {
+        if (!ids || ids.length === 0) return
+        const setIds = new Set(ids)
+        set((s) => ({
+          items: (Array.isArray(s.items) ? s.items : []).filter(
+            (i) => !setIds.has(i.id),
+          ),
+        }))
+      },
       clear: () => set({ items: [] }),
       get: (id) => {
         const items = get().items

@@ -114,14 +114,18 @@ function lookupResumePosition(
 ): number {
   const items = useHistoryStore.getState().items
   const list = Array.isArray(items) ? items : []
-  const h = list.find(
+  const exact = list.find(
     (i) =>
       i.bangumiId === bangumiId &&
       i.pluginName === pluginName &&
       i.episode === episode &&
       i.road === road,
   )
-  return h?.position || 0
+  if (exact) return exact.position || 0
+  const sameEp = list.find(
+    (i) => i.bangumiId === bangumiId && i.episode === episode,
+  )
+  return sameEp?.position || 0
 }
 
 /** Prefer history sourceUrl; fall back to query `source` when present. */

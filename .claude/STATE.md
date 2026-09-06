@@ -4,6 +4,62 @@
 
 ---
 
+## [2026-09-06] 重构历史观看页面为流媒体经典时间轴流 (v1.4.0)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **落地业界主流四段式时间分段算法 (`packages/shared/src/history.ts`)**：
+     - 严格基于客户端本地自然日零点（`getLocalDayStart`）划定无缝互斥的 4 大时间组：
+       - **今天 (Today)**：`updatedAt >= 今日 00:00:00`
+       - **昨天 (Yesterday)**：`昨日 00:00:00 <= updatedAt < 今日 00:00:00`
+       - **过去 7 天 (Last 7 Days)**：距今 7 天内除去今天与昨天（`7天前 00:00:00 <= updatedAt < 昨日 00:00:00`，对齐番剧周更认知周期）
+       - **更早以前 (Earlier)**：`updatedAt < 7天前 00:00:00`
+     - 引入人性化相对时间标记 `formatRelativeWatchTime`（今天 1 分钟内「刚刚」/ 1 小时内「X分钟前」/ 时分「14:32」，昨天「昨天 21:10」，近 7 天「X天前」，更早显示短日期「08-25」/ 跨年完整日期）；
+     - 补齐播放进度与完播判断 `isPlaybackFinished`（进度 >= 90% 或剩余时长不足 60 秒时高亮标为「已看完」）以及播放时间换算 `formatPlaybackTime`（支持跨小时 `hh:mm:ss`）；
+     - 增加数据概览计算 `computeHistoryStats`，汇总累计记录部数、今日观看数、已看完部数以及累计播放时长文本；
+  2. **收敛单集历史唯一性与扩展持久化仓储 (`packages/shared/src/history.ts` & `apps/web/src/stores/history.ts`)**：
+     - **去 Plugin 维度冗余**：修改 `historyId` 算法为 `${bangumiId}::ep${episode}`，同一番剧的不同集数分别独立保存，但在同一集内换源/切线不再分裂出多条冗余记录；
+     - **最新源覆盖策略**：在 `upsert` 中自动剔除同番剧同集数的历史记录，仅保留最后一次观看的视频源 `pluginName`、`road` 与断点进度；
+     - **跨源续播无缝继承 (`use-watch-session.ts`)**：在 `lookupResumePosition` 中增加同集 Fallback 兜底，用户由 A 源切换至 B 源播放同集时可无缝继承播放进度；
+     - **批量删除与清理**：新增 `removeMany(ids: string[])` 批量过滤方法，消除单项依次删除造成的连续多次防抖序列化写开销，支持组清空与多选批量删除；
+  3. **15 秒有效播放结合与服务端播放量防刷隔离 (`apps/web/src/player/VideoPlayer.tsx`)**：
+     - 将观看历史首次写入与 15 秒自然播放门槛对齐：只有累积有效自然播放满 15 秒（`STATS_VALID_PLAY_THRESHOLD_SEC`），才上报播放量、标记已看并首次将该集记入观看历史；
+     - 严格隔离快进拖动与完播兜底：单集播放接近末尾（>= 85%）仅用于客户端本地选集抽屉的标记已看，严禁在未满 15 秒自然播放前上报服务端播放量接口 `recordPlayView`，彻底消除了用户拖动进度条到片尾导致播放次数被虚增的严重隐患；
+     - 彻底消除误触点开、挑源试看秒退等操作在历史记录中留下进度为 0% 垃圾条目的问题；
+     - 满 15 秒后，后续正常按每 10 秒定时同步与暂停即时更新；
+  4. **模块化重构观看历史页面 (`apps/web/src/pages/HistoryPage.tsx` & `apps/web/src/pages/history/`)**：
+     - **轻量数据概览栏 (`HistoryStatsBar.tsx`)**：顶部呈现累计番剧部数、今日观看数、已看完部数与累计观影时长；
+     - **工具与搜索栏 (`HistoryToolbar.tsx`)**：支持即时按番剧标题或视频源名称进行不区分大小写模糊筛选，带一键清空搜索；支持一键进入/退出「批量管理模式」；
+     - **批量管理多选控制**：进入管理模式后每条卡片显式呼出 Checkbox，支持单选、全选/取消全选、批量删除，已选 0 项时禁用防误触；
+     - **时间轴流式轨道与组操作 (`HistoryTimelineSection.tsx`)**：左侧平滑贯穿时间轴竖线，今天节点呈现发光呼吸光晕脉冲；各组右上角提供「清空{组名}」快捷动作；
+     - **横版微缩卡片重构 (`HistoryCard.tsx`)**：微缩封面叠加底部完播「已看完 ✓」与进度百分比，番剧主标题点击直达番剧主页，中间展示集数胶囊、视频源小标与相对时间点，底部渲染带完播颜色区分的精细进度条；右侧常驻续播（完播显示重播）与删除操作，精简移除冗余冲突的独立详情按钮，并将续播/重播按钮高度严格与删除按钮对齐统一（`h-7`）；支持卡片悬浮/触摸意图时对播放器 chunk与番剧页面的双预热预加载；
+     - **优雅二次确认弹窗 (`HistoryConfirmModal.tsx`)**：彻底替换原生简陋 `confirm()` 弹窗，支持全站统一暗色毛玻璃遮罩、ESC 退出与危险操作红色高亮；
+     - **空状态与搜索无果友好引导**：无记录时引导直达热门番剧，搜索无果时引导重置查询词；
+  5. **完备测试覆盖与版本号递增**：
+     - 新增 `packages/shared/src/history.test.ts`，全量覆盖秒数换算、完播阈值、四段式分组互斥性、相对时间文本与统计汇总逻辑（全仓 75 项测试 100% 通过）；
+     - 全仓 TypeScript 类型检查 `pnpm typecheck` 及前端 Vite 生产构建 `pnpm -F @animaku/web build` 均 100% 通过；
+     - 项目版本号递增至 `v1.4.0`。
+- 涉及文件：
+  - packages/shared/src/history.ts
+  - packages/shared/src/history.test.ts
+  - apps/web/src/stores/history.ts
+  - apps/web/src/lib/use-watch-session.ts
+  - apps/web/src/player/VideoPlayer.tsx
+  - apps/web/src/pages/HistoryPage.tsx
+  - apps/web/src/pages/history/HistoryCard.tsx
+  - apps/web/src/pages/history/HistoryTimelineSection.tsx
+  - apps/web/src/pages/history/HistoryToolbar.tsx
+  - apps/web/src/pages/history/HistoryStatsBar.tsx
+  - apps/web/src/pages/history/HistoryConfirmModal.tsx
+  - .claude/feature-map.md
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+- 备注：已验证构建与测试均正常，等待用户在本地终端启动验证。
+
 ## [2026-09-06] 加固 Google Site Name 结构化数据与首屏规范化链接 (v1.3.16)
 - 状态：已完成
 - 优先级：P1
