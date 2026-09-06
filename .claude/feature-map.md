@@ -76,7 +76,7 @@
 - 服务端媒体流代理与受控分发网关：`apps/server/src/routes/media.ts`
 - HLS AST 全要素结构改写管线：`apps/server/src/lib/media/hls-pipeline.ts`
 - 播放凭据编解码与路径安全门禁 (AES-256-GCM Opaque Ticket)：`apps/server/src/lib/media/ticket-codec.ts`, `apps/server/src/lib/media/playback-types.ts`
-- 媒体资产模型与双层 JTI 吊销仓储 (PlaybackRegistry)：`apps/server/src/lib/media/playback-registry.ts`
+- 媒体资产模型与纯内存 JTI 吊销仓储 (PlaybackRegistry)：`apps/server/src/lib/media/playback-registry.ts`
 - 媒体流并发控制与生命周期追踪：`apps/server/src/lib/media/stream-tracker.ts`
 - 媒体源请求与容灾降级调度：`apps/server/src/lib/media/media-fetcher.ts`
 - M3U8 播放列表清洗与 URI 改写管道：`apps/server/src/lib/media/m3u8-pipeline.ts`

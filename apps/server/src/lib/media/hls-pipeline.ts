@@ -103,6 +103,9 @@ export function rewriteM3u8Ast(
   let nextIsVariantPlaylist = false
   let nextIsSegment = false
 
+  // 本次 M3U8 改写范围内的跨域/绝对路径子资产共享缓存（按基址缓存，杜绝重复创建）
+  const subAssetCache = new Map<string, PlaybackAsset>()
+
   function issueTicketForUri(uri: string, typ: PlaybackTicketType): string {
     const trimmed = uri.trim()
     if (!trimmed) return uri
@@ -119,18 +122,49 @@ export function rewriteM3u8Ast(
     if (relativeSub !== null) {
       finalSub = relativeSub
     } else {
-      // 跨目录或跨 CDN 域名：登记子资产
-      targetAsset = playback.registerAsset({
-        source: asset.source,
-        baseUrl: targetUrl.href,
-        trustLevel: asset.trustLevel,
-        publicHeaders: asset.publicHeaders,
-        credentials: asset.encryptedCredentials
-          ? playback.getDecryptedCredentials(asset) || undefined
-          : undefined,
-        ttlMs: Math.max(1000, asset.expiresAt - Date.now()),
-      })
-      finalSub = ''
+      // 跨目录或跨 CDN 域名：按目录基址登记共享子资产（同一目录下的成百上千个分片共享同一个 targetAsset）
+      const baseDir = posix.dirname(targetUrl.pathname)
+      const targetBase = `${targetUrl.origin}${baseDir === '/' ? '' : baseDir}/`
+      const candidateSub = targetUrl.pathname.slice(baseDir === '/' ? 1 : baseDir.length + 1)
+      const subWithQuery = targetUrl.search ? `${candidateSub}${targetUrl.search}` : candidateSub
+
+      const check = validateSubPath(subWithQuery)
+      if (check.valid) {
+        let cached = subAssetCache.get(targetBase)
+        if (!cached) {
+          cached = playback.registerAsset({
+            source: asset.source,
+            baseUrl: targetBase,
+            trustLevel: asset.trustLevel,
+            publicHeaders: asset.publicHeaders,
+            credentials: asset.encryptedCredentials
+              ? playback.getDecryptedCredentials(asset) || undefined
+              : undefined,
+            ttlMs: Math.max(1000, asset.expiresAt - Date.now()),
+          })
+          subAssetCache.set(targetBase, cached)
+        }
+        targetAsset = cached
+        finalSub = check.normalized
+      } else {
+        // 极端异常兜底：以完整 URL 登记单个子资产并加入单 URL 缓存
+        let cached = subAssetCache.get(targetUrl.href)
+        if (!cached) {
+          cached = playback.registerAsset({
+            source: asset.source,
+            baseUrl: targetUrl.href,
+            trustLevel: asset.trustLevel,
+            publicHeaders: asset.publicHeaders,
+            credentials: asset.encryptedCredentials
+              ? playback.getDecryptedCredentials(asset) || undefined
+              : undefined,
+            ttlMs: Math.max(1000, asset.expiresAt - Date.now()),
+          })
+          subAssetCache.set(targetUrl.href, cached)
+        }
+        targetAsset = cached
+        finalSub = ''
+      }
     }
 
     // 动态生命周期：由 PlaybackRegistry 依据层级模型自动决断（Playlist 30m，Segment 4h 且跟随 Asset 剩余寿命）

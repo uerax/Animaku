@@ -1586,6 +1586,10 @@ function wrapResolveWithTicket(
       result.contentType === 'video/mp4' ||
       result.playUrl.toLowerCase().includes('.mp4')
     const cookie = result.headers?.Cookie || result.headers?.cookie
+    const requiresProxy =
+      Boolean(cookie) ||
+      Boolean(rule.requiresFullMediaProxy) ||
+      result.requiresProxy === true
     const asset = playbackRegistry.registerAsset({
       source: rule.name || 'custom',
       baseUrl: result.playUrl,
@@ -1602,6 +1606,7 @@ function wrapResolveWithTicket(
     return {
       ...result,
       proxyUrl: `${endpoint}?t=${encodeURIComponent(ticket)}`,
+      requiresProxy,
     }
   } catch (err) {
     console.warn(

@@ -70,6 +70,8 @@ export interface SourceResolveOutput {
   format: 'hls' | 'mp4'
   /** 凭据/资产过期时间戳（毫秒） */
   expiresAt: number
+  /** 是否需要服务端强制代理流传输（如 Cookie 鉴权源） */
+  requiresProxy?: boolean
 }
 
 /**

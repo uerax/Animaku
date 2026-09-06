@@ -4,6 +4,48 @@
 
 ---
 
+## [2026-09-07] 修复 Cookie 鉴权源直连 403 缺陷、废除 PlaybackRegistry SQLite 持久化并重构纯内存与零 I/O 媒体网关 (v1.5.3)
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **修复依赖 Cookie 鉴权的视频源（如 Anime1）在直连优先策略下误走直连 CDN 导致 403 播放失败**：
+     - 在 `ResolvePlayResult` 与 `SourceResolveOutput` 中增加 `requiresProxy?: boolean` 属性，当源站返回带有敏感 Cookie 凭据或声明了 `requiresFullMediaProxy` 时显式标记为需要代理；
+     - 前端 `pickPlaybackSrc` 引入 `requiresProxy` 守卫：当 `requiresProxy` 为 true 时，一票否决 `canTryDirect`，强制走受控媒体网关；
+     - `use-watch-session.ts` 优化 `preferMediaProxy` 判定逻辑：优先结合 `pluginNeedsFullMediaProxy(plugin)`，彻底杜绝 Anime1 默认配置下因缺少 `plugin.proxy` 属性导致直连 403 的缺陷；
+  2. **废除 PlaybackRegistry 的 SQLite 持久化，重构为带自动淘汰机制的高性能纯内存资产仓储**：
+     - 彻底解耦 `PlaybackRegistry` 对 `kvCache` / SQLite 的依赖，资产与 JTI 吊销黑名单全部运行在 Node.js 进程内存中，读取与写入均达微秒级响应；
+     - 内置周期性 TTL 过期清理与 `MAX_ASSETS_CAPACITY` / `MAX_REVOKED_JTI_CAPACITY` 容量上限淘汰算法，彻底根绝内存无界膨胀隐患；
+     - 配合客户端现有的 `onMediaAuthExpired` 静默自动重新选集续播机制，完全消除服务端重启时对用户观影的负面影响；
+  3. **M3U8 改写 AST 优化与零磁盘 I/O 架构**：
+     - 优化 `hls-pipeline.ts` 中的 `issueTicketForUri`：针对跨域或绝对路径切片，构建同源目录基址临时缓存（`subAssetCache`），同一目录下的成百上千个分片共享同一个内存资产与相对路径，彻底消除单次请求内针对 500~1000 个分片重复注册与磁盘 I/O 的性能瓶颈；
+  4. **修复 B 站冷门/新视频 0 弹幕误判 502 缺陷及 b23 短链响应体释放**：
+     - 在 `bilibili-danmaku.ts` 中识别合法 B 站 XML 骨架（含 `<i>`、`</chatserver>` 等），当弹幕数为 0 时正常解析并返回 `{ comments: [], meta: ... }`，不再误抛 502 upstream 错误；
+     - 在 `resolveB23ShortLink` 中获取 302 重定向头后显式执行 `await res.body?.cancel()`，防止底层连接延迟归还 Undici 连接池；
+  5. **全仓测试与版本递增**：
+     - 更新 `playback-registry.test.ts`、`playback-src.test.ts`；
+     - 全仓 144 项单测 100% 通过，全仓 `typecheck` 0 错误；
+     - 项目版本号递增至 `v1.5.3`。
+- 涉及文件：
+  - apps/server/src/lib/media/playback-registry.ts
+  - apps/server/src/lib/media/hls-pipeline.ts
+  - apps/server/src/lib/media/playback-registry.test.ts
+  - apps/server/src/routes/bilibili-danmaku.ts
+  - apps/server/src/rule-engine/index.ts
+  - apps/server/src/lib/source/source-registry.ts
+  - apps/server/src/lib/source/source-types.ts
+  - apps/web/src/lib/playback-src.ts
+  - apps/web/src/lib/playback-src.test.ts
+  - apps/web/src/lib/use-watch-session.ts
+  - packages/shared/src/plugin.ts
+  - package.json
+  - apps/server/package.json
+  - apps/web/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/BUGS.md
+  - .claude/STATE.md
+- 备注：经端到端回归验证，Anime1 视频可正常命中受控网关完成代理流式播放，M3U8 解析请求纯内存毫秒级响应。
+
 ## [2026-09-06] 废除静态域名白名单并重构受控媒体网关与自适应多媒体路由 (v1.4.10)
 - 状态：已完成
 - 优先级：P0

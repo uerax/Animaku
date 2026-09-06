@@ -60,3 +60,15 @@ test('pickPlaybackSrc: direct CDN preferred when clean', () => {
   assert.equal(res.src, 'https://cdn.example.com/ep1.mp4')
   assert.equal(res.transit, 'direct')
 })
+
+test('pickPlaybackSrc: requiresProxy forces ticket proxy over direct CDN', () => {
+  const res = pickPlaybackSrc({
+    playUrl: 'https://v.anime1.me/ep1.mp4',
+    proxyUrl: '/api/media/segment?t=ticket_anime1',
+    requiresProxy: true,
+  })
+
+  assert.equal(res.mode, 'proxy')
+  assert.equal(res.src.startsWith('/api/media/segment?t=ticket_anime1'), true)
+  assert.equal(res.canTryDirect, false)
+})

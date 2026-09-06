@@ -269,6 +269,8 @@ export interface ResolvePlayResult {
   referer?: string
   headers?: Record<string, string>
   diagnostics?: string[]
+  /** True when playback requires server-side proxy (e.g. cookie auth, CORS, or adFilter) */
+  requiresProxy?: boolean
 }
 
 /**

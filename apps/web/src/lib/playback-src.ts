@@ -136,6 +136,8 @@ export function pickPlaybackSrc(opts: {
   forceAdFilter?: boolean
   /** Administrator proxy authorization token (passed to /api/media/proxy?token=) */
   proxyToken?: string | null
+  /** Explicit flag indicating media stream or upstream requires proxy handling (e.g. cookie auth) */
+  requiresProxy?: boolean
 }): {
   src: string
   mode: PlaybackSrcMode
@@ -153,6 +155,7 @@ export function pickPlaybackSrc(opts: {
   const canTryDirect =
     Boolean(play) &&
     /^https?:\/\//i.test(play) &&
+    !opts.requiresProxy &&
     !proxyRequiresAuth(rawProxy) &&
     !needProxyForAds &&
     !opts.forceProxy

@@ -1,5 +1,4 @@
 import { randomBytes } from 'node:crypto'
-import { kvCache, type KvCacheRepository } from '../../db/repositories/kv-cache'
 import {
   PLAYBACK_TICKET_AUDIENCE,
   type PlaybackAsset,
@@ -24,33 +23,88 @@ export const DEFAULT_PLAYLIST_TTL_SEC = 30 * 60 // 30 minutes (用于动态拉�
 export const DEFAULT_SEGMENT_TTL_SEC = 4 * 60 * 60 // 4 hours
 export const DEFAULT_KEY_TTL_SEC = 4 * 60 * 60 // 4 hours
 
-const KV_NS_ASSET = 'playback_asset'
-const KV_NS_REVOKED_JTI = 'revoked_jti'
+/** 内存资产与黑名单最大容量上限（防无界膨胀） */
+export const MAX_ASSETS_CAPACITY = 10_000
+export const MAX_REVOKED_JTI_CAPACITY = 20_000
+const CLEANUP_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 
 export interface PlaybackRegistryOptions {
   key?: Buffer
-  kv?: KvCacheRepository
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  kv?: any
 }
 
 /**
- * PlaybackRegistry 资产与会话仓储引擎
- * 提供：
- * 1. PlaybackAsset 注册、提取与状态机控制（支持整条播放链一键主动拉黑/撤销）；
- * 2. PlaybackTicket 基于 AES-256-GCM 的版本化 Opaque Token 签发与验证；
- * 3. 双层 JTI 吊销黑名单（L1 内存毫秒级 + L2 SQLite 持久化保证重启不丢失）。
+ * PlaybackRegistry 资产与会话仓储引擎（高性能纯内存架构）
+ *
+ * 核心设计：
+ * 1. 纯内存纳秒级存储与提取，全链路零磁盘 I/O；
+ * 2. 基于 TTL 与最大容量限制自动淘汰过期资产，杜绝内存泄漏；
+ * 3. 负责基于 AES-256-GCM 的版本化 Opaque Ticket 签发与防篡改验证。
  */
 export class PlaybackRegistry {
   private readonly key: Buffer
-  private readonly kv: KvCacheRepository
 
-  // L1 内存缓存：高性能资产读取
-  private readonly l1Assets = new Map<string, PlaybackAsset>()
-  // L1 内存黑名单：JTI -> expiresAtMs 毫秒级 0 延迟负向过滤
-  private readonly l1RevokedJti = new Map<string, number>()
+  // 纯内存资产仓储：assetId -> PlaybackAsset
+  private readonly assets = new Map<string, PlaybackAsset>()
+  // 纯内存 JTI 黑名单：JTI -> expiresAtMs
+  private readonly revokedJti = new Map<string, number>()
+  private lastCleanup = Date.now()
 
   constructor(options: PlaybackRegistryOptions = {}) {
     this.key = options.key || getDefaultMediaKey()
-    this.kv = options.kv || kvCache
+  }
+
+  /**
+   * 清理过期资产与黑名单记录
+   */
+  cleanupExpired(now: number = Date.now()): void {
+    this.lastCleanup = now
+
+    // 1. 清理过期资产
+    for (const [id, asset] of this.assets.entries()) {
+      if (asset.expiresAt <= now) {
+        this.assets.delete(id)
+      }
+    }
+
+    // 若容量超出阈值，淘汰最先创建的资产
+    if (this.assets.size > MAX_ASSETS_CAPACITY) {
+      const sorted = Array.from(this.assets.entries()).sort(
+        (a, b) => a[1].createdAt - b[1].createdAt,
+      )
+      const excess = this.assets.size - MAX_ASSETS_CAPACITY
+      for (let i = 0; i < excess; i++) {
+        this.assets.delete(sorted[i][0])
+      }
+    }
+
+    // 2. 清理过期 JTI 黑名单
+    for (const [jti, expMs] of this.revokedJti.entries()) {
+      if (expMs <= now) {
+        this.revokedJti.delete(jti)
+      }
+    }
+
+    if (this.revokedJti.size > MAX_REVOKED_JTI_CAPACITY) {
+      const sorted = Array.from(this.revokedJti.entries()).sort(
+        (a, b) => a[1] - b[1],
+      )
+      const excess = this.revokedJti.size - MAX_REVOKED_JTI_CAPACITY
+      for (let i = 0; i < excess; i++) {
+        this.revokedJti.delete(sorted[i][0])
+      }
+    }
+  }
+
+  private maybeCleanup(now: number = Date.now()): void {
+    if (
+      now - this.lastCleanup > CLEANUP_INTERVAL_MS ||
+      this.assets.size >= MAX_ASSETS_CAPACITY ||
+      this.revokedJti.size >= MAX_REVOKED_JTI_CAPACITY
+    ) {
+      this.cleanupExpired(now)
+    }
   }
 
   // ==========================================
@@ -69,6 +123,8 @@ export class PlaybackRegistry {
     }
 
     const now = Date.now()
+    this.maybeCleanup(now)
+
     const ttlMs = input.ttlMs && input.ttlMs > 0 ? input.ttlMs : DEFAULT_ASSET_TTL_MS
     const expiresAt = now + ttlMs
 
@@ -92,52 +148,26 @@ export class PlaybackRegistry {
       updatedAt: now,
     }
 
-    // 写入 L1 内存
-    this.l1Assets.set(assetId, asset)
-
-    // 写入 L2 SQLite 持久化
-    try {
-      this.kv.set(KV_NS_ASSET, assetId, asset, ttlMs)
-    } catch (err) {
-      console.error(`[PlaybackRegistry] Failed to persist asset ${assetId} to L2:`, err)
-    }
-
+    this.assets.set(assetId, asset)
     return asset
   }
 
   /**
-   * 获取媒体资产（L1 内存优先，穿透回源 L2 SQLite）
+   * 获取媒体资产（纯内存毫秒级读取，自动过期剔除）
    */
   getAsset(assetId: string): PlaybackAsset | null {
     if (!assetId) return null
     const now = Date.now()
 
-    // 1. 查 L1 内存
-    const cached = this.l1Assets.get(assetId)
-    if (cached) {
-      if (cached.expiresAt <= now) {
-        this.l1Assets.delete(assetId)
-        return null
-      }
-      return cached
+    const cached = this.assets.get(assetId)
+    if (!cached) return null
+
+    if (cached.expiresAt <= now) {
+      this.assets.delete(assetId)
+      return null
     }
 
-    // 2. 查 L2 SQLite 持久化
-    try {
-      const persisted = this.kv.get<PlaybackAsset>(KV_NS_ASSET, assetId)
-      if (persisted) {
-        if (persisted.expiresAt <= now) {
-          return null
-        }
-        // 写回 L1
-        this.l1Assets.set(assetId, persisted)
-        return persisted
-      }
-    } catch (err) {
-      console.error(`[PlaybackRegistry] Failed to read asset ${assetId} from L2:`, err)
-    }
-
-    return null
+    return cached
   }
 
   /**
@@ -150,18 +180,7 @@ export class PlaybackRegistry {
     const now = Date.now()
     asset.status = status
     asset.updatedAt = now
-
-    // 更新 L1
-    this.l1Assets.set(assetId, asset)
-
-    // 更新 L2
-    try {
-      const remainingMs = Math.max(1000, asset.expiresAt - now)
-      this.kv.set(KV_NS_ASSET, assetId, asset, remainingMs)
-    } catch (err) {
-      console.error(`[PlaybackRegistry] Failed to update asset status in L2 (${assetId}):`, err)
-    }
-
+    this.assets.set(assetId, asset)
     return true
   }
 
@@ -205,67 +224,42 @@ export class PlaybackRegistry {
   }
 
   // ==========================================
-  // 双层 JTI 吊销黑名单控制
+  // JTI 吊销黑名单控制
   // ==========================================
 
   /**
-   * 检查 JTI 是否在双层吊销黑名单中
+   * 检查 JTI 是否在吊销黑名单中
    */
   isJtiRevoked(jti: string): boolean {
     if (!jti) return false
     const now = Date.now()
 
-    // 1. 检查 L1 内存黑名单
-    const l1Exp = this.l1RevokedJti.get(jti)
-    if (l1Exp !== undefined) {
-      if (l1Exp > now) {
+    const expMs = this.revokedJti.get(jti)
+    if (expMs !== undefined) {
+      if (expMs > now) {
         return true
       }
-      this.l1RevokedJti.delete(jti)
+      this.revokedJti.delete(jti)
     }
-
-    // 2. 检查 L2 SQLite 持久化黑名单
-    try {
-      const l2ExpSec = this.kv.get<number>(KV_NS_REVOKED_JTI, jti)
-      if (l2ExpSec !== null && typeof l2ExpSec === 'number') {
-        const l2ExpMs = l2ExpSec * 1000
-        if (l2ExpMs > now) {
-          // 回填 L1 内存加速后续验证
-          this.l1RevokedJti.set(jti, l2ExpMs)
-          return true
-        }
-      }
-    } catch (err) {
-      console.error(`[PlaybackRegistry] Error querying L2 JTI blacklist for ${jti}:`, err)
-    }
-
     return false
   }
 
   /**
-   * 吊销指定的 Ticket JTI（同步写入 L1 内存与 L2 SQLite）
+   * 吊销指定的 Ticket JTI（毫秒级写入内存黑名单）
    */
   revokeTicket(jti: string, expiresAtSec?: number): void {
     if (!jti) return
 
     const now = Date.now()
-    // 缺省保留至 2 小时后，或依照 Ticket 自身过期时间
+    this.maybeCleanup(now)
+
     const expSec =
       expiresAtSec && expiresAtSec > Math.floor(now / 1000)
         ? expiresAtSec
         : Math.floor(now / 1000) + 7200
     const expMs = expSec * 1000
-    const remainingMs = Math.max(1000, expMs - now)
 
-    // 1. 写入 L1 内存
-    this.l1RevokedJti.set(jti, expMs)
-
-    // 2. 写入 L2 SQLite
-    try {
-      this.kv.set(KV_NS_REVOKED_JTI, jti, expSec, remainingMs)
-    } catch (err) {
-      console.error(`[PlaybackRegistry] Failed to persist revoked JTI ${jti} to L2:`, err)
-    }
+    this.revokedJti.set(jti, expMs)
   }
 
   // ==========================================
@@ -383,7 +377,7 @@ export class PlaybackRegistry {
       }
     }
 
-    // 6. 校验双层 JTI 吊销黑名单
+    // 6. 校验 JTI 吊销黑名单
     if (this.isJtiRevoked(payload.jti)) {
       return {
         valid: false,
@@ -432,11 +426,15 @@ export class PlaybackRegistry {
   }
 
   /**
-   * 清理 L1 内存缓存（便于测试与内存整理）
+   * 清理内存缓存（便于单元测试与状态重置）
    */
+  clearCaches(): void {
+    this.assets.clear()
+    this.revokedJti.clear()
+  }
+
   clearL1Caches(): void {
-    this.l1Assets.clear()
-    this.l1RevokedJti.clear()
+    this.clearCaches()
   }
 }
 

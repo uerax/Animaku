@@ -44,6 +44,7 @@ import {
 } from './plugin-result-cache'
 import {
   isFullProxySourceUsable,
+  pluginNeedsFullMediaProxy,
   pluginShouldUseProxy,
 } from './plugin-capabilities'
 import {
@@ -1785,11 +1786,13 @@ export function useWatchSession(bangumiId: number): WatchSession {
 
   const proxyUrl = episode ? resolve.data?.data.proxyUrl : undefined
   const playUrl = episode ? resolve.data?.data.playUrl : undefined
+  const requiresProxy = episode ? resolve.data?.data.requiresProxy : undefined
   const forceAdFilter = Boolean(playerSettings.forceAdBlocker)
-  // Per-source proxy decision: plugin's own toggle, gated by master switches.
+  // Per-source proxy decision: plugin's own toggle or requiresFullMediaProxy, gated by master switches.
   const currentPluginForProxy = selection?.plugin ?? null
   const preferMediaProxy = currentPluginForProxy
-    ? pluginShouldUseProxy(
+    ? pluginNeedsFullMediaProxy(currentPluginForProxy) ||
+      pluginShouldUseProxy(
         currentPluginForProxy,
         mediaFullProxy,
         serverProxyEnabled,
@@ -1804,8 +1807,9 @@ export function useWatchSession(bangumiId: number): WatchSession {
         forceProxy: preferMediaProxy,
         forceAdFilter,
         proxyToken,
+        requiresProxy,
       }),
-    [playUrl, proxyUrl, preferMediaProxy, forceAdFilter, proxyToken],
+    [playUrl, proxyUrl, preferMediaProxy, forceAdFilter, proxyToken, requiresProxy],
   )
   const mediaSrc = episode ? playback.src : ''
   const effectiveResume =

@@ -53,29 +53,27 @@ test('playback-registry: asset registration, encryption & retrieval', () => {
   assert.equal(resolvedSeg, 'https://cdn1.xifan.cc/20240101/chunks/seg-001.ts')
 })
 
-test('playback-registry: L2 SQLite persistence & server restart simulation', () => {
+test('playback-registry: in-memory asset automatic expiration & cleanup', () => {
   const key = randomBytes(32)
-  const registry = new PlaybackRegistry({ key, kv: kvCache })
+  const registry = new PlaybackRegistry({ key })
 
+  const now = Date.now()
   const asset = registry.registerAsset({
     source: 'anime1',
     baseUrl: 'https://v.anime1.me/watch/123/stream.m3u8',
     credentials: 'auth_session=998877',
+    ttlMs: 50, // 50ms short TTL
   })
 
-  // Simulate server restart by clearing in-memory L1 cache
-  registry.clearL1Caches()
+  // Initially active and retrievable
+  const initial = registry.getAsset(asset.assetId)
+  assert.ok(initial)
+  assert.equal(initial.assetId, asset.assetId)
 
-  // Must successfully load from L2 SQLite
-  const fromL2 = registry.getAsset(asset.assetId)
-  assert.ok(fromL2)
-  assert.equal(fromL2.assetId, asset.assetId)
-  assert.equal(fromL2.source, 'anime1')
-  assert.equal(fromL2.baseUrl, asset.baseUrl)
-
-  // Decryption of credentials still works after reload
-  const decrypted = registry.getDecryptedCredentials<string>(fromL2)
-  assert.equal(decrypted, 'auth_session=998877')
+  // Cleanup after expiration
+  registry.cleanupExpired(now + 100)
+  const expired = registry.getAsset(asset.assetId)
+  assert.equal(expired, null)
 })
 
 test('playback-registry: ticket issuance, type checking and verification pipeline', () => {
@@ -204,9 +202,9 @@ test('playback-registry: token expiration rejection', async () => {
   }
 })
 
-test('playback-registry: double-tier JTI revocation & reboot persistence', () => {
+test('playback-registry: in-memory JTI revocation & rejection', () => {
   const key = randomBytes(32)
-  const registry = new PlaybackRegistry({ key, kv: kvCache })
+  const registry = new PlaybackRegistry({ key })
 
   const asset = registry.registerAsset({
     source: 'tvtfun',
@@ -228,21 +226,11 @@ test('playback-registry: double-tier JTI revocation & reboot persistence', () =>
   // 1. Revoke the token
   registry.revokeTicket(jti, exp)
 
-  // 2. Immediate rejection via L1 memory
-  const revokedL1 = registry.verifyTicket(token)
-  assert.equal(revokedL1.valid, false)
-  if (!revokedL1.valid) {
-    assert.equal(revokedL1.code, 'TOKEN_REVOKED')
-  }
-
-  // 3. Clear L1 memory to simulate server reboot
-  registry.clearL1Caches()
-
-  // 4. Must still be rejected via L2 SQLite persistence!
-  const revokedL2 = registry.verifyTicket(token)
-  assert.equal(revokedL2.valid, false)
-  if (!revokedL2.valid) {
-    assert.equal(revokedL2.code, 'TOKEN_REVOKED')
+  // 2. Immediate rejection via memory blacklist
+  const revoked = registry.verifyTicket(token)
+  assert.equal(revoked.valid, false)
+  if (!revoked.valid) {
+    assert.equal(revoked.code, 'TOKEN_REVOKED')
   }
 })
 

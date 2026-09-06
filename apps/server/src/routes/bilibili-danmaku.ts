@@ -67,6 +67,11 @@ async function resolveB23ShortLink(shortUrl: string): Promise<BilibiliTarget | n
   try {
     const res = await bilibiliFetch(shortUrl, { redirect: 'manual' })
     const location = res.headers.get('location') || res.url
+    try {
+      await res.body?.cancel()
+    } catch {
+      /* ignore */
+    }
     if (location && location !== shortUrl) {
       return parseBilibiliInput(location)
     }
@@ -74,8 +79,14 @@ async function resolveB23ShortLink(shortUrl: string): Promise<BilibiliTarget | n
     /* fallback to follow redirect */
     try {
       const res = await bilibiliFetch(shortUrl, { redirect: 'follow' })
-      if (res.url && res.url !== shortUrl) {
-        return parseBilibiliInput(res.url)
+      const targetUrl = res.url
+      try {
+        await res.body?.cancel()
+      } catch {
+        /* ignore */
+      }
+      if (targetUrl && targetUrl !== shortUrl) {
+        return parseBilibiliInput(targetUrl)
       }
     } catch {
       /* ignore */
@@ -492,6 +503,7 @@ bilibiliDanmakuRoutes.get('/bilibili', async (c) => {
 
         // Classic XML endpoint (often gzip or deflate). Fallback to list.so.
         let xml = ''
+        let emptyXmlCandidate = ''
         const xmlUrls = [
           `https://comment.bilibili.com/${cid}.xml`,
           `https://api.bilibili.com/x/v1/dm/list.so?oid=${cid}`,
@@ -501,6 +513,11 @@ bilibiliDanmakuRoutes.get('/bilibili', async (c) => {
           try {
             const res = await bilibiliFetch(u)
             if (!res.ok) {
+              try {
+                await res.body?.cancel()
+              } catch {
+                /* ignore */
+              }
               lastErr = `${u} → ${res.status}`
               continue
             }
@@ -525,11 +542,25 @@ bilibiliDanmakuRoutes.get('/bilibili', async (c) => {
               }
             }
             if (xml.includes('<d ')) break
+
+            // 合法 B 站 XML 响应结构但暂无弹幕（如新投稿/冷门视频）
+            if (
+              xml.includes('<i') ||
+              xml.includes('</chatserver>') ||
+              xml.includes('<source>')
+            ) {
+              emptyXmlCandidate = xml
+            }
+
             lastErr = `${u} → empty danmaku`
             xml = ''
           } catch (e) {
             lastErr = e instanceof Error ? e.message : String(e)
           }
+        }
+
+        if (!xml && emptyXmlCandidate) {
+          xml = emptyXmlCandidate
         }
 
         if (!xml) {

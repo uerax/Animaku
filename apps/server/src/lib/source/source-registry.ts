@@ -284,6 +284,7 @@ export class SourceRegistry {
       ticket,
       format,
       expiresAt: asset.expiresAt,
+      requiresProxy: Boolean(raw.credentials),
     }
   }
 }
