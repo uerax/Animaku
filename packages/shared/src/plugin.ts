@@ -271,6 +271,8 @@ export interface ResolvePlayResult {
   diagnostics?: string[]
   /** True when playback requires server-side proxy (e.g. cookie auth, CORS, or adFilter) */
   requiresProxy?: boolean
+  /** Inferred or declared media format ('hls' | 'mp4') for player engine routing */
+  format?: 'hls' | 'mp4'
 }
 
 /**

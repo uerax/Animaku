@@ -31,11 +31,12 @@ function computeRelativeSub(
   const targetUrl = new URL(targetUri, currentPlaylistUrl)
   const [targetUriPath] = targetUri.split('?')
 
-  // 1. 如果原始 URI 就是相对路径 (没有 scheme 且不以 / 开头)
+  // 1. 如果原始 URI 就是平级或向下相对路径 (没有 scheme、不以 / 开头，且不包含 .. 跨级相对跳转)
   if (
     !targetUriPath.includes(':') &&
     !targetUri.startsWith('//') &&
-    !targetUri.startsWith('/')
+    !targetUri.startsWith('/') &&
+    !targetUriPath.split('/').includes('..')
   ) {
     const currentSubPath = currentSub ? currentSub.split('?')[0] : ''
     const parentDir = currentSubPath ? posix.dirname(currentSubPath) : ''
@@ -49,7 +50,7 @@ function computeRelativeSub(
     }
   }
 
-  // 2. 如果同源且位于同一路径前缀下
+  // 2. 如果同源且位于同一路径前缀下（支持绝对路径与含 .. 跨级解析后的规范子路径）
   if (targetUrl.origin === baseUrl.origin) {
     const baseDir = baseUrl.pathname.endsWith('/')
       ? baseUrl.pathname.slice(0, -1) || '/'

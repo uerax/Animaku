@@ -4,6 +4,40 @@
 
 ---
 
+## [2026-09-07] 修复受控网关 M3U8 槽位泄漏、切片跨级相对路径错位并闭环规则引擎格式推导 (v1.5.7)
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **修复 handlePlaylistStream 媒体并发槽位泄漏导致用户 8 次请求后被锁定 429 缺陷 (`apps/server/src/routes/media.ts`)**：
+     - 在 `handlePlaylistStream` 采用 `try...finally` 结构，严格保证无论成功分发改写 M3U8 还是中途异常/提前返回，100% 立即调用 `releaseStream(clientIp)` 归还槽位；
+     - 在 `handleBinarySegment` 增加 `streamTracked` 保护机制，防止在进入 `createTrackedStream` 之前抛出异常导致槽位泄漏；
+  2. **验证受控网关 HLS 切片广告过滤清洗链路与补充端到端测试 (`apps/server/src/lib/media/hls-pipeline.ts` & `media-gateway.test.ts`)**：
+     - 确保 `rewriteM3u8Ast` 中当 `options.adFilter` 为真时执行 `filterM3u8AdsIfApplicable`；
+     - 补齐 VOD media playlist 遇到切片广告时被清洗剔除的完整单元测试；
+  3. **补齐规则引擎 wrapResolveWithTicket 媒体格式 format 字段以闭环 formatHint (`apps/server/src/rule-engine/index.ts` & `packages/shared/src/plugin.ts`)**：
+     - 在 `packages/shared/src/plugin.ts` 的 `ResolvePlayResult` 声明 `format?: 'hls' | 'mp4'`；
+     - 在 `rule-engine/index.ts` 的 `wrapResolveWithTicket` 返回对象中装配 `format: result.format || (isMp4 ? 'mp4' : 'hls')`，闭环前端 `use-watch-session.ts` 与播放器的 `formatHint` 链路，杜绝通用规则源无后缀 HLS 直连流被误判为 MP4；
+  4. **修复 computeRelativeSub 处理跨级相对路径 ../ 时的路径嵌套错位缺陷 (`apps/server/src/lib/media/hls-pipeline.ts`)**：
+     - 分支 1 增加 `!targetUriPath.split('/').includes('..')` 校验，带有跨级跳转的切片统一交由分支 2 依据权威 `targetUrl` 进行规范化裁剪，防止在已有子目录下使用 `posix.join` 产生重复前缀导致切片 404；
+     - 在 `media-gateway.test.ts` 中补齐针对子目录内带有 `../` 切片改写与最终 URL 还原的单测；
+  5. **全仓测试与版本升级**：
+     - 全仓 96 项单元测试 100% 通过，全仓 `typecheck`、`lint`、`build` 0 错误；
+     - 项目版本号递增至 `v1.5.7`。
+- 涉及文件：
+  - apps/server/src/routes/media.ts
+  - apps/server/src/lib/media/hls-pipeline.ts
+  - apps/server/src/lib/media/media-gateway.test.ts
+  - apps/server/src/rule-engine/index.ts
+  - packages/shared/src/plugin.ts
+  - package.json
+  - apps/server/package.json
+  - apps/web/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/BUGS.md
+  - .claude/STATE.md
+- 备注：经回归验证，多次高频请求 M3U8 槽位占用严格归零，切片跨级相对路径精准解析至基址目录，规则引擎 format 准确传导。
+
 ## [2026-09-07] 修复 Google 搜索 Site Name 结构化数据域名污染并统一全站品牌元数据 (v1.5.6)
 - 状态：已完成
 - 优先级：P1

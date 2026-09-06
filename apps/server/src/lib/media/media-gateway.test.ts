@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
 import { rewriteM3u8Ast } from './hls-pipeline'
 import { PlaybackRegistry, playbackRegistry } from './playback-registry'
+import { getActiveStreamsForIp, resetActiveStreams } from './stream-tracker'
 import { SourceRegistry } from '../source/source-registry'
 import { kvCache } from '../../db/repositories/kv-cache'
 import { mediaRoutes } from '../../routes/media'
@@ -386,6 +387,115 @@ chunk-002.ts
     assert.equal(verify1.normalizedSub, 'chunk-002.ts')
     const resolvedUrl = playback.resolveAssetUrl(asset, verify1.normalizedSub)
     assert.equal(resolvedUrl, 'https://cdn.example.com/hls/ep1/chunk-002.ts')
+  }
+})
+
+test('mediaRoutes: handlePlaylistStream strictly releases concurrency slots on completions and errors without leaks', async () => {
+  resetActiveStreams()
+  const testIp = '127.0.0.1'
+
+  // Repeatedly request invalid or nonexistent tickets on /stream
+  for (let i = 0; i < 15; i++) {
+    const res = await mediaRoutes.request('/stream?t=v1.invalid_ticket_string', {
+      headers: { 'x-forwarded-for': testIp },
+    })
+    assert.equal(res.status, 403)
+  }
+
+  // Verify stream tracker has 0 active streams for the IP (never blocked with 429)
+  assert.equal(getActiveStreamsForIp(testIp), 0)
+})
+
+test('hls-pipeline: strips ad segments when adFilter is true on media playlist', () => {
+  const key = randomBytes(32)
+  const playback = new PlaybackRegistry({ key, kv: kvCache })
+
+  const asset = playback.registerAsset({
+    source: 'xifan',
+    baseUrl: 'https://cdn1.xifan.cc/series/ep1/index.m3u8',
+  })
+
+  // Media playlist with discontinuity groups (main video + ad inserted)
+  const adM3u8 = `#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:10
+#EXTINF:10.0,
+main-01.ts
+#EXTINF:10.0,
+main-02.ts
+#EXTINF:10.0,
+main-03.ts
+#EXT-X-DISCONTINUITY
+#EXTINF:5.0,
+https://ad.domain.com/ad01.ts
+#EXTINF:5.0,
+https://ad.domain.com/ad02.ts
+#EXT-X-DISCONTINUITY
+#EXTINF:10.0,
+main-04.ts
+#EXTINF:10.0,
+main-05.ts
+#EXTINF:10.0,
+main-06.ts
+#EXTINF:10.0,
+main-07.ts
+#EXTINF:10.0,
+main-08.ts
+#EXTINF:10.0,
+main-09.ts
+#EXTINF:10.0,
+main-10.ts
+#EXTINF:10.0,
+main-11.ts
+#EXTINF:10.0,
+main-12.ts
+#EXTINF:10.0,
+main-13.ts
+#EXTINF:10.0,
+main-14.ts
+#EXTINF:10.0,
+main-15.ts
+#EXT-X-ENDLIST`
+
+  const rewritten = rewriteM3u8Ast(adM3u8, asset, '', { playback, adFilter: true })
+
+  // The ad domain segments should be stripped
+  assert.equal(rewritten.includes('ad01.ts'), false)
+  assert.equal(rewritten.includes('ad02.ts'), false)
+  // Main segments should remain
+  assert.ok(rewritten.includes('/api/media/segment?t='))
+})
+
+test('hls-pipeline: correctly resolves parent-relative ../ segment paths without duplicating subdirectory', () => {
+  const key = randomBytes(32)
+  const playback = new PlaybackRegistry({ key, kv: kvCache })
+
+  const asset = playback.registerAsset({
+    source: 'cycani',
+    baseUrl: 'https://cdn.example.com/hls/master.m3u8',
+  })
+
+  // Child playlist situated at currentSub = '720p/index.m3u8'
+  // Real URL is https://cdn.example.com/hls/720p/index.m3u8
+  // Segment points to '../segments/seg0.ts', which resolves to https://cdn.example.com/hls/segments/seg0.ts
+  const childM3u8 = `#EXTM3U
+#EXT-X-VERSION:3
+#EXTINF:6.0,
+../segments/seg0.ts
+#EXT-X-ENDLIST`
+
+  const rewritten = rewriteM3u8Ast(childM3u8, asset, '720p/index.m3u8', { playback })
+
+  const segMatch = rewritten.match(/\/api\/media\/segment\?t=([^&\n\r]+)/)
+  assert.ok(segMatch)
+  const ticket = decodeURIComponent(segMatch[1])
+  const verify = playback.verifyTicket(ticket, 'segment')
+  assert.equal(verify.valid, true)
+  if (verify.valid) {
+    // The sub path must be normalized to 'segments/seg0.ts' relative to baseUrl's baseDir (/hls/)
+    assert.equal(verify.normalizedSub, 'segments/seg0.ts')
+    const resolvedUrl = playback.resolveAssetUrl(asset, verify.normalizedSub)
+    assert.equal(resolvedUrl, 'https://cdn.example.com/hls/segments/seg0.ts')
   }
 })
 

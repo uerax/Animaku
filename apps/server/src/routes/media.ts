@@ -48,116 +48,112 @@ async function handlePlaylistStream(
     )
   }
 
-  // 2. 解析目标媒体地址并执行出站白名单审计
-  const targetUrlStr = playbackRegistry.resolveAssetUrl(asset, normalizedSub)
-  let target: URL
   try {
-    target = new URL(targetUrlStr)
-  } catch {
+    // 2. 解析目标媒体地址并执行出站白名单审计
+    const targetUrlStr = playbackRegistry.resolveAssetUrl(asset, normalizedSub)
+    let target: URL
+    try {
+      target = new URL(targetUrlStr)
+    } catch {
+      return c.json({ error: 'bad_request', message: '目标地址无效' }, 400)
+    }
+
+    const egressCheck = sourceRegistry.validateEgress(target.href, asset.source)
+    if (!egressCheck.valid) {
+      return c.json(
+        { error: 'forbidden', message: egressCheck.reason },
+        403,
+      )
+    }
+
+    try {
+      assertPublicHttpUrl(target.href)
+    } catch (err) {
+      return c.json(
+        { error: 'forbidden', message: (err as Error).message },
+        403,
+      )
+    }
+
+    // 3. 组装出站请求与敏感凭据解密
+    const cookie =
+      playbackRegistry.getDecryptedCredentials<string>(asset) || ''
+    const referer =
+      asset.publicHeaders?.Referer ||
+      asset.publicHeaders?.referer ||
+      asset.baseUrl
+
+    const fetchResult = await fetchMediaWithFallback(target, {
+      referer,
+      cookie,
+      range: c.req.header('Range'),
+    })
+
+    if (!fetchResult.ok) {
+      return c.json(
+        {
+          error: fetchResult.error,
+          message: fetchResult.message,
+          ...(fetchResult.hint ? { hint: fetchResult.hint } : {}),
+        },
+        fetchResult.status as 403 | 502,
+      )
+    }
+
+    const { upstream } = fetchResult
+
+    // 4. EgressPolicyEngine 响应头门禁（严格拒绝 text/html）
+    const contentType = (upstream.headers.get('content-type') || '').toLowerCase()
+    if (
+      contentType.includes('text/html') ||
+      contentType.includes('application/xhtml+xml')
+    ) {
+      cancelBody(upstream)
+      return c.json(
+        {
+          error: 'blocked_html_response',
+          message:
+            'EgressPolicyEngine: 上游返回 HTML 文本而非媒体播放列表（已被拦截，防403/盾页伪装）',
+        },
+        502,
+      )
+    }
+
+    // 5. 读取并执行全要素 HLS AST 改写
+    let rawText: string
+    try {
+      rawText = await readTextLimited(upstream, MAX_M3U8_BYTES)
+    } catch (e) {
+      cancelBody(upstream)
+      return c.json(
+        {
+          error: 'upstream',
+          message: (e as Error).message,
+          hint: '播放列表异常，请重新选集或换线路',
+        },
+        502,
+      )
+    }
+
+    const adFilter =
+      c.req.query('adFilter') === '1' || c.req.query('adFilter') === 'true'
+    const forceProxy =
+      c.req.query('stream') === '1' || c.req.query('stream') === 'true'
+
+    const rewrittenM3u8 = rewriteM3u8Ast(rawText, asset, normalizedSub, {
+      adFilter,
+      forceProxy,
+    })
+
+    return c.body(rewrittenM3u8, 200, {
+      'Content-Type': 'application/vnd.apple.mpegurl',
+      'Cache-Control': 'public, max-age=60',
+      'Access-Control-Allow-Origin': '*',
+    })
+  } finally {
+    // 播放列表文本分发为瞬时请求，必须严格保证 100% 释放并发槽位，防止泄漏锁死
     releaseStream(clientIp)
-    return c.json({ error: 'bad_request', message: '目标地址无效' }, 400)
   }
-
-  const egressCheck = sourceRegistry.validateEgress(target.href, asset.source)
-  if (!egressCheck.valid) {
-    releaseStream(clientIp)
-    return c.json(
-      { error: 'forbidden', message: egressCheck.reason },
-      403,
-    )
-  }
-
-  try {
-    assertPublicHttpUrl(target.href)
-  } catch (err) {
-    releaseStream(clientIp)
-    return c.json(
-      { error: 'forbidden', message: (err as Error).message },
-      403,
-    )
-  }
-
-  // 3. 组装出站请求与敏感凭据解密
-  const cookie =
-    playbackRegistry.getDecryptedCredentials<string>(asset) || ''
-  const referer =
-    asset.publicHeaders?.Referer ||
-    asset.publicHeaders?.referer ||
-    asset.baseUrl
-
-  const fetchResult = await fetchMediaWithFallback(target, {
-    referer,
-    cookie,
-    range: c.req.header('Range'),
-  })
-
-  if (!fetchResult.ok) {
-    releaseStream(clientIp)
-    return c.json(
-      {
-        error: fetchResult.error,
-        message: fetchResult.message,
-        ...(fetchResult.hint ? { hint: fetchResult.hint } : {}),
-      },
-      fetchResult.status as 403 | 502,
-    )
-  }
-
-  const { upstream } = fetchResult
-
-  // 4. EgressPolicyEngine 响应头门禁（严格拒绝 text/html）
-  const contentType = (upstream.headers.get('content-type') || '').toLowerCase()
-  if (
-    contentType.includes('text/html') ||
-    contentType.includes('application/xhtml+xml')
-  ) {
-    cancelBody(upstream)
-    releaseStream(clientIp)
-    return c.json(
-      {
-        error: 'blocked_html_response',
-        message:
-          'EgressPolicyEngine: 上游返回 HTML 文本而非媒体播放列表（已被拦截，防403/盾页伪装）',
-      },
-      502,
-    )
-  }
-
-  // 5. 读取并执行全要素 HLS AST 改写
-  let rawText: string
-  try {
-    rawText = await readTextLimited(upstream, MAX_M3U8_BYTES)
-  } catch (e) {
-    cancelBody(upstream)
-    releaseStream(clientIp)
-    return c.json(
-      {
-        error: 'upstream',
-        message: (e as Error).message,
-        hint: '播放列表异常，请重新选集或换线路',
-      },
-      502,
-    )
-  }
-
-  // 文本解析完成，释放并发槽位
-  releaseStream(clientIp)
-
-  const adFilter =
-    c.req.query('adFilter') === '1' || c.req.query('adFilter') === 'true'
-  const forceProxy =
-    c.req.query('stream') === '1' || c.req.query('stream') === 'true'
-
-  const rewrittenM3u8 = rewriteM3u8Ast(rawText, asset, normalizedSub, {
-    adFilter,
-    forceProxy,
-  })
-
-  return c.body(rewrittenM3u8, 200, {
-    'Content-Type': 'application/vnd.apple.mpegurl',
-    'Cache-Control': 'public, max-age=60',
-    'Access-Control-Allow-Origin': '*',
-  })
 }
 
 /**
@@ -251,55 +247,61 @@ async function handleBinarySegment(
     )
   }
 
-  const fetchResult = await fetchMediaWithFallback(target, {
-    referer,
-    cookie,
-    range: c.req.header('Range'),
-  })
+  let streamTracked = false
+  try {
+    const fetchResult = await fetchMediaWithFallback(target, {
+      referer,
+      cookie,
+      range: c.req.header('Range'),
+    })
 
-  if (!fetchResult.ok) {
-    releaseStream(clientIp)
-    return c.json(
-      { error: fetchResult.error, message: fetchResult.message },
-      fetchResult.status as 403 | 502,
+    if (!fetchResult.ok) {
+      return c.json(
+        { error: fetchResult.error, message: fetchResult.message },
+        fetchResult.status as 403 | 502,
+      )
+    }
+
+    const { upstream } = fetchResult
+    const resHeaders: Record<string, string> = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Expose-Headers':
+        'Content-Length, Content-Range, Accept-Ranges',
+    }
+    const passHeaders = [
+      'content-type',
+      'content-length',
+      'content-range',
+      'accept-ranges',
+      'cache-control',
+    ]
+    for (const h of passHeaders) {
+      const v = upstream.headers.get(h)
+      if (v) resHeaders[h] = v
+    }
+
+    if (!upstream.body) {
+      return new Response(null, {
+        status: upstream.status,
+        headers: resHeaders,
+      })
+    }
+
+    streamTracked = true
+    const trackedBody = createTrackedStream(
+      upstream.body as ReadableStream<Uint8Array>,
+      () => releaseStream(clientIp),
     )
-  }
 
-  const { upstream } = fetchResult
-  const resHeaders: Record<string, string> = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Expose-Headers':
-      'Content-Length, Content-Range, Accept-Ranges',
-  }
-  const passHeaders = [
-    'content-type',
-    'content-length',
-    'content-range',
-    'accept-ranges',
-    'cache-control',
-  ]
-  for (const h of passHeaders) {
-    const v = upstream.headers.get(h)
-    if (v) resHeaders[h] = v
-  }
-
-  if (!upstream.body) {
-    releaseStream(clientIp)
-    return new Response(null, {
+    return new Response(trackedBody, {
       status: upstream.status,
       headers: resHeaders,
     })
+  } finally {
+    if (!streamTracked) {
+      releaseStream(clientIp)
+    }
   }
-
-  const trackedBody = createTrackedStream(
-    upstream.body as ReadableStream<Uint8Array>,
-    () => releaseStream(clientIp),
-  )
-
-  return new Response(trackedBody, {
-    status: upstream.status,
-    headers: resHeaders,
-  })
 }
 
 /**

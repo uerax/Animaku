@@ -1585,6 +1585,7 @@ function wrapResolveWithTicket(
     const isMp4 =
       result.contentType === 'video/mp4' ||
       result.playUrl.toLowerCase().includes('.mp4')
+    const format: 'hls' | 'mp4' = result.format || (isMp4 ? 'mp4' : 'hls')
     const cookie = result.headers?.Cookie || result.headers?.cookie
     const requiresProxy =
       Boolean(cookie) ||
@@ -1607,6 +1608,7 @@ function wrapResolveWithTicket(
       ...result,
       proxyUrl: `${endpoint}?t=${encodeURIComponent(ticket)}`,
       requiresProxy,
+      format,
     }
   } catch (err) {
     console.warn(
