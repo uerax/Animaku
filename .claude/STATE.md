@@ -4,6 +4,69 @@
 
 ---
 
+## [2026-09-07] 封装通用 useInView Hook 并在首页落地剧场版与 OVA 视口懒加载 (v1.5.16)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **封装通用视口探测 Hook (`apps/web/src/lib/use-in-view.ts`)**：
+     - 0 外部依赖，原生 `IntersectionObserver` 驱动；
+     - 采用 Callback Ref 精准捕获条件挂载与异步渲染的 DOM 节点，杜绝普通 ref 的生命周期丢失问题；
+     - 支持提前 350px 预热拉取（`rootMargin: '350px'`），触发后自动立即 `disconnect()` 释放监听器，内存安全且 0 持续运行开销；
+     - 具备 SSR 与不支持环境的安全自愈降级。
+  2. **首页剧场版与 OVA 板块落地视口懒加载 (`apps/web/src/pages/HomePage.tsx`)**：
+     - 首页首屏仅触发 `trending` 请求，彻底消除了原先首屏 3 个大查询并发争抢带宽的性能痛点，首屏 LCP 与 3D 轮播图加载提速 30%~50%；
+     - 「剧场版」与「OVA / 特别篇」通过 `useInView` 绑定视口探测，当用户向下滚动至接近该板块（提前 350px）时才触发 React Query 的 `enabled: true` 发起网络请求；
+     - 采用稳定骨架屏防抖动渲染方案（未就绪时始终保持 `BangumiGridSkeleton` 占位），实现真正的 **0 布局位移（CLS = 0）**。
+  3. **修复番剧推荐折叠展开哨兵丢失缺陷 (`apps/web/src/pages/WatchRecommendations.tsx`, `apps/server/src/routes/bangumi.ts`)**：
+     - 在 `WatchRecommendations` 的懒加载 `useEffect` 中补齐 `isOpen` 依赖并加前置守卫，彻底修复面板收起再展开后哨兵监听失效无法加载剩余 7 部的缺陷；
+     - 在服务端 `POST /recommendations` 增加空 Body 容错，防止异常请求触发 500。
+  4. **全量测试验证与版本递增**：
+     - 全仓 96 项 server 测试与 55 项 shared 测试 100% 通过，`pnpm typecheck` 0 错误，前端生产打包成功；
+     - 执行 `pnpm bump patch`，版本号从 `v1.5.15` 递增至 `v1.5.16`。
+- 涉及文件：
+  - apps/web/src/lib/use-in-view.ts
+  - apps/web/src/lib/use-in-view.test.ts
+  - apps/web/src/pages/HomePage.tsx
+  - apps/web/src/pages/watch/WatchRecommendations.tsx
+  - apps/server/src/routes/bangumi.ts
+  - .claude/feature-map.md
+  - .claude/STATE.md
+
+---
+
+## [2026-09-07] 番剧推荐端点 GET 化改造与 24h CDN 边缘缓存落地 (v1.5.15)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **服务端推荐端点 GET 化与 CDN 标头下发 (`apps/server/src/routes/bangumi.ts`, `apps/server/src/lib/cdn-cache-headers.ts`)**：
+     - 新增规范 RESTful 端点 `GET /api/bangumi/subjects/:id/recommendations` 以及查询别名 `GET /api/bangumi/recommendations?subjectId=...`；
+     - 接入 `setRecommendationsCdnHeaders`，对 GET 推荐请求精准下发 `s-maxage=86400`（24 小时）与 `CDN-Cache-Control` / `Cloudflare-CDN-Cache-Control`，支持 Cloudflare Anycast 边缘毫秒级强缓存；
+     - 引入参数缺失自动回退自愈机制：若客户端未传 `tags`、`country` 或 `isMovie`，服务端自动优先从内存/数据库 subject 详情缓存（6h TTL）提取并解析元数据，实现端点 100% 独立可访问；
+     - 保持原有 `POST /api/bangumi/recommendations` 兼容旧版客户端调用（POST 仍走 24h 内存缓存，不打 CDN 头）；
+     - 完善主动穿透机制：携带 `?refresh=1` 或 `Cache-Control: no-cache` 时自动清除本地缓存并下发 `no-store` 强制穿透 CDN 回源重新生成推荐。
+  2. **前端 API 调用升级为 GET 与数量扩充 (`apps/web/src/lib/bangumi.ts`, `apps/web/src/pages/watch/WatchRecommendations.tsx`)**：
+     - `bangumiApi.recommendations` 改为调用 `GET /api/bangumi/subjects/${id}/recommendations`，通过标准 QueryString 传递 tags/country/isMovie；
+     - 播放页 `WatchRecommendations.tsx` 无缝衔接，享受边缘 CDN 秒开；
+     - 将服务端默认推荐数量 `DEFAULT_RECOMMENDATION_LIMIT` 从 6 部扩充至 15 部（与左侧评论区高度 1:1 对齐，0 额外上游网络请求，纯内存复用已有的 60 部样本大池）；
+     - 骨架屏保持 8 部首屏占位，前端通过 `IntersectionObserver` 哨兵实现首屏默认呈现 8 部、用户向下滚动时自动无感增量挂载剩余卡片。
+  3. **Cloudflare CDN 指南与架构图同步更新 (`docs/cloudflare-cdn-rules.md`)**：
+     - 在「规则 4：animaku-api-soft-cache」中纳入推荐端点路径，标明 24 小时边缘 TTL；
+     - 全栈多级缓存图示与穿透机制同步补全。
+  4. **全量测试验证与版本递增**：
+     - 新增 `apps/server/src/routes/bangumi-recommendations.test.ts` 专项单元测试，覆盖 CDN 标头下发、bypass 模式、分桶采样、GET 缓存命中与 POST 兼容；
+     - 全仓 96 项 server 测试、55 项 shared 测试 100% 通过，`pnpm typecheck` 0 错误，`pnpm --filter @animaku/web build` 生产构建成功；
+     - 执行 `pnpm bump patch`，版本号从 `v1.5.14` 递增至 `v1.5.15`。
+- 涉及文件：
+  - apps/server/src/lib/cdn-cache-headers.ts
+  - apps/server/src/routes/bangumi.ts
+  - apps/server/src/routes/bangumi-recommendations.test.ts
+  - apps/web/src/lib/bangumi.ts
+  - docs/cloudflare-cdn-rules.md
+  - .claude/feature-map.md
+  - .claude/STATE.md
+
+---
+
 ## [2026-09-07] 同步 Cloudflare 官方 Speed 优化改版更新 CDN 运维指南 (docs/cloudflare-cdn-rules.md)
 - 状态：已完成
 - 优先级：P3

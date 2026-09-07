@@ -12,6 +12,7 @@ import { Link } from 'react-router-dom'
 import { useEffect, useMemo } from 'react'
 import { EMPTY_ARRAY } from '../lib/stable'
 import { preloadVideoPlayer } from '../player/lazy'
+import { useInView } from '../lib/use-in-view'
 
 const SECTION_LIMIT = 18
 
@@ -29,6 +30,7 @@ export function HomePage() {
     [trending.data],
   )
 
+  const { ref: moviesRef, inView: moviesInView } = useInView()
   const movies = useQuery({
     queryKey: ['home-movies', SECTION_LIMIT],
     queryFn: ({ signal }) =>
@@ -38,10 +40,12 @@ export function HomePage() {
         limit: SECTION_LIMIT,
         signal,
       }),
+    enabled: moviesInView,
     staleTime: 2 * 60 * 60_000,
     gcTime: 12 * 60 * 60_000,
   })
 
+  const { ref: ovasRef, inView: ovasInView } = useInView()
   const ovas = useQuery({
     queryKey: ['home-ovas', SECTION_LIMIT],
     queryFn: ({ signal }) =>
@@ -51,6 +55,7 @@ export function HomePage() {
         limit: SECTION_LIMIT,
         signal,
       }),
+    enabled: ovasInView,
     staleTime: 2 * 60 * 60_000,
     gcTime: 12 * 60 * 60_000,
   })
@@ -188,7 +193,7 @@ export function HomePage() {
       </section>
 
       {/* 剧场版 */}
-      <section>
+      <section ref={moviesRef}>
         <div className="mb-4 sm:mb-5 flex items-center justify-between gap-3">
           <h2 className="kz-section-title font-black">剧场版</h2>
           <Link
@@ -198,17 +203,17 @@ export function HomePage() {
             查看更多
           </Link>
         </div>
-        {movies.isLoading && <BangumiGridSkeleton count={SECTION_LIMIT} />}
-        {movies.isError && (
+        {movies.isError ? (
           <ErrorState error={movies.error} onRetry={() => movies.refetch()} />
-        )}
-        {movies.data && (
+        ) : movies.data ? (
           <BangumiGrid items={movies.data.data} eagerCount={0} />
+        ) : (
+          <BangumiGridSkeleton count={SECTION_LIMIT} />
         )}
       </section>
 
       {/* OVA / 特别篇 */}
-      <section>
+      <section ref={ovasRef}>
         <div className="mb-4 sm:mb-5 flex items-center justify-between gap-3">
           <h2 className="kz-section-title font-black">OVA / 特别篇</h2>
           <Link
@@ -218,12 +223,12 @@ export function HomePage() {
             查看更多
           </Link>
         </div>
-        {ovas.isLoading && <BangumiGridSkeleton count={SECTION_LIMIT} />}
-        {ovas.isError && (
+        {ovas.isError ? (
           <ErrorState error={ovas.error} onRetry={() => ovas.refetch()} />
-        )}
-        {ovas.data && (
+        ) : ovas.data ? (
           <BangumiGrid items={ovas.data.data} eagerCount={0} />
+        ) : (
+          <BangumiGridSkeleton count={SECTION_LIMIT} />
         )}
       </section>
     </div>

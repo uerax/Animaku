@@ -16,6 +16,9 @@ export const COMMENTS_CDN_S_MAXAGE_SEC = 60 * 60
 /** Edge TTL for Bangumi calendar and trending GET success responses (2 hours). */
 export const BANGUMI_LIST_CDN_S_MAXAGE_SEC = 2 * 60 * 60
 
+/** Edge TTL for Bangumi subject recommendations GET success responses (24 hours). */
+export const RECOMMENDATIONS_CDN_S_MAXAGE_SEC = 24 * 60 * 60
+
 type HeaderSetter = {
   header: (name: string, value: string) => unknown
 }
@@ -73,4 +76,23 @@ export function setBangumiListCdnHeaders(c: HeaderSetter, bypass: boolean): void
   c.header('CDN-Cache-Control', `max-age=${edge}`)
   c.header('Cloudflare-CDN-Cache-Control', `max-age=${edge}`)
 }
+
+/**
+ * CDN cache headers for Bangumi subject recommendations.
+ * Edge caches 24h; browsers do not cache to allow fresh React Query navigation.
+ * @param bypass — `?refresh=1` or Cache-Control: no-cache from client
+ */
+export function setRecommendationsCdnHeaders(c: HeaderSetter, bypass: boolean): void {
+  if (bypass) {
+    c.header('Cache-Control', 'private, no-store')
+    c.header('CDN-Cache-Control', 'no-store')
+    c.header('Cloudflare-CDN-Cache-Control', 'no-store')
+    return
+  }
+  const edge = RECOMMENDATIONS_CDN_S_MAXAGE_SEC
+  c.header('Cache-Control', `public, max-age=0, s-maxage=${edge}`)
+  c.header('CDN-Cache-Control', `max-age=${edge}`)
+  c.header('Cloudflare-CDN-Cache-Control', `max-age=${edge}`)
+}
+
 

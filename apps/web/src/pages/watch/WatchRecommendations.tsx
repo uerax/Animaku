@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from 'react'
+import { memo, useMemo, useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import clsx from 'clsx'
@@ -104,10 +104,12 @@ const RecommendationCard = memo(function RecommendationCard({
   )
 })
 
+const INITIAL_VISIBLE_COUNT = 8
+
 function RecommendationsSkeleton() {
   return (
     <div className="space-y-2" aria-busy="true" aria-label="加载推荐中">
-      {Array.from({ length: 6 }, (_, i) => (
+      {Array.from({ length: 8 }, (_, i) => (
         <div
           key={i}
           className="flex w-full items-stretch gap-3 rounded-xl p-1.5"
@@ -184,6 +186,38 @@ export function WatchRecommendations({
 
   const items = data?.data?.items || []
 
+  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_COUNT)
+  const sentinelRef = useRef<HTMLDivElement>(null)
+
+  // 切换番剧时重置可见数量为首屏默认数 (8 部)
+  useEffect(() => {
+    setVisibleCount(INITIAL_VISIBLE_COUNT)
+  }, [bangumiId])
+
+  // 用户向下滚动接近列表末尾时，无感增量挂载剩余卡片 (监听 isOpen 确保展开时重新绑定哨兵)
+  useEffect(() => {
+    if (!isOpen) return
+    if (visibleCount >= items.length) return
+    const el = sentinelRef.current
+    if (!el) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisibleCount((prev) => Math.min(prev + 7, items.length))
+        }
+      },
+      { rootMargin: '150px' },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [isOpen, items.length, visibleCount])
+
+  const visibleItems = useMemo(
+    () => items.slice(0, visibleCount),
+    [items, visibleCount],
+  )
+
   // If request finished but no items found, hide cleanly
   if (!isLoading && items.length === 0) {
     return null
@@ -247,13 +281,20 @@ export function WatchRecommendations({
             <RecommendationsSkeleton />
           ) : (
             <div className="space-y-1">
-              {items.map((item) => (
+              {visibleItems.map((item) => (
                 <RecommendationCard
                   key={item.id}
                   item={item}
                   currentPlugin={currentPlugin}
                 />
               ))}
+              {visibleCount < items.length && (
+                <div
+                  ref={sentinelRef}
+                  className="h-4 w-full"
+                  aria-hidden="true"
+                />
+              )}
             </div>
           )}
         </div>

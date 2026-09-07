@@ -1,10 +1,11 @@
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { createHash } from 'node:crypto'
 import {
   parseBangumiItem,
   fromBangumiCollectionType,
   toBangumiCollectionType,
+  resolveCountryTag,
   type BangumiItem,
   type BangumiEpisode,
   type BangumiCollectionEntry,
@@ -22,6 +23,7 @@ import { bangumiFetch, getBearerToken } from '../lib/http'
 import {
   setCommentsCdnHeaders,
   setBangumiListCdnHeaders,
+  setRecommendationsCdnHeaders,
 } from '../lib/cdn-cache-headers'
 import {
   BANGUMI_CACHE_TTL,
@@ -646,7 +648,7 @@ bangumiRoutes.get('/collections/:subjectId', async (c) => {
   return c.json({ data: entry })
 })
 
-const DEFAULT_RECOMMENDATION_LIMIT = 6
+const DEFAULT_RECOMMENDATION_LIMIT = 15
 const BANGUMI_MAX_SEARCH_WINDOW = 1000
 
 export interface SamplePlan {
@@ -817,25 +819,63 @@ function formatEpsLabel(item: {
   return ''
 }
 
-bangumiRoutes.post('/recommendations', async (c) => {
-  const body = await c.req.json<BangumiRecommendationsRequest>()
-  const subjectId = Number(body.subjectId)
-  if (!Number.isFinite(subjectId) || subjectId <= 0) {
-    return c.json({ error: 'bad_request', message: '无效的 subjectId' }, 400)
-  }
+interface RecommendationOptions {
+  tags?: string[]
+  country?: string
+  isMovie?: boolean
+}
 
-  const key = `bangumi:${apiHost}:rec:${subjectId}`
-  const bypass = wantsCacheBypass(c)
-  if (bypass) {
-    cacheDelete(key)
-  } else {
-    const hit = cacheGet<BangumiRecommendationsPayload>(key)
-    if (hit) {
-      return c.json({ data: hit }, 200, cacheHeaders(true))
+async function computeRecommendations(
+  subjectId: number,
+  options: RecommendationOptions,
+): Promise<BangumiRecommendationsPayload> {
+  const todayStr = new Date().toISOString().slice(0, 10)
+
+  // 0. Fallback subject detail metadata if tags/country/isMovie not fully provided
+  let country = String(options.country || '').trim()
+  let rawTags = Array.isArray(options.tags) ? options.tags : []
+  let isMovie = options.isMovie
+
+  if (rawTags.length === 0 || !country || isMovie === undefined) {
+    const detailCacheKey = `bangumi:${apiHost}:subject:${subjectId}`
+    let subjectItem = cacheGet<{ data: BangumiItem }>(detailCacheKey)?.data
+    if (!subjectItem) {
+      try {
+        const detailRes = await bangumiFetch(`${apiUrl}/v0/subjects/${subjectId}`)
+        if (detailRes.ok) {
+          const detailJson = (await detailRes.json()) as Record<string, unknown>
+          subjectItem = parseBangumiItem(detailJson)
+          cacheSet(detailCacheKey, { data: subjectItem }, BANGUMI_CACHE_TTL.subject)
+        }
+      } catch {
+        /* ignore detail fetch error */
+      }
+    }
+    if (subjectItem) {
+      if (rawTags.length === 0 && subjectItem.tags) {
+        rawTags = subjectItem.tags
+          .map((t) => (typeof t === 'string' ? t : t?.name || ''))
+          .filter(Boolean)
+      }
+      if (!country) {
+        country = resolveCountryTag(subjectItem.tags)
+      }
+      if (isMovie === undefined) {
+        const title = subjectItem.nameCn || subjectItem.name || ''
+        const hasMovieTag = subjectItem.tags?.some((t) => {
+          const n = typeof t === 'string' ? t : t?.name || ''
+          return n.includes('剧场版') || n.includes('动画电影')
+        })
+        isMovie =
+          Boolean(hasMovieTag) ||
+          title.includes('剧场版') ||
+          (subjectItem.totalEpisodes === 1 && subjectItem.eps === 1)
+      }
     }
   }
 
-  const todayStr = new Date().toISOString().slice(0, 10)
+  if (!country) country = '日本'
+  if (isMovie === undefined) isMovie = false
 
   // 1. Fetch relations for Slot 0 determination (type: 2 anime only)
   let slot0: BangumiRecommendationItem | null = null
@@ -961,12 +1001,10 @@ bangumiRoutes.post('/recommendations', async (c) => {
     /* ignore relations fetch error, fallback to all similar */
   }
 
-  // 2. Pick 2 random feature tags from client tags & combine with country tag
-  const country = String(body.country || '').trim() || '日本'
-  const rawTags = Array.isArray(body.tags) ? body.tags : []
+  // 2. Pick 2 random feature tags from tags & combine with country tag
   const { pickedTags, searchTags } = cleanAndPickTags(
     rawTags,
-    body.isMovie,
+    isMovie,
     country,
   )
 
@@ -1045,7 +1083,7 @@ bangumiRoutes.post('/recommendations', async (c) => {
   // Attempt 2: fallback to country + 1st tag if results < target
   if (candidatePool.length < targetSimilarCount && pickedTags.length > 1) {
     const fallbackTags = [country, pickedTags[0]]
-    if (body.isMovie) fallbackTags.push('剧场版')
+    if (isMovie) fallbackTags.push('剧场版')
     const fallbackList = await fetchSampledPool(fallbackTags)
     if (fallbackList.length > candidatePool.length) {
       candidatePool = fallbackList
@@ -1055,7 +1093,7 @@ bangumiRoutes.post('/recommendations', async (c) => {
   // Attempt 3: fallback to country (+ movie tag) if still empty
   if (candidatePool.length < targetSimilarCount) {
     const generalTags = [country]
-    if (body.isMovie) generalTags.push('剧场版')
+    if (isMovie) generalTags.push('剧场版')
     const generalList = await fetchSampledPool(generalTags)
     if (generalList.length > 0) {
       candidatePool = [...candidatePool, ...generalList]
@@ -1102,13 +1140,103 @@ bangumiRoutes.post('/recommendations', async (c) => {
     ? [slot0, ...similarItems]
     : similarItems
 
-  const payload: BangumiRecommendationsPayload = {
+  return {
     items,
     matchedTags: [country, ...pickedTags],
   }
+}
 
+async function handleRecommendationsRoute(
+  c: Context,
+  subjectId: number,
+  options: RecommendationOptions,
+  isGet: boolean,
+) {
+  if (!Number.isFinite(subjectId) || subjectId <= 0) {
+    return c.json({ error: 'bad_request', message: '无效的 subjectId' }, 400)
+  }
+
+  const key = `bangumi:${apiHost}:rec:${subjectId}`
+  const bypass = wantsCacheBypass(c)
+  if (bypass) {
+    cacheDelete(key)
+  } else {
+    const hit = cacheGet<BangumiRecommendationsPayload>(key)
+    if (hit) {
+      if (isGet) setRecommendationsCdnHeaders(c, bypass)
+      return c.json({ data: hit }, 200, cacheHeaders(true))
+    }
+  }
+
+  const payload = await computeRecommendations(subjectId, options)
   cacheSet(key, payload, BANGUMI_CACHE_TTL.recommendations)
+  if (isGet) setRecommendationsCdnHeaders(c, bypass)
   return c.json({ data: payload }, 200, cacheHeaders(false))
+}
+
+bangumiRoutes.get('/subjects/:id/recommendations', async (c) => {
+  const subjectId = Number(c.req.param('id'))
+  const tagsQuery = c.req.query('tags')
+  const tags = tagsQuery
+    ? tagsQuery
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : undefined
+  const country = c.req.query('country')
+  const isMovieQuery = c.req.query('isMovie')
+  const isMovie =
+    isMovieQuery !== undefined
+      ? isMovieQuery === 'true' || isMovieQuery === '1'
+      : undefined
+
+  return handleRecommendationsRoute(
+    c,
+    subjectId,
+    { tags, country, isMovie },
+    true,
+  )
+})
+
+bangumiRoutes.get('/recommendations', async (c) => {
+  const subjectId = Number(c.req.query('subjectId'))
+  const tagsQuery = c.req.query('tags')
+  const tags = tagsQuery
+    ? tagsQuery
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : undefined
+  const country = c.req.query('country')
+  const isMovieQuery = c.req.query('isMovie')
+  const isMovie =
+    isMovieQuery !== undefined
+      ? isMovieQuery === 'true' || isMovieQuery === '1'
+      : undefined
+
+  return handleRecommendationsRoute(
+    c,
+    subjectId,
+    { tags, country, isMovie },
+    true,
+  )
+})
+
+bangumiRoutes.post('/recommendations', async (c) => {
+  const body = await c.req
+    .json<BangumiRecommendationsRequest>()
+    .catch(() => ({} as BangumiRecommendationsRequest))
+  const subjectId = Number(body.subjectId)
+  return handleRecommendationsRoute(
+    c,
+    subjectId,
+    {
+      tags: body.tags,
+      country: body.country,
+      isMovie: body.isMovie,
+    },
+    false,
+  )
 })
 
 interface CommentChunkData {

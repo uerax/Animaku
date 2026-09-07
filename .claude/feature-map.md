@@ -92,7 +92,7 @@
 - Bangumi 图片 CDN 优化、纯路径提取与反代：`packages/shared/src/bangumi-endpoint.ts`, `packages/shared/src/bangumi-image.ts`, `apps/web/src/lib/bangumi-image-host.ts`
 - Bangumi 类型定义与工具：`packages/shared/src/bangumi.ts`
 - Bangumi 专属图片与头像渲染组件 (BangumiImage / BangumiAvatar)：`apps/web/src/components/BangumiImage.tsx`, `apps/web/src/components/ui.tsx`
-- 服务端 Bangumi API 代理与推荐聚合路由 (POST /api/bangumi/recommendations)：`apps/server/src/routes/bangumi.ts`
+- 服务端 Bangumi API 代理与推荐聚合路由 (GET /api/bangumi/subjects/:id/recommendations 与 24h CDN 缓存)：`apps/server/src/routes/bangumi.ts`
 - 客户端 Bangumi API 请求层：`apps/web/src/lib/bangumi.ts`, `apps/web/src/lib/api.ts`
 
 ## 9. 业务页面与前端核心路由 (Pages & App Shell)
@@ -150,6 +150,7 @@
 - 静态 robots.txt 与 webmanifest：`apps/web/public/robots.txt`, `apps/web/public/site.webmanifest`
 
 ## 13. 辅助工具与公共库 (Utilities & Shared)
+- 视口可见性与提前预热懒加载 Hook (useInView)：`apps/web/src/lib/use-in-view.ts`
 - 客户端非阻塞浏览器指纹与设备识别：`apps/web/src/lib/fingerprint.ts`
 - 简繁转换 (OpenCC S2T)：`apps/server/src/lib/opencc-s2t.ts`
 - HTTP 请求封装与伪装头：`apps/server/src/lib/http.ts`

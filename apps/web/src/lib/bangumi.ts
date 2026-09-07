@@ -74,21 +74,23 @@ export const bangumiApi = {
       imageHost?: string
       signal?: AbortSignal
     },
-  ) =>
-    api<{ data: BangumiRecommendationsPayload }>(
-      '/api/bangumi/recommendations',
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          subjectId: Number(subjectId),
-          tags: opts?.tags,
-          country: opts?.country,
-          isMovie: opts?.isMovie,
-          imageHost: opts?.imageHost,
-        }),
-        signal: opts?.signal,
-      },
-    ),
+  ) => {
+    const params = new URLSearchParams()
+    if (opts?.tags && opts.tags.length > 0) {
+      params.set('tags', opts.tags.join(','))
+    }
+    if (opts?.country) {
+      params.set('country', opts.country)
+    }
+    if (opts?.isMovie !== undefined) {
+      params.set('isMovie', String(opts.isMovie))
+    }
+    const qs = params.toString()
+    const url = `/api/bangumi/subjects/${subjectId}/recommendations${qs ? `?${qs}` : ''}`
+    return api<{ data: BangumiRecommendationsPayload }>(url, {
+      signal: opts?.signal,
+    })
+  },
   comments: (
     subjectId: number | string,
     opts?: {
