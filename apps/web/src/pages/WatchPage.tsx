@@ -360,6 +360,7 @@ export function WatchPage() {
           onDanmakuChange={w.setDanmaku}
           onPrev={() => startTransition(() => w.goAdjacentEpisode(-1))}
           onNext={() => startTransition(() => w.goAdjacentEpisode(1))}
+          onPrefetchNext={w.prefetchNextEpisode}
           onMediaAuthExpired={w.onMediaAuthExpired}
           onMediaLoadFailed={w.onMediaLoadFailed}
           danmakuPanel={w.dm.panel}

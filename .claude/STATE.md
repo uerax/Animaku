@@ -4,6 +4,47 @@
 
 ---
 
+## [2026-09-07] 修复自动连播跨组件渲染报错、完播续播卡死缺陷与切集流预取优化 (v1.5.14)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **修复 Bug 1：自动连播跨组件更新副作用 (`apps/web/src/player/VideoPlayer.tsx`)**：
+     - 将 AutoNext 倒计时定时器重构为闭包局部计数器调度模式，彻底移除原 `setCountdown((prev) => { ... onNextRef.current?.() })` 在 React 状态纯函数更新阶段执行外部父组件状态更新的副作用；
+     - 倒计时归零时先在宏任务回调中执行 `cancelCountdown()` 取消定时器并重置 UI 状态，再安全触发 `onNextRef.current?.()`，彻底消除了 `Cannot update a component ('WatchPage') while rendering a different component ('VideoPlayer')` 控制台报错。
+  2. **修复 Bug 2：完播重温续播卡死在终点前 0.5s (`packages/shared/src/player.ts`, `apps/web/src/player/hooks/usePlaybackResume.ts`, `apps/web/src/lib/use-watch-session.ts`)**：
+     - 在 `@animaku/shared` 中定义完播续播防护阈值 `CONTINUE_PLAY_END_THRESHOLD_SEC = 15` 与 `CONTINUE_PLAY_END_RATIO_THRESHOLD = 0.95`；
+     - 双层防御机制拦截：
+       - 第一层：`use-watch-session.ts` 中的 `lookupResumePosition` 同步读取历史时，若发现该集历史记录已有有效 duration 且进度已达末尾区间（距离末尾不足 15s 或播放比 >= 95%），直接返回 0，从源头重置续播点；
+       - 第二层：`usePlaybackResume.ts` 中的 `tryApplyInitialResume` 在媒体权威时长解析就绪后，再次校验目标续播进度；若触发完播阈值，标记 `resumedRef.current = true` 并直接返回，避免将其强制裁剪到 `authDuration - 0.5s` 导致秒触发 `ended` 陷入死循环。
+  3. **切集流畅度性能优化：下一集流地址后台预解析机制 (`prefetchNextEpisode`)**：
+     - 在 `use-watch-session.ts` 引入 `useQueryClient` 并实现 `prefetchNextEpisode` 方法，通过 React Query 后台预取并缓存 `pluginApi.resolve` 下一集视频流地址；
+     - 多时机智能预热：
+       - 自然播放达到 85% 且视频时长有效（>60s）时静默预解析；
+       - 完播触发 AutoNext 4 秒倒计时启动时立即触发预解析；
+       - 桌面端控制栏鼠标悬浮或聚焦「下一集」按钮（`onMouseEnter` / `onFocus`）以及移动端触摸按钮时提前拉起预解析；
+     - 切集时 React Query 直接命中内存缓存，消除了以往切集时 1~3 秒的服务端解析网络往返黑屏与 Loading 等待。
+  4. **全量验证与版本递增**：
+     - 全仓 90 项 server 测试、55 项 shared 测试、12 项 web 测试 100% 通过，全仓 `typecheck` 0 错误；
+     - 执行 `pnpm bump patch`，项目版本号递增至 `v1.5.14`。
+- 涉及文件：
+  - packages/shared/src/player.ts
+  - apps/web/src/player/VideoPlayer.tsx
+  - apps/web/src/player/hooks/usePlaybackResume.ts
+  - apps/web/src/lib/use-watch-session.ts
+  - apps/web/src/pages/WatchPage.tsx
+  - apps/web/src/player/types.ts
+  - apps/web/src/player/chrome/types.ts
+  - apps/web/src/player/chrome/DesktopControls.tsx
+  - apps/web/src/player/chrome/MobileControls.tsx
+  - package.json
+  - apps/server/package.json
+  - apps/web/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/BUGS.md
+
+---
+
 ## [2026-09-07] B站弹幕拉取失败日志级别从 Error 降级为 Warn (v1.5.13)
 - 状态：已完成
 - 优先级：P3

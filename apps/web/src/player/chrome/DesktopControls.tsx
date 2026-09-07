@@ -115,6 +115,7 @@ export function DesktopControls(props: PlayerControlsProps) {
     onTogglePlay,
     onPrev,
     onNext,
+    onPrefetchNext,
     onSeekRatio,
     onToggleDanmaku,
     onTogglePanel,
@@ -402,6 +403,8 @@ export function DesktopControls(props: PlayerControlsProps) {
           <button
             type="button"
             className="kz-ctrl kz-ctrl-icon"
+            onMouseEnter={() => onPrefetchNext?.()}
+            onFocus={() => onPrefetchNext?.()}
             onClick={() => onNext?.()}
             title="下一集 (N)"
             aria-label="下一集"

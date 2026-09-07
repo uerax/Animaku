@@ -77,6 +77,7 @@ export function VideoPlayer({
   onDanmakuChange,
   onPrev,
   onNext,
+  onPrefetchNext,
   embedded = false,
   danmakuPanel,
   hudMessage,
@@ -317,6 +318,8 @@ export function VideoPlayer({
   const lastSkipTRef = useRef(0)
   const onNextRef = useRef(onNext)
   onNextRef.current = onNext
+  const onPrefetchNextRef = useRef(onPrefetchNext)
+  onPrefetchNextRef.current = onPrefetchNext
 
   // Resume scheduler
   const {
@@ -469,18 +472,18 @@ export function VideoPlayer({
         return
       }
       if (player.autoNext && onNextRef.current) {
+        onPrefetchNextRef.current?.()
         cancelCountdown()
-        setCountdown(4)
+        let count = 4
+        setCountdown(count)
         countdownIntervalRef.current = window.setInterval(() => {
-          setCountdown((prev) => {
-            if (prev === null || prev <= 1) {
-              window.clearInterval(countdownIntervalRef.current)
-              countdownIntervalRef.current = 0
-              onNextRef.current?.()
-              return null
-            }
-            return prev - 1
-          })
+          count -= 1
+          if (count <= 0) {
+            cancelCountdown()
+            onNextRef.current?.()
+          } else {
+            setCountdown(count)
+          }
         }, 1000)
       }
     },
@@ -981,6 +984,7 @@ export function VideoPlayer({
     onTogglePlay: togglePlay,
     onPrev,
     onNext,
+    onPrefetchNext,
     onSeekRatio: seekRatio,
     onToggleDanmaku: () => {
       if (onToggleDanmaku) {

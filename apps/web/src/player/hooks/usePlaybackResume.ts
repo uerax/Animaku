@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, type RefObject } from 'react'
 import type Hls from 'hls.js'
-import { CONTINUE_PLAY_MIN_THRESHOLD_SEC } from '@animaku/shared'
+import {
+  CONTINUE_PLAY_MIN_THRESHOLD_SEC,
+  CONTINUE_PLAY_END_THRESHOLD_SEC,
+  CONTINUE_PLAY_END_RATIO_THRESHOLD,
+} from '@animaku/shared'
 import { isM3u8 } from '../media/format'
 
 export interface UsePlaybackResumeOptions {
@@ -100,6 +104,17 @@ export function usePlaybackResume({
     const authDuration = resolveAuthoritativeDuration()
     if (authDuration === null) {
       // 权威时长尚未稳定，等待后续事件（loadedmetadata / durationchange / LEVEL_LOADED）重试
+      return false
+    }
+
+    // 完播防卡死保护：若目标续播进度已处于视频终点附近（>= 95% 或 距离末尾不足 15s），判定为已完播，重置为 0 从头开播
+    if (
+      (authDuration > 30 &&
+        (targetTime >= authDuration - CONTINUE_PLAY_END_THRESHOLD_SEC ||
+          targetTime / authDuration >= CONTINUE_PLAY_END_RATIO_THRESHOLD)) ||
+      (authDuration <= 30 && targetTime >= authDuration - 2)
+    ) {
+      resumedRef.current = true
       return false
     }
 

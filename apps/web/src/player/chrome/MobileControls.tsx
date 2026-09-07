@@ -146,6 +146,7 @@ export function MobileControls(props: PlayerControlsProps) {
     onTogglePlay,
     onPrev,
     onNext,
+    onPrefetchNext,
     onSeekRatio,
     onToggleDanmaku,
     onTogglePanel,
@@ -514,6 +515,7 @@ export function MobileControls(props: PlayerControlsProps) {
             <button
               type="button"
               className="kz-ctrl kz-ctrl-icon"
+              onTouchStart={() => onPrefetchNext?.()}
               onClick={() => onNext?.()}
               title="下一集"
               aria-label="下一集"

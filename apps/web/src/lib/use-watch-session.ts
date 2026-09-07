@@ -11,7 +11,7 @@ import {
   type NavigateOptions,
   type URLSearchParamsInit,
 } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   buildSearchKeywords,
   rankSearchItems,
@@ -19,6 +19,8 @@ import {
   coverOf,
   comparePluginOrder,
   CONTINUE_PLAY_MIN_THRESHOLD_SEC,
+  CONTINUE_PLAY_END_THRESHOLD_SEC,
+  CONTINUE_PLAY_END_RATIO_THRESHOLD,
   isOldAnime,
   resolvePluginDefaultKeyword,
   findMatchingEpisodeIndex,
@@ -116,6 +118,17 @@ function lookupResumePosition(
 ): number {
   const items = useHistoryStore.getState().items
   const list = Array.isArray(items) ? items : []
+  const isFinished = (pos: number, dur: number) => {
+    if (!dur || dur <= 0) return false
+    if (dur > 30) {
+      return (
+        pos >= dur - CONTINUE_PLAY_END_THRESHOLD_SEC ||
+        pos / dur >= CONTINUE_PLAY_END_RATIO_THRESHOLD
+      )
+    }
+    return pos >= dur - 2
+  }
+
   const exact = list.find(
     (i) =>
       i.bangumiId === bangumiId &&
@@ -123,11 +136,18 @@ function lookupResumePosition(
       i.episode === episode &&
       i.road === road,
   )
-  if (exact) return exact.position || 0
+  if (exact) {
+    if (isFinished(exact.position, exact.duration)) return 0
+    return exact.position || 0
+  }
   const sameEp = list.find(
     (i) => i.bangumiId === bangumiId && i.episode === episode,
   )
-  return sameEp?.position || 0
+  if (sameEp) {
+    if (isFinished(sameEp.position, sameEp.duration)) return 0
+    return sameEp.position || 0
+  }
+  return 0
 }
 
 /** Prefer history sourceUrl; fall back to query `source` when present. */
@@ -273,6 +293,7 @@ export type WatchSession = {
   pickSlot: (slot: PlayableSlot, roadIndex?: number) => void
   pickEpisode: (epIndex: number, roadIndex?: number) => void
   goAdjacentEpisode: (delta: number) => void
+  prefetchNextEpisode: () => void
   onProgress: (position: number, duration: number) => void
   onMediaAuthExpired: (position: number) => Promise<void>
   onMediaLoadFailed: (args: { position: number }) => void
@@ -424,6 +445,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
       return comparePluginOrder(a, b, isOld)
     })
   }, [allPlugins, mediaFullProxy, serverProxyEnabled, isProxyUnlocked, pluginOrder, isOld])
+  const queryClient = useQueryClient()
   const upsertHistory = useHistoryStore((s) => s.upsert)
   const danmakuSettings = useSettingsStore((s) => s.danmaku ?? FALLBACK_DANMAKU)
   const setDanmaku = useSettingsStore((s) => s.setDanmaku)
@@ -1743,10 +1765,60 @@ export function useWatchSession(bangumiId: number): WatchSession {
     }
   }
 
+  const prefetchNextEpisode = useCallback(() => {
+    if (!selection || !episode) return
+    const roadIndex = episode.road
+    const road = selection.roads[roadIndex]
+    if (!road?.data?.length) return
+    const slots = buildPlayableSlots(road, bgmEpisodesQuery.data?.data)
+    if (!slots.length) return
+
+    const currentSlotIdx = slots.findIndex((s) => s.pageUrl === episode.pageUrl)
+    const curIdx =
+      currentSlotIdx >= 0 ? currentSlotIdx : (episode.sourceIndex ?? 0)
+    const nextIdx = curIdx + 1
+    if (nextIdx < 0 || nextIdx >= slots.length) return
+    const nextSlot = slots[nextIdx]
+    if (!nextSlot?.pageUrl) return
+
+    const queryKey = [
+      'resolve',
+      bangumiId,
+      selection.plugin.name,
+      selection.plugin.version,
+      nextSlot.pageUrl,
+    ]
+
+    void queryClient.prefetchQuery({
+      queryKey,
+      queryFn: ({ signal }) =>
+        pluginApi.resolve(selection.plugin, nextSlot.pageUrl, {
+          signal,
+          title,
+          episode: nextSlot.canonicalEp,
+          bangumiId,
+        }),
+      staleTime: 60_000,
+    })
+  }, [
+    selection,
+    episode,
+    bgmEpisodesQuery.data?.data,
+    bangumiId,
+    title,
+    queryClient,
+  ])
+
   const onProgress = useCallback(
     (position: number, duration: number) => {
       currentPlaybackPositionRef.current = position
       if (!selection || !episode) return
+
+      // 预取下一集：播放进度达到 85% 且时长有效（>60s）时，提前在后台预解析下一集流地址
+      if (duration > 60 && position / duration >= 0.85) {
+        prefetchNextEpisode()
+      }
+
       upsertHistory({
         bangumiId,
         title,
@@ -1764,6 +1836,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     [
       selection,
       episode,
+      prefetchNextEpisode,
       upsertHistory,
       bangumiId,
       title,
@@ -2047,6 +2120,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     pickSlot,
     pickEpisode,
     goAdjacentEpisode,
+    prefetchNextEpisode,
     onProgress,
     onMediaAuthExpired,
     onMediaLoadFailed,

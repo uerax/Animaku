@@ -77,6 +77,17 @@ export const SUPER_RESOLUTION_MODES: readonly SuperResolutionMode[] = [
  */
 export const CONTINUE_PLAY_MIN_THRESHOLD_SEC = 15
 
+/**
+ * Seconds before video end considered "already finished" for resume seeking.
+ * Prevents re-watching finished episodes from seeking into the final credits / 0.5s ended trap.
+ */
+export const CONTINUE_PLAY_END_THRESHOLD_SEC = 15
+
+/**
+ * Playback progress ratio considered "already finished" for resume seeking.
+ */
+export const CONTINUE_PLAY_END_RATIO_THRESHOLD = 0.95
+
 export const defaultPlayerSettings: PlayerSettings = {
   speed: 1,
   autoplay: true,

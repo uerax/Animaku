@@ -41,6 +41,7 @@ export interface PlayerControlsProps {
   onTogglePlay: () => void
   onPrev?: () => void
   onNext?: () => void
+  onPrefetchNext?: () => void
   onSeekRatio: (ratio: number) => void
   onToggleDanmaku?: () => void
   onTogglePanel: () => void
