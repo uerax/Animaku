@@ -1772,10 +1772,26 @@ export function useWatchSession(bangumiId: number): WatchSession {
     ],
   )
 
-  async function reResolveFresh() {
-    resolveRefreshOnce.current = true
-    await resolve.refetch()
-    setPlayerRemount((n) => n + 1)
+  const AUTH_REFRESH_DELAYS = [1000, 2500, 5000]
+
+  async function reResolveFresh(maxAttempts = 3): Promise<void> {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        resolveRefreshOnce.current = true
+        const res = await resolve.refetch({ throwOnError: true })
+        if (res.isError) {
+          throw res.error || new Error('解析失败')
+        }
+        setPlayerRemount((n) => n + 1)
+        return
+      } catch (err) {
+        if (attempt === maxAttempts - 1) {
+          throw err
+        }
+        const delay = AUTH_REFRESH_DELAYS[attempt] ?? 2000
+        await new Promise((r) => setTimeout(r, delay))
+      }
+    }
   }
 
   async function onMediaAuthExpired(position: number) {

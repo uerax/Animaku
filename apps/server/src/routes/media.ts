@@ -305,6 +305,46 @@ async function handleBinarySegment(
 }
 
 /**
+ * GET /api/media/status?t=...
+ * 播放票据与关联媒体资产存活性轻量探活端点（零外部网络 I/O，微秒级响应）
+ * 专供客户端/Safari 假死看门狗探测凭据健康度：
+ * - 拦截 url 参数注入，防止被利用为开放代理或探测外部地址；
+ * - 纯内存执行 verifyTicket(t) 校验解密、过期时间与关联资产存活性；
+ * - 凭据与资产均有效返回 204 No Content；
+ * - 凭据无效或关联资产不存在返回 403 Forbidden；
+ * - 严禁触发任何外部源站抓取或 AST 改写。
+ */
+mediaRoutes.get('/status', (c) => {
+  // 1. 彻底拦截 url 参数注入
+  if (c.req.query('url') !== undefined) {
+    return c.json(
+      {
+        error: 'forbidden_params',
+        message: '直接通过 url 参数请求已被彻底禁止。请使用 Opaque Ticket ?t=...',
+      },
+      400,
+    )
+  }
+
+  const t = (c.req.query('t') || '').trim()
+  if (!t) {
+    return c.json({ error: 'bad_request', message: '缺少播放票据凭证 t' }, 400)
+  }
+
+  // 2. 纯内存验票与资产存活校验
+  const verifyResult = playbackRegistry.verifyTicket(t)
+  if (!verifyResult.valid) {
+    return c.json(
+      { error: verifyResult.code, message: verifyResult.reason },
+      403,
+    )
+  }
+
+  // 3. 票据与资产存活健康，返回 204 No Content
+  return c.body(null, 204)
+})
+
+/**
  * GET /api/media/stream?t=...
  * 播放列表受控分发网关（严格拦截 url 参数，执行 Content-Type 门禁与全要素 HLS AST 改写）
  * 自适应兼容：若收到合法的 segment 票据（如 MP4 直链），直接内部进入分片/直连处理管道，免去多余重定向

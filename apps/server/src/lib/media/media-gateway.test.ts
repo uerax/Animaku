@@ -193,6 +193,45 @@ test('mediaRoutes: strictly rejects url query parameter with 400', async () => {
   assert.equal(res3.status, 400)
   const json3 = (await res3.json()) as { error: string }
   assert.equal(json3.error, 'forbidden_params')
+
+  // 4. /status?url=... -> 400
+  const res4 = await mediaRoutes.request('/status?url=https://evil.com/play.m3u8')
+  assert.equal(res4.status, 400)
+  const json4 = (await res4.json()) as { error: string }
+  assert.equal(json4.error, 'forbidden_params')
+})
+
+test('mediaRoutes: /status provides zero-I/O ticket and asset health verification', async () => {
+  // 1. Missing ticket -> 400
+  const res1 = await mediaRoutes.request('/status')
+  assert.equal(res1.status, 400)
+
+  // 2. Tampered ticket -> 403
+  const res2 = await mediaRoutes.request('/status?t=v1.invalid_tampered_base64_string')
+  assert.equal(res2.status, 403)
+  const json2 = (await res2.json()) as { error: string }
+  assert.ok(json2.error)
+
+  // 3. Valid ticket with existing active asset -> 204 No Content
+  const asset = playbackRegistry.registerAsset({
+    source: 'anime1',
+    baseUrl: 'https://v.anime1.me/watch/123/stream.m3u8',
+  })
+  const validTicket = playbackRegistry.issueTicket({
+    aid: asset.assetId,
+    src: 'anime1',
+    typ: 'playlist',
+    sub: '',
+  })
+  const res3 = await mediaRoutes.request(`/status?t=${encodeURIComponent(validTicket)}`)
+  assert.equal(res3.status, 204)
+
+  // 4. Asset evicted / server restarted (assetId not found in memory) -> 403 ASSET_NOT_FOUND
+  playbackRegistry.clearCaches()
+  const res4 = await mediaRoutes.request(`/status?t=${encodeURIComponent(validTicket)}`)
+  assert.equal(res4.status, 403)
+  const json4 = (await res4.json()) as { error: string }
+  assert.equal(json4.error, 'ASSET_NOT_FOUND')
 })
 
 test('mediaRoutes: rejects missing, tampered or expired tickets', async () => {

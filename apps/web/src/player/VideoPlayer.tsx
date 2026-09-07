@@ -191,7 +191,8 @@ export function VideoPlayer({
   const lastMediaErrorTimeRef = useRef(0)
   const sessionMediaErrorTotalRef = useRef(0)
   const initialTimeRef = useRef(initialTime)
-  const authRetryRef = useRef(false)
+  const authAttemptingRef = useRef(false)
+  const authRecoverySucceededRef = useRef(false)
   const [localVideo, setLocalVideo] = useState<{ url: string; name: string } | null>(null)
   const activeSrc = localVideo?.url || src
 
@@ -552,7 +553,12 @@ export function VideoPlayer({
     }
 
     // Stale Instance Guard：若当前实例已处于凭证重试、报错或失效状态，坚决不执行
-    if (authRetryRef.current || loadFailedOnceRef.current || mediaError) {
+    if (
+      authAttemptingRef.current ||
+      authRecoverySucceededRef.current ||
+      loadFailedOnceRef.current ||
+      mediaError
+    ) {
       return false
     }
 
@@ -765,7 +771,8 @@ export function VideoPlayer({
 
     resumedRef.current = false
     skipBusyRef.current = false
-    authRetryRef.current = false
+    authAttemptingRef.current = false
+    authRecoverySucceededRef.current = false
     loadFailedOnceRef.current = false
     mediaErrorWindowCountRef.current = 0
     lastMediaErrorTimeRef.current = 0
@@ -960,11 +967,17 @@ export function VideoPlayer({
       activeSrc.includes('/api/media/') || /[?&]cookie=/.test(activeSrc)
 
     const tryAuthRefresh = () => {
-      if (!alive() || authRetryRef.current) return false
+      if (
+        !alive() ||
+        authAttemptingRef.current ||
+        authRecoverySucceededRef.current
+      ) {
+        return false
+      }
       if (!isControlledOrProxy || !onMediaAuthExpiredRef.current) {
         return false
       }
-      authRetryRef.current = true
+      authAttemptingRef.current = true
       const pos = video.currentTime || 0
       setMediaError('')
       setLoading(true)
@@ -974,12 +987,19 @@ export function VideoPlayer({
         () => setOffsetHint(''),
         4000,
       )
-      void Promise.resolve(onMediaAuthExpiredRef.current(pos)).catch(() => {
-        if (!alive()) return
-        setLoading(false)
-        setBufferingUi(false)
-        setMediaError('凭证刷新失败，建议切换视频源')
-      })
+      void Promise.resolve(onMediaAuthExpiredRef.current(pos))
+        .then(() => {
+          if (!alive()) return
+          authRecoverySucceededRef.current = true
+          authAttemptingRef.current = false
+        })
+        .catch(() => {
+          if (!alive()) return
+          authAttemptingRef.current = false
+          setLoading(false)
+          setBufferingUi(false)
+          setMediaError('凭证刷新失败，建议切换视频源')
+        })
       return true
     }
 
@@ -1040,7 +1060,7 @@ export function VideoPlayer({
       const onStalled = () => {
         if (!alive()) return
         if (!isControlledOrProxy || !onMediaAuthExpiredRef.current) return
-        if (authRetryRef.current) {
+        if (authRecoverySucceededRef.current) {
           // If already retried auth once, probe if it failed again and surface clear terminal state
           void fetch(activeSrc, {
             headers: { Range: 'bytes=0-1' },
@@ -1055,6 +1075,7 @@ export function VideoPlayer({
           })
           return
         }
+        if (authAttemptingRef.current) return
         const pos = video.currentTime || 0
         // lightweight HEAD-ish GET with range to detect auth_expired JSON
         void fetch(activeSrc, {
@@ -1063,7 +1084,7 @@ export function VideoPlayer({
         }).then(async (r) => {
           if (!alive()) return
           if (r.status === 403 || r.status === 401) {
-            if (authRetryRef.current) {
+            if (authRecoverySucceededRef.current) {
               setLoading(false)
               setBufferingUi(false)
               setMediaError('播放凭证已过期，请重新选集或切源')
@@ -1129,6 +1150,101 @@ export function VideoPlayer({
       video.appendChild(sourceEl)
       video.load()
       video.addEventListener('loadedmetadata', onReady, { once: true })
+
+      // Safari Native HLS 假死看门狗 (Playback Health Watchdog)
+      let watchdogTimer: number | undefined
+      let probeInFlight = false
+      let lastProbeTime = 0
+      let activeController: AbortController | null = null
+      const NATIVE_PROBE_COOLDOWN_MS = 30_000
+
+      const runStatusProbe = () => {
+        if (!alive()) return
+        if (!isControlledOrProxy || !onMediaAuthExpiredRef.current) return
+        if (authAttemptingRef.current || authRecoverySucceededRef.current) return
+        if (probeInFlight) return
+        const now = Date.now()
+        if (now - lastProbeTime < NATIVE_PROBE_COOLDOWN_MS) return
+
+        let ticket = ''
+        try {
+          const u = new URL(activeSrc, window.location.origin)
+          ticket = u.searchParams.get('t') || ''
+        } catch {
+          /* ignore */
+        }
+        if (!ticket) return
+
+        probeInFlight = true
+        lastProbeTime = now
+
+        const controller = new AbortController()
+        activeController = controller
+        const timeoutId = window.setTimeout(() => controller.abort(), 3000)
+
+        fetch(`/api/media/status?t=${encodeURIComponent(ticket)}`, {
+          method: 'GET',
+          cache: 'no-cache',
+          credentials: 'same-origin',
+          signal: controller.signal,
+        })
+          .then((r) => {
+            window.clearTimeout(timeoutId)
+            probeInFlight = false
+            activeController = null
+            if (!alive()) return
+            // 只有当服务端明确返回 401 或 403 时，才确认凭据/资产失效并触发恢复
+            if (r.status === 401 || r.status === 403) {
+              tryAuthRefresh()
+            }
+            // 204 或其它状态均表示资产有效，不做换票，避免弱网误判
+          })
+          .catch(() => {
+            window.clearTimeout(timeoutId)
+            probeInFlight = false
+            activeController = null
+            // 探针自身网络失败/超时绝不误判为凭据失效，静默退出
+          })
+      }
+
+      const scheduleNativeWatchdog = () => {
+        if (!alive()) return
+        if (!isControlledOrProxy || !onMediaAuthExpiredRef.current) return
+        if (authAttemptingRef.current || authRecoverySucceededRef.current) return
+        if (video.paused) return
+
+        window.clearTimeout(watchdogTimer)
+        const snapshotTime = video.currentTime || 0
+
+        watchdogTimer = window.setTimeout(() => {
+          if (!alive()) return
+          if (video.paused) return
+          const currentTime = video.currentTime || 0
+          const hasAdvanced = Math.abs(currentTime - snapshotTime) > 0.1
+          const isStarved = video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA
+          if (!hasAdvanced && isStarved) {
+            runStatusProbe()
+          }
+        }, 2500)
+      }
+
+      const cancelNativeWatchdog = () => {
+        window.clearTimeout(watchdogTimer)
+      }
+
+      video.addEventListener('stalled', scheduleNativeWatchdog)
+      video.addEventListener('waiting', scheduleNativeWatchdog)
+      video.addEventListener('playing', cancelNativeWatchdog)
+      video.addEventListener('timeupdate', cancelNativeWatchdog)
+
+      ;(video as HTMLVideoElement & { __nativeHlsCleanup?: () => void }).__nativeHlsCleanup = () => {
+        window.clearTimeout(watchdogTimer)
+        activeController?.abort()
+        video.removeEventListener('stalled', scheduleNativeWatchdog)
+        video.removeEventListener('waiting', scheduleNativeWatchdog)
+        video.removeEventListener('playing', cancelNativeWatchdog)
+        video.removeEventListener('timeupdate', cancelNativeWatchdog)
+      }
     }
 
     if (isM3u8(activeSrc, formatHint)) {
@@ -1882,6 +1998,18 @@ export function VideoPlayer({
         video.removeEventListener('error', stalled)
         delete (video as HTMLVideoElement & { __a1Stalled?: () => void })
           .__a1Stalled
+      }
+      const nativeHlsCleanup = (
+        video as HTMLVideoElement & { __nativeHlsCleanup?: () => void }
+      ).__nativeHlsCleanup
+      if (nativeHlsCleanup) {
+        try {
+          nativeHlsCleanup()
+        } catch {
+          /* ignore */
+        }
+        delete (video as HTMLVideoElement & { __nativeHlsCleanup?: () => void })
+          .__nativeHlsCleanup
       }
       try {
         danmakuCoreRef.current?.destroy()

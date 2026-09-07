@@ -4,6 +4,44 @@
 
 ---
 
+## [2026-09-07] 落地受控媒体网关轻量存活校验端点、客户端阶梯退避与 Safari 原生 HLS 看门狗 (v1.5.10)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **服务端挂载轻量存活性校验端点 /api/media/status 并固化白名单防御 (`apps/server/src/routes/media.ts` & `media-gateway.test.ts`)**：
+     - 在 `mediaRoutes` 挂载 `GET /status`，纯内存纳秒级执行 `playbackRegistry.verifyTicket(t)`；
+     - 票据与关联资产健康返回 204 No Content，失效或丢失返回 403 Forbidden，全链路零外部网络 I/O、不抓取 M3U8、不重写 AST；
+     - 严格拦截 `url` 参数注入与缺少 `t` 票据的请求（返回 400），杜绝开放代理与探针参数污染；
+     - 在 `media-gateway.test.ts` 补齐合法 204、内存清空后 403 ASSET_NOT_FOUND、篡改 403、缺少票据 400 与非法 url 参数拦截单测；
+  2. **客户端会话层引入阶梯退避重试与 React Query 严格错误捕获 (`apps/web/src/lib/use-watch-session.ts`)**：
+     - 定义常量 `AUTH_REFRESH_DELAYS = [1000, 2500, 5000]`，重构 `reResolveFresh` 为阶梯退避重试；
+     - 明确使用 `await resolve.refetch({ throwOnError: true })` 与 `if (res.isError) throw res.error`，彻底解决 Promise 吞掉连接被拒或 502 报错的暗坑；
+     - 7.6 秒的容错窗口平滑覆盖服务端容器重启与进程冷启动，换票成功后递增 `playerRemount` 触发断点续播；
+  3. **客户端播放器状态锁解耦与集成 Safari 原生 HLS 假死看门狗 (`apps/web/src/player/VideoPlayer.tsx`)**：
+     - 将原单一 `authRetryRef` 布尔锁解耦为 `authAttemptingRef`（瞬时防并发）与 `authRecoverySucceededRef`（会话成功锁），重试中途失败不再死锁恢复能力；
+     - 在 `attachNativeHls` 中挂载轻量看门狗：合流 `stalled` 与 `waiting` 事件，延迟 2.5 秒触发；
+     - 严格校验门禁：受控流（`isControlledOrProxy`）、非暂停状态、缓冲不足（`readyState < HAVE_FUTURE_DATA`）、播放进度未推进；
+     - 引入 30 秒冷却（`NATIVE_PROBE_COOLDOWN_MS`）与单飞互斥，向 `/api/media/status` 探活：仅在明确返回 401/403 时打破 Safari 假死触发换票，204 或网络自身断连静默忽略；
+     - 卸载时通过 `__nativeHlsCleanup` 彻底释放监听器与未决 AbortController 定时器；
+  4. **严格坚守 Zero Auto Proxy Fallback 铁律**：
+     - 所有探活探针与凭证恢复机制严格仅对受控代理流生效，直连 CDN 失败保持明确报错并引导用户手动切源，绝无向服务器代理引流漏洞；
+  5. **全仓测试与版本升级**：
+     - 全仓 85 项服务端测试全绿，全仓 `typecheck`、`build` 0 错误；
+     - 项目版本号由 `v1.5.9` 递增至 `v1.5.10`。
+- 涉及文件：
+  - apps/server/src/routes/media.ts
+  - apps/server/src/lib/media/media-gateway.test.ts
+  - apps/web/src/lib/use-watch-session.ts
+  - apps/web/src/player/VideoPlayer.tsx
+  - package.json
+  - apps/server/package.json
+  - apps/web/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/BUGS.md
+  - .claude/STATE.md
+- 备注：彻底解决了服务端冷启动窗口内的网络容错与 Safari 原生切片 403 假死卡顿问题，探针零外部网络开销。
+
 ## [2026-09-07] 修复受控网关 M3U8 槽位泄漏、切片跨级相对路径错位并闭环规则引擎格式推导 (v1.5.7)
 - 状态：已完成
 - 优先级：P0
