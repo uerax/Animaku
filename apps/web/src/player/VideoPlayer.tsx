@@ -9,51 +9,15 @@
  */
 import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
 import './plyr-overrides.css'
-/** Instance type only — runtime constructor is dynamic-imported for m3u8 */
-import type Hls from 'hls.js'
 import {
-  CONTINUE_PLAY_MIN_THRESHOLD_SEC,
   determineOpedAction,
   PLAYER_SPEEDS,
-  STATS_VALID_PLAY_THRESHOLD_SEC,
   type SuperResolutionMode,
 } from '@animaku/shared'
-import { statsApi } from '../lib/api'
-import { useWatchedStore } from '../stores/watched'
+import { SUPER_RESOLUTION_LABELS } from './anime4k'
 import { DanmakuPanel, type DanmakuPanelTab } from './DanmakuPanel'
-import {
-  hasWebGPU,
-  startAnime4K,
-  SR_MAX_DIMENSION,
-  SUPER_RESOLUTION_LABELS,
-  supportsAnime4K,
-  type Anime4KStop,
-} from './anime4k'
 import type { DanmakuPanelState, VideoPlayerProps } from './types'
-import {
-  canIosVideoFullscreen,
-  canRequestDomFullscreen,
-  enterIosVideoFullscreen,
-  exitDomFullscreen,
-  exitIosVideoFullscreen,
-  isIosVideoFullscreen,
-  isShellFullscreen,
-  requestDomFullscreen,
-} from './media/fullscreen'
-import { CanvasDanmaku } from './media/canvas-danmaku'
-import {
-  danmakuFontScaleBucket,
-  danmakuPixelSpeed,
-  type DanmakuLayoutHints,
-} from './media/danmaku-utils'
-import {
-  bufferedAhead,
-  formatTime,
-  inferMediaMimeType,
-  isM3u8,
-  isVideoFile,
-  isXmlDanmakuFile,
-} from './media/format'
+import { formatTime, isVideoFile, isXmlDanmakuFile } from './media/format'
 import { usePointerMode } from './chrome/usePointerMode'
 import { useChromeVisibility } from './chrome/useChromeVisibility'
 import { useShellPointerHandlers } from './chrome/useShellPointerHandlers'
@@ -67,6 +31,28 @@ import {
 } from './chrome/PlayerStatsOverlay'
 import type { PlayerControlsProps } from './chrome/types'
 
+// Sub-modules & Overlays
+import {
+  PlaybackRipple,
+  DanmakuDropOverlay,
+  PlayerStatusOverlay,
+  FirstEpPromptOverlay,
+  AutoNextOverlay,
+  type FirstEpPromptData,
+} from './overlays'
+
+// Functional Hooks
+import {
+  useIntentGuard,
+  usePlayerFullscreen,
+  usePlaybackStats,
+  usePlayerShortcuts,
+  useAnime4KPipeline,
+  useDanmakuBridge,
+  usePlaybackResume,
+  useMediaEngine,
+} from './hooks'
+
 export type { DanmakuPanelState, VideoPlayerProps } from './types'
 export type AspectRatioMode = 'contain' | 'cover' | 'fill' | '4:3'
 
@@ -76,12 +62,6 @@ const ASPECT_RATIO_LABELS: Record<AspectRatioMode, string> = {
   fill: '100% 拉伸 (Fill)',
   '4:3': '画幅 4:3',
 }
-
-/** Min buffer before first play — tiered for HLS vs progressive MP4. */
-const MIN_START_BUFFER_HLS_SEC = 0.4
-const MIN_START_BUFFER_MP4_SEC = 0.4
-/** Don't stall forever on empty CDN; start anyway after this. */
-const MAX_START_WAIT_MS = 3_500
 
 export function VideoPlayer({
   title,
@@ -114,9 +94,69 @@ export function VideoPlayer({
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const layerRef = useRef<HTMLDivElement>(null)
-  const hlsRef = useRef<Hls | null>(null)
-  const danmakuCoreRef = useRef<CanvasDanmaku | null>(null)
+  const xmlInputRef = useRef<HTMLInputElement>(null)
 
+  // Local video playback override
+  const [localVideo, setLocalVideo] = useState<{ url: string; name: string } | null>(null)
+  const activeSrc = localVideo?.url || src
+
+  const prevSrcRef = useRef(src)
+  useEffect(() => {
+    if (prevSrcRef.current !== src) {
+      prevSrcRef.current = src
+      setLocalVideo((prev) => {
+        if (prev?.url) URL.revokeObjectURL(prev.url)
+        return null
+      })
+    }
+  }, [src])
+
+  // Hints & Toast
+  const [offsetHint, setOffsetHint] = useState('')
+  const offsetHintTimer = useRef(0)
+
+  const flashSkipHint = useCallback((msg: string, ms = 1500) => {
+    setOffsetHint(msg)
+    window.clearTimeout(offsetHintTimer.current)
+    offsetHintTimer.current = window.setTimeout(() => setOffsetHint(''), ms)
+  }, [])
+
+  const flashSrHint = useCallback((msg: string, ms = 4500) => {
+    setOffsetHint(msg)
+    window.clearTimeout(offsetHintTimer.current)
+    offsetHintTimer.current = window.setTimeout(() => setOffsetHint(''), ms)
+  }, [])
+
+  useEffect(() => {
+    if (localVideo?.name) {
+      flashSrHint(`已加载本地视频：${localVideo.name}`, 3500)
+    }
+  }, [localVideo, flashSrHint])
+
+  // Central ripple animation for play/pause micro-interaction
+  const [ripple, setRipple] = useState<{ id: number; type: 'play' | 'pause' } | null>(null)
+  const rippleTimerRef = useRef(0)
+
+  const triggerRipple = useCallback((type: 'play' | 'pause') => {
+    window.clearTimeout(rippleTimerRef.current)
+    setRipple({ id: Date.now(), type })
+    rippleTimerRef.current = window.setTimeout(() => {
+      setRipple(null)
+    }, 500)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      window.clearTimeout(rippleTimerRef.current)
+      window.clearTimeout(offsetHintTimer.current)
+      setLocalVideo((prev) => {
+        if (prev?.url) URL.revokeObjectURL(prev.url)
+        return null
+      })
+    }
+  }, [])
+
+  // Widescreen
   const [internalWidescreen, setInternalWidescreen] = useState(false)
   const isWidescreen = controlledWidescreen ?? internalWidescreen
   const handleToggleWidescreen = () => {
@@ -139,125 +179,9 @@ export function VideoPlayer({
       })
     }
   }
-  /**
-   * Gate first CanvasDanmaku construct until media can paint
-   * (canplay / HAVE_CURRENT_DATA). Avoids main-thread work during black buffer.
-   * Settings/comments still live in refs and apply on first ready applyDanmaku().
-   */
-  const danmakuMediaReadyRef = useRef(false)
-  /** Last player width used for danmaku font scale (reload only on meaningful change). */
-  const lastDanmakuWidthRef = useRef(0)
-  const anime4kStopRef = useRef<Anime4KStop | null>(null)
-  const genRef = useRef(0)
-  const lastSaveRef = useRef(0)
-  /** Throttle React progress UI updates (timeupdate is ~4–15Hz). */
-  const lastUiProgressRef = useRef(0)
-  /** Last t for OP/ED boundary crossing (works at high playbackRate). */
-  const lastSkipTRef = useRef(0)
-  /** Fingerprint of last full danmaku reload (comments + content settings). */
-  const danmakuContentKeyRef = useRef('')
-  const skipBusyRef = useRef(false)
-  const isSeekingRef = useRef(false)
-  const pendingSeekTargetRef = useRef<number | null>(null)
-  const seekLockExpiryRef = useRef(0)
-  const resumedRef = useRef(false)
-  /** Suppress volumechange → settings during softPlay mute dance. */
-  const ignoreVolumePersistRef = useRef(false)
-  /** Last non-zero volume for mute-toggle restore (desktop speaker icon). */
-  const lastAudibleVolumeRef = useRef(
-    player.volume && player.volume > 0 ? player.volume : 0.7,
-  )
-  /** User intentionally paused — do not show stall spinner while paused. */
-  const userPausedRef = useRef(false)
 
-  const playerRef = useRef(player)
-  const danmakuRef = useRef(danmaku)
-  const danmakuPanelRef = useRef(danmakuPanel)
-  const commentsRef = useRef(comments)
-  /** Live layout for danmaku (avoid stale closure inside src effect). */
-  const pointerModeRef = useRef<'desktop' | 'mobile'>('desktop')
-  const playerFsRef = useRef(false)
-  const webFsRef = useRef(false)
-  const onNextRef = useRef(onNext)
-  const onPrevRef = useRef(onPrev)
-  const onProgressRef = useRef(onProgress)
-  const onPlayerChangeRef = useRef(onPlayerChange)
-  const onToggleDanmakuRef = useRef(onToggleDanmaku)
-  const onDanmakuChangeRef = useRef(onDanmakuChange)
-  const onMediaAuthExpiredRef = useRef(onMediaAuthExpired)
-  const onMediaLoadFailedRef = useRef(onMediaLoadFailed)
-  const loadFailedOnceRef = useRef(false)
-  const mediaErrorWindowCountRef = useRef(0)
-  const lastMediaErrorTimeRef = useRef(0)
-  const sessionMediaErrorTotalRef = useRef(0)
-  const initialTimeRef = useRef(initialTime)
-  const authAttemptingRef = useRef(false)
-  const authRecoverySucceededRef = useRef(false)
-  const [localVideo, setLocalVideo] = useState<{ url: string; name: string } | null>(null)
-  const activeSrc = localVideo?.url || src
-
-  const [offsetHint, setOffsetHint] = useState('')
-  const offsetHintTimer = useRef(0)
-
-  // Central ripple animation for play/pause micro-interaction
-  const [ripple, setRipple] = useState<{ id: number; type: 'play' | 'pause' } | null>(null)
-  const rippleTimerRef = useRef(0)
-
-  const triggerRipple = (type: 'play' | 'pause') => {
-    window.clearTimeout(rippleTimerRef.current)
-    setRipple({ id: Date.now(), type })
-    rippleTimerRef.current = window.setTimeout(() => {
-      setRipple(null)
-    }, 500)
-  }
-
-  // Revoke local video Blob URL and clear pending timers on unmount
-  useEffect(() => {
-    return () => {
-      window.clearTimeout(rippleTimerRef.current)
-      window.clearTimeout(offsetHintTimer.current)
-      setLocalVideo((prev) => {
-        if (prev?.url) URL.revokeObjectURL(prev.url)
-        return null
-      })
-    }
-  }, [])
-
-  // Clear local video override when parent changes network src
-  const prevSrcRef = useRef(src)
-  useEffect(() => {
-    if (prevSrcRef.current !== src) {
-      prevSrcRef.current = src
-      setLocalVideo((prev) => {
-        if (prev?.url) URL.revokeObjectURL(prev.url)
-        return null
-      })
-    }
-  }, [src])
-
-  // Toast hint when a local video is loaded
-  useEffect(() => {
-    if (localVideo?.name) {
-      flashSrHint(`已加载本地视频：${localVideo.name}`, 3500)
-    }
-  }, [localVideo])
-
-  // Auto-next countdown overlay
-  const [countdown, setCountdown] = useState<number | null>(null)
-  const countdownIntervalRef = useRef(0)
-
-  // First-episode OP/ED skip protection overlay (index 0)
-  const [firstEpPrompt, setFirstEpPrompt] = useState<{
-    type: 'op' | 'ed'
-    targetTime: number
-    countdown: number
-  } | null>(null)
-  const firstEpPromptTimerRef = useRef(0)
-  const promptTriggeredThisEpRef = useRef(false)
-  const keepWholeEpisodeRef = useRef(false)
-
+  // Aspect ratio
   const [aspectRatio, setAspectRatio] = useState<AspectRatioMode>('contain')
-
   const setAspectRatioMode = (next: AspectRatioMode) => {
     setAspectRatio(next)
     flashSkipHint(`画面比例：${ASPECT_RATIO_LABELS[next]}`, 1800)
@@ -269,67 +193,25 @@ export function VideoPlayer({
     const next = modes[(idx + 1) % modes.length]
     setAspectRatioMode(next)
   }
-  const toggleAspectRatioRef = useRef(toggleAspectRatio)
-  toggleAspectRatioRef.current = toggleAspectRatio
-
-  const [panelOpen, setPanelOpen] = useState(false)
-  const [panelTab, setPanelTab] = useState<DanmakuPanelTab>('search')
-  const [filterDraft, setFilterDraft] = useState('')
-  const [dropActive, setDropActive] = useState(false)
-
-  // Play statistics metrics: accumulate actual continuous play duration and report when reaching 15s
-  const playSecAccumulatedRef = useRef<number>(0)
-  const playViewReportedRef = useRef<boolean>(false)
-  const lastPlaySecTickRef = useRef<number>(0)
-
-  useEffect(() => {
-    playSecAccumulatedRef.current = 0
-    playViewReportedRef.current = false
-    lastPlaySecTickRef.current = 0
-    promptTriggeredThisEpRef.current = false
-    keepWholeEpisodeRef.current = false
-    if (firstEpPromptTimerRef.current) {
-      window.clearInterval(firstEpPromptTimerRef.current)
-      firstEpPromptTimerRef.current = 0
-    }
-    setFirstEpPrompt(null)
-  }, [bangumiId, episodeNumber, episodeIndex, activeSrc])
-  const [speedMenuOpen, setSpeedMenuOpen] = useState(false)
-  const [srMenuOpen, setSrMenuOpen] = useState(false)
-  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
-  /** Mobile vertical volume popup */
-  const [volumeMenuOpen, setVolumeMenuOpen] = useState(false)
-  const [mediaError, setMediaError] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [paused, setPaused] = useState(true)
-  const [current, setCurrent] = useState(0)
-  const [duration, setDuration] = useState(0)
-  /**
-   * Stall chrome (center spinner only — no text tips).
-   * Show only when there is nothing paint-able: initial load, seek into hole,
-   * or real underrun. Never while frames are still advancing.
-   */
-  const [seekingUi, setSeekingUi] = useState(false)
-  const [bufferingUi, setBufferingUi] = useState(false)
-  /** player shell Fullscreen API */
-  const [playerFs, setPlayerFs] = useState(false)
-  /** CSS fill viewport without Fullscreen API (agefans-style webpage FS) */
-  const [webFs, setWebFs] = useState(false)
-  /** WebGPU Anime4K pipeline currently painting to canvas */
-  const [srActive, setSrActive] = useState(false)
-  /** null = not probed yet; false = no WebGPU / no adapter */
-  const [webGpuOk, setWebGpuOk] = useState<boolean | null>(
-    () => (typeof navigator !== 'undefined' && hasWebGPU() ? null : false),
-  )
-  const xmlInputRef = useRef<HTMLInputElement>(null)
-  const toggleFsRef = useRef<() => void>(() => {})
-  const togglePlayRef = useRef<() => void>(() => {})
 
   const [mirror, setMirror] = useState(false)
   const [loop, setLoop] = useState(false)
   const loopRef = useRef(loop)
   loopRef.current = loop
+
+  // Menus and panels state
+  const [panelOpen, setPanelOpen] = useState(false)
+  const [panelTab, setPanelTab] = useState<DanmakuPanelTab>('search')
+  const [filterDraft, setFilterDraft] = useState('')
+  const [dropActive, setDropActive] = useState(false)
+  const [speedMenuOpen, setSpeedMenuOpen] = useState(false)
+  const [srMenuOpen, setSrMenuOpen] = useState(false)
+  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
+  const [volumeMenuOpen, setVolumeMenuOpen] = useState(false)
   const [statsOpen, setStatsOpen] = useState(false)
+  const [opedDrawerOpen, setOpedDrawerOpen] = useState(false)
+  const [pipActive, setPipActive] = useState(false)
+  const [pipSupported, setPipSupported] = useState(false)
   const [contextMenu, setContextMenu] = useState<{
     x: number
     y: number
@@ -339,104 +221,22 @@ export function VideoPlayer({
     y: 0,
     visible: false,
   })
-  const [pipActive, setPipActive] = useState(false)
-  const [pipSupported, setPipSupported] = useState(false)
-  const [bandwidthEstimateBps, setBandwidthEstimateBps] = useState(0)
-  const [lastFragStats, setLastFragStats] = useState<{
-    bytes: number
-    loadTimeMs: number
-    speedBytesPerSec: number
-  } | null>(null)
-  const [fps, setFps] = useState(0)
-  const [droppedFrames, setDroppedFrames] = useState(0)
-  const [totalFrames, setTotalFrames] = useState(0)
-  const [videoCodec, setVideoCodec] = useState('')
-  const [audioCodec, setAudioCodec] = useState('')
-  const [opedDrawerOpen, setOpedDrawerOpen] = useState(false)
 
-  /**
-   * 统一程序化操作意图守卫：
-   * 记录主动程序化操作（倍速调整、Seek 拖动、跳过 OP/ED）引发的底层 DOM 噪声豁免截止时间。
-   */
-  const programmaticIntentExpiryRef = useRef(0)
+  // Fullscreen management
+  const {
+    playerFs,
+    webFs,
+    togglePlayerFs,
+    toggleWebFs,
+    toggleFs,
+    exitAnyFs,
+  } = usePlayerFullscreen({
+    shellRef,
+    videoRef,
+    src: activeSrc,
+  })
 
-  const withIntentGuard = useCallback(
-    (durationMs: number, action: () => void) => {
-      programmaticIntentExpiryRef.current = Date.now() + durationMs
-      action()
-    },
-    [],
-  )
-
-  const isProgrammaticNoise = useCallback(() => {
-    return Date.now() < programmaticIntentExpiryRef.current
-  }, [])
-
-  /**
-   * 缓冲感知判断：
-   * 只有在「处于程序化守卫期」且「当前具备可播数据（不是真正的网络缺数据饥饿）」时，才将 pause 判定为瞬态噪声并豁免。
-   * 若当前缓冲确实耗尽（video.readyState < HAVE_CURRENT_DATA 且 bufferedAhead <= 0），则必须正常触发缓冲等待，严禁盲目 play() 造成抖动。
-   */
-  const shouldSuppressPause = useCallback((v: HTMLVideoElement) => {
-    if (Date.now() >= programmaticIntentExpiryRef.current) return false
-    const reallyStarved =
-      v.readyState < HTMLMediaElement.HAVE_CURRENT_DATA &&
-      bufferedAhead(v) <= 0
-    return !reallyStarved
-  }, [])
-
-  const shouldSuppressPauseRef = useRef(shouldSuppressPause)
-  shouldSuppressPauseRef.current = shouldSuppressPause
-  const withIntentGuardRef = useRef(withIntentGuard)
-  withIntentGuardRef.current = withIntentGuard
-
-  const lastAppliedSpeedRef = useRef(player.speed || 1)
-
-  const applySpeedChange = useCallback(
-    (s: number) => {
-      const v = videoRef.current
-      if (!v) return
-      const wasPlaying = !v.paused && !userPausedRef.current
-      lastAppliedSpeedRef.current = s
-      withIntentGuard(450, () => {
-        try {
-          v.playbackRate = s
-        } catch {
-          /* ignore */
-        }
-        // 关键：在当前最高优先级的用户手势上下文内，若原本处于播放状态，强保活维持播放意图
-        if (wasPlaying) {
-          void v.play().catch(() => {
-            /* ignore */
-          })
-        }
-      })
-    },
-    [withIntentGuard],
-  )
-
-  useEffect(() => {
-    if (typeof document !== 'undefined') {
-      setPipSupported(Boolean(document.pictureInPictureEnabled))
-    }
-  }, [])
-
-  useEffect(() => {
-    const v = videoRef.current
-    if (!v) return
-
-    const onEnterPip = () => setPipActive(true)
-    const onLeavePip = () => setPipActive(false)
-
-    v.addEventListener('enterpictureinpicture', onEnterPip)
-    v.addEventListener('leavepictureinpicture', onLeavePip)
-
-    return () => {
-      v.removeEventListener('enterpictureinpicture', onEnterPip)
-      v.removeEventListener('leavepictureinpicture', onLeavePip)
-    }
-  }, [activeSrc])
-
+  // Pointer & Visibility
   const pointerMode = usePointerMode()
   const menusOpen =
     panelOpen ||
@@ -445,271 +245,316 @@ export function VideoPlayer({
     volumeMenuOpen ||
     settingsMenuOpen ||
     contextMenu.visible
+
   const {
     showBar,
     showBarRef,
     bumpBar,
     hideBar,
     setShowBar,
-    clearHideTimer,
   } = useChromeVisibility({
     pointerMode,
     menusOpen,
     isPaused: () => Boolean(videoRef.current?.paused),
   })
 
-  // Sync webFs state to document root to isolate stacking context and hide site header
-  useEffect(() => {
-    if (webFs) {
-      document.documentElement.classList.add('kz-has-web-fs')
-      document.body.classList.add('kz-has-web-fs')
-    } else {
-      document.documentElement.classList.remove('kz-has-web-fs')
-      document.body.classList.remove('kz-has-web-fs')
-    }
-    return () => {
-      document.documentElement.classList.remove('kz-has-web-fs')
-      document.body.classList.remove('kz-has-web-fs')
-    }
-  }, [webFs])
+  // Intent Guard
+  const {
+    withIntentGuard,
+    shouldSuppressPause,
+  } = useIntentGuard()
 
-  playerRef.current = player
-  danmakuRef.current = danmaku
-  danmakuPanelRef.current = danmakuPanel
-  commentsRef.current = comments
+  // First-episode OP/ED skip protection overlay (index 0)
+  const [firstEpPrompt, setFirstEpPrompt] = useState<FirstEpPromptData | null>(null)
+  const firstEpPromptTimerRef = useRef(0)
+  const promptTriggeredThisEpRef = useRef(false)
+  const keepWholeEpisodeRef = useRef(false)
+
+  // Auto-next countdown overlay
+  const [countdown, setCountdown] = useState<number | null>(null)
+  const countdownIntervalRef = useRef(0)
+
+  const cancelCountdown = useCallback(() => {
+    window.clearInterval(countdownIntervalRef.current)
+    countdownIntervalRef.current = 0
+    setCountdown(null)
+  }, [])
+
+  const cancelFirstEpPrompt = useCallback(() => {
+    if (firstEpPromptTimerRef.current) {
+      window.clearInterval(firstEpPromptTimerRef.current)
+      firstEpPromptTimerRef.current = 0
+    }
+    setFirstEpPrompt(null)
+  }, [])
+
+  useEffect(() => {
+    promptTriggeredThisEpRef.current = false
+    keepWholeEpisodeRef.current = false
+    cancelFirstEpPrompt()
+    cancelCountdown()
+  }, [bangumiId, episodeNumber, episodeIndex, activeSrc, cancelFirstEpPrompt, cancelCountdown])
+
+  // Danmaku Bridge
+  const {
+    noteDanmakuMediaReady,
+  } = useDanmakuBridge({
+    shellRef,
+    videoRef,
+    layerRef,
+    comments,
+    danmaku,
+    pointerMode,
+    playerFs,
+    webFs,
+    onFlashHint: flashSkipHint,
+  })
+
+  // Forward refs for callbacks
+  const hlsHolderRef = useRef<any>(null)
+  const isSeekingRefHolder = useRef(false)
+  const skipBusyRef = useRef(false)
+  const lastSkipTRef = useRef(0)
+  const onNextRef = useRef(onNext)
   onNextRef.current = onNext
-  onPrevRef.current = onPrev
-  onProgressRef.current = onProgress
-  onPlayerChangeRef.current = onPlayerChange
-  onToggleDanmakuRef.current = onToggleDanmaku
-  onDanmakuChangeRef.current = onDanmakuChange
-  onMediaAuthExpiredRef.current = onMediaAuthExpired
-  onMediaLoadFailedRef.current = onMediaLoadFailed
-  initialTimeRef.current = initialTime
-  pointerModeRef.current = pointerMode
-  playerFsRef.current = playerFs
-  webFsRef.current = webFs
-  if ((player.volume ?? 0) > 0.001) {
-    lastAudibleVolumeRef.current = player.volume
-  }
 
-  /**
-   * 解析媒体当前可信的最终总时长（秒）。
-   * 区分 MP4 与 HLS VOD 解析态，若处于切片探测期返回 null 挂起，杜绝误判。
-   */
-  const resolveAuthoritativeDuration = useCallback((): number | null => {
-    const video = videoRef.current
-    if (!video) return null
-    const isHls = isM3u8(activeSrc, formatHint)
+  // Resume scheduler
+  const {
+    tryApplyInitialResume,
+  } = usePlaybackResume({
+    videoRef,
+    hlsRef: hlsHolderRef,
+    activeSrc,
+    formatHint,
+    initialTime,
+    continuePlay: player.continuePlay,
+    onResumed: (safeTarget) => {
+      lastSkipTRef.current = safeTarget
+    },
+  })
 
-    if (isHls) {
-      const hls = hlsRef.current
-      if (!hls) {
-        // Safari 原生 HLS 播放模式：已解析出有效有限时长
-        const d = video.duration
-        return Number.isFinite(d) && d > 0 ? d : null
+  // Playback Stats
+  const {
+    fps,
+    droppedFrames,
+    totalFrames,
+    bandwidthEstimateBps,
+    setBandwidthEstimateBps,
+    lastFragStats,
+    setLastFragStats,
+    videoCodec,
+    setVideoCodec,
+    audioCodec,
+    setAudioCodec,
+    handleTimeUpdateStats,
+    handlePauseStats,
+    handleEndedStats,
+    resetPlayTick,
+  } = usePlaybackStats({
+    videoRef,
+    hlsRef: hlsHolderRef,
+    activeSrc,
+    bangumiId,
+    episodeNumber,
+    episodeIndex,
+    onProgress,
+  })
+
+  // Core Media Engine
+  const {
+    hlsRef,
+    loading,
+    paused,
+    current,
+    duration,
+    seekingUi,
+    bufferingUi,
+    mediaError,
+    togglePlay,
+    applySeek,
+    seekTo,
+    seekRatio,
+    applySpeedChange,
+    handleVolumeChange,
+    toggleMute,
+  } = useMediaEngine({
+    videoRef,
+    activeSrc,
+    formatHint,
+    playerSettings: player,
+    onPlayerChange,
+    onMediaAuthExpired,
+    onMediaLoadFailed,
+    withIntentGuard,
+    shouldSuppressPause,
+    onFlashHint: flashSkipHint,
+    triggerRipple,
+    bumpBar,
+    setShowBar,
+    showBarRef,
+    onNoteDanmakuReady: noteDanmakuMediaReady,
+    tryApplyInitialResume,
+    onTimeUpdateExtra: (t, d) => {
+      // 1. Stats & History progress
+      handleTimeUpdateStats(t, d, isSeekingRefHolder.current)
+
+      // 2. OP/ED skip check
+      if (!Number.isFinite(d) || d <= 0) {
+        lastSkipTRef.current = t
+        return
       }
-      // hls.js 模式：当前 active level 的 VOD 切片已完整就绪
-      const lvl = hls.levels[hls.currentLevel]
-      const details = lvl?.details
-      if (
-        details &&
-        !details.live &&
-        Number.isFinite(details.totalduration) &&
-        details.totalduration > 0
-      ) {
-        return details.totalduration
-      }
-      return null
-    }
 
-    // Progressive MP4：只要元数据已就绪且 duration 为有限正数
-    if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
-      const d = video.duration
-      return Number.isFinite(d) && d > 0 ? d : null
-    }
+      const prevT = lastSkipTRef.current
+      lastSkipTRef.current = t
 
-    return null
-  }, [activeSrc])
+      if (isSeekingRefHolder.current || skipBusyRef.current || t >= d - 3) return
 
-  /**
-   * 幂等且时序安全的初始续播调度器：
-   * 1. Stale Instance Guard：失效/重试中实例绝不响应；
-   * 2. 权威时长决断：未稳定时挂起重试，杜绝代理指标漏洞；
-   * 3. 严格防越界裁剪与 try/catch 保护。
-   */
-  const tryApplyInitialResume = useCallback((): boolean => {
-    const video = videoRef.current
-    const targetTime = initialTimeRef.current
-    const cfg = playerRef.current
+      const decision = determineOpedAction({
+        currentTime: t,
+        prevTime: prevT,
+        duration: d,
+        isSeeking: isSeekingRefHolder.current,
+        isSkipBusy: skipBusyRef.current,
+        episodeIndex,
+        episodeNumber,
+        playerSettings: player,
+        promptTriggeredThisEp: promptTriggeredThisEpRef.current,
+        keepWholeEpisode: keepWholeEpisodeRef.current,
+      })
 
-    if (
-      !video ||
-      !cfg.continuePlay ||
-      resumedRef.current ||
-      targetTime <= CONTINUE_PLAY_MIN_THRESHOLD_SEC
-    ) {
-      return false
-    }
-
-    // Stale Instance Guard：若当前实例已处于凭证重试、报错或失效状态，坚决不执行
-    if (
-      authAttemptingRef.current ||
-      authRecoverySucceededRef.current ||
-      loadFailedOnceRef.current ||
-      mediaError
-    ) {
-      return false
-    }
-
-    const authDuration = resolveAuthoritativeDuration()
-    if (authDuration === null) {
-      // 权威时长尚未稳定，等待后续事件（loadedmetadata / durationchange / LEVEL_LOADED）重试
-      return false
-    }
-
-    // 严格防越界裁剪：锁定在 [0, authDuration - 0.5s] 安全区间内，防止触发非法 ended
-    const safeTarget = Math.max(0, Math.min(targetTime, Math.max(0, authDuration - 0.5)))
-
-    resumedRef.current = true
-    lastSkipTRef.current = safeTarget
-    try {
-      video.currentTime = safeTarget
-      return true
-    } catch (e) {
-      console.warn('[player] initial resume seek failed:', e)
-      return false
-    }
-  }, [resolveAuthoritativeDuration, mediaError])
-
-  // 入口 1: Prop 驱动入口（处理 Late Hydrate 异步到达）
-  useEffect(() => {
-    if (initialTime > CONTINUE_PLAY_MIN_THRESHOLD_SEC && !resumedRef.current) {
-      tryApplyInitialResume()
-    }
-  }, [initialTime, tryApplyInitialResume])
-
-  function reportLoadFailed(reason: string) {
-    if (loadFailedOnceRef.current) return
-    loadFailedOnceRef.current = true
-    const pos = videoRef.current?.currentTime || 0
-    onMediaLoadFailedRef.current?.({ position: pos, reason })
-  }
-
-  /** Desktop/mobile + fullscreen → danmaku font/speed curve (not width alone). */
-  function danmakuLayoutHints(height?: number): DanmakuLayoutHints {
-    const shell = shellRef.current
-    const h =
-      height && height > 0
-        ? height
-        : shell?.clientHeight || layerRef.current?.clientHeight || 0
-    return {
-      mode: pointerModeRef.current,
-      fullscreen: Boolean(playerFsRef.current || webFsRef.current),
-      height: h > 0 ? h : undefined,
-    }
-  }
-
-  /**
-   * Apply danmaku settings / comments (Canvas time-based engine).
-   * Visual-only (opacity/speed/area/enabled) → applyVisual, no list rebuild.
-   * Content changes (comments, filters, modes, offset, fontSize) → full reload.
-   * Never resize() on every apply — only when width/font bucket changes.
-   *
-   * First construct is deferred until danmakuMediaReadyRef / HAVE_CURRENT_DATA
-   * so open-buffer main thread is not competing with HLS attach + first paint.
-   */
-  function applyDanmaku(forceReload = false) {
-    const video = videoRef.current
-    const layer = layerRef.current
-    if (!video || !layer) return
-
-    // No engine yet: wait until frames can paint (or explicit ready flag from canplay).
-    if (!danmakuCoreRef.current) {
-      const paintable =
-        danmakuMediaReadyRef.current ||
-        video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
-      if (!paintable) return
-      danmakuMediaReadyRef.current = true
-    }
-
-    const dm = danmakuRef.current
-    const shell = shellRef.current
-    const w =
-      shell?.clientWidth || layer.clientWidth || video.clientWidth || 0
-    const h =
-      shell?.clientHeight || layer.clientHeight || video.clientHeight || 0
-    const layout = danmakuLayoutHints(h)
-    const pixelSpeed = danmakuPixelSpeed(w, dm.speed || 1, layout)
-    const prevW = lastDanmakuWidthRef.current
-    const widthBucketChanged =
-      w > 0 &&
-      (prevW <= 0 ||
-        Math.abs(
-          danmakuFontScaleBucket(w, layout) -
-            danmakuFontScaleBucket(prevW, layout),
-        ) >= 1)
-    lastDanmakuWidthRef.current = w
-
-    const contentKey = [
-      commentsRef.current.length,
-      commentsRef.current[0]?.time ?? 0,
-      commentsRef.current[commentsRef.current.length - 1]?.time ?? 0,
-      dm.fontSize ?? 1,
-      dm.showScroll ? 1 : 0,
-      dm.showTop ? 1 : 0,
-      dm.showBottom ? 1 : 0,
-      dm.showColor ? 1 : 0,
-      dm.simplify ? 1 : 0,
-      (dm.filters || []).join('\0'),
-      danmakuFontScaleBucket(w, layout),
-    ].join('|')
-
-    try {
-      const needReload =
-        forceReload ||
-        !danmakuCoreRef.current ||
-        contentKey !== danmakuContentKeyRef.current
-
-      if (!danmakuCoreRef.current) {
-        danmakuCoreRef.current = new CanvasDanmaku({
-          container: layer,
-          media: video,
-          comments: commentsRef.current,
-          settings: dm,
-          width: w,
-          layout,
+      if (decision.action === 'prompt') {
+        promptTriggeredThisEpRef.current = true
+        cancelFirstEpPrompt()
+        let count = 5
+        setFirstEpPrompt({
+          type: decision.type,
+          targetTime: decision.targetTime,
+          countdown: count,
         })
-        danmakuContentKeyRef.current = contentKey
-      } else if (needReload) {
-        const core = danmakuCoreRef.current
-        core.setLayout(layout)
-        core.reload(commentsRef.current, dm)
-        core.speed = pixelSpeed
-        danmakuContentKeyRef.current = contentKey
-        if (widthBucketChanged) core.resize(w)
-      } else {
-        const core = danmakuCoreRef.current
-        core.setLayout(layout)
-        core.applyVisual(dm)
-        core.speed = pixelSpeed
-        // Geometry only when player width actually moved a font-scale bucket
-        if (widthBucketChanged) core.resize(w)
+        firstEpPromptTimerRef.current = window.setInterval(() => {
+          count -= 1
+          if (count <= 0) {
+            cancelFirstEpPrompt()
+            keepWholeEpisodeRef.current = true
+          } else {
+            setFirstEpPrompt((prev) => (prev ? { ...prev, countdown: count } : null))
+          }
+        }, 1000)
+      } else if (decision.action === 'skip') {
+        const video = videoRef.current
+        if (video) {
+          skipBusyRef.current = true
+          lastSkipTRef.current = decision.targetTime
+          video.currentTime = decision.targetTime
+          if (decision.hint) {
+            flashSkipHint(decision.hint)
+          }
+          setTimeout(() => {
+            skipBusyRef.current = false
+          }, 1500)
+        }
       }
-      const core = danmakuCoreRef.current
-      if (dm.enabled === false) core.hide()
-      else core.show()
-    } catch (e) {
-      console.warn('[danmaku]', e)
+    },
+    onPauseExtra: (t, d) => {
+      handlePauseStats(t, d)
+    },
+    onEndedExtra: () => {
+      handleEndedStats()
+      if (loopRef.current) {
+        const v = videoRef.current
+        if (v) {
+          v.currentTime = 0
+          void v.play().catch(() => {})
+        }
+        return
+      }
+      if (player.autoNext && onNextRef.current) {
+        cancelCountdown()
+        setCountdown(4)
+        countdownIntervalRef.current = window.setInterval(() => {
+          setCountdown((prev) => {
+            if (prev === null || prev <= 1) {
+              window.clearInterval(countdownIntervalRef.current)
+              countdownIntervalRef.current = 0
+              onNextRef.current?.()
+              return null
+            }
+            return prev - 1
+          })
+        }, 1000)
+      }
+    },
+    onFragLoadedExtra: (hls, data) => {
+      if (hls.bandwidthEstimate) {
+        setBandwidthEstimateBps(hls.bandwidthEstimate)
+      }
+      const fragData = data as unknown as {
+        stats?: { total?: number; loading?: { start: number; end: number } }
+        frag?: { stats?: { total?: number; loading?: { start: number; end: number } } }
+      }
+      const stats = fragData.stats || fragData.frag?.stats
+      const bytes = stats?.total || 0
+      const loadTimeMs =
+        stats?.loading && stats.loading.end > stats.loading.start
+          ? stats.loading.end - stats.loading.start
+          : 0
+      if (loadTimeMs > 0 && bytes > 0) {
+        setLastFragStats({
+          bytes,
+          loadTimeMs,
+          speedBytesPerSec: bytes / (loadTimeMs / 1000),
+        })
+      }
+      if (hls.currentLevel >= 0 && hls.levels[hls.currentLevel]) {
+        const lvl = hls.levels[hls.currentLevel]
+        if (lvl.videoCodec) setVideoCodec(lvl.videoCodec)
+        if (lvl.audioCodec) setAudioCodec(lvl.audioCodec)
+      }
+    },
+  })
+
+  // Sync hls instance to forward holder
+  hlsHolderRef.current = hlsRef.current
+
+  // Anime4K Pipeline
+  const { srActive, webGpuOk } = useAnime4KPipeline({
+    videoRef,
+    canvasRef,
+    shellRef,
+    activeSrc,
+    superResolution: player.superResolution,
+    srMenuOpen,
+    onFlashHint: flashSrHint,
+  })
+
+  // First episode skip protection handlers
+  function handleConfirmFirstEpSkip() {
+    if (!firstEpPrompt) return
+    const { type, targetTime } = firstEpPrompt
+    cancelFirstEpPrompt()
+    const video = videoRef.current
+    if (video) {
+      skipBusyRef.current = true
+      lastSkipTRef.current = targetTime
+      video.currentTime = targetTime
+      flashSkipHint(type === 'op' ? '已跳过片头' : '已跳过片尾')
+      setTimeout(() => {
+        skipBusyRef.current = false
+      }, 1500)
     }
   }
 
-  /** canplay / playing / paintable readyState → allow first engine construct. */
-  function noteDanmakuMediaReady() {
-    danmakuMediaReadyRef.current = true
-    if (!danmakuCoreRef.current) applyDanmaku()
+  function handleDismissFirstEpPrompt() {
+    cancelFirstEpPrompt()
+    keepWholeEpisodeRef.current = true
   }
 
+  function doNext() {
+    cancelCountdown()
+    onNextRef.current?.()
+  }
+
+  // Shell Pointer handlers
   const {
     onShellClick,
     onShellDoubleClick,
@@ -717,8 +562,8 @@ export function VideoPlayer({
     onShellMouseLeave,
     onShellMouseEnter,
   } = useShellPointerHandlers(pointerMode, {
-    togglePlay: () => togglePlayRef.current(),
-    toggleFs: () => toggleFsRef.current(),
+    togglePlay,
+    toggleFs,
     bumpBar,
     hideBar,
     showBarRef,
@@ -759,1842 +604,44 @@ export function VideoPlayer({
     isPlaying: () => Boolean(videoRef.current && !videoRef.current.paused),
   })
 
-  // Load media
-  useEffect(() => {
-    const videoEl = videoRef.current
-    if (!videoEl || !activeSrc) return
-    // Local non-null alias — nested cleanups must not see `HTMLVideoElement | null`
-    const video: HTMLVideoElement = videoEl
-
-    const gen = ++genRef.current
-    const alive = () => genRef.current === gen
-
-    resumedRef.current = false
-    skipBusyRef.current = false
-    authAttemptingRef.current = false
-    authRecoverySucceededRef.current = false
-    loadFailedOnceRef.current = false
-    mediaErrorWindowCountRef.current = 0
-    lastMediaErrorTimeRef.current = 0
-    sessionMediaErrorTotalRef.current = 0
-    userPausedRef.current = false
-    ignoreVolumePersistRef.current = false
-    lastUiProgressRef.current = 0
-    lastSkipTRef.current = 0
-    danmakuContentKeyRef.current = ''
-    setMediaError('')
-    setLoading(true)
-    setSeekingUi(false)
-    setBufferingUi(false)
-    setPaused(true)
-    setCurrent(0)
-    setDuration(0)
-
-    try {
-      danmakuCoreRef.current?.destroy()
-    } catch {
-      /* ignore */
-    }
-    danmakuCoreRef.current = null
-    danmakuMediaReadyRef.current = false
-
-    if (hlsRef.current) {
-      try {
-        hlsRef.current.destroy()
-      } catch {
-        /* ignore */
-      }
-      hlsRef.current = null
-    }
-
-    while (video.firstChild) {
-      video.removeChild(video.firstChild)
-    }
-    video.removeAttribute('src')
-    video.load()
-
-    const cfg = playerRef.current
-    /** Apply playbackRate to video element without touching defaultPlaybackRate. */
-    const applyPlaybackRate = (rate?: number) => {
-      const s = rate ?? playerRef.current.speed ?? 1
-      try {
-        video.playbackRate = s
-      } catch {
-        /* some engines reject while HAVE_NOTHING */
-      }
-    }
-    video.volume = cfg.volume ?? 0.7
-    video.muted = (cfg.volume ?? 0.7) <= 0
-    applyPlaybackRate(cfg.speed || 1)
-    video.playsInline = true
-    try {
-      ;(video as unknown as { referrerPolicy?: string }).referrerPolicy =
-        'no-referrer'
-    } catch {
-      /* ignore */
-    }
-
-    /** Clean up softPlay waiters on src change / unmount */
-    let softPlayCleanup: (() => void) | null = null
-
-    /**
-     * Start playback only after enough buffered data (or timeout).
-     * MANIFEST_PARSED / loadedmetadata alone often fire before video frames
-     * are ready on weak nets → audio plays while picture freezes.
-     */
-    const softPlay = () => {
-      if (!alive()) return
-      if (!cfg.autoplay) {
-        setLoading(false)
-        setBufferingUi(false)
-        setPaused(true)
-        userPausedRef.current = true
-        return
-      }
-      userPausedRef.current = false
-      setLoading(true)
-
-      const startedAt = Date.now()
-      let settled = false
-
-      const isHls = isM3u8(activeSrc, formatHint)
-      const minStartBuffer = isHls
-        ? MIN_START_BUFFER_HLS_SEC
-        : MIN_START_BUFFER_MP4_SEC
-
-      const tryStart = () => {
-        if (!alive() || settled) return
-        const ahead = bufferedAhead(video)
-        const waited = Date.now() - startedAt
-        // 核心起播门禁：三条独立并列通道（三者取一）
-        // 通道 1：首帧画面已渲染（HAVE_CURRENT_DATA）且具备至少 50ms 微缓冲存量（消除 Safari 死锁且不零缓冲裸奔）
-        // 通道 2：已缓冲达到标准起播阈值（0.4s）常规放行
-        // 通道 3：3.5s 硬超时兜底放行
-        const readyEnough =
-          (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && ahead >= 0.05) ||
-          ahead >= minStartBuffer ||
-          waited >= MAX_START_WAIT_MS
-        if (!readyEnough) return
-
-        settled = true
-        cleanupWaiters()
-        // Read volume/speed from live ref — user may have changed them while loading
-        const live = playerRef.current
-        // Mute dance for autoplay policy — don't persist transient mute/volume
-        ignoreVolumePersistRef.current = true
-        applyPlaybackRate(live.speed || 1)
-        video.muted = true
-        video
-          .play()
-          .then(() => {
-            if (!alive()) return
-            const wantVol = playerRef.current.volume ?? 0.7
-            video.muted = wantVol <= 0
-            // Re-read after await: volume may change during muted autoplay
-            video.volume = wantVol
-            applyPlaybackRate(playerRef.current.speed || 1)
-            ignoreVolumePersistRef.current = false
-            setPaused(false)
-            setLoading(false)
-            setBufferingUi(false)
-          })
-          .catch(() => {
-            if (!alive()) return
-            const wantVol = playerRef.current.volume ?? 0.7
-            video.muted = wantVol <= 0
-            video.volume = wantVol
-            applyPlaybackRate(playerRef.current.speed || 1)
-            ignoreVolumePersistRef.current = false
-            setPaused(true)
-            setLoading(false)
-            setBufferingUi(false)
-            userPausedRef.current = true
-          })
-      }
-
-      const onProgress = () => tryStart()
-      const onCanPlayThrough = () => tryStart()
-      const onPlaying = () => {
-        if (!alive()) return
-        setLoading(false)
-        setBufferingUi(false)
-      }
-      const poll = window.setInterval(tryStart, 200)
-      const hardTimeout = window.setTimeout(tryStart, MAX_START_WAIT_MS)
-
-      function cleanupWaiters() {
-        window.clearInterval(poll)
-        window.clearTimeout(hardTimeout)
-        video.removeEventListener('progress', onProgress)
-        video.removeEventListener('canplay', onProgress)
-        video.removeEventListener('canplaythrough', onCanPlayThrough)
-        video.removeEventListener('loadeddata', onProgress)
-        video.removeEventListener('playing', onPlaying)
-        if (softPlayCleanup === cleanupWaiters) softPlayCleanup = null
-      }
-
-      softPlayCleanup = cleanupWaiters
-      video.addEventListener('progress', onProgress)
-      video.addEventListener('canplay', onProgress)
-      video.addEventListener('canplaythrough', onCanPlayThrough)
-      video.addEventListener('loadeddata', onProgress)
-      video.addEventListener('playing', onPlaying)
-      // First probe immediately (may already have data)
-      tryStart()
-    }
-
-    const onReady = () => {
-      if (!alive()) return
-      setDuration(video.duration || 0)
-      // load()/attachMedia often resets rate → re-apply saved default here
-      applyPlaybackRate()
-      // 入口 2: loadedmetadata / MANIFEST_PARSED 事件驱动尝试续播
-      tryApplyInitialResume()
-      // Wait for buffer gate then play; danmaku engine waits for paintable media
-      // (noteDanmakuMediaReady on canplay/playing) so open-buffer stays light.
-      softPlay()
-      // One frame after layout: construct only if already HAVE_CURRENT_DATA
-      requestAnimationFrame(() => {
-        if (!alive()) return
-        const v = videoRef.current
-        if (v && v.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-          noteDanmakuMediaReady()
-        }
-      })
-    }
-
-    const isControlledOrProxy =
-      activeSrc.includes('/api/media/') || /[?&]cookie=/.test(activeSrc)
-
-    const tryAuthRefresh = () => {
-      if (
-        !alive() ||
-        authAttemptingRef.current ||
-        authRecoverySucceededRef.current
-      ) {
-        return false
-      }
-      if (!isControlledOrProxy || !onMediaAuthExpiredRef.current) {
-        return false
-      }
-      authAttemptingRef.current = true
-      const pos = video.currentTime || 0
-      setMediaError('')
-      setLoading(true)
-      setOffsetHint('播放凭证失效，正在重新获取…')
-      window.clearTimeout(offsetHintTimer.current)
-      offsetHintTimer.current = window.setTimeout(
-        () => setOffsetHint(''),
-        4000,
-      )
-      void Promise.resolve(onMediaAuthExpiredRef.current(pos))
-        .then(() => {
-          if (!alive()) return
-          authRecoverySucceededRef.current = true
-          authAttemptingRef.current = false
-        })
-        .catch(() => {
-          if (!alive()) return
-          authAttemptingRef.current = false
-          setLoading(false)
-          setBufferingUi(false)
-          setMediaError('凭证刷新失败，建议切换视频源')
-        })
-      return true
-    }
-
-    /**
-     * Progressive mp4/webm path.
-     * Use <source type="..."> instead of bare video.src so WebKit/AVFoundation receives
-     * an explicit out-of-band MIME type. This prevents Safari from classifying streams with
-     * disguised extensions (such as cycani's .mp3 URLs) as audio-only and causing black screens.
-     */
-    const attachProgressive = () => {
-      while (video.firstChild) {
-        video.removeChild(video.firstChild)
-      }
-      video.removeAttribute('src')
-
-      const sourceEl = document.createElement('source')
-      sourceEl.src = activeSrc
-      const mime = inferMediaMimeType(activeSrc, formatHint)
-      if (mime) {
-        sourceEl.type = mime
-      }
-
-      // 入口 3: durationchange 事件驱动（针对无 faststart 优化的 MP4 云盘/网盘直链在异步探测到真实时长后重试续播）
-      const onDurationChange = () => {
-        if (!alive()) return
-        const d = video.duration
-        if (Number.isFinite(d) && d > 0) setDuration(d)
-        if (!resumedRef.current) {
-          tryApplyInitialResume()
-        }
-      }
-      video.addEventListener('durationchange', onDurationChange)
-      ;(video as HTMLVideoElement & { __durationChange?: () => void }).__durationChange = onDurationChange
-
-      const onMediaError = () => {
-        if (!alive()) return
-        if (tryAuthRefresh()) return
-        setLoading(false)
-        const reason = video.error?.code
-          ? `video_error_${video.error.code}`
-          : 'video_load_failed'
-        setMediaError(
-          video.error?.code
-            ? `视频错误 code=${video.error.code}（建议切换视频源）`
-            : '视频加载失败，建议切换视频源',
-        )
-        reportLoadFailed(reason)
-      }
-
-      sourceEl.addEventListener('error', onMediaError, { once: true })
-      video.addEventListener('error', onMediaError, { once: true })
-      video.appendChild(sourceEl)
-      video.load()
-
-      video.addEventListener('loadedmetadata', onReady, { once: true })
-
-      // Mid-play 403 often surfaces as stalled buffer; probe proxy once
-      const onStalled = () => {
-        if (!alive()) return
-        if (!isControlledOrProxy || !onMediaAuthExpiredRef.current) return
-        if (authRecoverySucceededRef.current) {
-          // If already retried auth once, probe if it failed again and surface clear terminal state
-          void fetch(activeSrc, {
-            headers: { Range: 'bytes=0-1' },
-            credentials: 'same-origin',
-          }).then((r) => {
-            if (!alive()) return
-            if (r.status === 403 || r.status === 401) {
-              setLoading(false)
-              setBufferingUi(false)
-              setMediaError('播放凭证已过期，请重新选集或切源')
-            }
-          })
-          return
-        }
-        if (authAttemptingRef.current) return
-        const pos = video.currentTime || 0
-        // lightweight HEAD-ish GET with range to detect auth_expired JSON
-        void fetch(activeSrc, {
-          headers: { Range: 'bytes=0-1' },
-          credentials: 'same-origin',
-        }).then(async (r) => {
-          if (!alive()) return
-          if (r.status === 403 || r.status === 401) {
-            if (authRecoverySucceededRef.current) {
-              setLoading(false)
-              setBufferingUi(false)
-              setMediaError('播放凭证已过期，请重新选集或切源')
-              return
-            }
-            try {
-              const j = (await r.json()) as { error?: string }
-              if (j?.error === 'auth_expired' || r.status === 403) {
-                tryAuthRefresh()
-              }
-            } catch {
-              tryAuthRefresh()
-            }
-            return
-          }
-          // if still ok, ignore stall
-          void pos
-        })
-      }
-      video.addEventListener('stalled', onStalled)
-      video.addEventListener('error', onStalled)
-
-      // cleanup extra listeners with effect teardown below via video events list
-      ;(video as HTMLVideoElement & { __a1Stalled?: () => void }).__a1Stalled =
-        onStalled
-    }
-
-    // 严密覆盖所有 iOS/iPadOS WebKit 容器环境（iOS Chrome、iOS Edge、iOS Firefox、微信内置等）以及 macOS Safari
-    const isIos =
-      typeof navigator !== 'undefined' &&
-      (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
-        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
-
-    const isSafariOrWebKit =
-      typeof navigator !== 'undefined' &&
-      (isIos ||
-        (/^((?!chrome|android).)*safari/i.test(navigator.userAgent) &&
-          !/android/i.test(navigator.userAgent)))
-
-    const canNativeHls = Boolean(
-      video.canPlayType('application/vnd.apple.mpegurl'),
-    )
-
-    const preferNativeHls = canNativeHls && (isIos || isSafariOrWebKit)
-
-    const attachNativeHls = () => {
-      while (video.firstChild) {
-        video.removeChild(video.firstChild)
-      }
-      video.removeAttribute('src')
-      const sourceEl = document.createElement('source')
-      sourceEl.src = activeSrc
-      sourceEl.type = 'application/vnd.apple.mpegurl'
-      const onHlsError = () => {
-        if (!alive()) return
-        if (tryAuthRefresh()) return
-        setLoading(false)
-        setMediaError('原生 HLS 加载失败，建议切换视频源')
-        reportLoadFailed('native_hls')
-      }
-      sourceEl.addEventListener('error', onHlsError, { once: true })
-      video.addEventListener('error', onHlsError, { once: true })
-      video.appendChild(sourceEl)
-      video.load()
-      video.addEventListener('loadedmetadata', onReady, { once: true })
-
-      // Safari Native HLS 假死看门狗 (Playback Health Watchdog)
-      let watchdogTimer: number | undefined
-      let probeInFlight = false
-      let lastProbeTime = 0
-      let activeController: AbortController | null = null
-      const NATIVE_PROBE_COOLDOWN_MS = 30_000
-
-      const runStatusProbe = () => {
-        if (!alive()) return
-        if (!isControlledOrProxy || !onMediaAuthExpiredRef.current) return
-        if (authAttemptingRef.current || authRecoverySucceededRef.current) return
-        if (probeInFlight) return
-        const now = Date.now()
-        if (now - lastProbeTime < NATIVE_PROBE_COOLDOWN_MS) return
-
-        let ticket = ''
-        try {
-          const u = new URL(activeSrc, window.location.origin)
-          ticket = u.searchParams.get('t') || ''
-        } catch {
-          /* ignore */
-        }
-        if (!ticket) return
-
-        probeInFlight = true
-        lastProbeTime = now
-
-        const controller = new AbortController()
-        activeController = controller
-        const timeoutId = window.setTimeout(() => controller.abort(), 3000)
-
-        fetch(`/api/media/status?t=${encodeURIComponent(ticket)}`, {
-          method: 'GET',
-          cache: 'no-cache',
-          credentials: 'same-origin',
-          signal: controller.signal,
-        })
-          .then((r) => {
-            window.clearTimeout(timeoutId)
-            probeInFlight = false
-            activeController = null
-            if (!alive()) return
-            // 只有当服务端明确返回 401 或 403 时，才确认凭据/资产失效并触发恢复
-            if (r.status === 401 || r.status === 403) {
-              tryAuthRefresh()
-            }
-            // 204 或其它状态均表示资产有效，不做换票，避免弱网误判
-          })
-          .catch(() => {
-            window.clearTimeout(timeoutId)
-            probeInFlight = false
-            activeController = null
-            // 探针自身网络失败/超时绝不误判为凭据失效，静默退出
-          })
-      }
-
-      const scheduleNativeWatchdog = () => {
-        if (!alive()) return
-        if (!isControlledOrProxy || !onMediaAuthExpiredRef.current) return
-        if (authAttemptingRef.current || authRecoverySucceededRef.current) return
-        if (video.paused) return
-
-        window.clearTimeout(watchdogTimer)
-        const snapshotTime = video.currentTime || 0
-
-        watchdogTimer = window.setTimeout(() => {
-          if (!alive()) return
-          if (video.paused) return
-          const currentTime = video.currentTime || 0
-          const hasAdvanced = Math.abs(currentTime - snapshotTime) > 0.1
-          const isStarved = video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA
-          if (!hasAdvanced && isStarved) {
-            runStatusProbe()
-          }
-        }, 2500)
-      }
-
-      const cancelNativeWatchdog = () => {
-        window.clearTimeout(watchdogTimer)
-      }
-
-      video.addEventListener('stalled', scheduleNativeWatchdog)
-      video.addEventListener('waiting', scheduleNativeWatchdog)
-      video.addEventListener('playing', cancelNativeWatchdog)
-      video.addEventListener('timeupdate', cancelNativeWatchdog)
-
-      ;(video as HTMLVideoElement & { __nativeHlsCleanup?: () => void }).__nativeHlsCleanup = () => {
-        window.clearTimeout(watchdogTimer)
-        activeController?.abort()
-        video.removeEventListener('stalled', scheduleNativeWatchdog)
-        video.removeEventListener('waiting', scheduleNativeWatchdog)
-        video.removeEventListener('playing', cancelNativeWatchdog)
-        video.removeEventListener('timeupdate', cancelNativeWatchdog)
-      }
-    }
-
-    if (isM3u8(activeSrc, formatHint)) {
-      // iOS WebKit (含所有浏览器) 与 macOS Safari 下优先走系统级 AVPlayer 原生 HLS
-      if (preferNativeHls) {
-        attachNativeHls()
-      } else {
-        // 非 Safari/Apple 环境优先使用 hls.js (MSE)；若不支持则降级原生 HLS
-        void import('hls.js')
-          .then((mod) => {
-            if (!alive()) return
-            const HlsCtor = mod.default
-            if (HlsCtor.isSupported()) {
-              const hls = new HlsCtor({
-                enableWorker: true,
-                // Prefetch first media fragment immediately upon parsing playlist
-                startFragPrefetch: true,
-                // Deep buffer configuration to absorb cross-border network jitter
-                maxBufferLength: 30,
-                maxMaxBufferLength: 60,
-                maxBufferHole: 0.5,
-                startLevel: -1,
-                abrEwmaDefaultEstimate: 5_000_000,
-                maxBufferSize: 60 * 1000 * 1000,
-                fragLoadingTimeOut: 20_000,
-                manifestLoadingTimeOut: 15_000,
-                fragLoadingRetryDelay: 500,
-                fragLoadingMaxRetry: 4,
-                fragLoadingMaxRetryTimeout: 8_000,
-                levelLoadingRetryDelay: 500,
-                levelLoadingMaxRetry: 4,
-                levelLoadingMaxRetryTimeout: 8_000,
-              })
-              hlsRef.current = hls
-              hls.loadSource(activeSrc)
-              hls.attachMedia(video)
-              hls.on(HlsCtor.Events.MANIFEST_PARSED, () => {
-                if (!alive()) return
-                onReady()
-              })
-              hls.on(HlsCtor.Events.FRAG_LOADED, (_e, data) => {
-                if (!alive()) return
-                if (hls.bandwidthEstimate) {
-                  setBandwidthEstimateBps(hls.bandwidthEstimate)
-                }
-                const fragData = data as unknown as {
-                  stats?: { total?: number; loading?: { start: number; end: number } }
-                  frag?: { stats?: { total?: number; loading?: { start: number; end: number } } }
-                }
-                const stats = fragData.stats || fragData.frag?.stats
-                const bytes = stats?.total || 0
-                const loadTimeMs =
-                  stats?.loading && stats.loading.end > stats.loading.start
-                    ? stats.loading.end - stats.loading.start
-                    : 0
-                if (loadTimeMs > 0 && bytes > 0) {
-                  setLastFragStats({
-                    bytes,
-                    loadTimeMs,
-                    speedBytesPerSec: bytes / (loadTimeMs / 1000),
-                  })
-                }
-                if (hls.currentLevel >= 0 && hls.levels[hls.currentLevel]) {
-                  const lvl = hls.levels[hls.currentLevel]
-                  if (lvl.videoCodec) setVideoCodec(lvl.videoCodec)
-                  if (lvl.audioCodec) setAudioCodec(lvl.audioCodec)
-                }
-              })
-              hls.on(HlsCtor.Events.LEVEL_LOADED, (_e, data) => {
-                if (!alive()) return
-                if (hls.bandwidthEstimate) {
-                  setBandwidthEstimateBps(hls.bandwidthEstimate)
-                }
-                if (data.details.totalduration) {
-                  setDuration(data.details.totalduration)
-                }
-                // 入口 4: HLS VOD 完整切片列表与总时长解析就绪
-                if (!resumedRef.current) {
-                  tryApplyInitialResume()
-                }
-              })
-              hls.on(HlsCtor.Events.ERROR, (_e, data) => {
-                if (!alive()) return
-                if (!data.fatal) {
-                  // Non-fatal stalls are often sub-second (hole skip / append).
-                  // Don't flash 缓冲中… — video `waiting` path debounces real ones.
-                  return
-                }
-                console.error('[player] hls fatal', data.type, data.details)
-                if (data.type === HlsCtor.ErrorTypes.NETWORK_ERROR) {
-                  const responseCode =
-                    data.response?.code ||
-                    (data.context as { xhr?: { status?: number } } | undefined)
-                      ?.xhr?.status
-                  if (
-                    (responseCode === 401 || responseCode === 403) &&
-                    tryAuthRefresh()
-                  ) {
-                    return
-                  }
-                  setLoading(false)
-                  setBufferingUi(false)
-                  setMediaError(`网络连接错误 ${data.details || ''}，建议切换视频源`)
-                  reportLoadFailed(String(data.details || 'hls_network'))
-                  return
-                } else if (data.type === HlsCtor.ErrorTypes.MEDIA_ERROR) {
-                  const now = Date.now()
-                  // 30s sliding window decay: reset local counter if previous error was >30s ago
-                  if (now - lastMediaErrorTimeRef.current > 30_000) {
-                    mediaErrorWindowCountRef.current = 0
-                  }
-                  lastMediaErrorTimeRef.current = now
-                  mediaErrorWindowCountRef.current++
-                  sessionMediaErrorTotalRef.current++
-
-                  // Error rate density with 2-minute cold-start protection baseline
-                  const playedSeconds = video.currentTime || 0
-                  const effectiveMinutes = Math.max(playedSeconds / 60, 2)
-                  const errorRatePerMinute =
-                    sessionMediaErrorTotalRef.current / effectiveMinutes
-
-                  // If error rate exceeds density threshold, terminate and suggest switching source
-                  if (errorRatePerMinute > 1.0) {
-                    setLoading(false)
-                    setBufferingUi(false)
-                    setMediaError('该视频源稳定性较差，建议切换视频源')
-                    reportLoadFailed('hls_media_frequent_errors')
-                    return
-                  }
-
-                  if (mediaErrorWindowCountRef.current === 1) {
-                    setMediaError('解码异常，正在尝试恢复…')
-                    hls.recoverMediaError()
-                  } else if (mediaErrorWindowCountRef.current === 2) {
-                    setMediaError('解码异常，置换音频解码器并恢复…')
-                    hls.swapAudioCodec()
-                    hls.recoverMediaError()
-                  } else {
-                    setLoading(false)
-                    setBufferingUi(false)
-                    setMediaError('媒体解码不可恢复，建议切换视频源')
-                    reportLoadFailed('hls_media_unrecoverable')
-                  }
-                } else {
-                  setLoading(false)
-                  setBufferingUi(false)
-                  setMediaError(`播放失败: ${data.details || data.type}`)
-                  reportLoadFailed(String(data.details || data.type))
-                }
-              })
-              return
-            }
-            if (canNativeHls) {
-              attachNativeHls()
-              return
-            }
-            setLoading(false)
-            setMediaError('当前浏览器不支持 HLS')
-          })
-          .catch((e) => {
-            if (!alive()) return
-            console.error('[player] hls import failed', e)
-            if (canNativeHls) {
-              attachNativeHls()
-              return
-            }
-            setLoading(false)
-            setMediaError('加载播放器失败')
-          })
-      }
-    } else {
-      attachProgressive()
-    }
-
-    let lastUiFloor = -1
-    const onTime = () => {
-      const d = video.duration
-      const t = video.currentTime
-      const now = Date.now()
-
-      // Suppress stale timeupdates right after a seek in Safari/WebKit to prevent scrubber jitter
-      if (pendingSeekTargetRef.current !== null) {
-        if (now < seekLockExpiryRef.current) {
-          if (Math.abs(t - pendingSeekTargetRef.current) > 0.6) {
-            // Still on stale time from before the seek; do not clobber optimistic UI
-            return
-          }
-        }
-        pendingSeekTargetRef.current = null
-      }
-
-      // Once frames advance or are paintable, immediately drop any lingering seek/buffering spinner
-      if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-        setSeekingUi(false)
-        hideBufferingUi()
-        isSeekingRef.current = false
-      }
-
-      const floor = Math.floor(t)
-      // UI progress: ~4Hz, always commit on whole-second change (scrubber label)
-      if (now - lastUiProgressRef.current >= 250 || floor !== lastUiFloor) {
-        lastUiProgressRef.current = now
-        lastUiFloor = floor
-        setCurrent(t)
-        if (Number.isFinite(d) && d > 0) setDuration(d)
-      }
-
-      if (!Number.isFinite(d) || d <= 0) {
-        lastSkipTRef.current = t
-        return
-      }
-
-      const p = playerRef.current
-      const prevT = lastSkipTRef.current
-      lastSkipTRef.current = t
-
-      // 累加实际有效播放时长并在满 STATS_VALID_PLAY_THRESHOLD_SEC (15s) 秒时上报播放统计、标记已看并首次正式写入观看历史
-      if (
-        !playViewReportedRef.current &&
-        bangumiId &&
-        bangumiId > 0 &&
-        !video.paused &&
-        !isSeekingRef.current
-      ) {
-        const lastTick = lastPlaySecTickRef.current || t
-        const tickDelta = t - lastTick
-        if (tickDelta > 0 && tickDelta <= 2.5) {
-          playSecAccumulatedRef.current += tickDelta
-          if (playSecAccumulatedRef.current >= STATS_VALID_PLAY_THRESHOLD_SEC) {
-            playViewReportedRef.current = true
-            const epNum = typeof episodeNumber === 'number' ? episodeNumber : 0
-            void statsApi.recordPlayView(bangumiId, epNum).catch(() => {})
-            useWatchedStore.getState().markWatched(bangumiId, epNum)
-            // 达到 15s 有效播放门槛，首次正式计入观看历史
-            lastSaveRef.current = now
-            onProgressRef.current?.(t, d)
-          }
-        }
-      }
-      lastPlaySecTickRef.current = t
-
-      // 完播兜底：单集播放接近末尾（>= 85% 且视频时长有效）自动记录已看（纯客户端选集标记，严禁在未满 15s 自然播放前虚增服务端播放量）
-      if (
-        bangumiId &&
-        bangumiId > 0 &&
-        typeof episodeNumber === 'number' &&
-        d > 30 &&
-        t / d >= 0.85
-      ) {
-        useWatchedStore.getState().markWatched(bangumiId, episodeNumber)
-      }
-
-      // 周期保存历史进度：仅在达到有效播放门槛（满 15s）后，每 10s 同步一次最新进度
-      if (playViewReportedRef.current && now - lastSaveRef.current >= 10_000) {
-        lastSaveRef.current = now
-        onProgressRef.current?.(t, d)
-      }
-
-      if (isSeekingRef.current || skipBusyRef.current || t >= d - 3) return
-      const safeMax = d - 0.1
-
-      const decision = determineOpedAction({
-        currentTime: t,
-        prevTime: prevT,
-        duration: d,
-        isSeeking: isSeekingRef.current,
-        isSkipBusy: skipBusyRef.current,
-        episodeIndex,
-        episodeNumber,
-        playerSettings: p,
-        promptTriggeredThisEp: promptTriggeredThisEpRef.current,
-        keepWholeEpisode: keepWholeEpisodeRef.current,
-      })
-
-      if (decision.action === 'prompt') {
-        promptTriggeredThisEpRef.current = true
-        if (firstEpPromptTimerRef.current) {
-          window.clearInterval(firstEpPromptTimerRef.current)
-          firstEpPromptTimerRef.current = 0
-        }
-        let count = 5
-        setFirstEpPrompt({
-          type: decision.type,
-          targetTime: decision.targetTime,
-          countdown: count,
-        })
-        firstEpPromptTimerRef.current = window.setInterval(() => {
-          count -= 1
-          if (count <= 0) {
-            if (firstEpPromptTimerRef.current) {
-              window.clearInterval(firstEpPromptTimerRef.current)
-              firstEpPromptTimerRef.current = 0
-            }
-            setFirstEpPrompt(null)
-            keepWholeEpisodeRef.current = true
-          } else {
-            setFirstEpPrompt((prev) => (prev ? { ...prev, countdown: count } : null))
-          }
-        }, 1000)
-      } else if (decision.action === 'skip') {
-        skipBusyRef.current = true
-        lastSkipTRef.current = decision.targetTime
-        video.currentTime = decision.targetTime
-        if (decision.hint) {
-          flashSkipHint(decision.hint)
-        }
-        setTimeout(() => {
-          skipBusyRef.current = false
-        }, 1500)
-      }
-    }
-
-    const onPause = () => {
-      // 若处于程序化操作守卫期且当前具备可播数据（非真实网络缺数据饥饿），判定为 WebKit 底层假 pause，予以豁免并主动拉起续播
-      if (shouldSuppressPauseRef.current(video) && !userPausedRef.current) {
-        window.setTimeout(() => {
-          if (!alive() || userPausedRef.current) return
-          if (video.paused) {
-            video.play().catch(() => {
-              // 若 play() 失败（如策略拦截或异常），降级同步真实 UI 状态
-              setPaused(true)
-              showBarRef.current = true
-              setShowBar(true)
-            })
-          }
-        }, 30)
-        return
-      }
-
-      setPaused(true)
-      showBarRef.current = true
-      setShowBar(true)
-      // 暂停时仅在已达到有效播放门槛后保存进度，防止未看满 15s 误触暂停写入垃圾历史
-      if (
-        playViewReportedRef.current &&
-        Number.isFinite(video.duration) &&
-        video.duration > 0
-      ) {
-        onProgressRef.current?.(video.currentTime, video.duration)
-      }
-    }
-    // Filled once buffering helpers exist (below) so play/end can cancel blip timers.
-    let hideBufferingUi: () => void = () => setBufferingUi(false)
-    const onPlay = () => {
-      setPaused(false)
-      setLoading(false)
-      hideBufferingUi()
-      bumpBar()
-    }
-    const onRateChange = () => {
-      if (!alive()) return
-      // 若用户未主动暂停，但在守卫期内底层意外处于 paused 状态且具备可播数据，主动拉起 play() 确保无缝续播
-      if (
-        !userPausedRef.current &&
-        video.paused &&
-        shouldSuppressPauseRef.current(video)
-      ) {
-        window.setTimeout(() => {
-          if (!alive() || userPausedRef.current) return
-          if (video.paused) {
-            void video.play().catch(() => {
-              /* ignore autoplay rejection */
-            })
-          }
-        }, 30)
-      }
-    }
-    const onEndedHandler = () => {
-      userPausedRef.current = false
-      hideBufferingUi()
-      if (bangumiId && bangumiId > 0 && typeof episodeNumber === 'number') {
-        useWatchedStore.getState().markWatched(bangumiId, episodeNumber)
-      }
-      if (loopRef.current) {
-        video.currentTime = 0
-        void video.play().catch(() => {
-          /* ignore */
-        })
-        return
-      }
-      onPause()
-      if (playerRef.current.autoNext && onNextRef.current) {
-        // Bilibili-style countdown before advancing to the next episode
-        cancelCountdown()
-        setCountdown(4)
-        countdownIntervalRef.current = window.setInterval(() => {
-          setCountdown((prev) => {
-            if (prev === null || prev <= 1) {
-              window.clearInterval(countdownIntervalRef.current)
-              countdownIntervalRef.current = 0
-              onNextRef.current?.()
-              return null
-            }
-            return prev - 1
-          })
-        }, 1000)
-      }
-    }
-    const onVol = () => {
-      if (ignoreVolumePersistRef.current) return
-      // Keep last audible level so mute-toggle can restore
-      if (video.volume > 0.001 && !video.muted) {
-        lastAudibleVolumeRef.current = video.volume
-      }
-      onPlayerChangeRef.current?.({
-        volume: video.muted ? 0 : video.volume,
-      })
-    }
-    // Intentionally no ratechange → settings: media load/MSE resets rate to 1
-    // and would clobber the saved default. Speed only saves via onPickSpeed / Settings.
-    const onSeeking = () => {
-      isSeekingRef.current = true
-      lastSkipTRef.current = video.currentTime
-      lastPlaySecTickRef.current = video.currentTime
-      // If user seeks during auto-next countdown or first-ep skip prompt, cancel it
-      cancelCountdown()
-      cancelFirstEpPrompt()
-      // Spinner only if seek lands outside buffered ranges (nothing to paint)
-      try {
-        const t = video.currentTime
-        let covered = false
-        for (let i = 0; i < video.buffered.length; i++) {
-          if (t >= video.buffered.start(i) && t <= video.buffered.end(i) - 0.05) {
-            covered = true
-            break
-          }
-        }
-        setSeekingUi(!covered)
-      } catch {
-        setSeekingUi(true)
-      }
-    }
-    const onSeeked = () => {
-      pendingSeekTargetRef.current = null
-      isSeekingRef.current = false
-      lastSkipTRef.current = video.currentTime
-      lastPlaySecTickRef.current = video.currentTime
-      // If we have paintable data ready (or buffer ahead), drop seeking/stall spinner immediately
-      if (
-        video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA ||
-        bufferedAhead(video) > 0
-      ) {
-        setSeekingUi(false)
-        hideBufferingUi()
-        return
-      }
-      setSeekingUi(true)
-    }
-
-    /**
-     * Weak-net rebuffer: when decoder starves, pause so audio doesn't run ahead
-     * of frozen frames; resume once we have MIN_RESUME_BUFFER_SEC ahead.
-     *
-     * Stall spinner policy (user rule):
-     * - Frames still advancing / buffer ahead → no chrome at all
-     * - Nothing left to paint (underrun / seek hole) → center spinner only
-     * Never show text tips like 「缓冲中…」.
-     */
-    let stallShowTimer = 0
-    /** Brief delay so micro-stalls that recover don't flash a spinner. */
-    const STALL_SPINNER_DELAY_MS = 280
-    const clearStallShowTimer = () => {
-      if (stallShowTimer) {
-        window.clearTimeout(stallShowTimer)
-        stallShowTimer = 0
-      }
-    }
-    hideBufferingUi = () => {
-      clearStallShowTimer()
-      setBufferingUi(false)
-    }
-    /** True when there is essentially nothing left to decode/paint. */
-    const isUnplayable = () => {
-      const ahead = bufferedAhead(video)
-      return (
-        ahead < 0.2 ||
-        video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
-      )
-    }
-    /**
-     * Arm center spinner only for real unplayable stalls.
-     * `force` = confirmed underrun / waiting event.
-     */
-    const armStallSpinner = (force = false) => {
-      if (userPausedRef.current) return
-      if (!force && !isUnplayable()) return
-      if (force) {
-        clearStallShowTimer()
-        setBufferingUi(true)
-        return
-      }
-      if (stallShowTimer) return
-      stallShowTimer = window.setTimeout(() => {
-        stallShowTimer = 0
-        if (!alive() || userPausedRef.current) return
-        if (!isUnplayable()) return
-        // Still painting? keep quiet
-        if (!video.paused && video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
-          return
-        }
-        setBufferingUi(true)
-      }, STALL_SPINNER_DELAY_MS)
-    }
-
-    const onWaiting = () => {
-      // Network rebuffer (HLS + progressive via proxy)
-      if (userPausedRef.current) return
-      const ahead = bufferedAhead(video)
-      // Still have playable data → silent (no spinner, no tip)
-      if (ahead >= 0.35 && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-        return
-      }
-      // Show buffering spinner, but NEVER call video.pause() — keep native playback pipeline active
-      armStallSpinner(true)
-    }
-    const onStalledPlay = () => {
-      if (userPausedRef.current) return
-      // stalled while still playable → ignore chrome
-      if (!isUnplayable()) return
-      armStallSpinner(false)
-    }
-    const onCanPlay = () => {
-      pendingSeekTargetRef.current = null
-      setSeekingUi(false)
-      hideBufferingUi()
-      isSeekingRef.current = false
-      // A: first paintable moment — safe to build danmaku engine
-      noteDanmakuMediaReady()
-      if (!resumedRef.current) {
-        tryApplyInitialResume()
-      }
-    }
-    const onPlayingClear = () => {
-      // Frames painting again → no stall chrome
-      pendingSeekTargetRef.current = null
-      hideBufferingUi()
-      setSeekingUi(false)
-      isSeekingRef.current = false
-      // Belt-and-suspenders if canplay was skipped on some MSE paths
-      noteDanmakuMediaReady()
-    }
-
-    video.addEventListener('timeupdate', onTime)
-    video.addEventListener('pause', onPause)
-    video.addEventListener('play', onPlay)
-    video.addEventListener('ratechange', onRateChange)
-    video.addEventListener('ended', onEndedHandler)
-    video.addEventListener('volumechange', onVol)
-    video.addEventListener('seeking', onSeeking)
-    video.addEventListener('seeked', onSeeked)
-    video.addEventListener('waiting', onWaiting)
-    video.addEventListener('stalled', onStalledPlay)
-    video.addEventListener('canplay', onCanPlay)
-    video.addEventListener('playing', onPlayingClear)
-
-    const ro = new ResizeObserver(() => {
-      try {
-        const shell = shellRef.current
-        const w = shell?.clientWidth || 0
-        const h = shell?.clientHeight || 0
-        const core = danmakuCoreRef.current
-        if (!core || w <= 0) return
-        // Font scale is layout+size based; full content re-apply only when
-        // scale bucket would change. Pure geometry uses resize().
-        const layout = danmakuLayoutHints(h)
-        const prev = lastDanmakuWidthRef.current
-        const scaleChanged =
-          prev <= 0 ||
-          Math.abs(
-            danmakuFontScaleBucket(w, layout) -
-              danmakuFontScaleBucket(prev, layout),
-          ) >= 1
-        if (scaleChanged) {
-          applyDanmaku()
-        } else {
-          const dm = danmakuRef.current
-          core.setLayout(layout)
-          core.speed = danmakuPixelSpeed(w, dm.speed || 1, layout)
-          core.resize(w)
-        }
-      } catch {
-        /* ignore */
-      }
-    })
-    if (shellRef.current) ro.observe(shellRef.current)
-
-    function onKey(e: KeyboardEvent) {
-      const tag = (e.target as HTMLElement)?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+  // Shortcuts
+  usePlayerShortcuts({
+    videoRef,
+    onTogglePlay: togglePlay,
+    onSeekTo: (t) => {
       const v = videoRef.current
-      if (!v) return
-      const k = e.key.toLowerCase()
-      if (k === ' ' || k === 'k') {
-        e.preventDefault()
-        if (v.paused) {
-          userPausedRef.current = false
-          triggerRipple('play')
-          void v.play().catch(() => {
-            userPausedRef.current = true
-          })
-        } else {
-          userPausedRef.current = true
-          setBufferingUi(false)
-          triggerRipple('pause')
-          v.pause()
-        }
-      } else if (k === 'arrowleft') {
-        e.preventDefault()
-        const nextTime = Math.max(0, v.currentTime - 5)
-        applySeek(v, nextTime)
-        flashSkipHint(`⏪ -5s (${formatTime(nextTime)})`, 1000)
-      } else if (k === 'arrowright') {
-        e.preventDefault()
-        const nextTime = Math.min(v.duration || 0, v.currentTime + 5)
-        applySeek(v, nextTime)
-        flashSkipHint(`⏩ +5s (${formatTime(nextTime)})`, 1000)
-      } else if (k === 'arrowup') {
-        e.preventDefault()
-        const nextVol = Math.min(1, Math.round((v.volume + 0.05) * 100) / 100)
-        v.volume = nextVol
-        flashSkipHint(`🔊 音量 ${Math.round(nextVol * 100)}%`, 1000)
-      } else if (k === 'arrowdown') {
-        e.preventDefault()
-        const nextVol = Math.max(0, Math.round((v.volume - 0.05) * 100) / 100)
-        v.volume = nextVol
-        flashSkipHint(nextVol === 0 ? '🔇 静音' : `🔉 音量 ${Math.round(nextVol * 100)}%`, 1000)
-      } else if (k === 'f') {
-        e.preventDefault()
-        toggleFsRef.current()
-      } else if (k === 'w') {
-        e.preventDefault()
-        if (e.shiftKey) {
-          void toggleWebFs()
-        } else {
-          toggleAspectRatioRef.current?.()
-        }
-      } else if (k === 'p') onPrevRef.current?.()
-      else if (k === 'n') onNextRef.current?.()
-      else if (k === 'd') {
-        e.preventDefault()
-        if (onToggleDanmakuRef.current) {
-          onToggleDanmakuRef.current()
-        } else {
-          const cur = danmakuRef.current
-          const isEnabled = cur.enabled !== false
-          const isSimplify = Boolean(cur.simplify)
-          if (isEnabled && !isSimplify) {
-            onDanmakuChangeRef.current?.({ enabled: true, simplify: true })
-          } else if (isEnabled && isSimplify) {
-            onDanmakuChangeRef.current?.({ enabled: false, simplify: false })
-          } else {
-            onDanmakuChangeRef.current?.({ enabled: true, simplify: false })
-          }
-        }
-      } else if (k === ',' || e.key === '，') {
-        // agefans: lag danmaku +0.5s (直接联动弹幕面板单集全局时间偏移)
-        e.preventDefault()
-        const panel = danmakuPanelRef.current
-        const cur = panel?.globalTimeOffset || 0
-        const next = Math.round((cur + 0.5) * 10) / 10
-        panel?.onSetGlobalTimeOffset?.(next)
-        setOffsetHint(`弹幕滞后 0.5s（偏移 ${next > 0 ? '+' : ''}${next}s）`)
-        window.clearTimeout(offsetHintTimer.current)
-        offsetHintTimer.current = window.setTimeout(
-          () => setOffsetHint(''),
-          1500,
-        )
-      } else if (k === '.' || e.key === '。') {
-        // agefans: advance danmaku -0.5s (直接联动弹幕面板单集全局时间偏移)
-        e.preventDefault()
-        const panel = danmakuPanelRef.current
-        const cur = panel?.globalTimeOffset || 0
-        const next = Math.round((cur - 0.5) * 10) / 10
-        panel?.onSetGlobalTimeOffset?.(next)
-        setOffsetHint(`弹幕超前 0.5s（偏移 ${next > 0 ? '+' : ''}${next}s）`)
-        window.clearTimeout(offsetHintTimer.current)
-        offsetHintTimer.current = window.setTimeout(
-          () => setOffsetHint(''),
-          1500,
-        )
-      } else if (k === '/' || e.key === '、') {
-        // agefans: restore offset (直接联动弹幕面板单集全局时间偏移复位)
-        e.preventDefault()
-        const panel = danmakuPanelRef.current
-        panel?.onSetGlobalTimeOffset?.(0)
-        setOffsetHint('弹幕偏移已复位')
-        window.clearTimeout(offsetHintTimer.current)
-        offsetHintTimer.current = window.setTimeout(
-          () => setOffsetHint(''),
-          1500,
-        )
-      } else if (k === 'm' && e.altKey) {
-        e.preventDefault()
-        setPanelOpen((x) => !x)
-      } else if (k === 'escape') {
-        setPanelOpen(false)
-        setSpeedMenuOpen(false)
-        setSrMenuOpen(false)
-        setVolumeMenuOpen(false)
-        setSettingsMenuOpen(false)
-        setOpedDrawerOpen(false)
-        setContextMenu((prev) => ({ ...prev, visible: false }))
-        setStatsOpen(false)
-        // Exit CSS web-fs + any DOM fullscreen (browser also exits DOM FS)
-        setWebFs(false)
-        setPlayerFs(false)
-        void exitDomFullscreen()
+      if (v) {
+        cancelCountdown()
+        cancelFirstEpPrompt()
+        resetPlayTick(t)
+        seekTo(t)
       }
-    }
-    window.addEventListener('keydown', onKey)
-
-    return () => {
-      // Invalidate generation so softPlay / HLS / auth async paths no-op
-      genRef.current++
-      cancelCountdown()
-      cancelFirstEpPrompt()
-      window.removeEventListener('keydown', onKey)
-      ro.disconnect()
-      try {
-        softPlayCleanup?.()
-      } catch {
-        /* ignore */
-      }
-      softPlayCleanup = null
-      video.removeEventListener('timeupdate', onTime)
-      video.removeEventListener('pause', onPause)
-      video.removeEventListener('play', onPlay)
-      video.removeEventListener('ratechange', onRateChange)
-      video.removeEventListener('ended', onEndedHandler)
-      video.removeEventListener('volumechange', onVol)
-      video.removeEventListener('seeking', onSeeking)
-      video.removeEventListener('seeked', onSeeked)
-      video.removeEventListener('waiting', onWaiting)
-      video.removeEventListener('stalled', onStalledPlay)
-      video.removeEventListener('canplay', onCanPlay)
-      video.removeEventListener('playing', onPlayingClear)
-      clearStallShowTimer()
-      const durationChange = (
-        video as HTMLVideoElement & { __durationChange?: () => void }
-      ).__durationChange
-      if (durationChange) {
-        video.removeEventListener('durationchange', durationChange)
-        delete (video as HTMLVideoElement & { __durationChange?: () => void })
-          .__durationChange
-      }
-      const stalled = (
-        video as HTMLVideoElement & { __a1Stalled?: () => void }
-      ).__a1Stalled
-      if (stalled) {
-        video.removeEventListener('stalled', stalled)
-        video.removeEventListener('error', stalled)
-        delete (video as HTMLVideoElement & { __a1Stalled?: () => void })
-          .__a1Stalled
-      }
-      const nativeHlsCleanup = (
-        video as HTMLVideoElement & { __nativeHlsCleanup?: () => void }
-      ).__nativeHlsCleanup
-      if (nativeHlsCleanup) {
-        try {
-          nativeHlsCleanup()
-        } catch {
-          /* ignore */
-        }
-        delete (video as HTMLVideoElement & { __nativeHlsCleanup?: () => void })
-          .__nativeHlsCleanup
-      }
-      try {
-        danmakuCoreRef.current?.destroy()
-      } catch {
-        /* ignore */
-      }
-      danmakuCoreRef.current = null
-      danmakuMediaReadyRef.current = false
-      try {
-        anime4kStopRef.current?.()
-      } catch {
-        /* ignore */
-      }
-      anime4kStopRef.current = null
-      if (hlsRef.current) {
-        try {
-          hlsRef.current.destroy()
-        } catch {
-          /* ignore */
-        }
-        hlsRef.current = null
-      }
-      while (video.firstChild) {
-        video.removeChild(video.firstChild)
-      }
-      video.removeAttribute('src')
-      video.load()
-      window.clearTimeout(offsetHintTimer.current)
-      setOffsetHint('')
-      clearHideTimer()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSrc])
-
-  useEffect(() => {
-    applyDanmaku()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [comments, danmaku])
-
-  // Mobile/desktop + fullscreen change font curve without comment rebuild
-  useEffect(() => {
-    const core = danmakuCoreRef.current
-    if (!core) return
-    const shell = shellRef.current
-    const w = shell?.clientWidth || 0
-    const h = shell?.clientHeight || 0
-    const layout = danmakuLayoutHints(h)
-    core.setLayout(layout)
-    if (w > 0) {
-      core.speed = danmakuPixelSpeed(w, danmakuRef.current.speed || 1, layout)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pointerMode, playerFs, webFs])
-
-  useEffect(() => {
-    const video = videoRef.current
-    if (!video) return
-    const s = player.speed || 1
-    // 仅在外部配置变化且尚未通过同步手势就地应用时才更新（避免无手势二次重复赋值）
-    if (
-      Math.abs(lastAppliedSpeedRef.current - s) > 0.01 &&
-      Math.abs(video.playbackRate - s) > 0.01
-    ) {
-      applySpeedChange(s)
-    }
-  }, [player.speed, applySpeedChange])
-
-  // Probe WebGPU once when user opens SR menu or has a non-off preference
-  useEffect(() => {
-    const mode = player.superResolution || 'off'
-    if (mode === 'off' && !srMenuOpen) return
-    if (webGpuOk !== null) return
-    let cancelled = false
-    void supportsAnime4K().then((ok) => {
-      if (!cancelled) setWebGpuOk(ok)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [player.superResolution, srMenuOpen, webGpuOk])
-
-  function flashSrHint(msg: string, ms = 4500) {
-    setOffsetHint(msg)
-    window.clearTimeout(offsetHintTimer.current)
-    offsetHintTimer.current = window.setTimeout(() => setOffsetHint(''), ms)
-  }
-
-  /** Bilibili-style skip hint — brief toast when OP/ED is auto-skipped */
-  function flashSkipHint(msg: string, ms = 1500) {
-    setOffsetHint(msg)
-    window.clearTimeout(offsetHintTimer.current)
-    offsetHintTimer.current = window.setTimeout(() => setOffsetHint(''), ms)
-  }
-
-  // Bilibili-style Danmaku Mode Switch Toast (开 -> 精简 -> 关)
-  const prevDanmakuStateRef = useRef({
-    enabled: danmaku.enabled,
-    simplify: danmaku.simplify,
+    },
+    onPrev,
+    onNext,
+    onToggleFs: toggleFs,
+    onToggleWebFs: toggleWebFs,
+    onToggleAspectRatio: toggleAspectRatio,
+    onToggleDanmaku,
+    onDanmakuChange,
+    danmaku,
+    danmakuPanel,
+    onTogglePanel: () => setPanelOpen((v) => !v),
+    onCloseAllMenus: () => {
+      setPanelOpen(false)
+      setSpeedMenuOpen(false)
+      setSrMenuOpen(false)
+      setVolumeMenuOpen(false)
+      setSettingsMenuOpen(false)
+      setOpedDrawerOpen(false)
+      setContextMenu((prev) => ({ ...prev, visible: false }))
+      setStatsOpen(false)
+      void exitAnyFs()
+    },
+    onFlashHint: flashSkipHint,
   })
 
-  useEffect(() => {
-    const prev = prevDanmakuStateRef.current
-    const curEnabled = danmaku.enabled !== false
-    const curSimplify = Boolean(danmaku.simplify)
-    const prevEnabled = prev.enabled !== false
-    const prevSimplify = Boolean(prev.simplify)
-
-    if (prevEnabled !== curEnabled || prevSimplify !== curSimplify) {
-      prevDanmakuStateRef.current = {
-        enabled: danmaku.enabled,
-        simplify: danmaku.simplify,
-      }
-      if (!curEnabled) {
-        flashSkipHint('弹幕关闭', 1200)
-      } else if (curSimplify) {
-        flashSkipHint('弹幕精简', 1200)
-      } else {
-        flashSkipHint('弹幕开启', 1200)
-      }
-    }
-  }, [danmaku.enabled, danmaku.simplify])
-
-  /** Cancel any active auto-next countdown and hide the overlay */
-  function cancelCountdown() {
-    window.clearInterval(countdownIntervalRef.current)
-    countdownIntervalRef.current = 0
-    setCountdown(null)
-  }
-
-  /** Cancel any active first-episode OP/ED skip prompt and hide the overlay */
-  function cancelFirstEpPrompt() {
-    if (firstEpPromptTimerRef.current) {
-      window.clearInterval(firstEpPromptTimerRef.current)
-      firstEpPromptTimerRef.current = 0
-    }
-    setFirstEpPrompt(null)
-  }
-
-  /** Confirm skipping the current segment in first-episode protection */
-  function handleConfirmFirstEpSkip() {
-    if (!firstEpPrompt) return
-    const { type, targetTime } = firstEpPrompt
-    cancelFirstEpPrompt()
-    const video = videoRef.current
-    if (video) {
-      skipBusyRef.current = true
-      lastSkipTRef.current = targetTime
-      video.currentTime = targetTime
-      flashSkipHint(type === 'op' ? '已跳过片头' : '已跳过片尾')
-      setTimeout(() => {
-        skipBusyRef.current = false
-      }, 1500)
-    }
-  }
-
-  /** Dismiss first-episode skip prompt and keep the whole episode unskipped */
-  function handleDismissFirstEpPrompt() {
-    cancelFirstEpPrompt()
-    keepWholeEpisodeRef.current = true
-  }
-
-  /** Immediately jump to the next episode (countdown reached 0 or user clicked "play now") */
-  function doNext() {
-    cancelCountdown()
-    onNextRef.current?.()
-  }
-
-  /**
-   * Anime4K: only when mode !== off. Dynamic-import + disposable GPU controller.
-   * Off path does not load anime4k-webgpu or touch WebGPU.
-   */
-  useEffect(() => {
-    const mode = (player.superResolution || 'off') as SuperResolutionMode
-    const video = videoRef.current
-    const canvas = canvasRef.current
-    if (mode === 'off' || !video || !canvas) {
-      try {
-        anime4kStopRef.current?.()
-      } catch {
-        /* ignore */
-      }
-      anime4kStopRef.current = null
-      setSrActive(false)
-      return
-    }
-
-    let cancelled = false
-    let stop: Anime4KStop | null = null
-
-    const unsupportedReason = (): string => {
-      if (typeof window !== 'undefined' && !window.isSecureContext) {
-        return '超分需要 HTTPS 或 localhost（当前 HTTP 远程访问无 WebGPU）'
-      }
-      return '当前浏览器 / 环境不支持 WebGPU 超分'
-    }
-
-    const run = async () => {
-      try {
-        // Always re-probe if not confirmed true — localStorage may have mode on
-        // while first paint had no gpu (e.g. insecure context).
-        let ok = webGpuOk === true
-        if (!ok) {
-          ok = await supportsAnime4K()
-          if (cancelled) return
-          setWebGpuOk(ok)
-        }
-        if (!ok) {
-          setSrActive(false)
-          flashSrHint(unsupportedReason())
-          return
-        }
-
-        // wait for dimensions if needed
-        if (!(video.videoWidth > 0)) {
-          await new Promise<void>((resolve) => {
-            const done = () => {
-              video.removeEventListener('loadedmetadata', done)
-              resolve()
-            }
-            video.addEventListener('loadedmetadata', done)
-            if (video.videoWidth > 0) {
-              video.removeEventListener('loadedmetadata', done)
-              resolve()
-            }
-            // Don't hang forever if metadata never arrives
-            window.setTimeout(done, 12_000)
-          })
-        }
-        if (cancelled) return
-        if (!(video.videoWidth > 0)) {
-          flashSrHint('超分等待视频尺寸超时，请等画面出来后再开')
-          setSrActive(false)
-          return
-        }
-
-        // B: defer GPU pipeline until playback actually starts (playing).
-        // Paused first-frame / pre-buffer stays on plain <video>; off path unchanged.
-        if (video.paused) {
-          flashSrHint('超分将在开始播放后启动…', 2200)
-          await new Promise<void>((resolve) => {
-            if (!video.paused || cancelled) {
-              resolve()
-              return
-            }
-            let done = false
-            const finish = () => {
-              if (done) return
-              done = true
-              video.removeEventListener('playing', onPlayingSr)
-              window.clearInterval(poll)
-              resolve()
-            }
-            const onPlayingSr = () => finish()
-            video.addEventListener('playing', onPlayingSr)
-            // Also resolve on cancel (src change / mode off) so we don't hang
-            const poll = window.setInterval(() => {
-              if (cancelled || !video.paused) finish()
-            }, 250)
-          })
-        }
-        if (cancelled) return
-
-        try {
-          anime4kStopRef.current?.()
-        } catch {
-          /* ignore */
-        }
-        anime4kStopRef.current = null
-
-        const srMode = mode === 'quality' ? 'quality' : 'efficiency'
-        flashSrHint(
-          srMode === 'quality' ? '超分：质量档启动中…' : '超分：效率档启动中…',
-          2000,
-        )
-
-        stop = await startAnime4K({
-          video,
-          canvas,
-          mode: srMode,
-          // 2× path needs headroom above 1920 or 1080p sources look unchanged
-          maxDimension: SR_MAX_DIMENSION[srMode],
-          layoutEl: shellRef.current,
-        })
-        if (cancelled) {
-          stop()
-          return
-        }
-        anime4kStopRef.current = stop
-        setSrActive(true)
-        const nw = video.videoWidth || 0
-        const nh = video.videoHeight || 0
-        flashSrHint(
-          srMode === 'quality'
-            ? `超分已开启（质量 · ${nw}p→2×）`
-            : `超分已开启（效率 · ${nw}p→2×）`,
-          2800,
-        )
-        void nh
-      } catch (e) {
-        console.warn('[player] Anime4K failed', e)
-        if (!cancelled) {
-          setSrActive(false)
-          flashSrHint(
-            e instanceof Error
-              ? `超分启动失败：${e.message}`
-              : '超分启动失败（见控制台）',
-          )
-        }
-      }
-    }
-
-    void run()
-
-    return () => {
-      cancelled = true
-      try {
-        stop?.()
-      } catch {
-        /* ignore */
-      }
-      try {
-        anime4kStopRef.current?.()
-      } catch {
-        /* ignore */
-      }
-      anime4kStopRef.current = null
-      setSrActive(false)
-    }
-    // Do not depend on playerFs/webFs — fullscreen must not tear down WebGPU
-    // (black frame while pipeline rebuilds). startAnime4K owns ResizeObserver to
-    // retarget canvas buffer size without rebuilding the CNN pipelines.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- webGpuOk set inside after probe
-  }, [activeSrc, player.superResolution])
-
-  function togglePlay() {
-    const v = videoRef.current
-    if (!v) return
-    if (v.paused) {
-      userPausedRef.current = false
-      triggerRipple('play')
-      // Spinner only when nothing is paint-able yet
-      if (
-        bufferedAhead(v) < 0.2 ||
-        v.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
-      ) {
-        setBufferingUi(true)
-      }
-      void v.play().catch(() => {
-        userPausedRef.current = true
-        setBufferingUi(false)
-      })
-      bumpBar()
-    } else {
-      userPausedRef.current = true
-      setBufferingUi(false)
-      triggerRipple('pause')
-      v.pause()
-      setShowBar(true)
-    }
-  }
-  togglePlayRef.current = togglePlay
-
-  /** Try locking or unlocking orientation for landscape mobile fullscreen */
-  function tryLockOrientation(lock: boolean) {
-    if (typeof screen === 'undefined' || !screen.orientation) return
-    const ori = screen.orientation as unknown as {
-      lock?: (orientation: string) => Promise<void>
-      unlock?: () => void
-    }
-    try {
-      if (lock) {
-        void ori.lock?.('landscape').catch(() => {
-          /* ignore orientation lock refusal */
-        })
-      } else {
-        ori.unlock?.()
-      }
-    } catch {
-      /* ignore */
-    }
-  }
-
-  useEffect(() => {
-    const onFs = () => {
-      const isFs = isShellFullscreen(shellRef.current)
-      setPlayerFs(isFs)
-      if (!isFs && !webFsRef.current) {
-        tryLockOrientation(false)
-      }
-    }
-    // Standard + legacy webkit (older Safari / iPadOS)
-    document.addEventListener('fullscreenchange', onFs)
-    document.addEventListener('webkitfullscreenchange', onFs as EventListener)
-    // iOS native video fullscreen (video.webkitEnterFullscreen)
-    const video = videoRef.current
-    const onVideoFsBegin = () => {
-      setPlayerFs(true)
-      tryLockOrientation(true)
-    }
-    const onVideoFsEnd = () => {
-      const isFs = isShellFullscreen(shellRef.current)
-      setPlayerFs(isFs)
-      if (!isFs && !webFsRef.current) {
-        tryLockOrientation(false)
-      }
-    }
-    video?.addEventListener('webkitbeginfullscreen', onVideoFsBegin)
-    video?.addEventListener('webkitendfullscreen', onVideoFsEnd)
-    return () => {
-      document.removeEventListener('fullscreenchange', onFs)
-      document.removeEventListener(
-        'webkitfullscreenchange',
-        onFs as EventListener,
-      )
-      video?.removeEventListener('webkitbeginfullscreen', onVideoFsBegin)
-      video?.removeEventListener('webkitendfullscreen', onVideoFsEnd)
-    }
-  }, [src])
-
-  async function exitAnyFs() {
-    setWebFs(false)
-    setPlayerFs(false)
-    tryLockOrientation(false)
-    exitIosVideoFullscreen(videoRef.current)
-    try {
-      await exitDomFullscreen()
-    } catch {
-      /* ignore */
-    }
-  }
-
-  /**
-   * Player fullscreen:
-   * 1) Standard / webkit Fullscreen API on shell (desktop / iPadOS 15+ often)
-   * 2) iOS Safari: only <video> can go native FS via webkitEnterFullscreen
-   * 3) Fallback: CSS webpage fullscreen (kz-web-fs) — works when FS API is missing
-   */
-  async function togglePlayerFs() {
-    const shell = shellRef.current
-    const video = videoRef.current
-    if (!shell) return
-
-    // Already in any fullscreen -> exit directly
-    if (webFs || isShellFullscreen(shell) || isIosVideoFullscreen(video)) {
-      await exitAnyFs()
-      return
-    }
-
-    setWebFs(false)
-
-    // Prefer DOM Fullscreen on shell when available (Chrome / desktop Safari / many iPads)
-    if (canRequestDomFullscreen(shell)) {
-      try {
-        await exitDomFullscreen()
-        await requestDomFullscreen(shell)
-        setPlayerFs(true)
-        tryLockOrientation(true)
-        return
-      } catch (e) {
-        console.warn('[player] shell fullscreen failed, trying fallbacks', e)
-      }
-    }
-
-    // iPhone Safari: only video element supports native fullscreen
-    if (canIosVideoFullscreen(video)) {
-      try {
-        enterIosVideoFullscreen(video!)
-        setPlayerFs(true)
-        tryLockOrientation(true)
-        return
-      } catch (e) {
-        console.warn('[player] iOS video fullscreen failed', e)
-      }
-    }
-
-    // Fallback for mobile / restricted browsers: CSS webpage fullscreen
-    setWebFs(true)
-    tryLockOrientation(true)
-  }
-
-  /** Expand player to viewport via CSS (no Fullscreen API) */
-  async function toggleWebFs() {
-    if (webFs || isShellFullscreen(shellRef.current) || isIosVideoFullscreen(videoRef.current)) {
-      await exitAnyFs()
-      return
-    }
-    try {
-      await exitDomFullscreen()
-    } catch {
-      /* ignore */
-    }
-    exitIosVideoFullscreen(videoRef.current)
-    setWebFs(true)
-    tryLockOrientation(true)
-  }
-
-  /** F key / double-click: toggle fullscreen (with iOS / CSS fallbacks) */
-  function toggleFs() {
-    if (
-      webFs ||
-      isShellFullscreen(shellRef.current) ||
-      isIosVideoFullscreen(videoRef.current)
-    ) {
-      void exitAnyFs()
-    } else {
-      void togglePlayerFs()
-    }
-  }
-  toggleFsRef.current = toggleFs
-
-  function applySeek(v: HTMLVideoElement, targetTime: number) {
-    const safeTarget = Math.max(0, targetTime)
-    lastSkipTRef.current = safeTarget
-    withIntentGuard(500, () => {
-      // 仅在原生播放模式下使用 WebKit 原生 fastSeek；若存在 hls.js 实例则退化为普通 currentTime 以免调度冲突
-      if (
-        !hlsRef.current &&
-        typeof (v as HTMLVideoElement & { fastSeek?: (time: number) => void })
-          .fastSeek === 'function'
-      ) {
-        try {
-          ;(
-            v as HTMLVideoElement & { fastSeek: (time: number) => void }
-          ).fastSeek(safeTarget)
-          return
-        } catch {
-          /* fallback to currentTime */
-        }
-      }
-      v.currentTime = safeTarget
-    })
-  }
-
-  function seekRatio(ratio: number) {
-    const v = videoRef.current
-    if (!v || !Number.isFinite(v.duration) || v.duration <= 0) return
-    const target = Math.max(0, Math.min(v.duration, ratio * v.duration))
-    const cur = v.currentTime || 0
-    const delta = Math.round(target - cur)
-    if (Math.abs(delta) >= 1) {
-      const sign = delta >= 0 ? '+' : '-'
-      const formattedTarget = formatTime(target)
-      const formattedDelta = `${sign}${formatTime(Math.abs(delta))}`
-      flashSkipHint(`${formattedDelta} (${formattedTarget})`, 1000)
-    }
-
-    // Optimistically lock UI current progress to prevent Safari timeupdate bounce
-    setCurrent(target)
-    pendingSeekTargetRef.current = target
-    seekLockExpiryRef.current = Date.now() + 1500
-
-    // Spinner only when target is outside buffered ranges (nothing to paint).
-    // In-buffer scrub stays silent.
-    let covered = false
-    try {
-      for (let i = 0; i < v.buffered.length; i++) {
-        if (target >= v.buffered.start(i) && target <= v.buffered.end(i) - 0.15) {
-          covered = true
-          break
-        }
-      }
-    } catch {
-      /* ignore */
-    }
-    isSeekingRef.current = true
-    setSeekingUi(!covered)
-    try {
-      applySeek(v, target)
-    } catch {
-      setSeekingUi(false)
-      isSeekingRef.current = false
-      pendingSeekTargetRef.current = null
-    }
-  }
-
-  function seekTo(targetTime: number) {
-    const v = videoRef.current
-    if (!v) return
-    const safeTarget = Math.max(0, targetTime)
-    setCurrent(safeTarget)
-    pendingSeekTargetRef.current = safeTarget
-    seekLockExpiryRef.current = Date.now() + 1500
-    applySeek(v, safeTarget)
-  }
-
+  // Drag & drop local files
   function handleDrop(e: DragEvent) {
     e.preventDefault()
     e.stopPropagation()
@@ -2624,16 +671,28 @@ export function VideoPlayer({
     }
   }
 
-  function addFilter() {
-    const rule = filterDraft.trim()
-    if (!rule) return
-    if (danmaku.filters.includes(rule)) {
-      setFilterDraft('')
-      return
+  // PiP
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      setPipSupported(Boolean(document.pictureInPictureEnabled))
     }
-    onDanmakuChange?.({ filters: [...danmaku.filters, rule] })
-    setFilterDraft('')
-  }
+  }, [])
+
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v) return
+
+    const onEnterPip = () => setPipActive(true)
+    const onLeavePip = () => setPipActive(false)
+
+    v.addEventListener('enterpictureinpicture', onEnterPip)
+    v.addEventListener('leavepictureinpicture', onLeavePip)
+
+    return () => {
+      v.removeEventListener('enterpictureinpicture', onEnterPip)
+      v.removeEventListener('leavepictureinpicture', onLeavePip)
+    }
+  }, [activeSrc])
 
   async function togglePip() {
     const v = videoRef.current
@@ -2649,6 +708,7 @@ export function VideoPlayer({
     }
   }
 
+  // Right-click context actions
   function handleCaptureFrame() {
     const v = videoRef.current
     if (!v || !v.videoWidth || !v.videoHeight) {
@@ -2712,49 +772,13 @@ export function VideoPlayer({
       volume: player.volume ?? 0.7,
       srMode: player.superResolution || 'off',
       srActive,
-      engine: isM3u8(activeSrc, formatHint) ? 'HLS.js (MSE)' : 'Progressive MP4',
+      engine: activeSrc.includes('.m3u8') ? 'HLS.js (MSE)' : 'Progressive MP4',
       userAgent: navigator.userAgent,
     }
     void navigator.clipboard.writeText(JSON.stringify(statsObj, null, 2)).then(() => {
       flashSkipHint('已复制调试统计数据 (JSON)', 1800)
     })
   }
-
-  // Periodic FPS & quality sampling
-  useEffect(() => {
-    const v = videoRef.current
-    if (!v) return
-
-    let lastTime = performance.now()
-    let lastFrames = 0
-
-    const interval = window.setInterval(() => {
-      const video = videoRef.current
-      if (!video) return
-
-      if (typeof video.getVideoPlaybackQuality === 'function') {
-        const q = video.getVideoPlaybackQuality()
-        const now = performance.now()
-        const dt = (now - lastTime) / 1000
-        if (dt > 0.5) {
-          const dFrames = q.totalVideoFrames - lastFrames
-          if (dFrames >= 0) {
-            setFps(Math.round((dFrames / dt) * 10) / 10)
-          }
-          lastFrames = q.totalVideoFrames
-          lastTime = now
-        }
-        setDroppedFrames(q.droppedVideoFrames)
-        setTotalFrames(q.totalVideoFrames)
-      }
-
-      if (hlsRef.current?.bandwidthEstimate) {
-        setBandwidthEstimateBps(hlsRef.current.bandwidthEstimate)
-      }
-    }, 1000)
-
-    return () => window.clearInterval(interval)
-  }, [activeSrc])
 
   let sourceHost = ''
   try {
@@ -2786,14 +810,14 @@ export function VideoPlayer({
     totalFrames,
     bandwidthEstimateBps,
     lastFragStats,
-    bufferAhead: videoRef.current ? bufferedAhead(videoRef.current) : 0,
+    bufferAhead: videoRef.current ? (videoRef.current.buffered.length > 0 ? videoRef.current.buffered.end(videoRef.current.buffered.length - 1) - videoRef.current.currentTime : 0) : 0,
     duration,
     currentTime: current,
     volume: player.volume ?? 0.7,
     speed: player.speed || 1,
     videoCodec,
     audioCodec,
-    engine: isM3u8(activeSrc, formatHint)
+    engine: activeSrc.includes('.m3u8')
       ? hlsRef.current
         ? 'Hls.js (MSE)'
         : 'Safari 原生 HLS'
@@ -2851,7 +875,16 @@ export function VideoPlayer({
         onPickXmlFile={() => xmlInputRef.current?.click()}
         filterDraft={filterDraft}
         onFilterDraftChange={setFilterDraft}
-        onAddFilter={addFilter}
+        onAddFilter={() => {
+          const rule = filterDraft.trim()
+          if (!rule) return
+          if (danmaku.filters.includes(rule)) {
+            setFilterDraft('')
+            return
+          }
+          onDanmakuChange?.({ filters: [...danmaku.filters, rule] })
+          setFilterDraft('')
+        }}
         onRemoveFilter={(rule) =>
           onDanmakuChange?.({
             filters: danmaku.filters.filter((r) => r !== rule),
@@ -2866,7 +899,6 @@ export function VideoPlayer({
         onClearEpisodeTimeOffsets={danmakuPanel.onClearEpisodeTimeOffsets}
         danmakuOffset={danmakuPanel.danmakuOffset}
         onResetOffset={danmakuPanel.onResetOffset}
-        /* Desktop: clear the control bar. Mobile uses bottom-sheet layout. */
         bottomOffset={56}
         layout={pointerMode}
       />
@@ -2955,9 +987,8 @@ export function VideoPlayer({
         onToggleDanmaku()
         return
       }
-      const cur = danmakuRef.current
-      const isEnabled = cur.enabled !== false
-      const isSimplify = Boolean(cur.simplify)
+      const isEnabled = danmaku.enabled !== false
+      const isSimplify = Boolean(danmaku.simplify)
       if (isEnabled && !isSimplify) {
         onDanmakuChange?.({ enabled: true, simplify: true })
       } else if (isEnabled && isSimplify) {
@@ -3011,37 +1042,9 @@ export function VideoPlayer({
       }
     },
     onVolume: (vol) => {
-      if (vol > 0.001) lastAudibleVolumeRef.current = vol
-      if (videoRef.current) {
-        videoRef.current.volume = vol
-        videoRef.current.muted = vol <= 0
-      }
-      onPlayerChange?.({ volume: vol })
+      handleVolumeChange(vol)
     },
-    onToggleMute: () => {
-      const v = videoRef.current
-      const cur = player.volume ?? 0
-      const muted = cur <= 0.001 || Boolean(v?.muted)
-      if (muted) {
-        const restore = lastAudibleVolumeRef.current || 0.7
-        if (v) {
-          v.muted = false
-          v.volume = restore
-        }
-        onPlayerChange?.({ volume: restore })
-      } else {
-        if ((player.volume ?? 0) > 0.001) {
-          lastAudibleVolumeRef.current = player.volume
-        }
-        if (v) {
-          v.muted = true
-          // Keep element volume for restore; settings show 0 as muted
-          // (slider + icon reflect player.volume)
-          v.volume = 0
-        }
-        onPlayerChange?.({ volume: 0 })
-      }
-    },
+    onToggleMute: toggleMute,
     onTogglePlayerFs: () => {
       void togglePlayerFs()
     },
@@ -3094,12 +1097,11 @@ export function VideoPlayer({
         if (e.currentTarget === e.target) setDropActive(false)
       }}
     >
-      {/* Full-size video — never reparented by a third-party UI library */}
+      {/* Full-size video */}
       <video
         ref={videoRef}
         className="kz-native-video"
         playsInline
-        // Ensure decoder paints (some GPUs need this after MSE attach)
         style={{
           position: 'absolute',
           top: 0,
@@ -3125,11 +1127,7 @@ export function VideoPlayer({
         }}
       />
 
-      {/*
-        Anime4K output. Keep in layout when mode≠off (display:none collapses size
-        and breaks sizing). Hide picture with opacity until pipeline is live so
-        we don't flash a black canvas over the video.
-      */}
+      {/* Anime4K output canvas */}
       <canvas
         ref={canvasRef}
         className="kz-sr-canvas"
@@ -3160,7 +1158,7 @@ export function VideoPlayer({
         }}
       />
 
-      {/* Danmaku overlay — transparent, no 3d transform (see CSS) */}
+      {/* Danmaku layer */}
       <div
         ref={layerRef}
         className="kz-danmaku-layer"
@@ -3177,56 +1175,23 @@ export function VideoPlayer({
         }}
       />
 
-      {(loading || seekingUi || bufferingUi) && !mediaError && (
-        <div className="kz-status-layer" aria-busy="true">
-          <div className="kz-stall-spinner" aria-label="加载中" />
-        </div>
-      )}
+      {/* Status overlay (Spinner, Error, Hints, Hud) */}
+      <PlayerStatusOverlay
+        loading={loading}
+        seekingUi={seekingUi}
+        bufferingUi={bufferingUi}
+        mediaError={mediaError}
+        offsetHint={offsetHint}
+        hudMessage={hudMessage ?? undefined}
+      />
 
-      {mediaError && (
-        <div className="kz-status-layer">
-          <div className="kz-media-error">{mediaError}</div>
-        </div>
-      )}
+      {/* Drag & drop overlay */}
+      <DanmakuDropOverlay active={dropActive} />
 
-      {offsetHint && !mediaError && (
-        <div className="kz-status-layer" style={{ alignItems: 'flex-start', paddingTop: '12%' }}>
-          <div className="kz-status-hint">{offsetHint}</div>
-        </div>
-      )}
+      {/* Central Play/Pause Spring Ripple */}
+      <PlaybackRipple ripple={ripple} />
 
-      {hudMessage && !mediaError && (
-        <div className="kz-status-layer" style={{ alignItems: 'flex-start', paddingTop: '7%' }}>
-          <div className="kz-status-hint flex items-center gap-2">
-            <span className="flex h-2 w-2 relative flex-shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--kz-accent)] opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--kz-accent)]" />
-            </span>
-            <span className="text-xs sm:text-sm font-medium">{hudMessage}</span>
-          </div>
-        </div>
-      )}
-
-      {dropActive && (
-        <div className="kz-drop-overlay">松开以加载本地视频或弹幕 XML</div>
-      )}
-
-      {/* Center Spring Ripple for Play/Pause micro-interaction */}
-      {ripple && (
-        <div key={ripple.id} className="kz-player-ripple" aria-hidden="true">
-          {ripple.type === 'play' ? (
-            <svg className="w-8 h-8 fill-current ml-0.5" viewBox="0 0 24 24">
-              <path d="M8 5v14l11-7z" />
-            </svg>
-          ) : (
-            <svg className="w-8 h-8 fill-current" viewBox="0 0 24 24">
-              <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-            </svg>
-          )}
-        </div>
-      )}
-
-      {/* Center play when paused */}
+      {/* Center play button when paused */}
       {paused && !loading && !seekingUi && !bufferingUi && !mediaError && (
         <button
           type="button"
@@ -3239,97 +1204,22 @@ export function VideoPlayer({
       )}
 
       {/* First-Episode OP/ED Skip Prompt Toast */}
-      {firstEpPrompt && !mediaError && (
-        <div className="kz-countdown-layer" onClick={(e) => e.stopPropagation()}>
-          <div className="kz-countdown-overlay">
-            <div className="kz-countdown-info">
-              <span className="kz-countdown-label">
-                {firstEpPrompt.type === 'op'
-                  ? '首次观看 是否跳过 OP'
-                  : '首次观看 是否跳过 ED'}
-              </span>
-            </div>
-            <div className="kz-countdown-actions">
-              <button
-                type="button"
-                className="kz-countdown-btn kz-countdown-btn--primary"
-                onClick={handleConfirmFirstEpSkip}
-              >
-                跳过 ({firstEpPrompt.countdown}s)
-              </button>
-              <button
-                type="button"
-                className="kz-countdown-btn kz-countdown-btn--secondary"
-                title="关闭"
-                onClick={handleDismissFirstEpPrompt}
-              >
-                ✕
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <FirstEpPromptOverlay
+        prompt={firstEpPrompt}
+        mediaError={mediaError}
+        onConfirm={handleConfirmFirstEpSkip}
+        onDismiss={handleDismissFirstEpPrompt}
+      />
 
       {/* Modern Next-Episode Floating Toast */}
-      {countdown !== null && !mediaError && (
-        <div className="kz-countdown-layer" onClick={(e) => e.stopPropagation()}>
-          <div className="kz-countdown-overlay">
-            <div className="kz-countdown-ring-wrap">
-              <svg className="w-8 h-8 -rotate-90" viewBox="0 0 36 36">
-                <circle
-                  cx="18"
-                  cy="18"
-                  r="15"
-                  fill="none"
-                  stroke="rgba(255, 255, 255, 0.15)"
-                  strokeWidth="2.5"
-                />
-                <circle
-                  cx="18"
-                  cy="18"
-                  r="15"
-                  fill="none"
-                  stroke="#38bdf8"
-                  strokeWidth="2.5"
-                  strokeDasharray="94.2"
-                  strokeDashoffset={94.2 * (1 - countdown / 4)}
-                  strokeLinecap="round"
-                  className="transition-all duration-1000 ease-linear"
-                />
-              </svg>
-              <span className="kz-countdown-number">{countdown}</span>
-            </div>
-            <div className="kz-countdown-info">
-              <span className="kz-countdown-label">即将播放下一话</span>
-              <span className="kz-countdown-sub">已开启自动连播</span>
-            </div>
-            <div className="kz-countdown-actions">
-              <button
-                type="button"
-                className="kz-countdown-btn kz-countdown-btn--primary"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  doNext()
-                }}
-              >
-                立即播放
-              </button>
-              <button
-                type="button"
-                className="kz-countdown-btn kz-countdown-btn--secondary"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  cancelCountdown()
-                }}
-              >
-                取消
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AutoNextOverlay
+        countdown={countdown}
+        mediaError={mediaError}
+        onPlayNow={doNext}
+        onCancel={cancelCountdown}
+      />
 
-      {/* Control bar — desktop vs mobile chrome isolated under ./chrome/ */}
+      {/* Control bar */}
       {pointerMode === 'desktop' ? (
         <DesktopControls key="desktop" {...controlsProps} />
       ) : (

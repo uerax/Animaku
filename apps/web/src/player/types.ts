@@ -5,6 +5,7 @@ import type {
   DanmakuSettings,
   PlayerSettings,
 } from '@animaku/shared'
+export type { DanmakuSettings, PlayerSettings } from '@animaku/shared'
 import type {
   DanmakuPoolId,
   DanmakuSourceChip,

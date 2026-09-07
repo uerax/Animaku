@@ -6,10 +6,12 @@
 ---
 
 ## 1. 播放器与画面渲染 (Player Core & Video Engine)
-- 播放器主入口与状态机：`apps/web/src/player/VideoPlayer.tsx`（HLS/MP4、OP/ED跳过、错误自愈与容灾）
+- 播放器主入口与装配中心：`apps/web/src/player/VideoPlayer.tsx`（纯声明式组装 Hooks 与 Overlays，OP/ED跳过调度与右键菜单）
+- 播放器内核 Hooks 体系：`apps/web/src/player/hooks/`（`useMediaEngine`, `usePlaybackResume`, `useIntentGuard`, `useDanmakuBridge`, `useAnime4KPipeline`, `usePlayerFullscreen`, `usePlayerShortcuts`, `usePlaybackStats`）
+- 播放器视觉浮层体系：`apps/web/src/player/overlays/`（`PlayerStatusOverlay`, `PlaybackRipple`, `FirstEpPromptOverlay`, `AutoNextOverlay`, `DanmakuDropOverlay`）
 - 播放器类型定义：`apps/web/src/player/types.ts`
 - 播放器样式覆盖：`apps/web/src/player/plyr-overrides.css`
-- Anime4K 画质超分 (WebGL)：`apps/web/src/player/anime4k.ts`
+- Anime4K 画质超分 (WebGL/WebGPU)：`apps/web/src/player/anime4k.ts`
 - 全屏控制与屏幕常亮唤醒锁：`apps/web/src/player/media/fullscreen.ts`
 - 媒体与时间格式化：`apps/web/src/player/media/format.ts`
 - 备用/Iframe 播放器：`apps/web/src/player/EmbedPlayer.tsx`

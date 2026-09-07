@@ -4,6 +4,56 @@
 
 ---
 
+## [2026-09-07] VideoPlayer 播放器核心架构模块化拆分与职责解耦 (v1.5.12)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **巨石组件架构重构解耦 (`apps/web/src/player/VideoPlayer.tsx`)**：
+     - 将原 3,441 行超级巨石组件通过关注点分离（SoC）拆解为 Hooks、Overlays、Shell 装配器三层架构，`VideoPlayer.tsx` 规模锐减至 ~800 行，大幅降低维护认知负荷；
+  2. **视觉浮层与微交互子组件拆离 (`apps/web/src/player/overlays/`)**：
+     - 抽离 `PlayerStatusOverlay`（Spinner、MediaError、OffsetHint、HudMessage）；
+     - 抽离 `FirstEpPromptOverlay`（第一集 OP/ED 跳过防误触保护倒计时）；
+     - 抽离 `AutoNextOverlay`（完播 B 站风格自动连播 SVG 环形进度倒计时）；
+     - 抽离 `PlaybackRipple`（中央播放/暂停弹性水波纹动画）；
+     - 抽离 `DanmakuDropOverlay`（本地视频与 XML 弹幕拖拽释放提示蒙层）；
+  3. **播放核心与辅助管线 Hooks 拆解 (`apps/web/src/player/hooks/`)**：
+     - `useMediaEngine`：封装 HLS.js / Safari Native HLS 看门狗 / Progressive MP4 媒体生命周期、起播缓冲预检门禁（`softPlay`）、401/403 票据重试换票与网络/解码容错；
+     - `usePlaybackResume`：抽象权威时长解析决策与时序安全断点续播调度；
+     - `useIntentGuard`：统一程序化倍速/Seek 引发底层 DOM pause 噪声的豁免守卫；
+     - `useDanmakuBridge`：封装 `CanvasDanmaku` 物理时钟弹幕生命周期、首帧就绪门禁、Resize 字体档位响应与快捷键微调偏移；
+     - `useAnime4KPipeline`：封装 WebGPU Anime4K 环境探测、动态拉起、播放等待与 GPU 实例清理；
+     - `usePlayerFullscreen`：统一管理 DOM 全屏、iOS 原生全屏、网页全屏 CSS 切换与屏幕方向锁；
+     - `usePlayerShortcuts`：承载键盘快捷键映射与面板防冲突拦截；
+     - `usePlaybackStats`：负责 15s 有效播放统计上报、85% 完播已看标记、定期历史同步以及 FPS/掉帧率极客面板质量采样；
+  4. **类型安全与全量验证**：
+     - 全仓 90 项测试 100% 通过，全仓 `typecheck` 0 错误，前端生产构建打包（`build`）顺利通过；
+     - 项目版本号递增至 `v1.5.12`。
+- 涉及文件：
+  - apps/web/src/player/VideoPlayer.tsx
+  - apps/web/src/player/overlays/PlayerStatusOverlay.tsx
+  - apps/web/src/player/overlays/FirstEpPromptOverlay.tsx
+  - apps/web/src/player/overlays/AutoNextOverlay.tsx
+  - apps/web/src/player/overlays/PlaybackRipple.tsx
+  - apps/web/src/player/overlays/DanmakuDropOverlay.tsx
+  - apps/web/src/player/overlays/index.ts
+  - apps/web/src/player/hooks/useMediaEngine.ts
+  - apps/web/src/player/hooks/usePlaybackResume.ts
+  - apps/web/src/player/hooks/useIntentGuard.ts
+  - apps/web/src/player/hooks/useDanmakuBridge.ts
+  - apps/web/src/player/hooks/useAnime4KPipeline.ts
+  - apps/web/src/player/hooks/usePlayerFullscreen.ts
+  - apps/web/src/player/hooks/usePlayerShortcuts.ts
+  - apps/web/src/player/hooks/usePlaybackStats.ts
+  - apps/web/src/player/hooks/index.ts
+  - apps/web/src/player/types.ts
+  - .claude/feature-map.md
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+
 ## [2026-09-07] 播放系统服务端安全与播放逻辑全景检查、凭据脱敏隔离、广告过滤闭环与网关加固 (v1.5.11)
 - 状态：已完成
 - 优先级：P1
