@@ -29,11 +29,33 @@
 - **避免选择 `Flexible`**：Flexible 会导致 Cloudflare 到源站使用明文 HTTP 80 端口，容易引起 `ERR_TOO_MANY_REDIRECTS`（重定向循环）或数据明文传输。
 - 源站服务器可使用 Let's Encrypt / Certbot 证书，或在 Cloudflare 的 **SSL/TLS -> 源服务器 (Origin Server)** 处免费申请一张长达 15 年的 Cloudflare 原生源证书并配置到源站 Nginx。
 
-### 2.3 开启网络与性能优化
-前往 **速度 (Speed) -> 优化 (Optimization)**：
-- **Auto Minify**：可选开启 HTML / CSS / JS 压缩（Animaku 打包已内置 Vite Terser/ESBuild 压缩，开启无害）。
-- **Brotli**：开启（享受比 Gzip 更高压缩率的传输）。
-- **Early Hints (早期提示 103)**：开启（加速关键 CSS/JS 预加载）。
+### 2.3 开启网络与性能优化 (速度与协议优化)
+
+前往 Cloudflare 控制台 -> **速度 (Speed) -> 设置**（页面顶部包含四个标签页：建议 / 图像优化 / 内容优化 / 协议优化）：
+
+> **改版避坑提示**：
+> - **Brotli 与 WebSockets**：改版后已全站**默认内置原生支持**，控制台已彻底移除手动开关，无需任何配置。
+> - **Auto Minify（代码压缩）**：Cloudflare 官方已于 2024 年底**彻底下线移除**该功能，无需寻找。Animaku 前端打包（Vite）已全自动完成生产级压缩。
+
+#### 1.「内容优化」标签页开关配置
+
+- **Cloudflare Fonts (字体优化)**：**开启 (On)** —— 自动代理加速第三方 Google Fonts 字体，避免加载超时阻塞页面。
+- **Early Hints (早期提示 103)**：**开启 (On)** —— 允许浏览器在等待源站响应期间并发预加载 CSS/JS 静态资产。
+- **Rocket Loader™ (火箭加载器)**：**必须关闭 (Off)** —— ⚠️ **严禁开启！** 会劫持并异步延迟脚本，导致 React 单页应用白屏崩溃与播放器报错。
+- **Speed Brain**：**关闭 (Off)** —— 页面推测性预取（Beta），关闭以避免对后端视频源产生无效的并发预取请求。
+- **Smart Hints**：**关闭 / 忽略** —— 处于 Closed Beta 排队阶段，无需开启。
+- **共享字典压缩 (Shared Dictionary Compression)**：**保持默认 (关闭)**。
+- **对 WordPress 进行自动平台优化 (APO) / 预取 URL**：**忽略** —— 需要付费套餐，且本项目不是 WordPress。
+
+#### 2.「协议优化」标签页开关配置
+
+点击顶部标签栏的 **协议优化**：
+
+- **HTTP/2**：**保持开启 (默认启用)** —— 使用 HTTP/2 加速网站，支持多路复用与头部压缩。
+- **HTTP/2 到源服务器**：**开启 (On)** —— 支持 Cloudflare 边缘与源服务器之间使用 HTTP/2 回源传输。
+- **HTTP/3（使用 QUIC）**：**开启 (On)** —— 基于 UDP 协议，极大提升移动蜂窝与弱网环境下的抗丢包能力及视频切片起播速度。
+- **0-RTT 连接恢复**：**开启 (On)** —— 配合 TLS 1.3，已访问过的用户重连首包直带请求，实现 0ms 握手秒开。
+- **增强的 HTTP/2 优先化**：**忽略** —— 需要 Pro 或更高计划。
 
 ---
 

@@ -4,6 +4,20 @@
 
 ---
 
+## [2026-09-07] 同步 Cloudflare 官方 Speed 优化改版更新 CDN 运维指南 (docs/cloudflare-cdn-rules.md)
+- 状态：已完成
+- 优先级：P3
+- 描述：
+  1. 更新 `docs/cloudflare-cdn-rules.md` 2.3 章节，精准对齐 Cloudflare 控制台最新「速度 (Speed) -> 优化 (Optimization)」设置页面；
+  2. 明确标注 Brotli（默认内置开启无需手动开关）与 Auto Minify（官方已下线）的现状，避免用户翻找无效开关；
+  3. 逐项列明真实页面开关（Cloudflare Fonts 开启、Early Hints 开启、Rocket Loader 必须关闭、Speed Brain 关闭等）以及协议优化项（HTTP/3、0-RTT）；
+  4. 纯文档修改，版本号保持 `v1.5.14` 不变，未执行 `git commit`。
+- 涉及文件：
+  - docs/cloudflare-cdn-rules.md
+  - .claude/STATE.md
+
+---
+
 ## [2026-09-07] 修复自动连播跨组件渲染报错、完播续播卡死缺陷与切集流预取优化 (v1.5.14)
 - 状态：已完成
 - 优先级：P1
