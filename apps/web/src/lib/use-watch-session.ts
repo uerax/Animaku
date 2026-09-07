@@ -46,19 +46,10 @@ import {
   setCachedPluginSearch,
 } from './plugin-result-cache'
 import {
-  isFullProxySourceUsable,
-  pluginNeedsFullMediaProxy,
-  pluginShouldUseProxy,
-} from './plugin-capabilities'
-import {
   findRoadsForPlay,
   writeRoadsForSource,
   invalidateRoadsCache,
 } from './roads-cache'
-import {
-  fetchServerHealth,
-  mediaFullProxyEnabled,
-} from './server-capabilities'
 import { useDanmakuSession, type DanmakuSession } from './use-danmaku-session'
 import { usePluginStore } from '../stores/plugins'
 import { useHistoryStore } from '../stores/history'
@@ -360,12 +351,6 @@ export function useWatchSession(bangumiId: number): WatchSession {
   const pluginOrder = usePluginStore((s) =>
     Array.isArray(s.pluginOrder) ? s.pluginOrder : EMPTY_ARRAY as string[],
   )
-  const serverCaps = useQuery({
-    queryKey: ['health'],
-    queryFn: ({ signal }) => fetchServerHealth(signal),
-    staleTime: 60_000,
-  })
-  const mediaFullProxy = mediaFullProxyEnabled(serverCaps.data)
   const playerSettings = useSettingsStore((s) => s.player ?? FALLBACK_PLAYER)
   const setPlayer = useSettingsStore((s) => s.setPlayer)
 
@@ -414,18 +399,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
   )
 
   const plugins = useMemo(() => {
-    const list = allPlugins.filter((p) => {
-      if (!p || p.enabled === false) return false
-      if (
-        !isFullProxySourceUsable(
-          p,
-          mediaFullProxy,
-        )
-      ) {
-        return false
-      }
-      return true
-    })
+    const list = allPlugins.filter((p) => Boolean(p && p.enabled !== false))
     if (!pluginOrder.length) {
       return [...list].sort((a, b) => comparePluginOrder(a, b, isOld))
     }
@@ -439,7 +413,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
       if (ra !== rb) return ra - rb
       return comparePluginOrder(a, b, isOld)
     })
-  }, [allPlugins, mediaFullProxy, pluginOrder, isOld])
+  }, [allPlugins, pluginOrder, isOld])
   const queryClient = useQueryClient()
   const upsertHistory = useHistoryStore((s) => s.upsert)
   const danmakuSettings = useSettingsStore((s) => s.danmaku ?? FALLBACK_DANMAKU)
@@ -1396,15 +1370,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     const plugin =
       usePluginStore.getState().getByName(qPlugin) ||
       plugins.find((p) => p.name === qPlugin)
-    if (
-      !plugin ||
-      plugin.enabled === false ||
-      !isFullProxySourceUsable(
-        plugin,
-        mediaFullProxy,
-      )
-    )
-      return
+    if (!plugin || plugin.enabled === false) return
 
     let cancelled = false
     // Do NOT mark done until success — cancel/plugins churn must retry
@@ -1911,24 +1877,14 @@ export function useWatchSession(bangumiId: number): WatchSession {
   const proxyUrl = episode ? resolve.data?.data.proxyUrl : undefined
   const playUrl = episode ? resolve.data?.data.playUrl : undefined
   const requiresProxy = episode ? resolve.data?.data.requiresProxy : undefined
-  // Per-source proxy decision: requiresFullMediaProxy or rule's proxy property, gated by server mediaFullProxy.
-  const currentPluginForProxy = selection?.plugin ?? null
-  const preferMediaProxy = currentPluginForProxy
-    ? pluginNeedsFullMediaProxy(currentPluginForProxy) ||
-      pluginShouldUseProxy(
-        currentPluginForProxy,
-        mediaFullProxy,
-      )
-    : false
   const playback = useMemo(
     () =>
       pickPlaybackSrc({
         playUrl,
         proxyUrl,
-        forceProxy: preferMediaProxy,
         requiresProxy,
       }),
-    [playUrl, proxyUrl, preferMediaProxy, requiresProxy],
+    [playUrl, proxyUrl, requiresProxy],
   )
   const formatHint = useMemo<'hls' | 'mp4' | undefined>(() => {
     if (!episode) return undefined

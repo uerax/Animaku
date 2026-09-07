@@ -4,6 +4,50 @@
 
 ---
 
+## [2026-09-08] 彻底废除 mediaFullProxy / MEDIA_FULL_PROXY 遗留架构 (v1.6.2)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **服务端彻底移除 MEDIA_FULL_PROXY 配置与特判**：
+     - 从 `apps/server/src/config.ts` 彻底移除 `mediaFullProxy` 环境变量配置；
+     - 从 `apps/server/src/index.ts` 中的 `/api/health` 探活端点移除 `mediaFullProxy` 属性；
+     - 从 `apps/server/src/lib/anime1.ts` 的 `resolveAnime1` 中移除针对 `config.mediaFullProxy` 的硬编码报错，使其统一由 Ticket 体系（`credentials` 驱动）透明处理；
+     - 清理 `.env.example` 与 `docker-compose.yml` 中的 `MEDIA_FULL_PROXY` 声明及注释；
+     - 同步更新 `docs/CONTEXT.md`、`docs/wiki/Configuration-Guide.md` 与 `docs/video-source-integration.md`。
+  2. **客户端彻底移除 mediaFullProxy 级联与死逻辑**：
+     - 从 `apps/web/src/lib/server-capabilities.ts` 移除 `mediaFullProxy` 属性及 `mediaFullProxyEnabled` 辅助函数；
+     - 删除已退化为死代码的 `apps/web/src/lib/plugin-capabilities.ts`（包含 `pluginNeedsFullMediaProxy`、`isFullProxySourceUsable`、`pluginShouldUseProxy`）；
+     - 重构 `apps/web/src/lib/use-watch-session.ts`，移除对 `/api/health` 的多余探活请求 `serverCaps`、移除规则过滤及 `preferMediaProxy`，播放源决断直接依据服务端下发的 `requiresProxy` / `playUrl` / `proxyUrl`，减轻客户端渲染开销；
+     - 重构 `apps/web/src/pages/SettingsPage.tsx`，从“服务状态”面板彻底移除“媒体代理”行与提示，简化 `sortPluginsByOrder`，移除卡片上的 `⚠️ 需全量代理` 徽章与被禁用的 switch 开关；
+     - 清理 `apps/web/src/stores/plugins.ts` 中关于 `MEDIA_FULL_PROXY` 的历史注释。
+  3. **全套自动化测试与类型检查**：
+     - 全仓 `pnpm typecheck` 零错误通过；
+     - 服务端 96 个核心单元测试与前端 18 个单元测试 100% pass；
+     - `pnpm build` 前后端全量打包编译成功；
+     - 遵循规范执行 `pnpm bump patch`，版本由 `v1.6.1` 升级至 `v1.6.2`。
+- 涉及文件：
+  - apps/server/src/config.ts
+  - apps/server/src/index.ts
+  - apps/server/src/lib/anime1.ts
+  - apps/web/src/lib/server-capabilities.ts
+  - apps/web/src/lib/plugin-capabilities.ts (已删除)
+  - apps/web/src/lib/use-watch-session.ts
+  - apps/web/src/pages/SettingsPage.tsx
+  - apps/web/src/stores/plugins.ts
+  - .env.example
+  - docker-compose.yml
+  - docs/CONTEXT.md
+  - docs/video-source-integration.md
+  - docs/wiki/Configuration-Guide.md
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+
+---
+
 ## [2026-09-08] 进一步收紧客户端权限：禁止客户端配置去广告与代理、移除规则卡片下层模块与 JSON 导入 (v1.6.1)
 - 状态：已完成
 - 优先级：P2

@@ -48,8 +48,6 @@ services:
       HOST: "0.0.0.0"
       WEB_DIST: "public"
       DATA_DIR: "/app/data"
-      # Media proxy scope (see .env.example). MEDIA_FULL_PROXY default 0.
-      MEDIA_FULL_PROXY: ${MEDIA_FULL_PROXY:-0}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
       # Public origin for /robots.txt Sitemap + /sitemap.xml (runtime)
       SITE_URL: ${SITE_URL:-}

@@ -13,7 +13,7 @@ migrateLocalStorageKey('animaku-plugins', [
 /** Bump when built-in rule set changes so empty/legacy stores re-seed */
 /** v8: default adBlocker only on MXdm; Anime1/otage/xifan off */
 /** v9: add omofun (211dm/omofuns) built-in */
-/** v10: Anime1 last (needs MEDIA_FULL_PROXY); HLS sources first */
+/** v10: Anime1 last; HLS sources first */
 /** v11: add pluginOrder for user-custom sorting */
 /** v12: update built-in plugin rules (e.g. LIBVIO suggest API 403 -> xpath static search) */
 /** v13: add xifan-next (next.xifanacg.com) built-in */
@@ -321,7 +321,7 @@ export const usePluginStore = create<PluginState>()(
         // v7: add xifan (稀饭 MacCMS; suggest API search + player_aaaa).
         // v8: adBlocker defaults — only MXdm on among built-ins.
         // v9: add omofun (211dm / omofuns).
-        // v10: Anime1 last (MEDIA_FULL_PROXY).
+        // v10: Anime1 last.
         // v11: pluginOrder for user sort.
         // v12: update built-in plugin rules (e.g. LIBVIO searchMode api -> xpath).
         // v13: add xifan-next (next.xifanacg.com).

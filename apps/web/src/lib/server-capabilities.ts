@@ -1,11 +1,9 @@
-/** Subset of GET /api/health used for settings + source gating. */
+/** Subset of GET /api/health used for settings. */
 export type ServerHealth = {
   ok?: boolean
   version?: string
   danmakuConfigured?: boolean
   danmakuUsingFallback?: boolean
-  /** false = only m3u8 proxy (default); true = full media tunnel allowed */
-  mediaFullProxy?: boolean
 }
 
 export async function fetchServerHealth(
@@ -16,7 +14,3 @@ export async function fetchServerHealth(
   return (await res.json()) as ServerHealth
 }
 
-/** Treat missing field as false (safe default aligned with server). */
-export function mediaFullProxyEnabled(h: ServerHealth | undefined | null): boolean {
-  return Boolean(h?.mediaFullProxy)
-}

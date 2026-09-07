@@ -237,7 +237,7 @@ const [hlsRes, fbRes] = await Promise.allSettled([
 | **防盗链与 Referer** | 联通云盘直链（`pan.wo.cn`）或部分 CDN 在携带跨域 Referer 时直接报 `400 Bad Request`。 | 在 `index.html` 配置 `<meta name="referrer" content="no-referrer" />`，在 `<video>` 配置 `referrerPolicy = 'no-referrer'`；服务端根据目标 CDN 清除跨域 Referer。 |
 | **Next.js RSC 串流多线路解析** | 现代 Next.js 站点分集数据嵌套在 `self.__next_f.push([1, "..."])` 中，且含有三层转义。 | 编写带括号层级计数的 `extractNextFPushes` 块提取器，先将外层字符串 `JSON.parse` 解开一层，再解析内部 `sources` JSON 提取多线路。 |
 | **选源异步竞态 (Race Condition)** | 初始后台预搜索较慢返回，强行触发 `autoPickFirst` 覆盖了用户刚刚点击选择的新源。 | 在 `searchOnePlugin` 返回时增加断言：若当前用户已聚焦另一个源（`selectionRef.current.plugin.name !== plugin.name`），**严禁自动覆盖选集**。 |
-| **全量媒体代理限制** | 服务端默认 `MEDIA_FULL_PROXY=0`，直接向 `/api/media/proxy` 传大文件 MP4 会被 403 拦截。 | 播放器在客户端优先使用 `playUrl` 直连播放（直连源站 CDN，零服务器带宽消耗），仅在 HLS m3u8 广告过滤时走代理。 |
+| **媒体直连与零带宽** | 视频源默认应提供无需鉴权的直链或 CDN 直连 HLS。 | 播放器优先使用 `playUrl` 纯直连源站 CDN 播放（零服务器带宽消耗），仅在 HLS 广告清洗或必要凭据（Cookie）时走受控 Ticket 网关。 |
 | **严禁直连失败回退代理** | 直连播放失败时自动 fallback 到服务端代理，导致用户所有流量无声无息打满服务器带宽。 | **Zero Auto Proxy Fallback 铁律**：直连失败必须明确报错并引导用户切源，严禁客户端静默自动回退代理偷跑服务器带宽流量。 |
 | **一次性消费凭证 (Nonce Token)** | 很多现代站点（如 TvTFun）的播放 Token 带单次消费限制，全局静态缓存导致切集立即 403 崩溃。 | 采用 **JIT（按需即用 / On-Demand）** 策略，在 `resolve` 直链前毫秒级针对目标分集拉取专属新凭证并即时消费。 |
 | **前端 F12 防调试绕过** | 前端内嵌 `disable-devtool`，在浏览器中打开 F12 立即强制跳转百度，无法正常抓包。 | 直接使用 `scripts/probe-source.ts` 或 Node.js 抓取 SSR HTML / RSC Payload 逆向提取真实 RESTful JSON 接口。 |

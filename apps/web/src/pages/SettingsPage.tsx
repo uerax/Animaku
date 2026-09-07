@@ -8,11 +8,8 @@ import {
   isAnxRule,
 } from '@animaku/shared'
 import { bangumiApi } from '../lib/bangumi'
-import { pluginApi } from '../lib/plugin-api'
-import { pluginNeedsFullMediaProxy } from '../lib/plugin-capabilities'
 import {
   fetchServerHealth,
-  mediaFullProxyEnabled,
   type ServerHealth,
 } from '../lib/server-capabilities'
 import {
@@ -38,21 +35,15 @@ import { fetchBangumiOpedDetail } from '../lib/bangumi-oped'
 function sortPluginsByOrder(
   plugins: PluginMeta[],
   order: string[],
-  isBlocked: (plugin: PluginMeta) => boolean,
 ): PluginMeta[] {
   if (!order.length) {
-    return [...plugins].sort((a, b) => {
-      const blocked = Number(isBlocked(a)) - Number(isBlocked(b))
-      return blocked !== 0 ? blocked : comparePluginOrder(a, b)
-    })
+    return [...plugins].sort(comparePluginOrder)
   }
   const rank = new Map<string, number>()
   for (let i = 0; i < order.length; i++) {
     rank.set(order[i].toLowerCase(), i)
   }
   return [...plugins].sort((a, b) => {
-    const blocked = Number(isBlocked(a)) - Number(isBlocked(b))
-    if (blocked !== 0) return blocked
     const ra = rank.get(a.name.toLowerCase()) ?? order.length
     const rb = rank.get(b.name.toLowerCase()) ?? order.length
     if (ra !== rb) return ra - rb
@@ -163,8 +154,6 @@ export function SettingsPage() {
     queryFn: ({ signal }) => fetchServerHealth(signal),
     staleTime: 60_000,
   })
-  const mediaFullProxy = mediaFullProxyEnabled(health.data as ServerHealth | undefined)
-  const canUseFullProxySource = mediaFullProxy
 
   // OP/ED 标记助手本地数据
   const opedStore = useCustomOpedStore()
@@ -200,15 +189,10 @@ export function SettingsPage() {
     return items.join(' · ')
   }, [theme, nav])
 
-  /** User order within available/blocked groups; blocked sources stay at the end. */
+  /** User order within plugins list. */
   const sortedPlugins = useMemo(
-    () =>
-      sortPluginsByOrder(
-        plugins,
-        pluginOrder,
-        (p) => pluginNeedsFullMediaProxy(p) && !canUseFullProxySource,
-      ),
-    [plugins, pluginOrder, canUseFullProxySource],
+    () => sortPluginsByOrder(plugins, pluginOrder),
+    [plugins, pluginOrder],
   )
 
   const [draggedName, setDraggedName] = useState<string | null>(null)
@@ -450,23 +434,7 @@ export function SettingsPage() {
                 : '不可用'}
             </span>
           </div>
-          <div className="flex items-center justify-between pt-1.5">
-            <span>媒体代理</span>
-            <span className="font-semibold text-[var(--kz-fg)]">
-              {health.isLoading
-                ? '检测中…'
-                : health.data?.ok
-                  ? mediaFullProxy
-                    ? '允许全量（MEDIA_FULL_PROXY=1）'
-                    : '仅 m3u8（MEDIA_FULL_PROXY=0）'
-                  : '未知'}
-            </span>
-          </div>
         </div>
-        <p className="text-[11px] sm:text-xs text-[var(--kz-fg-dim)] pt-1">
-          以上配置由服务器 <code className="text-[var(--kz-fg-muted)]">.env</code>{' '}
-          决定。公网部署建议保持仅 m3u8，避免被当作出站带宽跳板。
-        </p>
       </CollapsibleSection>
 
       {/* 2. 封面图片源 */}
@@ -882,11 +850,7 @@ export function SettingsPage() {
               </span>
               <span>·</span>
               <span className="text-emerald-500 font-medium">
-                {sortedPlugins.filter(
-                  (p) =>
-                    p.enabled !== false &&
-                    !(pluginNeedsFullMediaProxy(p) && !canUseFullProxySource),
-                ).length}{' '}
+                {sortedPlugins.filter((p) => p.enabled !== false).length}{' '}
                 个已启用
               </span>
               {sortedPlugins[0] && (
@@ -915,9 +879,7 @@ export function SettingsPage() {
         {/* 规则卡片流式列表 */}
         <ul className="space-y-2">
           {sortedPlugins.map((p, idx) => {
-            const needsFull = pluginNeedsFullMediaProxy(p)
-            const blockedByServer = needsFull && !canUseFullProxySource
-            const effectivelyOn = p.enabled !== false && !blockedByServer
+            const effectivelyOn = p.enabled !== false
             const isFirst = idx === 0
             const isLast = idx === sortedPlugins.length - 1
             const isDragging = draggedName?.toLowerCase() === p.name.toLowerCase()
@@ -1050,14 +1012,6 @@ export function SettingsPage() {
                             <span>默认主源</span>
                           </span>
                         )}
-                        {blockedByServer && (
-                          <span
-                            className="inline-flex items-center gap-0.5 rounded-full border border-rose-500/30 bg-rose-500/10 px-1.5 py-0.2 text-[9.5px] sm:text-[10px] font-semibold text-rose-400"
-                            title="需要 MEDIA_FULL_PROXY=1 代拉 Cookie mp4"
-                          >
-                            ⚠️ 需全量代理
-                          </span>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -1085,22 +1039,17 @@ export function SettingsPage() {
                     )}
 
                     <label
-                      className={`relative inline-flex items-center cursor-pointer select-none ${
-                        blockedByServer ? 'cursor-not-allowed opacity-50' : ''
-                      }`}
+                      className="relative inline-flex items-center cursor-pointer select-none"
                       title={
-                        blockedByServer
-                          ? '服务器代理未开启，无法启用'
-                          : effectivelyOn
-                            ? '点击停用规则'
-                            : '点击启用规则'
+                        effectivelyOn
+                          ? '点击停用规则'
+                          : '点击启用规则'
                       }
                     >
                       <input
                         type="checkbox"
                         className="sr-only peer"
                         checked={effectivelyOn}
-                        disabled={blockedByServer}
                         onChange={() => togglePlugin(p.id)}
                       />
                       <div className="w-9 h-5 sm:w-10 sm:h-5.5 bg-[var(--kz-bg-soft)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 sm:after:h-4.5 sm:after:w-4.5 after:transition-all after:shadow-sm peer-checked:bg-[var(--kz-accent)] border border-[var(--kz-border)] peer-checked:border-[var(--kz-accent)]" />
