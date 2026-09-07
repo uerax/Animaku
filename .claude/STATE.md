@@ -4,6 +4,52 @@
 
 ---
 
+## [2026-09-08] 编制 GitHub Wiki 配置选项全景参考指南 (Wiki 文档)
+- 状态：已完成
+- 优先级：P3
+- 描述：
+  1. **编制全景配置指南 Wiki (`docs/wiki/Configuration-Guide.md`)**：
+     - 系统梳理全项目 30+ 环境变量，按照“运行时读取 (Runtime)”与“前端编译硬编码 (Build-time `VITE_*`)”清晰解耦生效机制与重载方法；
+     - 细化分类：网络监听、数据持久化与 SQLite WAL/超时、安全防护/代理授权/全量隧道（防 VPS 盗刷流量）、Bangumi 与外部 API 线路、SEO 与 IndexNow 即时收录、品牌定制与导航栏外观、时区与 Docker 日志轮转；
+     - 提供家庭内网 NAS、公网 VPS 安全加固、海外轻量 VPS 直连三种典型部署场景的开箱预设模板；
+     - 采用标准 GitHub Wiki 单页格式撰写，支持直接导入或粘贴至 GitHub Wiki。
+  2. **跨文档索引与链接闭环 (`README.md`, `README.en.md`, `.claude/feature-map.md`)**：
+     - 在中英文 `README.md` 的环境变量表格上方与进阶文档中挂载该 Wiki 索引链接；
+     - 同步更新 `.claude/feature-map.md`。
+  3. **版本规范执行**：
+     - 纯文档修改豁免代码版本递增，版本号保持 `v1.5.17` 不变。
+- 涉及文件：
+  - docs/wiki/Configuration-Guide.md
+  - README.md
+  - README.en.md
+  - .claude/feature-map.md
+  - .claude/STATE.md
+
+---
+
+## [2026-09-08] README 深度重构与架构设计细节沉淀下沉 (文档优化)
+- 状态：已完成
+- 优先级：P3
+- 描述：
+  1. **README 用户视角降维与结构重塑 (`README.md`, `README.en.md`)**：
+     - 剥离原有 README 中冗长晦涩的底层算法与实现细节（如 `setImmediate` 微任务合批、EMA 低通滤波漂移治理、Safari AVFoundation 显式 MIME 注入等）；
+     - 将核心特性重塑为以“用户体验与功能价值”为中心，清晰归纳极致播放、流畅弹幕、双规则生态、维基追番、现代化多端交互与纯本地隐私六大亮点；
+     - 提炼 Docker Compose 极速三步起跑指南、常用快捷键/触控手势表、核心环境变量精选与 FAQ；
+     - 同步完成 `README.en.md` 英文镜像版本的精简重构。
+  2. **深度架构与技术设计沉淀 (`docs/architecture.md`)**：
+     - 新建系统架构与核心设计文档，完整归档并沉淀播放器原地 Seek 状态机与事件互锁、高精物理时钟弹幕与 rVFC 硬件同步、流水线算子规则引擎、推荐流分桶算法、服务端高并发 Single-Flight 与合批限流等硬核技术细节；
+     - 在 README 与 `.claude/feature-map.md` 中建立规范的索引链接。
+  3. **版本规范执行**：
+     - 本次修改仅涉及 Markdown 文档与索引，无业务代码改动，符合纯文档豁免准则，版本号保持 `v1.5.17` 不变。
+- 涉及文件：
+  - README.md
+  - README.en.md
+  - docs/architecture.md
+  - .claude/feature-map.md
+  - .claude/STATE.md
+
+---
+
 ## [2026-09-07] 修复最后一集连播倒计时提示与 85% 预取边界防穿透优化 (v1.5.17)
 - 状态：已完成
 - 优先级：P1

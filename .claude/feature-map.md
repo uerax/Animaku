@@ -130,6 +130,8 @@
 - 播放量与指标统计路由：`apps/server/src/routes/stats.ts`
 - 访问控制与 Token 校验：`apps/server/src/lib/access.ts`
 - 私有 IP 拦截与内网熔断：`apps/server/src/lib/private-host.ts`
+- 配置选项全景参考指南 Wiki 文档：`docs/wiki/Configuration-Guide.md`
+- 系统架构与核心技术设计文档：`docs/architecture.md`
 - 数据库维护与免安装查询指南文档：`docs/database-maintenance.md`
 - 数据库极速查询与交互分析工具：`scripts/db-query.mjs`（`pnpm db` 纯原生支持概览/排行/IP/映射/缓存/表结构/SQL REPL）
 - SQLite 数据库连接与初始化：`apps/server/src/db/connection.ts`, `apps/server/src/db/schema.ts`, `apps/server/src/db/index.ts`
