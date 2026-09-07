@@ -1,0 +1,23 @@
+{
+  "api": "1",
+  "type": "anime",
+  "name": "girigiri",
+  "version": "1.0",
+  "weight": 70,
+  "preferOriginalTitle": false,
+  "oldAnimePriority": true,
+  "muliSources": true,
+  "useWebview": false,
+  "useNativePlayer": true,
+  "usePost": false,
+  "useLegacyParser": false,
+  "adBlocker": false,
+  "baseURL": "https://ani.girigirilove.com/",
+  "searchURL": "https://ani.girigirilove.com/index.php/ajax/suggest?mid=1&wd=@keyword",
+  "searchList": "//ul[contains(@class, 'hl-one-list')]/li",
+  "searchName": ".//div[contains(@class, 'hl-item-title')]/a",
+  "searchResult": ".//div[contains(@class, 'hl-item-title')]/a",
+  "chapterRoads": "//div[contains(@class, 'anthology-list-box')]",
+  "chapterResult": ".//li/a",
+  "referer": ""
+}

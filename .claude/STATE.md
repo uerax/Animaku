@@ -4574,6 +4574,56 @@
   - .claude/STATE.md
 - 备注：通过 `node scripts/probe-source.mjs https://www.akianime.com` 实机测试验证快速阻断决策机制生效。
 
+## [2026-09-08] 新增 MiFun 与 girigiri 专有视频源适配器与全链路评测工具 (v1.7.0)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **视频源全链路深度探查与死刑阻断判定**：
+     - 依据 `docs/video-source-integration.md` 对用户提出的 4 个视频源（animoe.org、ios.mifun.org、ani.girigirilove.com、www.sorani.net）进行全链路渗透分析；
+     - 阻断 `animoe.org`（私有二进制 `enc!` 加密 + 寄生网易云音乐图床）；
+     - 阻断 `www.sorani.net`（m3u8、AES Key 与 TS 切片全链路强校验 `Referer: https://www.sorani.net/`，客户端直连必 403，触发 Zero Auto Proxy Fallback 铁律阻断）；
+     - 准入 `ios.mifun.org`（原画 1080P 抖音/百度云 CDN 直链，支持 Range 206 与全 CORS）与 `ani.girigirilove.com`（自建切片 Cloudflare CDN 1080P HLS，全直连开放）。
+  2. **实现 MiFun 专有适配器 (`apps/server/src/lib/mifun.ts`)**：
+     - 实现 `isMifunRule`, `searchMifun`, `chaptersMifun`, `resolveMifun`；
+     - 区分 HTML 与 JSON 请求头，支持 MacCMS suggest JSON 极速检索；
+     - 选集层提取 `hl-plays-from` 与 `hl-tabs-box`，支持快看云、特快云等全量多线路；
+     - 直链解析层提取 `player_aaaa.url`，调用 `data.m3u8.in` 网关提取动态 `Sign`，请求 `api.php` 异步换取原生 CDN MP4 直链，完全免代理直连播放（零服务器带宽消耗）。
+  3. **实现 girigiri 专有适配器 (`apps/server/src/lib/girigiri.ts`)**：
+     - 实现 `isGirigiriRule`, `searchGirigiri`, `chaptersGirigiri`, `resolveGirigiri`；
+     - 搜索走 suggest API，分集解析 `anthology-tab` 与 `anthology-list-play`；
+     - 直链解析层解密 MacCMS `encrypt: 2`（`unescape(atob(url))`），剥离外挂字幕拼接参数，提取 Cloudflare CDN 1080P HLS 直链，并预留后续防改版扩展桩。
+  4. **规则引擎多源旁路挂载 (`apps/server/src/rule-engine/index.ts`)**：
+     - 在 `searchWithRule`, `chaptersWithRule`, `resolvePlay` 中挂载 `mifun` 与 `girigiri` 旁路路由。
+  5. **注册默认插件并递增插件版本号 (`PLUGIN_DEFAULTS_VERSION`)**：
+     - 新建 `apps/web/src/data/default-plugins/mifun.json`（weight: 70）；
+     - 新建 `apps/web/src/data/default-plugins/girigiri.json`（weight: 70, oldAnimePriority: true）；
+     - 在 `apps/web/src/data/default-plugins/index.ts` 注册规则并排入优质源前列；
+     - 在 `apps/web/src/stores/plugins.ts` 中递增 `PLUGIN_DEFAULTS_VERSION`（27 -> 28），并将 `mifun` 与 `girigiri` 加入 `legacyBuiltinNames`，确保老用户浏览器平滑自愈同步。
+  6. **全链路性能与老番资源覆盖度评测工具 (`scripts/benchmark-sources.mjs`)**：
+     - 新增标准化视频源多维性能横评脚本，支持 8 部经典老番资源检索矩阵与端到端（选集->解析->CDN TTFB）毫秒级时延测算；
+     - 在 `package.json` 中配置 `pnpm benchmark:sources` 便于随时复测。
+  7. **版本递增与全仓验证**：
+     - 全仓版本号递增：`v1.6.2` -> `v1.7.0`；
+     - 更新功能实现索引 `.claude/feature-map.md`；
+     - 全仓类型检查 `pnpm typecheck`（3 个 Workspace 0 错误）、服务端 96 项单测通过（0 fail）、生产构建 `pnpm build` 全部验证通过。
+- 涉及文件：
+  - apps/server/src/lib/mifun.ts
+  - apps/server/src/lib/girigiri.ts
+  - apps/server/src/rule-engine/index.ts
+  - apps/web/src/data/default-plugins/mifun.json
+  - apps/web/src/data/default-plugins/girigiri.json
+  - apps/web/src/data/default-plugins/index.ts
+  - apps/web/src/stores/plugins.ts
+  - scripts/benchmark-sources.mjs
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/feature-map.md
+  - .claude/STATE.md
+- 备注：实测真实番剧《鬼灭之刃》全链路（搜索 -> 选集 -> 直链解析 -> CDN 直连播放）全部端到端验证通过。
+
 
 
 

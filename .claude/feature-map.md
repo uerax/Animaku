@@ -50,6 +50,8 @@
   - cycani (次元城 1080P MP4 直链与选集)：`apps/server/src/lib/cycani.ts`
   - tvtfun (TvTFun 1080P MP4 直链与鉴权自愈)：`apps/server/src/lib/tvtfun.ts`
   - moonci (月之祠 1080P MP4 直链与分流)：`apps/server/src/lib/moonci.ts`
+  - mifun (MiFun 1080P 抖音/百度 MP4 直链与异步解析)：`apps/server/src/lib/mifun.ts`
+  - girigiri (girigiri愛動漫 1080P Cloudflare HLS 直链与解密)：`apps/server/src/lib/girigiri.ts`
   - anime1 / omofun：`apps/server/src/lib/anime1.ts`, `apps/server/src/lib/omofun.ts`
   - anibaka-adapter (AniBaka anx-rule/2 流水线算子解释器与解密)：`apps/server/src/lib/anibaka-adapter.ts`
 - 视频源路由端点：`apps/server/src/routes/plugin.ts`

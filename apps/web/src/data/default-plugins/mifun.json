@@ -1,0 +1,22 @@
+{
+  "api": "1",
+  "type": "anime",
+  "name": "mifun",
+  "version": "1.0",
+  "weight": 70,
+  "preferOriginalTitle": false,
+  "muliSources": true,
+  "useWebview": false,
+  "useNativePlayer": true,
+  "usePost": false,
+  "useLegacyParser": false,
+  "adBlocker": false,
+  "baseURL": "https://ios.mifun.org/",
+  "searchURL": "https://ios.mifun.org/index.php/ajax/suggest?mid=1&wd=@keyword",
+  "searchList": "//ul[contains(@class, 'hl-one-list')]/li",
+  "searchName": ".//div[contains(@class, 'hl-item-title')]/a",
+  "searchResult": ".//div[contains(@class, 'hl-item-title')]/a",
+  "chapterRoads": "//ul[contains(@class, 'hl-plays-list')]",
+  "chapterResult": ".//li/a",
+  "referer": ""
+}

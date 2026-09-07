@@ -912,6 +912,38 @@ export async function searchWithRule(
     }
   }
 
+  // mifun — dedicated adapter (MacCMS suggest + 1080zyk data.m3u8.in resolver)
+  {
+    const { isMifunRule, searchMifun } = await import('../lib/mifun')
+    if (isMifunRule(rule)) {
+      try {
+        return await searchMifun(rule, keyword)
+      } catch (e) {
+        return {
+          pluginName: rule.name,
+          items: [],
+          diagnostics: [e instanceof Error ? e.message : String(e)],
+        }
+      }
+    }
+  }
+
+  // girigiri — dedicated adapter (MacCMS suggest + encrypt:2 HLS direct streams)
+  {
+    const { isGirigiriRule, searchGirigiri } = await import('../lib/girigiri')
+    if (isGirigiriRule(rule)) {
+      try {
+        return await searchGirigiri(rule, keyword)
+      } catch (e) {
+        return {
+          pluginName: rule.name,
+          items: [],
+          diagnostics: [e instanceof Error ? e.message : String(e)],
+        }
+      }
+    }
+  }
+
   // Omofun / 211dm — search gate + hash detail URLs (chapters/resolve stay generic)
   {
     const { isOmofunRule, searchOmofun } = await import('../lib/omofun')
@@ -1196,6 +1228,38 @@ export async function chaptersWithRule(
     if (isMoonciRule(rule)) {
       try {
         return await chaptersMoonci(rule, source)
+      } catch (e) {
+        return {
+          pluginName: rule.name,
+          roads: [],
+          diagnostics: [e instanceof Error ? e.message : String(e)],
+        }
+      }
+    }
+  }
+
+  // mifun — dedicated adapter (hl-plays-from & hl-tabs-box extraction)
+  {
+    const { isMifunRule, chaptersMifun } = await import('../lib/mifun')
+    if (isMifunRule(rule)) {
+      try {
+        return await chaptersMifun(rule, source)
+      } catch (e) {
+        return {
+          pluginName: rule.name,
+          roads: [],
+          diagnostics: [e instanceof Error ? e.message : String(e)],
+        }
+      }
+    }
+  }
+
+  // girigiri — dedicated adapter (anthology-tab & anthology-list-play extraction)
+  {
+    const { isGirigiriRule, chaptersGirigiri } = await import('../lib/girigiri')
+    if (isGirigiriRule(rule)) {
+      try {
+        return await chaptersGirigiri(rule, source)
       } catch (e) {
         return {
           pluginName: rule.name,
@@ -1692,6 +1756,22 @@ export async function resolvePlay(
     const { isMoonciRule, resolveMoonci } = await import('../lib/moonci')
     if (isMoonciRule(rule)) {
       return wrapResolveWithTicket(rule, await resolveMoonci(rule, pageUrl))
+    }
+  }
+
+  // mifun: dedicated adapter (player_aaaa & data.m3u8.in Resolver)
+  {
+    const { isMifunRule, resolveMifun } = await import('../lib/mifun')
+    if (isMifunRule(rule)) {
+      return wrapResolveWithTicket(rule, await resolveMifun(rule, pageUrl))
+    }
+  }
+
+  // girigiri: dedicated adapter (player_aaaa encrypt:2 Cloudflare HLS Resolver)
+  {
+    const { isGirigiriRule, resolveGirigiri } = await import('../lib/girigiri')
+    if (isGirigiriRule(rule)) {
+      return wrapResolveWithTicket(rule, await resolveGirigiri(rule, pageUrl))
     }
   }
 

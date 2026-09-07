@@ -31,7 +31,8 @@ migrateLocalStorageKey('animaku-plugins', [
 /** v25: tune default weights (xifan-next: 75, cycani: 70, moonci: 65, tvtfun: 65) */
 /** v26: add oldAnimePriority for cycani & tvtfun to prioritize classic/vintage anime (airDate <= currentYear - 5) */
 /** v27: retire anime1 & libvio from default built-ins to enforce pure zero-bandwidth CDN direct stream */
-export const PLUGIN_DEFAULTS_VERSION = 27
+/** v28: add mifun & girigiri built-in rules with weight 70 & oldAnimePriority for girigiri */
+export const PLUGIN_DEFAULTS_VERSION = 28
 
 interface PluginState {
   plugins: PluginMeta[]
@@ -347,6 +348,8 @@ export const usePluginStore = create<PluginState>()(
             'cycani',
             'tvtfun',
             'moonci',
+            'mifun',
+            'girigiri',
           ].map((s) => s.toLowerCase()),
         )
         const onlyLegacyBuiltins = plugins.every(
