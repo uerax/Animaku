@@ -115,6 +115,8 @@ export function DesktopControls(props: PlayerControlsProps) {
     onTogglePlay,
     onPrev,
     onNext,
+    hasPrev,
+    hasNext,
     onPrefetchNext,
     onSeekRatio,
     onToggleDanmaku,
@@ -140,6 +142,9 @@ export function DesktopControls(props: PlayerControlsProps) {
     speedOptions,
     srLabels,
   } = props
+
+  const canGoPrev = hasPrev ?? Boolean(onPrev)
+  const canGoNext = hasNext ?? Boolean(onNext)
 
   const [settingsSubmenu, setSettingsSubmenu] = useState<
     'root' | 'speed' | 'sr' | 'aspectRatio' | 'shortcuts'
@@ -394,8 +399,9 @@ export function DesktopControls(props: PlayerControlsProps) {
           <button
             type="button"
             className="kz-ctrl kz-ctrl-icon"
+            disabled={!canGoPrev}
             onClick={() => onPrev?.()}
-            title="上一集 (P)"
+            title={canGoPrev ? '上一集 (P)' : '没有上一集了'}
             aria-label="上一集"
           >
             <IconPrev />
@@ -403,10 +409,11 @@ export function DesktopControls(props: PlayerControlsProps) {
           <button
             type="button"
             className="kz-ctrl kz-ctrl-icon"
-            onMouseEnter={() => onPrefetchNext?.()}
-            onFocus={() => onPrefetchNext?.()}
+            disabled={!canGoNext}
+            onMouseEnter={() => canGoNext && onPrefetchNext?.()}
+            onFocus={() => canGoNext && onPrefetchNext?.()}
             onClick={() => onNext?.()}
-            title="下一集 (N)"
+            title={canGoNext ? '下一集 (N)' : '已是最后一集'}
             aria-label="下一集"
           >
             <IconNext />

@@ -1062,6 +1062,12 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   background: rgba(255, 255, 255, 0.14);
 }
 
+.kz-ctrl:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .kz-ctrl:active {
   transform: scale(0.95);
 }

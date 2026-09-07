@@ -358,9 +358,19 @@ export function WatchPage() {
             }
           }}
           onDanmakuChange={w.setDanmaku}
-          onPrev={() => startTransition(() => w.goAdjacentEpisode(-1))}
-          onNext={() => startTransition(() => w.goAdjacentEpisode(1))}
-          onPrefetchNext={w.prefetchNextEpisode}
+          onPrev={
+            w.hasPrevEpisode
+              ? () => startTransition(() => w.goAdjacentEpisode(-1))
+              : undefined
+          }
+          onNext={
+            w.hasNextEpisode
+              ? () => startTransition(() => w.goAdjacentEpisode(1))
+              : undefined
+          }
+          hasPrev={w.hasPrevEpisode}
+          hasNext={w.hasNextEpisode}
+          onPrefetchNext={w.hasNextEpisode ? w.prefetchNextEpisode : undefined}
           onMediaAuthExpired={w.onMediaAuthExpired}
           onMediaLoadFailed={w.onMediaLoadFailed}
           danmakuPanel={w.dm.panel}

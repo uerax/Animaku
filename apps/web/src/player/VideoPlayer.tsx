@@ -77,6 +77,8 @@ export function VideoPlayer({
   onDanmakuChange,
   onPrev,
   onNext,
+  hasPrev,
+  hasNext,
   onPrefetchNext,
   embedded = false,
   danmakuPanel,
@@ -316,6 +318,11 @@ export function VideoPlayer({
   const isSeekingRefHolder = useRef(false)
   const skipBusyRef = useRef(false)
   const lastSkipTRef = useRef(0)
+  const effectiveHasPrev = hasPrev ?? Boolean(onPrev)
+  const effectiveHasNext = hasNext ?? Boolean(onNext)
+  const hasNextRef = useRef(effectiveHasNext)
+  hasNextRef.current = effectiveHasNext
+
   const onNextRef = useRef(onNext)
   onNextRef.current = onNext
   const onPrefetchNextRef = useRef(onPrefetchNext)
@@ -471,7 +478,7 @@ export function VideoPlayer({
         }
         return
       }
-      if (player.autoNext && onNextRef.current) {
+      if (player.autoNext && hasNextRef.current && onNextRef.current) {
         onPrefetchNextRef.current?.()
         cancelCountdown()
         let count = 4
@@ -554,7 +561,9 @@ export function VideoPlayer({
 
   function doNext() {
     cancelCountdown()
-    onNextRef.current?.()
+    if (hasNextRef.current) {
+      onNextRef.current?.()
+    }
   }
 
   // Shell Pointer handlers
@@ -620,8 +629,8 @@ export function VideoPlayer({
         seekTo(t)
       }
     },
-    onPrev,
-    onNext,
+    onPrev: effectiveHasPrev ? onPrev : undefined,
+    onNext: effectiveHasNext ? onNext : undefined,
     onToggleFs: toggleFs,
     onToggleWebFs: toggleWebFs,
     onToggleAspectRatio: toggleAspectRatio,
@@ -982,9 +991,11 @@ export function VideoPlayer({
       setOpedDrawerOpen((v) => !v)
     },
     onTogglePlay: togglePlay,
-    onPrev,
-    onNext,
-    onPrefetchNext,
+    onPrev: effectiveHasPrev ? onPrev : undefined,
+    onNext: effectiveHasNext ? onNext : undefined,
+    hasPrev: effectiveHasPrev,
+    hasNext: effectiveHasNext,
+    onPrefetchNext: effectiveHasNext ? onPrefetchNext : undefined,
     onSeekRatio: seekRatio,
     onToggleDanmaku: () => {
       if (onToggleDanmaku) {

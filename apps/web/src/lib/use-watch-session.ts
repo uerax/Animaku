@@ -292,6 +292,8 @@ export type WatchSession = {
   slots: PlayableSlot[]
   pickSlot: (slot: PlayableSlot, roadIndex?: number) => void
   pickEpisode: (epIndex: number, roadIndex?: number) => void
+  hasPrevEpisode: boolean
+  hasNextEpisode: boolean
   goAdjacentEpisode: (delta: number) => void
   prefetchNextEpisode: () => void
   onProgress: (position: number, duration: number) => void
@@ -1746,17 +1748,58 @@ export function useWatchSession(bangumiId: number): WatchSession {
     bangumiId,
   ])
 
+  // 基于当前播放集所在线路精确计算可播放 slots，避免受抽屉 visibleRoad 切换干扰
+  const currentEpisodeSlots = useMemo(() => {
+    if (!selection || !episode) return []
+    const road = selection.roads[episode.road]
+    if (!road?.data?.length) return []
+    return buildPlayableSlots(road, bgmEpisodesQuery.data?.data)
+  }, [selection, episode?.road, bgmEpisodesQuery.data?.data])
+
+  // 精准定位当前集在当前线路 slots 中的绝对索引位置
+  const currentSlotIndex = useMemo(() => {
+    if (!episode || !currentEpisodeSlots.length) return -1
+    // 1. 优先按 pageUrl 严格比对
+    const byUrl = currentEpisodeSlots.findIndex((s) => s.pageUrl === episode.pageUrl)
+    if (byUrl >= 0) return byUrl
+    // 2. 备用按 sourceIndex 比对（需保证合法区间）
+    if (
+      episode.sourceIndex !== undefined &&
+      episode.sourceIndex >= 0 &&
+      episode.sourceIndex < currentEpisodeSlots.length
+    ) {
+      const bySourceIdx = currentEpisodeSlots.findIndex(
+        (s) => s.sourceIndex === episode.sourceIndex,
+      )
+      if (bySourceIdx >= 0) return bySourceIdx
+    }
+    // 3. 备用按 canonicalEp（标准集数号）比对
+    const byEp = currentEpisodeSlots.findIndex(
+      (s) => s.canonicalEp === episode.episode,
+    )
+    if (byEp >= 0) return byEp
+    return -1
+  }, [episode, currentEpisodeSlots])
+
+  const hasPrevEpisode = currentSlotIndex > 0
+  const hasNextEpisode =
+    currentSlotIndex >= 0 && currentSlotIndex < currentEpisodeSlots.length - 1
+
   function goAdjacentEpisode(delta: number) {
     if (!selection || !episode) return
     const roadIndex = episode.road
     const road = selection.roads[roadIndex]
     if (!road?.data?.length) return
-    const slots = buildPlayableSlots(road, bgmEpisodesQuery.data?.data)
+    const slots = currentEpisodeSlots.length
+      ? currentEpisodeSlots
+      : buildPlayableSlots(road, bgmEpisodesQuery.data?.data)
     if (!slots.length) return
 
-    const currentSlotIdx = slots.findIndex((s) => s.pageUrl === episode.pageUrl)
     const curIdx =
-      currentSlotIdx >= 0 ? currentSlotIdx : (episode.sourceIndex ?? 0)
+      currentSlotIndex >= 0
+        ? currentSlotIndex
+        : slots.findIndex((s) => s.pageUrl === episode.pageUrl)
+    if (curIdx < 0) return
     const nextIdx = curIdx + delta
     if (nextIdx < 0 || nextIdx >= slots.length) return
     const nextSlot = slots[nextIdx]
@@ -1765,21 +1808,17 @@ export function useWatchSession(bangumiId: number): WatchSession {
     }
   }
 
-  const prefetchNextEpisode = useCallback(() => {
-    if (!selection || !episode) return
-    const roadIndex = episode.road
-    const road = selection.roads[roadIndex]
-    if (!road?.data?.length) return
-    const slots = buildPlayableSlots(road, bgmEpisodesQuery.data?.data)
-    if (!slots.length) return
+  // 单集预取防重缓存键，杜绝 85%~100% 播放期间数十次 onProgress 高频重复触发 prefetchQuery
+  const prefetchedNextEpisodeRef = useRef<string>('')
 
-    const currentSlotIdx = slots.findIndex((s) => s.pageUrl === episode.pageUrl)
-    const curIdx =
-      currentSlotIdx >= 0 ? currentSlotIdx : (episode.sourceIndex ?? 0)
-    const nextIdx = curIdx + 1
-    if (nextIdx < 0 || nextIdx >= slots.length) return
-    const nextSlot = slots[nextIdx]
+  const prefetchNextEpisode = useCallback(() => {
+    if (!selection || !episode || !hasNextEpisode) return
+    const nextSlot = currentEpisodeSlots[currentSlotIndex + 1]
     if (!nextSlot?.pageUrl) return
+
+    const prefetchKey = `${bangumiId}|${selection.plugin.name}|${selection.plugin.version}|${nextSlot.pageUrl}`
+    if (prefetchedNextEpisodeRef.current === prefetchKey) return
+    prefetchedNextEpisodeRef.current = prefetchKey
 
     const queryKey = [
       'resolve',
@@ -1803,7 +1842,9 @@ export function useWatchSession(bangumiId: number): WatchSession {
   }, [
     selection,
     episode,
-    bgmEpisodesQuery.data?.data,
+    hasNextEpisode,
+    currentEpisodeSlots,
+    currentSlotIndex,
     bangumiId,
     title,
     queryClient,
@@ -1814,8 +1855,8 @@ export function useWatchSession(bangumiId: number): WatchSession {
       currentPlaybackPositionRef.current = position
       if (!selection || !episode) return
 
-      // 预取下一集：播放进度达到 85% 且时长有效（>60s）时，提前在后台预解析下一集流地址
-      if (duration > 60 && position / duration >= 0.85) {
+      // 预取下一集：仅在确实有下一集、播放进度达到 85% 且时长有效（>60s）时，提前在后台预解析下一集流地址
+      if (hasNextEpisode && duration > 60 && position / duration >= 0.85) {
         prefetchNextEpisode()
       }
 
@@ -1836,6 +1877,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     [
       selection,
       episode,
+      hasNextEpisode,
       prefetchNextEpisode,
       upsertHistory,
       bangumiId,
@@ -2119,6 +2161,8 @@ export function useWatchSession(bangumiId: number): WatchSession {
     pickSource,
     pickSlot,
     pickEpisode,
+    hasPrevEpisode,
+    hasNextEpisode,
     goAdjacentEpisode,
     prefetchNextEpisode,
     onProgress,

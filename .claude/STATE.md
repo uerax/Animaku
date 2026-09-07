@@ -4,6 +4,40 @@
 
 ---
 
+## [2026-09-07] 修复最后一集连播倒计时提示与 85% 预取边界防穿透优化 (v1.5.17)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **根因定位与集数边界精确化 (`apps/web/src/lib/use-watch-session.ts`, `apps/web/src/pages/WatchPage.tsx`)**：
+     - **最后一集弹窗根因**：原 `WatchPage.tsx` 无条件传递 `onNext={() => startTransition(() => w.goAdjacentEpisode(1))}` 永真回调，而 `VideoPlayer.tsx` 播放结束 `onEndedExtra` 仅判断 `if (player.autoNext && onNextRef.current)`，导致最后一集完播盲目触发 4s 倒计时弹窗（`AutoNextOverlay`）；倒计时结束后调用越界静默 return，体验破损；
+     - **会话层边界状态解构**：基于当前播放线路计算 `currentEpisodeSlots`，结合 `pageUrl`、`sourceIndex` 与 `canonicalEp` 三重可靠匹配计算 `currentSlotIndex`，精确导出 `hasPrevEpisode` 与 `hasNextEpisode`；
+     - **WatchPage 条件挂载**：在 `WatchPage.tsx` 中向播放器条件传入 `onPrev`、`onNext`、`hasPrev`、`hasNext` 与 `onPrefetchNext`，在无上一集或无下一集时置为 `undefined` 并下发 `false`。
+  2. **播放器多层守卫与控制栏交互修复 (`apps/web/src/player/VideoPlayer.tsx`, `apps/web/src/player/chrome/DesktopControls.tsx`, `apps/web/src/player/chrome/MobileControls.tsx`, `apps/web/src/player/plyr-overrides.css`)**：
+     - **VideoPlayer 连播门禁**：在 `onEndedExtra` 和 `doNext` 中增加 `effectiveHasNext` 强校验，最后一集完播绝对不启动倒计时定时器，杜绝 `AutoNextOverlay` 虚假提示；
+     - **控制栏与快捷键禁用态**：桌面端 `DesktopControls` 与移动端 `MobileControls` 的上一集/下一集按钮接入 `canGoPrev` / `canGoNext` 判定，最后一集/第一集/单集剧场版自动标记 `disabled` 并下发精准 Tooltip（如“已是最后一集”、“没有上一集了”），快捷键 `P` / `N` 亦安全受控；
+     - **CSS 视觉反馈**：在 `plyr-overrides.css` 补充 `.kz-ctrl:disabled` 规则（35% 不透明度、禁用指针与交互）。
+  3. **85% 预取下一集功能边界防护与高频去重 (`apps/web/src/lib/use-watch-session.ts`)**：
+     - **末集零开销门禁**：在 `onProgress` 中仅当 `hasNextEpisode === true` 时才进入 85% 预取判断，最后一集在进度播放至 85%~100% 期间零网络请求、零数组重构开销；
+     - **越界与回退防穿透**：修复原先索引找不到时错误回退为 0 导致误把最后一集的下一集当成第 2 集预取的潜在缺陷；
+     - **单集预取防重锁定**：引入 `prefetchedNextEpisodeRef` 缓存标记，彻底消除了 85%~100% 播放区间内每 250ms 一次的高频重复 `prefetchQuery` 调用。
+  4. **全量测试验证与版本递增**：
+     - 新增 `apps/web/src/lib/episode-adjacent.test.ts` 专项单测，覆盖首集、末集、中间集、剧场版单集、URL 失配回退与异常边界；
+     - 全仓 96 项 server 测试、55 项 shared 测试、6 项 web 专项测试 100% 通过，`pnpm typecheck` 0 错误，前端生产构建成功；
+     - 执行 `pnpm bump patch`，版本号从 `v1.5.16` 递增至 `v1.5.17`。
+- 涉及文件：
+  - apps/web/src/lib/use-watch-session.ts
+  - apps/web/src/lib/episode-adjacent.test.ts
+  - apps/web/src/pages/WatchPage.tsx
+  - apps/web/src/player/types.ts
+  - apps/web/src/player/VideoPlayer.tsx
+  - apps/web/src/player/chrome/types.ts
+  - apps/web/src/player/chrome/DesktopControls.tsx
+  - apps/web/src/player/chrome/MobileControls.tsx
+  - apps/web/src/player/plyr-overrides.css
+  - .claude/STATE.md
+
+---
+
 ## [2026-09-07] 封装通用 useInView Hook 并在首页落地剧场版与 OVA 视口懒加载 (v1.5.16)
 - 状态：已完成
 - 优先级：P2

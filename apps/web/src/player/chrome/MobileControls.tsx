@@ -146,6 +146,8 @@ export function MobileControls(props: PlayerControlsProps) {
     onTogglePlay,
     onPrev,
     onNext,
+    hasPrev,
+    hasNext,
     onPrefetchNext,
     onSeekRatio,
     onToggleDanmaku,
@@ -172,6 +174,9 @@ export function MobileControls(props: PlayerControlsProps) {
 
   const isFs = webFs || playerFs
   const exitFs = webFs ? onToggleWebFs : onTogglePlayerFs
+
+  const canGoPrev = hasPrev ?? Boolean(onPrev)
+  const canGoNext = hasNext ?? Boolean(onNext)
 
   const [settingsSubmenu, setSettingsSubmenu] = useState<
     'root' | 'speed' | 'sr' | 'aspectRatio' | 'shortcuts'
@@ -506,8 +511,9 @@ export function MobileControls(props: PlayerControlsProps) {
             <button
               type="button"
               className="kz-ctrl kz-ctrl-icon"
+              disabled={!canGoPrev}
               onClick={() => onPrev?.()}
-              title="上一集"
+              title={canGoPrev ? '上一集' : '没有上一集了'}
               aria-label="上一集"
             >
               <IconPrev />
@@ -515,9 +521,10 @@ export function MobileControls(props: PlayerControlsProps) {
             <button
               type="button"
               className="kz-ctrl kz-ctrl-icon"
-              onTouchStart={() => onPrefetchNext?.()}
+              disabled={!canGoNext}
+              onTouchStart={() => canGoNext && onPrefetchNext?.()}
               onClick={() => onNext?.()}
-              title="下一集"
+              title={canGoNext ? '下一集' : '已是最后一集'}
               aria-label="下一集"
             >
               <IconNext />
