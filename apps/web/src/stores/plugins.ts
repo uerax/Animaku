@@ -32,7 +32,8 @@ migrateLocalStorageKey('animaku-plugins', [
 /** v26: add oldAnimePriority for cycani & tvtfun to prioritize classic/vintage anime (airDate <= currentYear - 5) */
 /** v27: retire anime1 & libvio from default built-ins to enforce pure zero-bandwidth CDN direct stream */
 /** v28: add mifun & girigiri built-in rules with weight 70 & oldAnimePriority for girigiri */
-export const PLUGIN_DEFAULTS_VERSION = 28
+/** v29: add lzizy (Apple CMS V10 JSON API + all categories + 0ms direct HLS) with weight 60 */
+export const PLUGIN_DEFAULTS_VERSION = 29
 
 interface PluginState {
   plugins: PluginMeta[]
@@ -350,6 +351,7 @@ export const usePluginStore = create<PluginState>()(
             'moonci',
             'mifun',
             'girigiri',
+            'lzizy',
           ].map((s) => s.toLowerCase()),
         )
         const onlyLegacyBuiltins = plugins.every(

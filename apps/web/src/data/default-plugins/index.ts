@@ -4,6 +4,7 @@ import tvtfun from './tvtfun.json'
 import moonci from './moonci.json'
 import mifun from './mifun.json'
 import girigiri from './girigiri.json'
+import lzizy from './lzizy.json'
 import xifan from './xifan.json'
 import xifanNext from './xifan-next.json'
 import mxdm from './mxdm.json'
@@ -18,6 +19,7 @@ import omofun from './omofun.json'
  * - mifun: MiFun ios.mifun.org — MacCMS suggest + data.m3u8.in resolver + 1080P Douyin/Baidu MP4 (weight: 70, preferOriginalTitle: false)
  * - moonci: 月之祠 moonci.com — MacCMS JSON suggest API + multi-road extraction + 1080P MP4 (weight: 65, preferOriginalTitle: true)
  * - tvtfun: TvTFun tvtfun.net — Next.js RESTful API + multi-line extraction + 1080P BytePlus/Akamai MP4 (weight: 65, preferOriginalTitle: false)
+ * - lzizy: 量子资源 lzizy.net / cj.lziapi.com — Apple CMS V10 JSON API + 全品类影视 + 0ms 纯直链 HLS (weight: 60, preferOriginalTitle: false)
  * - mxdm: MacCMS-style third party (weight: 55)
  * - omofun: 211dm/omofuns — server search adapter (verify gate) + XPath chapters + player_aaaa (weight: 50, preferOriginalTitle: true)
  * - xifan: 稀饭 anime.xifanacg.com — suggest API search + HTML chapters + player_aaaa (weight: 50)
@@ -30,6 +32,7 @@ export const DEFAULT_PLUGIN_RULES: PluginRule[] = [
   mifun as PluginRule,
   moonci as PluginRule,
   tvtfun as PluginRule,
+  lzizy as PluginRule,
   mxdm as PluginRule,
   omofun as PluginRule,
   xifan as PluginRule,

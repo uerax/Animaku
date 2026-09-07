@@ -1,0 +1,22 @@
+{
+  "api": "1",
+  "type": "anime",
+  "name": "lzizy",
+  "version": "1.0",
+  "weight": 60,
+  "preferOriginalTitle": false,
+  "muliSources": true,
+  "useWebview": false,
+  "useNativePlayer": true,
+  "usePost": false,
+  "useLegacyParser": false,
+  "adBlocker": false,
+  "baseURL": "https://lzizy.net/",
+  "searchURL": "https://cj.lziapi.com/api.php/provide/vod/?ac=detail&wd=@keyword",
+  "searchList": "//ul/li",
+  "searchName": ".//a",
+  "searchResult": ".//a",
+  "chapterRoads": "//div",
+  "chapterResult": ".//a",
+  "referer": "https://lzizy.net/"
+}

@@ -4,6 +4,42 @@
 
 ---
 
+## [2026-09-08] 接入量子资源网 (lzizy) 全品类专有视频源适配器 (v1.8.0)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **量子云专有适配器落地 (`apps/server/src/lib/lzizy.ts`)**：
+     - **协议接入**：对接苹果 CMS V10 标准 JSON 采集接口，采用 `ac=detail&wd={keyword}` 单次合并端点直接获取全量详情与分集数据；
+     - **品类白名单与解说降噪**：全面支持电影片 (pid=1)、连续剧 (pid=2)、综艺片 (pid=3)、动漫片 (pid=4)、短剧 (tid=46)、AI漫剧 (tid=52) 等正片品类，黑名单阻断电影解说 (tid=35)、预告片 (tid=45)、体育赛事 (pid=36)、新闻资讯 (pid=42)、演员 (tid=41)、伦理片 (tid=34)，并通过正则强力剔除标题含「解说/预告/花絮」的杂质噪点；
+     - **双线路过滤与精炼**：提取并突出原生直链切片线路 `lzm3u8`，重命名为「量子极速(直链)」，自动过滤第三方 iframe 网页线路（`liangzi`）；
+     - **性能与直连优化**：搜索时对分集数据执行 5 分钟短效缓存预热（Cache Write-Through），选集通常 0ms 响应；解析阶段识别传入 URL 已是 `index.m3u8` 媒体直链，0ms 零网络往返下发，彻底绕过海外 VPS 服务端 GeoIP 阻断，遵循 Zero Auto Proxy 铁律由国内客户端纯直连源站 CDN 播放（零服务器流量占用）。
+  2. **规则引擎多点旁路分流 (`apps/server/src/rule-engine/index.ts`)**：
+     - 在 `searchWithRule`、`chaptersWithRule`、`resolvePlay` 三大核心路由中挂载 `isLzizyRule` 判定与专有适配器调用。
+  3. **内置规则与客户端版本平滑迁移**：
+     - 新增 `apps/web/src/data/default-plugins/lzizy.json` 并注册至 `apps/web/src/data/default-plugins/index.ts`（权重 60）；
+     - 在 `apps/web/src/stores/plugins.ts` 中递增 `PLUGIN_DEFAULTS_VERSION`（v28 -> v29），将 `lzizy` 纳入 `legacyBuiltinNames` 白名单，确保老用户浏览器持久化规则平滑无感升级。
+  4. **全套自动化测试、全仓编译与版本递增**：
+     - 新增 `apps/server/src/lib/lzizy.test.ts`，涵盖规则判定、影视白名单、解说过滤、线路提取与 0ms 直链解析 4 项单测（100% pass）；
+     - 服务端 100 个核心单测全部通过；全仓 `pnpm typecheck` 0 错误；前后端 `pnpm build` 全量打包成功；
+     - 执行 `pnpm bump minor`，项目版本升级至 `v1.8.0`；
+     - 同步更新 `.claude/feature-map.md`。
+- 涉及文件：
+  - apps/server/src/lib/lzizy.ts
+  - apps/server/src/lib/lzizy.test.ts
+  - apps/server/src/rule-engine/index.ts
+  - apps/web/src/data/default-plugins/lzizy.json
+  - apps/web/src/data/default-plugins/index.ts
+  - apps/web/src/stores/plugins.ts
+  - .claude/feature-map.md
+  - .claude/STATE.md
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+
+---
+
 ## [2026-09-08] 彻底废除 mediaFullProxy / MEDIA_FULL_PROXY 遗留架构 (v1.6.2)
 - 状态：已完成
 - 优先级：P2

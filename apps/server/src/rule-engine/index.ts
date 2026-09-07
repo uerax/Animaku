@@ -944,6 +944,22 @@ export async function searchWithRule(
     }
   }
 
+  // lzizy — dedicated adapter (Apple CMS V10 JSON API + 0ms direct HLS)
+  {
+    const { isLzizyRule, searchLzizy } = await import('../lib/lzizy')
+    if (isLzizyRule(rule)) {
+      try {
+        return await searchLzizy(rule, keyword)
+      } catch (e) {
+        return {
+          pluginName: rule.name,
+          items: [],
+          diagnostics: [e instanceof Error ? e.message : String(e)],
+        }
+      }
+    }
+  }
+
   // Omofun / 211dm — search gate + hash detail URLs (chapters/resolve stay generic)
   {
     const { isOmofunRule, searchOmofun } = await import('../lib/omofun')
@@ -1260,6 +1276,22 @@ export async function chaptersWithRule(
     if (isGirigiriRule(rule)) {
       try {
         return await chaptersGirigiri(rule, source)
+      } catch (e) {
+        return {
+          pluginName: rule.name,
+          roads: [],
+          diagnostics: [e instanceof Error ? e.message : String(e)],
+        }
+      }
+    }
+  }
+
+  // lzizy — dedicated adapter (0ms cached or detail by ids + lzm3u8 filter)
+  {
+    const { isLzizyRule, chaptersLzizy } = await import('../lib/lzizy')
+    if (isLzizyRule(rule)) {
+      try {
+        return await chaptersLzizy(rule, source)
       } catch (e) {
         return {
           pluginName: rule.name,
@@ -1772,6 +1804,14 @@ export async function resolvePlay(
     const { isGirigiriRule, resolveGirigiri } = await import('../lib/girigiri')
     if (isGirigiriRule(rule)) {
       return wrapResolveWithTicket(rule, await resolveGirigiri(rule, pageUrl))
+    }
+  }
+
+  // lzizy: dedicated adapter (0ms direct HLS stream)
+  {
+    const { isLzizyRule, resolveLzizy } = await import('../lib/lzizy')
+    if (isLzizyRule(rule)) {
+      return wrapResolveWithTicket(rule, await resolveLzizy(rule, pageUrl))
     }
   }
 
