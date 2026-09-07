@@ -119,7 +119,7 @@ docker run -d --name animaku --restart unless-stopped -p 8787:8787 --env-file .e
 ```
 
 - **数据持久化**：应用数据库默认保存在宿主机的 `./data` 目录中。
-- **公网与代理安全**：若暴露到公网，建议在 `.env` 中设置 `PROXY_TOKEN` 保护 VPS 出站流量。
+- **纯直连零带宽**：内置默认源均为浏览器直连源站 CDN，服务器仅转发轻量元数据，零消耗 VPS 媒体流量。
 </details>
 
 ---
@@ -173,8 +173,6 @@ pnpm dev
 | `PORT` | `8787` | 服务端与 Web 界面访问端口 |
 | `HOST` | `0.0.0.0` | 监听地址（`0.0.0.0` 允许局域网/公网访问，`127.0.0.1` 仅本机） |
 | `DATA_DIR` | `./data` | 数据库持久化存储目录 |
-| `PUBLIC_PROXY` | `1` | 允许客户端请求第三方流媒体代理；设为 `0` 则仅允许直连或本机访问 |
-| `PROXY_TOKEN` | 留空 | 服务端代理访问令牌；配置后可在网页「设置」中输入解锁，防止公网被盗刷 |
 | `BANGUMI_API` | `mirror` | Bangumi API 请求线路（`mirror` 国内镜像加速 / `official` 官方直连） |
 | `BANGUMI_IMAGE` | `mirror` | 番剧封面图片线路（`mirror` 国内镜像加速 / `official` 官方直连） |
 
@@ -202,8 +200,8 @@ Anime4K 依赖本地浏览器的 WebGPU 显卡硬件计算。如果设备显卡�
 </details>
 
 <details>
-<summary><b>公网部署后页面打开能加载，但无法选源播放？</b></summary>
-请检查 `.env` 中的 `PUBLIC_PROXY` 是否保持为 `1`。如果配置了 `PROXY_TOKEN`，请在前端「设置」页面中输入口令进行解锁。
+<summary><b>为什么部分视频源无法播放或解析超时？</b></summary>
+部分第三方片源可能存在临时的源站故障、反爬拦截或域名轮换。项目内置了多条高质量专有直链线路（如稀饭 Next、次元城、月之祠、TvTFun 等），可在右侧视频源抽屉中一键切换其他线路。
 </details>
 
 <details>

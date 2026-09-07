@@ -366,13 +366,10 @@ export function useWatchSession(bangumiId: number): WatchSession {
     staleTime: 60_000,
   })
   const mediaFullProxy = mediaFullProxyEnabled(serverCaps.data)
-  const proxyTokenRequired = Boolean(serverCaps.data?.proxyTokenRequired)
   const playerSettings = useSettingsStore((s) => s.player ?? FALLBACK_PLAYER)
-  const proxyToken = useSettingsStore((s) => s.proxyToken)
   const setPlayer = useSettingsStore((s) => s.setPlayer)
-  const isProxyUnlocked = !proxyTokenRequired || Boolean(proxyToken?.trim())
   const serverProxyEnabled =
-    mediaFullProxy && Boolean(playerSettings.serverProxy) && isProxyUnlocked
+    mediaFullProxy && Boolean(playerSettings.serverProxy)
 
   const subject = useQuery({
     queryKey: ['subject', bangumiId],
@@ -426,7 +423,6 @@ export function useWatchSession(bangumiId: number): WatchSession {
           p,
           mediaFullProxy,
           serverProxyEnabled,
-          isProxyUnlocked,
         )
       ) {
         return false
@@ -446,7 +442,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
       if (ra !== rb) return ra - rb
       return comparePluginOrder(a, b, isOld)
     })
-  }, [allPlugins, mediaFullProxy, serverProxyEnabled, isProxyUnlocked, pluginOrder, isOld])
+  }, [allPlugins, mediaFullProxy, serverProxyEnabled, pluginOrder, isOld])
   const queryClient = useQueryClient()
   const upsertHistory = useHistoryStore((s) => s.upsert)
   const danmakuSettings = useSettingsStore((s) => s.danmaku ?? FALLBACK_DANMAKU)
@@ -1410,7 +1406,6 @@ export function useWatchSession(bangumiId: number): WatchSession {
         plugin,
         mediaFullProxy,
         serverProxyEnabled,
-        isProxyUnlocked,
       )
     )
       return
@@ -1929,7 +1924,6 @@ export function useWatchSession(bangumiId: number): WatchSession {
         currentPluginForProxy,
         mediaFullProxy,
         serverProxyEnabled,
-        isProxyUnlocked,
       )
     : false
   const playback = useMemo(
@@ -1939,10 +1933,9 @@ export function useWatchSession(bangumiId: number): WatchSession {
         proxyUrl,
         forceProxy: preferMediaProxy,
         forceAdFilter,
-        proxyToken,
         requiresProxy,
       }),
-    [playUrl, proxyUrl, preferMediaProxy, forceAdFilter, proxyToken, requiresProxy],
+    [playUrl, proxyUrl, preferMediaProxy, forceAdFilter, requiresProxy],
   )
   const formatHint = useMemo<'hls' | 'mp4' | undefined>(() => {
     if (!episode) return undefined

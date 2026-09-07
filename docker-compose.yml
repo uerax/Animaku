@@ -1,10 +1,8 @@
 # Animaku — one-command deploy
-#   cp .env.example .env   # set PORT / PUBLIC_PROXY / optional VITE_* branding
+#   cp .env.example .env   # set PORT / optional VITE_* branding
 #   docker compose up -d --build
 # Open http://localhost:${PORT:-8787}  (SPA + /api on same origin)
 #
-# PUBLIC_PROXY defaults to 1 (public clients can use media/plugin proxy APIs).
-# Set PUBLIC_PROXY=0 for LAN-only lock-down. Anime1 full tunnel: MEDIA_FULL_PROXY=1.
 # Footer branding (VITE_*): rebuild image after changing — baked at Vite build time.
 
 services:
@@ -50,10 +48,8 @@ services:
       HOST: "0.0.0.0"
       WEB_DIST: "public"
       DATA_DIR: "/app/data"
-      # Access / media (see .env.example). PUBLIC_PROXY default 1; MEDIA_FULL_PROXY default 0.
-      PUBLIC_PROXY: ${PUBLIC_PROXY:-1}
+      # Media proxy scope (see .env.example). MEDIA_FULL_PROXY default 0.
       MEDIA_FULL_PROXY: ${MEDIA_FULL_PROXY:-0}
-      PROXY_TOKEN: ${PROXY_TOKEN:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
       # Public origin for /robots.txt Sitemap + /sitemap.xml (runtime)
       SITE_URL: ${SITE_URL:-}

@@ -4,6 +4,69 @@
 
 ---
 
+## [2026-09-08] 彻底废除 PUBLIC_PROXY / PROXY_TOKEN 与默认视频源全量直连改造 (v1.6.0)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **下线强依赖全量代理视频源 (anime1, libvio)**：
+     - 从前端默认视频源 `DEFAULT_PLUGIN_RULES` 中下线 `anime1` 和 `libvio`，全仓默认视频源 100% 收敛为零服务器带宽消耗的纯 CDN 直连源（`xifan-next`, `cycani`, `moonci`, `tvtfun`, `mxdm`, `omofun`, `xifan`）；
+     - 递增 `PLUGIN_DEFAULTS_VERSION`（v26 -> v27），在 `ensureDefaults` 中自动对存量客户端过滤淘汰这两个内置源，杜绝多用户公网 VPS 出站带宽与流量暴毙风险。
+  2. **服务端彻底移除 PUBLIC_PROXY 与 PROXY_TOKEN 访问模型**：
+     - 从 `apps/server/src/config.ts` 彻底移除 `publicProxy` 与 `proxyToken` 字段，解密系统主密钥回退收敛至 `MEDIA_SECRET` / `TICKET_SECRET`；
+     - 移除 `apps/server/src/index.ts` 中的 `/api/proxy/verify` 路由及 `/api/health` 冗余输出；
+     - 清理 `apps/server/src/lib/access.ts` 中已成为死代码的 `canUseMediaProxy`、`requireMediaProxyAccess`、`requireLocalOrToken`，以及导致鉴权短路的 `canUsePluginApi` 与 `requirePluginApiAccess`；
+     - 视频源搜索/选集/解析端点全面开放给正常访客，安全防线统一由现有的 `SafeConnector`（物理层防 SSRF 熔断）、`ip-rate-limit`（IP 频控防刷）与 SQLite 缓存削峰层承担；
+     - 更新 `security-regression.test.ts` 回归测试用例。
+  3. **前端产品化改造与冗余交互清理**：
+     - 从 `apps/web/src/lib/server-capabilities.ts` 移除 `publicProxy` 和 `proxyTokenRequired`；
+     - 从 `apps/web/src/stores/settings.ts` 移除 `proxyToken` 字段、action、序列化与合并逻辑；
+     - 从 `apps/web/src/lib/api.ts` 移除向请求头自动注入 `X-Animaku-Proxy-Token` 的逻辑；
+     - 从 `apps/web/src/lib/playback-src.ts` 移除 `withProxyToken` 函数与 `opts.proxyToken` 参数，同步更新 `playback-src.test.ts`；
+     - 从 `apps/web/src/lib/plugin-capabilities.ts` 和 `use-watch-session.ts` 中彻底移除 `isProxyUnlocked` 级联门禁；
+     - 从 `apps/web/src/pages/SettingsPage.tsx` 中移除“开放代理访问”展示与全部“服务端代理口令 (PROXY_TOKEN)”解锁折叠面板、抖动输入框及状态机。
+  4. **环境配置范本、Wiki与中英文文档同步清理**：
+     - 更新 `.env.example` 和 `docker-compose.yml`，彻底移除 `PUBLIC_PROXY` 与 `PROXY_TOKEN` 环境变量及注释；
+     - 更新 `README.md` 与 `README.en.md` 的环境变量表格、Docker 说明与常见问题解答（FAQ）；
+     - 更新 `docs/CONTEXT.md` 和 `docs/wiki/Configuration-Guide.md` 配置指南 Wiki，重构场景预设模板为极简直连模式；
+     - 同步更新 `.claude/feature-map.md`。
+  5. **自动化测试与版本升级**：
+     - 运行全量 96 个服务端单元测试与 5 个前端单测，100% pass；全仓 `pnpm typecheck` 零错误通过；
+     - 遵照规则 5 执行 `pnpm bump minor`，项目版本正式升级至 `v1.6.0`。
+- 涉及文件：
+  - apps/web/src/data/default-plugins/index.ts
+  - apps/web/src/stores/plugins.ts
+  - apps/server/src/config.ts
+  - apps/server/src/index.ts
+  - apps/server/src/lib/access.ts
+  - apps/server/src/routes/source.ts
+  - apps/server/src/routes/plugin.ts
+  - apps/server/src/lib/media/ticket-codec.ts
+  - apps/server/src/lib/media/security-regression.test.ts
+  - apps/web/src/lib/server-capabilities.ts
+  - apps/web/src/stores/settings.ts
+  - apps/web/src/lib/api.ts
+  - apps/web/src/lib/playback-src.ts
+  - apps/web/src/lib/playback-src.test.ts
+  - apps/web/src/lib/plugin-capabilities.ts
+  - apps/web/src/lib/use-watch-session.ts
+  - apps/web/src/pages/SettingsPage.tsx
+  - .env.example
+  - docker-compose.yml
+  - README.md
+  - README.en.md
+  - docs/CONTEXT.md
+  - docs/wiki/Configuration-Guide.md
+  - .claude/feature-map.md
+  - .claude/BUGS.md
+  - .claude/STATE.md
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+
+---
+
 ## [2026-09-08] 审查并重构 README 中过时及侵权描述 (文档合规化)
 - 状态：已完成
 - 优先级：P3

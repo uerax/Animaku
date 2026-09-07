@@ -10,7 +10,6 @@ import {
   chaptersWithRule,
   resolvePlay,
 } from '../rule-engine'
-import { requirePluginApiAccess } from '../lib/access'
 import {
   PLUGIN_CACHE_TTL,
   PLUGIN_MAX_ENTRIES,
@@ -56,7 +55,7 @@ pluginRoutes.post('/validate', async (c) => {
 })
 
 // Exec routes are open-proxy style (client supplies rule + URLs) — gate them
-pluginRoutes.post('/search', requirePluginApiAccess, async (c) => {
+pluginRoutes.post('/search', async (c) => {
   const body = await c.req.json<{
     rule: unknown
     keyword: string
@@ -131,7 +130,7 @@ pluginRoutes.post('/search', requirePluginApiAccess, async (c) => {
   }
 })
 
-pluginRoutes.post('/chapters', requirePluginApiAccess, async (c) => {
+pluginRoutes.post('/chapters', async (c) => {
   const body = await c.req.json<{
     rule: unknown
     source: string
@@ -202,7 +201,7 @@ pluginRoutes.post('/chapters', requirePluginApiAccess, async (c) => {
   }
 })
 
-pluginRoutes.post('/resolve', requirePluginApiAccess, async (c) => {
+pluginRoutes.post('/resolve', async (c) => {
   const body = await c.req.json<{
     rule: unknown
     pageUrl: string

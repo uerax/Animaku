@@ -1,5 +1,4 @@
 import { Hono } from 'hono'
-import { requirePluginApiAccess } from '../lib/access'
 import { sourceRegistry } from '../lib/source/source-registry'
 
 export const sourceRoutes = new Hono()
@@ -62,7 +61,7 @@ sourceRoutes.get('/list', async (c) => {
 /**
  * 视频源搜索
  */
-sourceRoutes.post('/search', requirePluginApiAccess, async (c) => {
+sourceRoutes.post('/search', async (c) => {
   let body: Record<string, unknown>
   try {
     body = (await c.req.json()) as Record<string, unknown>
@@ -105,7 +104,7 @@ sourceRoutes.post('/search', requirePluginApiAccess, async (c) => {
 /**
  * 视频源分集与线路获取
  */
-sourceRoutes.post('/chapters', requirePluginApiAccess, async (c) => {
+sourceRoutes.post('/chapters', async (c) => {
   let body: Record<string, unknown>
   try {
     body = (await c.req.json()) as Record<string, unknown>
@@ -153,7 +152,7 @@ sourceRoutes.post('/chapters', requirePluginApiAccess, async (c) => {
 /**
  * 视频源播放直链解析并注册 PlaybackAsset
  */
-sourceRoutes.post('/resolve', requirePluginApiAccess, async (c) => {
+sourceRoutes.post('/resolve', async (c) => {
   let body: Record<string, unknown>
   try {
     body = (await c.req.json()) as Record<string, unknown>

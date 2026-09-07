@@ -129,24 +129,12 @@ export const config = {
   corsOrigins: parseCorsOrigins(process.env.CORS_ORIGINS),
   corsOpen: (process.env.CORS_ORIGINS || '').trim() === '*',
   /**
-   * When true (default): any client may call /api/media/proxy and plugin
-   * search/chapters/resolve (typical VPS / public deploy). Still has SSRF host checks.
-   * Set PUBLIC_PROXY=0 to restrict to loopback / private LAN only.
-   */
-  publicProxy: envBool(process.env.PUBLIC_PROXY, true),
-  /**
-   * Optional shared secret. When set, media + plugin exec also accept
-   * `X-Animaku-Proxy-Token: <token>` even from public IPs.
-   */
-  proxyToken: (process.env.PROXY_TOKEN || '').trim(),
-  /**
    * Dedicated secret for signing and encrypting media playback tickets (AES-256-GCM).
-   * Falls back to PROXY_TOKEN if MEDIA_SECRET / TICKET_SECRET is not explicitly set.
+   * Generates an ephemeral random master key if unset.
    */
   mediaSecret: (
     process.env.MEDIA_SECRET ||
     process.env.TICKET_SECRET ||
-    process.env.PROXY_TOKEN ||
     ''
   ).trim(),
   /**
@@ -236,7 +224,6 @@ export const config = {
   ).trim(),
   /**
    * Dedicated Admin secret token for protected operations (e.g. POST /api/admin/indexnow).
-   * Strictly isolated from PROXY_TOKEN (no fallback).
    */
   adminSecret: (process.env.ADMIN_SECRET || '').trim(),
   /**

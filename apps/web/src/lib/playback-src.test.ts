@@ -40,16 +40,6 @@ test('pickPlaybackSrc: ticket stream on /segment with forceProxy appends stream=
   assert.equal(res.transit, 'full-proxy')
 })
 
-test('pickPlaybackSrc: ticket stream ignores proxyToken completely', () => {
-  const res = pickPlaybackSrc({
-    proxyUrl: '/api/media/stream?t=ticket123',
-    proxyToken: 'secret-admin-token',
-  })
-
-  assert.equal(res.src.includes('token='), false)
-  assert.equal(res.src, '/api/media/stream?t=ticket123')
-})
-
 test('pickPlaybackSrc: direct CDN preferred when clean', () => {
   const res = pickPlaybackSrc({
     playUrl: 'https://cdn.example.com/ep1.mp4',

@@ -124,41 +124,17 @@ app.get('/api/health', (c) =>
     danmakuUsingFallback: !(
       config.dandanAppId?.trim() && config.dandanAppSecret?.trim()
     ),
-    /** Who may call media/plugin open-proxy APIs */
-    publicProxy: config.publicProxy,
     /**
      * MEDIA_FULL_PROXY: false = m3u8 list only (default);
      * true = may tunnel ts/mp4/full segments (Anime1 etc.)
      */
     mediaFullProxy: config.mediaFullProxy,
-    /** Whether the server requires PROXY_TOKEN to unlock server proxy */
-    proxyTokenRequired: Boolean(config.proxyToken?.trim()),
   }),
 )
 
-/** Verify administrator proxy token for unlocking client server proxy switch */
-app.post('/api/proxy/verify', async (c) => {
-  const body = (await c.req.json<{ token?: string }>().catch(() => ({}))) as { token?: string }
-  const token = (body.token || '').trim()
-  const serverToken = (config.proxyToken || '').trim()
-
-  if (!serverToken) {
-    // Server does not require a token (no lock needed)
-    return c.json({ ok: true, required: false, message: '服务端未设置口令限制' })
-  }
-
-  if (token && token === serverToken) {
-    return c.json({ ok: true, required: true, message: '口令验证成功' })
-  }
-
-  // 300ms anti-bruteforce sleep
-  await new Promise((r) => setTimeout(r, 300))
-  return c.json({ ok: false, error: 'invalid_token', message: '管理员口令错误' }, 401)
-})
-
 /**
  * Admin endpoint: submit sitemap URLs or specific custom URLs to IndexNow.
- * Requires administrator authentication (X-Admin-Secret / PROXY_TOKEN) or loopback access.
+ * Requires administrator authentication (X-Admin-Secret) or loopback access.
  */
 app.post('/api/admin/indexnow', async (c) => {
   if (!isAuthorizedAdmin(c)) {

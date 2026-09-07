@@ -24,18 +24,17 @@ export function pluginNeedsFullMediaProxy(p: {
 
 /**
  * Can a plugin appear in the watch session at all?
- * Normal sources always qualify; full-proxy sources (Anime1 / LIBVIO) need the
+ * Normal sources always qualify; full-proxy sources need the
  * server MEDIA_FULL_PROXY=1 AND the client master "服务器代理" toggle ON.
  */
 export function isFullProxySourceUsable(
   plugin: { requiresFullMediaProxy?: boolean; name?: string; baseURL?: string },
   mediaFullProxy: boolean,
   serverProxyEnabled: boolean,
-  isProxyUnlocked = true,
 ): boolean {
   return (
     !pluginNeedsFullMediaProxy(plugin) ||
-    (mediaFullProxy && serverProxyEnabled && isProxyUnlocked)
+    (mediaFullProxy && serverProxyEnabled)
   )
 }
 
@@ -48,8 +47,7 @@ export function pluginShouldUseProxy(
   plugin: { proxy?: boolean },
   mediaFullProxy: boolean,
   serverProxyEnabled: boolean,
-  isProxyUnlocked = true,
 ): boolean {
-  if (!mediaFullProxy || !serverProxyEnabled || !isProxyUnlocked) return false
+  if (!mediaFullProxy || !serverProxyEnabled) return false
   return Boolean(plugin.proxy)
 }

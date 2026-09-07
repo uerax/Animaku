@@ -211,9 +211,9 @@ test('Security Matrix 6: 302 Open Redirect reflection to internal targets blocke
 })
 
 test('Security Matrix 7: Credential isolation and egress log redaction', () => {
-  // 1. ADMIN_SECRET and PROXY_TOKEN isolation in config
+  // 1. ADMIN_SECRET and MEDIA_SECRET isolation in config
   assert.ok(typeof config.adminSecret === 'string')
-  assert.ok(typeof config.proxyToken === 'string')
+  assert.ok(typeof config.mediaSecret === 'string')
 
   // 2. Sensitive log parameters masked
   const sensitiveObj = {

@@ -114,8 +114,6 @@ Browser Client (Vite 5173 / Production Web)
 | 变量 | 默认值 | 作用与安全边界 |
 |---|---|---|
 | `PORT` / `HOST` | `8787` / `0.0.0.0` | API / 生产环境监听地址 |
-| `PUBLIC_PROXY` | `1` | **默认开启**：允许客户端使用媒体代理与插件 API。仅内网私有部署可设为 `0` |
-| `PROXY_TOKEN` | 空 | 代理鉴权密码；`PUBLIC_PROXY=0` 时通过 `X-Animaku-Proxy-Token` 或设置页解锁 |
 | `MEDIA_FULL_PROXY` | `0` | **默认关闭**：媒体代理仅允许 M3U8 列表（切片直连 CDN）；禁止 VPS 转发全量二进制大文件 |
 | `VITE_BANGUMI_API_HOST` / `BANGUMI_API_HOST` | `bgmapi.anibt.net` | Bangumi API 接口源（默认反代免翻；可选 `api.bgm.tv` 官方直连） |
 | `VITE_BANGUMI_IMAGE_HOST` / `BANGUMI_IMAGE_HOST` | `bgmimg.anibt.net` | Bangumi 封面图片源（默认反代免翻；可选 `lain.bgm.tv` 官方直连） |

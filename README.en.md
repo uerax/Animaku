@@ -119,7 +119,7 @@ docker run -d --name animaku --restart unless-stopped -p 8787:8787 --env-file .e
 ```
 
 - **Persistence**: Application data is saved in `./data` on the host.
-- **Public Security**: If exposed to the internet, set `PROXY_TOKEN` in `.env` to protect VPS egress traffic.
+- **Zero Bandwidth Egress**: All default built-in sources stream directly via provider CDNs, consuming zero VPS video bandwidth.
 </details>
 
 ---
@@ -173,8 +173,6 @@ For full configuration options, lifecycle semantics, and production presets, ref
 | `PORT` | `8787` | Service and Web access port |
 | `HOST` | `0.0.0.0` | Listen host (`0.0.0.0` allows LAN/public, `127.0.0.1` restricts to localhost) |
 | `DATA_DIR` | `./data` | Persistent SQLite storage directory |
-| `PUBLIC_PROXY` | `1` | Allows client media proxying; set to `0` to allow local-only |
-| `PROXY_TOKEN` | Empty | Auth token for proxy egress; unlockable in Web settings |
 | `BANGUMI_API` | `mirror` | Bangumi API route (`mirror` proxy / `official` direct) |
 | `BANGUMI_IMAGE` | `mirror` | Anime cover route (`mirror` proxy / `official` direct) |
 
@@ -202,8 +200,8 @@ Anime4K relies on WebGPU shaders running on your local graphics card. If your GP
 </details>
 
 <details>
-<summary><b>Can access the site on public IP but cannot stream or pick sources?</b></summary>
-Ensure `PUBLIC_PROXY` is set to `1` in `.env`. If `PROXY_TOKEN` is configured, enter the token in the web Settings page to unlock streaming.
+<summary><b>Why do some video sources fail to stream or resolve?</b></summary>
+Third-party providers may experience transient outages or anti-bot protections. Animaku ships with multiple high-quality proprietary direct streams (e.g. Xifan Next, Cycani, Moonci, TvTFun). Switch to another source in the sidebar anytime.
 </details>
 
 <details>

@@ -30,7 +30,8 @@ migrateLocalStorageKey('animaku-plugins', [
 /** v24: set moonci weight to 70 & preferOriginalTitle: true; tune cycani weight to 65 */
 /** v25: tune default weights (xifan-next: 75, cycani: 70, moonci: 65, tvtfun: 65) */
 /** v26: add oldAnimePriority for cycani & tvtfun to prioritize classic/vintage anime (airDate <= currentYear - 5) */
-export const PLUGIN_DEFAULTS_VERSION = 26
+/** v27: retire anime1 & libvio from default built-ins to enforce pure zero-bandwidth CDN direct stream */
+export const PLUGIN_DEFAULTS_VERSION = 27
 
 interface PluginState {
   plugins: PluginMeta[]
@@ -375,7 +376,10 @@ export const usePluginStore = create<PluginState>()(
         let next = plugins.filter(
           (p) =>
             !(
-              (p.name.toLowerCase() === '7sefun' || p.name.toLowerCase() === 'otage') &&
+              (p.name.toLowerCase() === '7sefun' ||
+                p.name.toLowerCase() === 'otage' ||
+                p.name.toLowerCase() === 'anime1' ||
+                p.name.toLowerCase() === 'libvio') &&
               (p.source === 'builtin' || p.source === undefined)
             ),
         )

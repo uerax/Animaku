@@ -23,15 +23,6 @@ export async function api<T>(
   if (init.token) {
     headers.set('Authorization', `Bearer ${init.token}`)
   }
-  // Inject administrator proxy token if available in local settings
-  try {
-    const proxyToken = useSettingsStore.getState().proxyToken?.trim()
-    if (proxyToken && !headers.has('X-Animaku-Proxy-Token')) {
-      headers.set('X-Animaku-Proxy-Token', proxyToken)
-    }
-  } catch {
-    /* ignore store access error */
-  }
 
   // Non-blocking browser fingerprint injection if ready (0ms overhead)
   try {

@@ -128,7 +128,7 @@
 - 请求日志记录器 (时区格式化、设备解析、Pretty/JSON 双模)：`apps/server/src/lib/logger.ts`
 - 全局 IP 访问统计与 Rate Limit 频控中间件：`apps/server/src/lib/ip-rate-limit.ts`
 - 播放量与指标统计路由：`apps/server/src/routes/stats.ts`
-- 访问控制与 Token 校验：`apps/server/src/lib/access.ts`
+- CORS 跨域决策与客户端 IP 提取：`apps/server/src/lib/access.ts`
 - 私有 IP 拦截与内网熔断：`apps/server/src/lib/private-host.ts`
 - 配置选项全景参考指南 Wiki 文档：`docs/wiki/Configuration-Guide.md`
 - 系统架构与核心技术设计文档：`docs/architecture.md`

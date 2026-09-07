@@ -60,7 +60,7 @@ export function getDefaultMediaKey(): Buffer {
   }
 
   // 2. 不存在持久化 Key 时，检查环境变量
-  const configuredSecret = config.mediaSecret || config.proxyToken
+  const configuredSecret = config.mediaSecret
   let resolvedKey: Buffer
   if (configuredSecret) {
     resolvedKey = deriveKey(configuredSecret)
