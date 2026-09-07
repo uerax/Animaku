@@ -4,6 +4,42 @@
 
 ---
 
+## [2026-09-07] 播放系统服务端安全与播放逻辑全景检查、凭据脱敏隔离、广告过滤闭环与网关加固 (v1.5.11)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **全景安全与播放逻辑审计发现并修复敏感凭据泄露漏洞 (`playback-registry.ts` & `rule-engine/index.ts`)**：
+     - 在 `PlaybackRegistry` 引入 `sanitizePublicHeaders`，对资产 `publicHeaders` 进行敏感头清洗，严格剥离 `cookie`、`set-cookie`、`authorization`、`proxy-authorization`，杜绝敏感凭据混入公共头或被跨域子资产无意继承；
+     - 在 `wrapResolveWithTicket` 对外输出端点执行脱敏：当凭据已受控加密入库（`cookie` 或 `requiresProxy` 为真）时，自动从下发给客户端的 `result.headers` 中剔除 `Cookie` 与 `Authorization`，彻底封堵客户端抓包暴露源站内部 Cookie 的隐患；
+  2. **闭环规则引擎 `adBlocker: true` 广告过滤参数穿透与 Ticket 绑定 (`rule-engine/index.ts`)**：
+     - 修复 `wrapResolveWithTicket` 覆写 `proxyUrl` 时丢失 `adFilter=1` 参数导致规则级广告过滤失效的逻辑缺陷；
+     - 当规则开启 `adBlocker: true` 或解析结果带有 `adFilter=1` 且格式为 HLS 时，自动为受控 Ticket URL 附加 `&adFilter=1`；前端 `pickPlaybackSrc` 准确识别 `needProxyForAds` 并进入 `playlist-proxy`（过滤广告且分片 302 直连 CDN 零服务器带宽），服务端 M3U8 改写管线正确调用 `filterM3u8AdsIfApplicable` 剔除切片广告；
+  3. **HLS AST 改写管线防 DoS 资产容量挤出保护 (`hls-pipeline.ts`)**：
+     - 在 `rewriteM3u8Ast` 中设置单次 M3U8 解析允许派生的最大独立子资产基址上限 `MAX_SUB_ASSETS_PER_PLAYLIST = 32`；
+     - 遭遇构造海量伪造目录的恶意 M3U8 时，超出上限自动回退至根资产基址，彻底阻断利用单次 M3U8 刷爆全局 10,000 资产仓储的拒绝服务与挤出正常播放资产漏洞；
+  4. **媒体网关全面支持 HEAD 预检探测与注入 MIME 防嗅探头 (`routes/media.ts`)**：
+     - 将 `/status`、`/stream`、`/segment` 统一升级为 `on(['GET', 'HEAD'], ...)`，完美适配移动端播放核心与下载工具的 HEAD 探测；
+     - 在 HEAD 请求中优雅取消上游 body（`cancelBody`）释放 socket 连接，并严格归还流控槽位；
+     - 在全量媒体网关响应中注入 `'X-Content-Type-Options': 'nosniff'` 安全头，杜绝跨域 MIME 嗅探安全隐患；
+  5. **视频源路由请求体健壮性防护 (`routes/source.ts`)**：
+     - 在 `/search`、`/chapters`、`/resolve` 增加非对象 JSON（如 `[]`、`null`、`123`）守卫拦截，返回规范的 400 `bad_request`，彻底避免内部 `TypeError: Cannot use 'in' operator` 抛出 500；
+  6. **全仓测试与版本升级**：
+     - 补充 5 组全量单测（涵盖凭据清洗脱敏、广告过滤传导、DoS 资产上限、HEAD 探测 nosniff、非法 JSON 守卫），服务端测试增至 90 项且 100% 通过，全仓 `typecheck` 0 错误；
+     - 项目版本号由 `v1.5.10` 递增至 `v1.5.11`。
+- 涉及文件：
+  - apps/server/src/lib/media/playback-registry.ts
+  - apps/server/src/rule-engine/index.ts
+  - apps/server/src/lib/media/hls-pipeline.ts
+  - apps/server/src/routes/media.ts
+  - apps/server/src/routes/source.ts
+  - apps/server/src/lib/media/media-gateway.test.ts
+  - package.json
+  - apps/server/package.json
+  - apps/web/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+
 ## [2026-09-07] 落地受控媒体网关轻量存活校验端点、客户端阶梯退避与 Safari 原生 HLS 看门狗 (v1.5.10)
 - 状态：已完成
 - 优先级：P1

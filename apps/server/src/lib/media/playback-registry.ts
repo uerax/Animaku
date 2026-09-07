@@ -28,6 +28,29 @@ export const MAX_ASSETS_CAPACITY = 10_000
 export const MAX_REVOKED_JTI_CAPACITY = 20_000
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 
+/**
+ * 敏感请求头清洗过滤，严防 Cookie 与 Authorization 注入公共请求头
+ */
+export function sanitizePublicHeaders(
+  headers?: Record<string, string>,
+): Record<string, string> | undefined {
+  if (!headers || typeof headers !== 'object') return undefined
+  const cleaned: Record<string, string> = {}
+  for (const [k, v] of Object.entries(headers)) {
+    const lower = k.toLowerCase().trim()
+    if (
+      lower === 'cookie' ||
+      lower === 'set-cookie' ||
+      lower === 'authorization' ||
+      lower === 'proxy-authorization'
+    ) {
+      continue
+    }
+    cleaned[k] = v
+  }
+  return Object.keys(cleaned).length > 0 ? cleaned : undefined
+}
+
 export interface PlaybackRegistryOptions {
   key?: Buffer
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -141,7 +164,7 @@ export class PlaybackRegistry {
       trustLevel: input.trustLevel || 'official',
       status: 'active',
       baseUrl: input.baseUrl,
-      publicHeaders: input.publicHeaders,
+      publicHeaders: sanitizePublicHeaders(input.publicHeaders),
       encryptedCredentials,
       expiresAt,
       createdAt: now,

@@ -145,11 +145,18 @@ async function handlePlaylistStream(
       forceProxy,
     })
 
-    return c.body(rewrittenM3u8, 200, {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/vnd.apple.mpegurl',
       'Cache-Control': 'public, max-age=60',
       'Access-Control-Allow-Origin': '*',
-    })
+      'X-Content-Type-Options': 'nosniff',
+    }
+
+    if (c.req.method === 'HEAD') {
+      return new Response(null, { status: 200, headers })
+    }
+
+    return c.body(rewrittenM3u8, 200, headers)
   } finally {
     // 播放列表文本分发为瞬时请求，必须严格保证 100% 释放并发槽位，防止泄漏锁死
     releaseStream(clientIp)
@@ -211,14 +218,23 @@ async function handleBinarySegment(
         fetchResult.status as 403 | 502,
       )
     }
+    const keyHeaders: Record<string, string> = {
+      'Content-Type': 'application/octet-stream',
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': 'public, max-age=86400',
+      'X-Content-Type-Options': 'nosniff',
+    }
+    if (c.req.method === 'HEAD') {
+      cancelBody(fetchResult.upstream)
+      return new Response(null, {
+        status: 200,
+        headers: keyHeaders,
+      })
+    }
     const keyBytes = await fetchResult.upstream.arrayBuffer()
     return new Response(keyBytes, {
       status: 200,
-      headers: {
-        'Content-Type': 'application/octet-stream',
-        'Access-Control-Allow-Origin': '*',
-        'Cache-Control': 'public, max-age=86400',
-      },
+      headers: keyHeaders,
     })
   }
 
@@ -267,6 +283,7 @@ async function handleBinarySegment(
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Expose-Headers':
         'Content-Length, Content-Range, Accept-Ranges',
+      'X-Content-Type-Options': 'nosniff',
     }
     const passHeaders = [
       'content-type',
@@ -280,7 +297,8 @@ async function handleBinarySegment(
       if (v) resHeaders[h] = v
     }
 
-    if (!upstream.body) {
+    if (!upstream.body || c.req.method === 'HEAD') {
+      cancelBody(upstream)
       return new Response(null, {
         status: upstream.status,
         headers: resHeaders,
@@ -305,7 +323,7 @@ async function handleBinarySegment(
 }
 
 /**
- * GET /api/media/status?t=...
+ * GET/HEAD /api/media/status?t=...
  * 播放票据与关联媒体资产存活性轻量探活端点（零外部网络 I/O，微秒级响应）
  * 专供客户端/Safari 假死看门狗探测凭据健康度：
  * - 拦截 url 参数注入，防止被利用为开放代理或探测外部地址；
@@ -314,7 +332,7 @@ async function handleBinarySegment(
  * - 凭据无效或关联资产不存在返回 403 Forbidden；
  * - 严禁触发任何外部源站抓取或 AST 改写。
  */
-mediaRoutes.get('/status', (c) => {
+mediaRoutes.on(['GET', 'HEAD'], '/status', (c) => {
   // 1. 彻底拦截 url 参数注入
   if (c.req.query('url') !== undefined) {
     return c.json(
@@ -341,15 +359,20 @@ mediaRoutes.get('/status', (c) => {
   }
 
   // 3. 票据与资产存活健康，返回 204 No Content
-  return c.body(null, 204)
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'X-Content-Type-Options': 'nosniff',
+    },
+  })
 })
 
 /**
- * GET /api/media/stream?t=...
+ * GET/HEAD /api/media/stream?t=...
  * 播放列表受控分发网关（严格拦截 url 参数，执行 Content-Type 门禁与全要素 HLS AST 改写）
  * 自适应兼容：若收到合法的 segment 票据（如 MP4 直链），直接内部进入分片/直连处理管道，免去多余重定向
  */
-mediaRoutes.get('/stream', async (c) => {
+mediaRoutes.on(['GET', 'HEAD'], '/stream', async (c) => {
   // 1. 彻底拦截 url 参数注入
   if (c.req.query('url') !== undefined) {
     return c.json(
@@ -395,11 +418,11 @@ mediaRoutes.get('/stream', async (c) => {
 })
 
 /**
- * GET /api/media/segment?t=...
+ * GET/HEAD /api/media/segment?t=...
  * 媒体分片与密钥分发网关（支持 302 零流量直连与全量流式代拉）
  * 自适应兼容：若收到合法的 playlist 票据，直接内部进入播放列表处理管道
  */
-mediaRoutes.get('/segment', async (c) => {
+mediaRoutes.on(['GET', 'HEAD'], '/segment', async (c) => {
   // 1. 拦截 url 参数注入
   if (c.req.query('url') !== undefined) {
     return c.json(

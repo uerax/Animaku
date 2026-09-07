@@ -112,6 +112,8 @@ export function rewriteM3u8Ast(
 
   // 本次 M3U8 改写范围内的跨域/绝对路径子资产共享缓存（按基址缓存，杜绝重复创建）
   const subAssetCache = new Map<string, PlaybackAsset>()
+  /** 单次播放列表解析允许派生的最大独立子资产基址数量，防恶意 M3U8 DoS 挤出正常播放资产 */
+  const MAX_SUB_ASSETS_PER_PLAYLIST = 32
 
   function issueTicketForUri(uri: string, typ: PlaybackTicketType): string {
     const trimmed = uri.trim()
@@ -139,17 +141,22 @@ export function rewriteM3u8Ast(
       if (check.valid) {
         let cached = subAssetCache.get(targetBase)
         if (!cached) {
-          cached = playback.registerAsset({
-            source: asset.source,
-            baseUrl: targetBase,
-            trustLevel: asset.trustLevel,
-            publicHeaders: asset.publicHeaders,
-            credentials: asset.encryptedCredentials
-              ? playback.getDecryptedCredentials(asset) || undefined
-              : undefined,
-            ttlMs: Math.max(1000, asset.expiresAt - Date.now()),
-          })
-          subAssetCache.set(targetBase, cached)
+          if (subAssetCache.size >= MAX_SUB_ASSETS_PER_PLAYLIST) {
+            // 防 DoS：超出上限时回退至根资产基址
+            cached = asset
+          } else {
+            cached = playback.registerAsset({
+              source: asset.source,
+              baseUrl: targetBase,
+              trustLevel: asset.trustLevel,
+              publicHeaders: asset.publicHeaders,
+              credentials: asset.encryptedCredentials
+                ? playback.getDecryptedCredentials(asset) || undefined
+                : undefined,
+              ttlMs: Math.max(1000, asset.expiresAt - Date.now()),
+            })
+            subAssetCache.set(targetBase, cached)
+          }
         }
         targetAsset = cached
         finalSub = check.normalized
@@ -157,17 +164,21 @@ export function rewriteM3u8Ast(
         // 极端异常兜底：以完整 URL 登记单个子资产并加入单 URL 缓存
         let cached = subAssetCache.get(targetUrl.href)
         if (!cached) {
-          cached = playback.registerAsset({
-            source: asset.source,
-            baseUrl: targetUrl.href,
-            trustLevel: asset.trustLevel,
-            publicHeaders: asset.publicHeaders,
-            credentials: asset.encryptedCredentials
-              ? playback.getDecryptedCredentials(asset) || undefined
-              : undefined,
-            ttlMs: Math.max(1000, asset.expiresAt - Date.now()),
-          })
-          subAssetCache.set(targetUrl.href, cached)
+          if (subAssetCache.size >= MAX_SUB_ASSETS_PER_PLAYLIST) {
+            cached = asset
+          } else {
+            cached = playback.registerAsset({
+              source: asset.source,
+              baseUrl: targetUrl.href,
+              trustLevel: asset.trustLevel,
+              publicHeaders: asset.publicHeaders,
+              credentials: asset.encryptedCredentials
+                ? playback.getDecryptedCredentials(asset) || undefined
+                : undefined,
+              ttlMs: Math.max(1000, asset.expiresAt - Date.now()),
+            })
+            subAssetCache.set(targetUrl.href, cached)
+          }
         }
         targetAsset = cached
         finalSub = ''

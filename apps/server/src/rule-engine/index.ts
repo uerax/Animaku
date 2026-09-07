@@ -1576,7 +1576,7 @@ function finishResolve(
   })
 }
 
-function wrapResolveWithTicket(
+export function wrapResolveWithTicket(
   rule: PluginRule,
   result: ResolvePlayResult,
 ): ResolvePlayResult {
@@ -1604,11 +1604,36 @@ function wrapResolveWithTicket(
       sub: '',
     })
     const endpoint = isMp4 ? '/api/media/segment' : '/api/media/stream'
+
+    // 闭环广告过滤：若规则开启了 adBlocker 或结果已携带 adFilter=1，且为 HLS 流，在 Ticket 代理入口保留 adFilter=1
+    const shouldFilterAds =
+      !isMp4 &&
+      (Boolean(rule.adBlocker) ||
+        Boolean(
+          result.proxyUrl &&
+            /[?&]adFilter=(?:1|true)(?:&|$)/.test(result.proxyUrl),
+        ))
+    const adFilterQuery = shouldFilterAds ? '&adFilter=1' : ''
+
+    // 凭据隔离脱敏：受控代拉凭据（Cookie/Authorization）已安全加密入库，对外下发的 headers 剔除敏感凭据头
+    let safeHeaders = result.headers
+    if (safeHeaders && (cookie || requiresProxy)) {
+      const {
+        Cookie: _c1,
+        cookie: _c2,
+        Authorization: _a1,
+        authorization: _a2,
+        ...rest
+      } = safeHeaders
+      safeHeaders = Object.keys(rest).length > 0 ? rest : undefined
+    }
+
     return {
       ...result,
-      proxyUrl: `${endpoint}?t=${encodeURIComponent(ticket)}`,
+      proxyUrl: `${endpoint}?t=${encodeURIComponent(ticket)}${adFilterQuery}`,
       requiresProxy,
       format,
+      headers: safeHeaders,
     }
   } catch (err) {
     console.warn(

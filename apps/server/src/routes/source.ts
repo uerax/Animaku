@@ -70,6 +70,10 @@ sourceRoutes.post('/search', requirePluginApiAccess, async (c) => {
     return c.json({ error: 'bad_request', message: '请求体必须为合法 JSON' }, 400)
   }
 
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return c.json({ error: 'bad_request', message: '请求体必须为 JSON 对象' }, 400)
+  }
+
   try {
     assertNoForbiddenParams(body)
   } catch (err) {
@@ -107,6 +111,10 @@ sourceRoutes.post('/chapters', requirePluginApiAccess, async (c) => {
     body = (await c.req.json()) as Record<string, unknown>
   } catch {
     return c.json({ error: 'bad_request', message: '请求体必须为合法 JSON' }, 400)
+  }
+
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return c.json({ error: 'bad_request', message: '请求体必须为 JSON 对象' }, 400)
   }
 
   try {
@@ -151,6 +159,10 @@ sourceRoutes.post('/resolve', requirePluginApiAccess, async (c) => {
     body = (await c.req.json()) as Record<string, unknown>
   } catch {
     return c.json({ error: 'bad_request', message: '请求体必须为合法 JSON' }, 400)
+  }
+
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return c.json({ error: 'bad_request', message: '请求体必须为 JSON 对象' }, 400)
   }
 
   try {

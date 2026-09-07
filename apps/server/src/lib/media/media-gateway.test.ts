@@ -2,11 +2,13 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
 import { rewriteM3u8Ast } from './hls-pipeline'
-import { PlaybackRegistry, playbackRegistry } from './playback-registry'
+import { PlaybackRegistry, playbackRegistry, sanitizePublicHeaders } from './playback-registry'
 import { getActiveStreamsForIp, resetActiveStreams } from './stream-tracker'
 import { SourceRegistry } from '../source/source-registry'
 import { kvCache } from '../../db/repositories/kv-cache'
 import { mediaRoutes } from '../../routes/media'
+import { sourceRoutes } from '../../routes/source'
+import { wrapResolveWithTicket } from '../../rule-engine'
 import type { SourceAdapter } from '../source/source-types'
 
 test('hls-pipeline: rewrites variant playlists, keys, init map and segments with opaque tickets', () => {
@@ -536,6 +538,153 @@ test('hls-pipeline: correctly resolves parent-relative ../ segment paths without
     const resolvedUrl = playback.resolveAssetUrl(asset, verify.normalizedSub)
     assert.equal(resolvedUrl, 'https://cdn.example.com/hls/segments/seg0.ts')
   }
+})
+
+test('playbackRegistry: sanitizePublicHeaders strips sensitive credentials from publicHeaders', () => {
+  const dirty = {
+    'User-Agent': 'TestAgent/1.0',
+    Referer: 'https://example.com/',
+    Cookie: 'session=12345; auth=token',
+    cookie: 'extra=1',
+    Authorization: 'Bearer secret',
+    'proxy-authorization': 'Basic secret',
+  }
+  const cleaned = sanitizePublicHeaders(dirty)
+  assert.ok(cleaned)
+  assert.equal(cleaned['User-Agent'], 'TestAgent/1.0')
+  assert.equal(cleaned.Referer, 'https://example.com/')
+  assert.equal('Cookie' in cleaned, false)
+  assert.equal('cookie' in cleaned, false)
+  assert.equal('Authorization' in cleaned, false)
+  assert.equal('proxy-authorization' in cleaned, false)
+
+  // Verify asset registration auto-sanitizes publicHeaders
+  const key = randomBytes(32)
+  const playback = new PlaybackRegistry({ key, kv: kvCache })
+  const asset = playback.registerAsset({
+    source: 'anime1',
+    baseUrl: 'https://v.anime1.me/1.mp4',
+    publicHeaders: dirty,
+    credentials: 'secure-credential',
+  })
+  assert.ok(asset.publicHeaders)
+  assert.equal('Cookie' in asset.publicHeaders, false)
+  assert.equal('cookie' in asset.publicHeaders, false)
+  assert.equal('Authorization' in asset.publicHeaders, false)
+  assert.equal(asset.publicHeaders.Referer, 'https://example.com/')
+  assert.equal(playback.getDecryptedCredentials(asset), 'secure-credential')
+})
+
+test('hls-pipeline: caps sub-assets per playlist to protect against DoS asset capacity exhaustion', () => {
+  const key = randomBytes(32)
+  const playback = new PlaybackRegistry({ key, kv: kvCache })
+
+  const asset = playback.registerAsset({
+    source: 'xifan',
+    baseUrl: 'https://cdn.example.com/live/index.m3u8',
+  })
+
+  // Craft a malicious/bloated playlist with 40 distinct cross-host directories
+  const lines = ['#EXTM3U', '#EXT-X-VERSION:3']
+  for (let i = 0; i < 40; i++) {
+    lines.push('#EXTINF:6.0,')
+    lines.push(`https://cdn${i}.domain.com/path${i}/seg.ts`)
+  }
+  lines.push('#EXT-X-ENDLIST')
+
+  const rewritten = rewriteM3u8Ast(lines.join('\n'), asset, '', { playback })
+  assert.ok(rewritten)
+  const tickets = rewritten.match(/\/api\/media\/segment\?t=([^&\n\r]+)/g)
+  assert.ok(tickets && tickets.length === 40)
+})
+
+test('mediaRoutes: supports HEAD requests and injects X-Content-Type-Options nosniff across endpoints', async () => {
+  const asset = playbackRegistry.registerAsset({
+    source: 'cycani',
+    baseUrl: 'https://cdn.example.com/ep.mp4',
+  })
+  const ticket = playbackRegistry.issueTicket({
+    aid: asset.assetId,
+    src: 'cycani',
+    typ: 'segment',
+  })
+
+  // 1. HEAD /status
+  const statusRes = await mediaRoutes.request(
+    `http://localhost/status?t=${encodeURIComponent(ticket)}`,
+    { method: 'HEAD' },
+  )
+  assert.equal(statusRes.status, 204)
+  assert.equal(statusRes.headers.get('X-Content-Type-Options'), 'nosniff')
+
+  // 2. HEAD /segment (MP4 302 redirect in high performance mode)
+  const segRes = await mediaRoutes.request(
+    `http://localhost/segment?t=${encodeURIComponent(ticket)}`,
+    { method: 'HEAD' },
+  )
+  assert.equal(segRes.status, 302)
+  assert.equal(segRes.headers.get('Location'), 'https://cdn.example.com/ep.mp4')
+})
+
+test('sourceRoutes: strictly rejects non-object JSON payloads with 400 bad_request instead of 500', async () => {
+  const nonObjectPayloads = ['[]', 'null', '123', '"plain string"']
+
+  for (const raw of nonObjectPayloads) {
+    const res = await sourceRoutes.request('http://localhost/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: raw,
+    })
+    assert.equal(res.status, 400)
+    const data = (await res.json()) as { error: string; message: string }
+    assert.equal(data.error, 'bad_request')
+  }
+})
+
+test('wrapResolveWithTicket: preserves adFilter=1 on proxyUrl and redacts sensitive credentials from headers', () => {
+  // 1. adBlocker: true should propagate &adFilter=1 to ticket proxyUrl
+  const ruleWithAdBlocker = {
+    name: 'test-ad-blocker',
+    adBlocker: true,
+  }
+  const res1 = wrapResolveWithTicket(ruleWithAdBlocker as any, {
+    playUrl: 'https://cdn.example.com/stream/index.m3u8',
+    proxyUrl: '/api/media/proxy?url=https%3A%2F%2Fcdn.example.com%2Fstream%2Findex.m3u8',
+    format: 'hls',
+  })
+  assert.ok(res1.proxyUrl)
+  assert.ok(res1.proxyUrl.includes('/api/media/stream?t='))
+  assert.ok(res1.proxyUrl.endsWith('&adFilter=1'))
+
+  // 2. MP4 should not have adFilter
+  const res2 = wrapResolveWithTicket(ruleWithAdBlocker as any, {
+    playUrl: 'https://cdn.example.com/video.mp4',
+    proxyUrl: '/api/media/proxy?url=https%3A%2F%2Fcdn.example.com%2Fvideo.mp4',
+    format: 'mp4',
+  })
+  assert.ok(res2.proxyUrl)
+  assert.ok(res2.proxyUrl.includes('/api/media/segment?t='))
+  assert.equal(res2.proxyUrl.includes('adFilter=1'), false)
+
+  // 3. Cookie redaction: headers containing Cookie should be stripped in returned result
+  const ruleWithCookie = {
+    name: 'anime1',
+  }
+  const res3 = wrapResolveWithTicket(ruleWithCookie as any, {
+    playUrl: 'https://v.anime1.me/1.mp4',
+    proxyUrl: '/api/media/proxy?url=https%3A%2F%2Fv.anime1.me%2F1.mp4',
+    format: 'mp4',
+    headers: {
+      'User-Agent': 'Mozilla/5.0',
+      Referer: 'https://anime1.me/',
+      Cookie: 'session=secret123',
+    },
+  })
+  assert.equal(res3.requiresProxy, true)
+  assert.ok(res3.headers)
+  assert.equal(res3.headers['User-Agent'], 'Mozilla/5.0')
+  assert.equal(res3.headers.Referer, 'https://anime1.me/')
+  assert.equal('Cookie' in res3.headers, false)
 })
 
 
