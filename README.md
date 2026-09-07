@@ -12,7 +12,7 @@
     <img src="https://img.shields.io/badge/Vite-6-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite 6" />
     <img src="https://img.shields.io/badge/Hono-API-E36002?style=for-the-badge&logo=hono&logoColor=white" alt="Hono API" />
     <img src="https://img.shields.io/badge/WebGPU-Anime4K-9cf?style=for-the-badge&logo=webgpu&logoColor=white" alt="WebGPU Anime4K" />
-    <img src="https://img.shields.io/badge/AniBaka-anx--rule/2-10B981?style=for-the-badge" alt="AniBaka Rule" />
+    <img src="https://img.shields.io/badge/Direct_Stream-1080P-10B981?style=for-the-badge" alt="Direct Stream" />
     <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker Ready" />
   </p>
 
@@ -20,8 +20,8 @@
     现代化自托管二次元番剧流媒体客户端。<br />
     开箱内置优质 1080P 原画直链源，原生集成 <b>Bangumi 周更放送与维基数据</b>、
     <b>流畅弹幕系统</b>、<b>WebGPU 实时 4K 超分</b>、<b>智能跳过 OP/ED</b>、
-    <b>桌面宽屏模式</b> 与 <b>B 站同款番剧推荐流</b>。<br />
-    支持 <b>AniBaka 与 Kazumi 双规则生态</b>，数据 100% 纯本地私有，日夜双模态琉璃美学。开箱即用，专为追番设计。
+    <b>桌面宽屏模式</b> 与 <b>智能番剧推荐流</b>。<br />
+    内置精选优质多源与平滑切源，数据 100% 纯本地私有，日夜双模态琉璃美学。开箱即用，专为追番设计。
   </p>
 
   <p>
@@ -42,9 +42,9 @@
 | :--- | :--- |
 | **🎬 画质与播放** | 内置 1080P 直链免代理播放、WebGPU 实时 4K 超分、智能跳过片头片尾、M3U8 智能去广告 |
 | **💬 弹幕生态** | 弹弹play 海量弹幕聚合、本地 XML / Pakku 弹幕导入、防遮挡降噪、高能进度条热力图 |
-| **🔌 规则与片源** | 支持 **AniBaka (34+ 现代直链源)** 与 **Kazumi 传统规则** 在线安装更新，支持多线路探活看板 |
+| **🔌 片源与选线** | 内置精选优质播放源、支持拖拽自定义优先级排序、多源聚合与快捷换源 |
 | **📅 维基与追番** | Bangumi 每日周更放送表、番剧/剧场版多重检索、个人追番管理与 Bangumi Token 进度同步 |
-| **🖥️ 交互与设计** | 桌面端「🖥️ 宽屏模式」一屏铺满、B 站同款番剧推荐流、手机端触控手势、日夜双模态琉璃质感 |
+| **🖥️ 交互与设计** | 桌面端「🖥️ 宽屏模式」一屏铺满、智能番剧推荐流、手机端触控手势、日夜双模态琉璃质感 |
 | **🔒 隐私与性能** | 数据 100% 存储在浏览器本地，零商业数据追踪；轻量内存占用，单容器秒级启动 |
 
 ## ✨ 核心特性
@@ -63,16 +63,16 @@
   - **丝滑不抖动**：弹幕平滑均匀滚动，不遮挡、不横跳，支持同屏弹幕密度过载过滤与重复弹幕聚合。
   - **高能热力波形**：播放器进度条动态呈现高能弹幕波形，名场面与剧情转折一目了然。
 
-- 🔌 **海量片源与双规则生态**
-  - **双规则库支持**：设置页一键在线安装 **⭐ AniBaka 规则库 (34+ 现代直连源)** 或 **📦 Kazumi 传统规则库**，也支持导入自定义 JSON 规则。
-  - **直观规则管理**：支持鼠标与手机触摸拖拽排序、首位设为主源、状态彩色标签一目了然。
-  - **多源探活看板**：播放时自动在右侧展开三色指示看板（🟢 已就绪 / 🟡 备选 / 🔴 异常），线路状态一清二楚。
+- 🔌 **内置精选多源与快捷换源**
+  - **开箱内置优质源**：内置多个精选高质量视频源，覆盖当季新番与经典老番，客户端直连秒开。
+  - **直观源管理**：支持鼠标与手机触摸拖拽排序、首位自动设为默认主源，支持按源独立开关与广告过滤。
+  - **播放页无缝换源**：播放时随时展开右侧选源抽屉，支持多源结果预览与一键快速切换，稳定不中断。
 
 - 📅 **番剧维基、追番与推荐**
   - **每日放送时间表**：实时同步 Bangumi 周更日历，本季度新番更新状态随时查阅。
   - **海量检索与详情**：支持动画、剧场版与特摄影视混合检索，完整呈现演职员表与分集剧情。
   - **追番同步**：支持「想看/在看/看过」本地标记，填入 Bangumi Token 即可实现双向数据同步。
-  - **B 站风格推荐流**：播放页下方精选续作、剧场版与同类型高分佳作，支持一键顺畅换番。
+  - **智能番剧推荐流**：播放页下方精选续作、剧场版与同类型高分佳作，支持一键顺畅换番。
 
 - 🖥️ **现代多端交互与轻量设计**
   - **日夜双模态美学**：精心调校的浅色温润质感与深色琉璃暗黑模式。
@@ -221,9 +221,9 @@ Anime4K 依赖本地浏览器的 WebGPU 显卡硬件计算。如果设备显卡�
 * **纯本地存储**：播放记录、收藏夹与个性化配置仅保存在使用者浏览器本地（`localStorage`）。
 
 ### 特别致谢
-感谢以下优秀的开源项目与平台为 Animaku 提供的灵感与生态支持：
-* [AniBaka](https://github.com/AniBakaBaka/AniBaka) 与 [AniBakaRule](https://github.com/AniBakaBaka/AniBakaRule) —— 现代流水线规则生态
-* [Kazumi](https://github.com/Predidit/Kazumi) 与 [KazumiRules](https://github.com/Predidit/KazumiRules) —— 规则模型与灵感参考
+感谢以下优秀的开源项目与平台为 Animaku 提供的灵感支持：
+* [AniBaka](https://github.com/AniBakaBaka/AniBaka) —— 灵感参考
+* [Kazumi](https://github.com/Predidit/Kazumi) —— 早期灵感参考
 * [Bangumi 番组计划](https://bangumi.tv/) 开放平台 —— 丰富的二次元番剧元数据与时间表
 * [弹弹play](https://www.dandanplay.com/) 开放平台 —— 详尽的番剧弹幕库支持
 * [Anime4K](https://github.com/bloc97/Anime4K) —— 优秀的动画实时超分辨率算法

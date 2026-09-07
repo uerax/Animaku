@@ -12,7 +12,7 @@
     <img src="https://img.shields.io/badge/Vite-6-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite 6" />
     <img src="https://img.shields.io/badge/Hono-API-E36002?style=for-the-badge&logo=hono&logoColor=white" alt="Hono API" />
     <img src="https://img.shields.io/badge/WebGPU-Anime4K-9cf?style=for-the-badge&logo=webgpu&logoColor=white" alt="WebGPU Anime4K" />
-    <img src="https://img.shields.io/badge/AniBaka-anx--rule/2-10B981?style=for-the-badge" alt="AniBaka Rule" />
+    <img src="https://img.shields.io/badge/Direct_Stream-1080P-10B981?style=for-the-badge" alt="Direct Stream" />
     <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker Ready" />
   </p>
 
@@ -20,8 +20,8 @@
     A modern self-hosted anime streaming web client.<br />
     Comes with out-of-the-box 1080P original stream sources, natively integrated with <b>Bangumi broadcast calendar & wiki metadata</b>, 
     <b>smooth danmaku system</b>, <b>WebGPU real-time 4K upscaling</b>, <b>smart OP/ED skip</b>, 
-    <b>desktop Widescreen mode</b>, and <b>anime recommendations</b>.<br />
-    Supports <b>AniBaka & Kazumi dual rule ecosystems</b>, 100% local privacy, and light/dark glassmorphic design. Built for anime lovers.
+    <b>desktop Widescreen mode</b>, and <b>smart anime recommendations</b>.<br />
+    Built-in curated streaming sources with seamless switching, 100% local privacy, and light/dark glassmorphic design. Built for anime lovers.
   </p>
 
   <p>
@@ -42,9 +42,9 @@
 | :--- | :--- |
 | **🎬 Playback & Video** | Built-in 1080P direct streams, WebGPU 4K upscaling, smart OP/ED skip, M3U8 ad filter |
 | **💬 Danmaku System** | DanDanPlay aggregation, local XML / Pakku import, anti-overlap noise reduction, high-energy heatmap |
-| **🔌 Rules & Sources** | Supports **AniBaka (34+ modern direct sources)** and **Kazumi rules** with one-click install and live status board |
+| **🔌 Sources & Switching** | Built-in curated streaming sources, drag-and-drop priority sorting, and quick source switching |
 | **📅 Wiki & Tracking** | Bangumi weekly schedule, anime / cinema search, watchlist tracking with Bangumi Token sync |
-| **🖥️ UX & Design** | Desktop Widescreen mode, recommendations, mobile touch gestures, light/dark dual-theme |
+| **🖥️ UX & Design** | Desktop Widescreen mode, smart recommendations, mobile touch gestures, light/dark dual-theme |
 | **🔒 Privacy & Perf** | 100% stored locally in browser, zero tracking; ultra-lightweight memory footprint |
 
 ## ✨ Core Features
@@ -63,10 +63,10 @@
   - **Silky & Stable**: Monotonic time-driven scrolling eliminates jitter; includes density throttling and deduplication.
   - **High-Energy Heatmap**: Seekbar visually plots danmaku density waves so you never miss iconic scenes.
 
-- 🔌 **Abundant Sources & Dual Rule Ecosystems**
-  - **Dual Ecosystem Support**: One-click install from the **⭐ AniBaka Rule Repository (34+ modern direct sources)** or **📦 Kazumi Legacy Rules**, plus custom JSON rule imports.
-  - **Intuitive Management**: Touch and mouse drag-and-drop rule reordering, primary source tagging, and colored state chips.
-  - **Live Status Board**: 3-color indicator (🟢 Ready / 🟡 Standby / 🔴 Error) displays line availability at a glance.
+- 🔌 **Curated Multi-Sources & Quick Switching**
+  - **Built-in Quality Sources**: Pre-configured with reliable streaming sources covering new simulcasts and classic anime, offering fast direct CDN playback.
+  - **Intuitive Source Management**: Drag and drop via mouse or touch to reorder priorities; the top source acts as default, with per-source toggles and ad filters.
+  - **Quick Source Switching**: Easily open the source drawer during playback to view search matches across sources and switch seamlessly.
 
 - 📅 **Anime Wiki, Tracking & Recommendations**
   - **Daily Schedule**: Real-time sync with Bangumi weekly broadcast calendar to keep track of current season simulcasts.
@@ -221,8 +221,8 @@ This software is provided "as is" for learning, personal self-hosting, and educa
 * **Local Storage**: All history, favorites, and settings remain 100% in your browser (`localStorage`).
 
 ### Acknowledgements
-* [AniBaka](https://github.com/AniBakaBaka/AniBaka) & [AniBakaRule](https://github.com/AniBakaBaka/AniBakaRule)
-* [Kazumi](https://github.com/Predidit/Kazumi) & [KazumiRules](https://github.com/Predidit/KazumiRules)
+* [AniBaka](https://github.com/AniBakaBaka/AniBaka) —— Design inspiration
+* [Kazumi](https://github.com/Predidit/Kazumi) —— Architecture and design inspiration
 * [Bangumi 番组计划](https://bangumi.tv/)
 * [弹弹play](https://www.dandanplay.com/)
 * [Anime4K](https://github.com/bloc97/Anime4K)
