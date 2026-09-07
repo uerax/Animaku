@@ -9,7 +9,6 @@ import {
 } from '@animaku/shared'
 import { bangumiApi } from '../lib/bangumi'
 import { pluginApi } from '../lib/plugin-api'
-import { validatePluginLocal } from '../lib/plugin-validate'
 import { pluginNeedsFullMediaProxy } from '../lib/plugin-capabilities'
 import {
   fetchServerHealth,
@@ -138,11 +137,8 @@ export function SettingsPage() {
   const plugins = usePluginStore((s) =>
     Array.isArray(s.plugins) ? s.plugins : EMPTY_ARRAY,
   )
-  const importRule = usePluginStore((s) => s.importRule)
   const removePlugin = usePluginStore((s) => s.removePlugin)
   const togglePlugin = usePluginStore((s) => s.togglePlugin)
-  const setPluginAdBlocker = usePluginStore((s) => s.setPluginAdBlocker)
-  const setPluginProxy = usePluginStore((s) => s.setPluginProxy)
   const ensureDefaults = usePluginStore((s) => s.ensureDefaults)
   const resetToDefaults = usePluginStore((s) => s.resetToDefaults)
   const pluginOrder = usePluginStore((s) =>
@@ -153,7 +149,6 @@ export function SettingsPage() {
   const [tokenInput, setTokenInput] = useState(bangumiToken)
   const [tokenMsg, setTokenMsg] = useState('')
   const [pluginMsg, setPluginMsg] = useState('')
-  const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     setTokenInput(bangumiToken)
@@ -169,7 +164,7 @@ export function SettingsPage() {
     staleTime: 60_000,
   })
   const mediaFullProxy = mediaFullProxyEnabled(health.data as ServerHealth | undefined)
-  const canUseFullProxySource = mediaFullProxy && Boolean(player.serverProxy)
+  const canUseFullProxySource = mediaFullProxy
 
   // OP/ED 标记助手本地数据
   const opedStore = useCustomOpedStore()
@@ -394,28 +389,6 @@ export function SettingsPage() {
     setBangumiToken(tokenInput.trim())
     setTokenMsg('已保存')
     setTimeout(() => setTokenMsg(''), 2000)
-  }
-
-  async function onImportFile(file: File) {
-    setPluginMsg('')
-    try {
-      const text = await file.text()
-      const json = JSON.parse(text)
-      const list = Array.isArray(json) ? json : [json]
-      let n = 0
-      for (const item of list) {
-        // Local parse only — rule JSON never uploaded for validation
-        const validated = validatePluginLocal(item)
-        if (!validated.ok || !validated.rule) {
-          throw new Error(validated.message || '规则无效')
-        }
-        importRule(validated.rule, { source: 'import' })
-        n++
-      }
-      setPluginMsg(`成功导入 ${n} 条规则（仅保存在本机）`)
-    } catch (e) {
-      setPluginMsg(e instanceof Error ? e.message : '导入失败')
-    }
   }
 
   return (
@@ -877,28 +850,10 @@ export function SettingsPage() {
           <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
-              onClick={() => fileRef.current?.click()}
-              className="inline-flex items-center gap-1 rounded-xl bg-[var(--kz-fg)] px-3.5 py-1.5 text-xs font-semibold text-[var(--kz-bg)] hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-sm"
-            >
-              <span>📥 导入 JSON</span>
-            </button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="application/json,.json"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0]
-                if (f) void onImportFile(f)
-                e.target.value = ''
-              }}
-            />
-            <button
-              type="button"
               onClick={() => {
                 if (
                   window.confirm(
-                    '将清空当前规则并恢复为内置默认（xifan-next / cycani / anime1 / libvio / mxdm / omofun / xifan），确定？',
+                    '将清空当前规则并恢复为内置默认，确定？',
                   )
                 ) {
                   resetToDefaults()
@@ -953,7 +908,7 @@ export function SettingsPage() {
 
         {!plugins.length && (
           <div className="rounded-2xl border border-dashed border-[var(--kz-border)] p-6 text-center text-xs sm:text-sm text-[var(--kz-fg-muted)]">
-            暂无插件，可从下方规则仓库安装或点击上方「恢复默认」。
+            暂无视频源，可点击上方「恢复默认」。
           </div>
         )}
 
@@ -963,9 +918,6 @@ export function SettingsPage() {
             const needsFull = pluginNeedsFullMediaProxy(p)
             const blockedByServer = needsFull && !canUseFullProxySource
             const effectivelyOn = p.enabled !== false && !blockedByServer
-            const proxyLocked = needsFull && canUseFullProxySource
-            const proxyDisabled = !canUseFullProxySource || !player.serverProxy
-            const proxyChecked = p.proxy ?? false
             const isFirst = idx === 0
             const isLast = idx === sortedPlugins.length - 1
             const isDragging = draggedName?.toLowerCase() === p.name.toLowerCase()
@@ -1017,8 +969,8 @@ export function SettingsPage() {
                         : 'border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] hover:border-[var(--kz-border-hover)] hover:shadow-xs'
                 } ${!effectivelyOn ? 'opacity-60 saturate-75 bg-[var(--kz-bg-soft)]/50' : ''}`}
               >
-                {/* 卡片上层：拖拽手柄 + 序号 + 规则名称 + 驱动徽章 + 默认源徽章 + 主启用 Switch */}
-                <div className="flex items-center justify-between gap-2 px-3 py-1.5 sm:py-2">
+                {/* 规则卡片行：拖拽手柄 + 序号 + 规则名称 + 驱动徽章 + 默认源徽章 + (删除) + 主启用 Switch */}
+                <div className="flex items-center justify-between gap-2 px-3 py-2">
                   <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-2.5">
                     {/* 拖拽手柄与微调 */}
                     <div
@@ -1110,12 +1062,28 @@ export function SettingsPage() {
                     </div>
                   </div>
 
-                  {/* 右侧：iOS 风格 Switch 主开关 */}
+                  {/* 右侧：删除按钮（自定义规则） + iOS 风格 Switch 主开关 */}
                   <div
                     className="flex items-center gap-2 shrink-0"
                     draggable={false}
                     onDragStart={(e) => e.stopPropagation()}
                   >
+                    {!isBuiltinPlugin(p) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm(`确定删除规则「${p.name}」吗？`)) {
+                            removePlugin(p.id)
+                          }
+                        }}
+                        className="inline-flex items-center gap-0.5 rounded-md border border-rose-500/20 bg-rose-500/5 px-1.5 py-0.5 text-[10.5px] font-medium text-rose-400 hover:bg-rose-500/15 hover:border-rose-500/30 hover:text-rose-500 transition-all cursor-pointer"
+                        title="删除此规则"
+                      >
+                        <span>🗑️</span>
+                        <span className="hidden sm:inline">删除</span>
+                      </button>
+                    )}
+
                     <label
                       className={`relative inline-flex items-center cursor-pointer select-none ${
                         blockedByServer ? 'cursor-not-allowed opacity-50' : ''
@@ -1140,89 +1108,6 @@ export function SettingsPage() {
                         {effectivelyOn ? '已启用' : '已停用'}
                       </span>
                     </label>
-                  </div>
-                </div>
-
-                {/* 卡片下层：BaseURL 外链 + 广告过滤 Pill + 代理 Pill + 删除按钮 */}
-                <div
-                  className="flex items-center justify-between gap-2 border-t border-[var(--kz-border)]/40 bg-[var(--kz-bg-soft)]/20 px-3 py-1 text-xs"
-                  draggable={false}
-                  onDragStart={(e) => e.stopPropagation()}
-                >
-                  <div className="flex items-center gap-1 text-[11px] text-[var(--kz-fg-muted)] min-w-0 max-w-[42%] sm:max-w-[50%]">
-                    <span className="text-[var(--kz-fg-dim)] shrink-0 text-[10px]">🔗</span>
-                    {p.baseURL ? (
-                      <a
-                        href={p.baseURL}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="truncate hover:text-[var(--kz-fg)] hover:underline transition-colors text-[10.5px] sm:text-[11px]"
-                        title={`打开源站：${p.baseURL}`}
-                      >
-                        {p.baseURL.replace(/^https?:\/\//, '')}
-                      </a>
-                    ) : (
-                      <span className="text-[var(--kz-fg-dim)] italic text-[10.5px]">内置专有直连</span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setPluginAdBlocker(p.id, !p.adBlocker)}
-                      className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10.5px] font-medium border transition-all cursor-pointer ${
-                        p.adBlocker
-                          ? 'border-emerald-500/35 bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 font-semibold'
-                          : 'border-[var(--kz-border)] bg-[var(--kz-bg)] text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] hover:bg-[var(--kz-bg-elevated)]'
-                      }`}
-                      title={
-                        p.adBlocker
-                          ? '已开启广告过滤（点击关闭）'
-                          : 'HLS 分片广告过滤（#EXT-X-DISCONTINUITY 短段过滤，点击开启）'
-                      }
-                    >
-                      <span>🛡️ 广告过滤</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={proxyDisabled || proxyLocked}
-                      onClick={() => setPluginProxy(p.id, !proxyChecked)}
-                      className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10.5px] font-medium border transition-all ${
-                        proxyLocked || proxyDisabled
-                          ? 'cursor-not-allowed opacity-50 border-[var(--kz-border)] bg-[var(--kz-bg-soft)] text-[var(--kz-fg-dim)]'
-                          : proxyChecked
-                            ? 'border-sky-500/35 bg-sky-500/10 text-sky-500 dark:text-sky-400 font-semibold cursor-pointer'
-                            : 'border-[var(--kz-border)] bg-[var(--kz-bg)] text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] hover:bg-[var(--kz-bg-elevated)] cursor-pointer'
-                      }`}
-                      title={
-                        proxyLocked
-                          ? '此源需要服务器代理才能播放，已强制锁定'
-                          : proxyDisabled
-                            ? '需开启上方「服务状态」中的服务器代理'
-                            : proxyChecked
-                              ? '媒体流经服务器代理（点击关闭）'
-                              : '媒体流直连 CDN（点击开启代理）'
-                      }
-                    >
-                      <span>⚡ 代理</span>
-                    </button>
-
-                    {!isBuiltinPlugin(p) && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (window.confirm(`确定删除规则「${p.name}」吗？`)) {
-                            removePlugin(p.id)
-                          }
-                        }}
-                        className="inline-flex items-center gap-0.5 rounded-md border border-rose-500/20 bg-rose-500/5 px-1.5 py-0.5 text-[10.5px] font-medium text-rose-400 hover:bg-rose-500/15 hover:border-rose-500/30 hover:text-rose-500 transition-all cursor-pointer"
-                        title="删除此规则"
-                      >
-                        <span>🗑️</span>
-                        <span>删除</span>
-                      </button>
-                    )}
                   </div>
                 </div>
               </li>
@@ -1251,46 +1136,6 @@ export function SettingsPage() {
       >
         <p className="text-xs text-[var(--kz-fg-muted)] leading-relaxed">
           播放器偏好：倍速、自动下一集、记忆进度与智能跳过。
-        </p>
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span>⚡</span>
-              <span className="text-xs sm:text-sm font-medium text-[var(--kz-fg)]">服务器代理</span>
-            </div>
-            <div className="flex items-center gap-2.5">
-              <input
-                type="checkbox"
-                disabled={!mediaFullProxy}
-                checked={mediaFullProxy && Boolean(player.serverProxy)}
-                onChange={(e) => {
-                  setPlayer({ serverProxy: e.target.checked })
-                }}
-                className="h-4 w-4 rounded accent-[var(--kz-accent)] cursor-pointer disabled:cursor-not-allowed"
-              />
-            </div>
-          </div>
-
-          <p className="text-[11px] sm:text-xs text-[var(--kz-fg-dim)]">
-            {mediaFullProxy ? (
-              <>
-                总开关。关闭后下方所有源全部直连 CDN。开启后可单独为每个源设置是否走媒体代理。
-              </>
-            ) : (
-              <>
-                服务器 <code className="text-[var(--kz-fg-muted)]">MEDIA_FULL_PROXY=0</code>
-                （默认）：最多代理 m3u8 列表，分片由浏览器直连 CDN。
-              </>
-            )}
-          </p>
-        </div>
-        <Toggle
-          label="强制广告过滤"
-          checked={Boolean(player.forceAdBlocker)}
-          onChange={(forceAdBlocker) => setPlayer({ forceAdBlocker })}
-        />
-        <p className="text-[11px] sm:text-xs text-[var(--kz-fg-dim)]">
-          开启后所有规则播放 m3u8 时强制过滤短广告分片。
         </p>
         <Toggle
           label="自动播放"

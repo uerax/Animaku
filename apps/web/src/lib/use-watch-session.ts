@@ -368,8 +368,6 @@ export function useWatchSession(bangumiId: number): WatchSession {
   const mediaFullProxy = mediaFullProxyEnabled(serverCaps.data)
   const playerSettings = useSettingsStore((s) => s.player ?? FALLBACK_PLAYER)
   const setPlayer = useSettingsStore((s) => s.setPlayer)
-  const serverProxyEnabled =
-    mediaFullProxy && Boolean(playerSettings.serverProxy)
 
   const subject = useQuery({
     queryKey: ['subject', bangumiId],
@@ -422,7 +420,6 @@ export function useWatchSession(bangumiId: number): WatchSession {
         !isFullProxySourceUsable(
           p,
           mediaFullProxy,
-          serverProxyEnabled,
         )
       ) {
         return false
@@ -442,7 +439,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
       if (ra !== rb) return ra - rb
       return comparePluginOrder(a, b, isOld)
     })
-  }, [allPlugins, mediaFullProxy, serverProxyEnabled, pluginOrder, isOld])
+  }, [allPlugins, mediaFullProxy, pluginOrder, isOld])
   const queryClient = useQueryClient()
   const upsertHistory = useHistoryStore((s) => s.upsert)
   const danmakuSettings = useSettingsStore((s) => s.danmaku ?? FALLBACK_DANMAKU)
@@ -1405,7 +1402,6 @@ export function useWatchSession(bangumiId: number): WatchSession {
       !isFullProxySourceUsable(
         plugin,
         mediaFullProxy,
-        serverProxyEnabled,
       )
     )
       return
@@ -1915,15 +1911,13 @@ export function useWatchSession(bangumiId: number): WatchSession {
   const proxyUrl = episode ? resolve.data?.data.proxyUrl : undefined
   const playUrl = episode ? resolve.data?.data.playUrl : undefined
   const requiresProxy = episode ? resolve.data?.data.requiresProxy : undefined
-  const forceAdFilter = Boolean(playerSettings.forceAdBlocker)
-  // Per-source proxy decision: plugin's own toggle or requiresFullMediaProxy, gated by master switches.
+  // Per-source proxy decision: requiresFullMediaProxy or rule's proxy property, gated by server mediaFullProxy.
   const currentPluginForProxy = selection?.plugin ?? null
   const preferMediaProxy = currentPluginForProxy
     ? pluginNeedsFullMediaProxy(currentPluginForProxy) ||
       pluginShouldUseProxy(
         currentPluginForProxy,
         mediaFullProxy,
-        serverProxyEnabled,
       )
     : false
   const playback = useMemo(
@@ -1932,10 +1926,9 @@ export function useWatchSession(bangumiId: number): WatchSession {
         playUrl,
         proxyUrl,
         forceProxy: preferMediaProxy,
-        forceAdFilter,
         requiresProxy,
       }),
-    [playUrl, proxyUrl, preferMediaProxy, forceAdFilter, requiresProxy],
+    [playUrl, proxyUrl, preferMediaProxy, requiresProxy],
   )
   const formatHint = useMemo<'hls' | 'mp4' | undefined>(() => {
     if (!episode) return undefined

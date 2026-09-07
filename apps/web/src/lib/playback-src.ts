@@ -1,6 +1,6 @@
 /**
  * Choose video src: prefer direct CDN URL to save server bandwidth,
- * use media proxy when per-source proxy / settings serverProxy is enabled,
+ * use media proxy when required by source capability or server config,
  * or when proxy auth / ad-filter requires server handling.
  *
  * Always use proxy *entry* when:
@@ -8,7 +8,7 @@
  * - proxy carries cookie= (auth-gated progressive sources)
  * - proxy carries adFilter= / forceAdFilter (playlist must be server-filtered;
  *   hybrid rewrite then leaves .ts on CDN unless fullProxy/cookie)
- * - forceProxy (settings serverProxy / per-source proxy enabled)
+ * - forceProxy (source requires full media proxy)
  *
  * forceProxy also sets fullProxy=1 so m3u8 rewrite still tunnels every segment
  * (not only nested playlists).

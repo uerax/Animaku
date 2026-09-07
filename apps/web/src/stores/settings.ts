@@ -111,16 +111,6 @@ function mergePlayer(partial?: Partial<PlayerSettings>): PlayerSettings {
     ...rest,
     speed: clampPlayerSpeed(rest.speed ?? defaultPlayerSettings.speed),
     superResolution,
-    forceAdBlocker: Boolean(
-      p.forceAdBlocker ?? defaultPlayerSettings.forceAdBlocker,
-    ),
-    // serverProxy is the new master switch; fall back to legacy forceMediaProxy
-    // value so users upgrading don't silently lose their old preference.
-    serverProxy: Boolean(
-      (p as Record<string, unknown>).serverProxy ??
-        (p as Record<string, unknown>).forceMediaProxy ??
-        defaultPlayerSettings.serverProxy,
-    ),
     preferBangumiOped: Boolean(
       p.preferBangumiOped ?? defaultPlayerSettings.preferBangumiOped,
     ),
@@ -197,10 +187,10 @@ export const useSettingsStore = create<SettingsState>()(
           }
         }
         if (version < 2) {
-          // v1→v2: forceMediaProxy renamed to serverProxy.
-          if (player && 'forceMediaProxy' in player && !('serverProxy' in player)) {
-            player.serverProxy = player.forceMediaProxy
+          if (player) {
             delete player.forceMediaProxy
+            delete player.serverProxy
+            delete player.forceAdBlocker
           }
         }
         if (version < 3) {

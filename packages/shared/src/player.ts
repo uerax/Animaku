@@ -40,17 +40,6 @@ export interface PlayerSettings {
    */
   superResolution: SuperResolutionMode
   /**
-   * Force HLS discontinuity ad-filter on all proxied m3u8
-   * (ignores per-rule `adBlocker` when true). : forceAdBlocker.
-   */
-  forceAdBlocker: boolean
-  /**
-   * Master switch: per-source "代理" toggles take effect only when this is ON.
-   * Requires server MEDIA_FULL_PROXY=1 (checked separately via /health).
-   * When OFF, no source uses the media proxy.
-   */
-  serverProxy: boolean
-  /**
    * Prefer bangumi-oped data for OP/ED skip timing.
    * When true (default), fetch per-show timestamps from the bangumi-oped repo
    * and override manual skipOp / skipEd settings.
@@ -98,8 +87,6 @@ export const defaultPlayerSettings: PlayerSettings = {
   skipOp: { enabled: false, start: 0, duration: 90 },
   skipEd: { enabled: false, start: 0, duration: 90 },
   superResolution: 'off',
-  forceAdBlocker: false,
-  serverProxy: false,
   preferBangumiOped: true,
   firstEpisodeProtect: true,
 }

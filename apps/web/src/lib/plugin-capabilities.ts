@@ -24,30 +24,23 @@ export function pluginNeedsFullMediaProxy(p: {
 
 /**
  * Can a plugin appear in the watch session at all?
- * Normal sources always qualify; full-proxy sources need the
- * server MEDIA_FULL_PROXY=1 AND the client master "服务器代理" toggle ON.
+ * Normal sources always qualify; full-proxy sources need the server MEDIA_FULL_PROXY=1.
  */
 export function isFullProxySourceUsable(
   plugin: { requiresFullMediaProxy?: boolean; name?: string; baseURL?: string },
   mediaFullProxy: boolean,
-  serverProxyEnabled: boolean,
 ): boolean {
-  return (
-    !pluginNeedsFullMediaProxy(plugin) ||
-    (mediaFullProxy && serverProxyEnabled)
-  )
+  return !pluginNeedsFullMediaProxy(plugin) || mediaFullProxy
 }
 
 /**
- * Should this plugin's media actually flow through the server proxy?
- * Master switch OFF (either client toggle or server config) → never proxy.
- * Otherwise use the per-source `proxy` preference.
+ * Should this plugin's media flow through the server proxy?
+ * Requires server MEDIA_FULL_PROXY=1, and rule explicitly requires it.
  */
 export function pluginShouldUseProxy(
   plugin: { proxy?: boolean },
   mediaFullProxy: boolean,
-  serverProxyEnabled: boolean,
 ): boolean {
-  if (!mediaFullProxy || !serverProxyEnabled) return false
+  if (!mediaFullProxy) return false
   return Boolean(plugin.proxy)
 }

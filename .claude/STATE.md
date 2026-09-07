@@ -4,6 +4,44 @@
 
 ---
 
+## [2026-09-08] 进一步收紧客户端权限：禁止客户端配置去广告与代理、移除规则卡片下层模块与 JSON 导入 (v1.6.1)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **移除设置页面视频源规则卡片下层模块**：
+     - 从 `apps/web/src/pages/SettingsPage.tsx` 彻底移除 class 为 `flex items-center justify-between gap-2 border-t border-[var(--kz-border)]/40 bg-[var(--kz-bg-soft)]/20 px-3 py-1 text-xs` 的卡片下层栏；
+     - 剥离客户端对各个视频源单独切换“🛡️ 广告过滤”与“⚡ 代理”的交互，规避普通访客客户端对媒体代理及服务端 AST 改写管线的干预；
+     - 将自定义导入规则的“🗑️ 删除”按钮移至卡片右上部 Switch 开关旁，保持单行紧凑布局并确保历史导入规则仍可安全移除；
+     - 清理 `SettingsPage.tsx` 中未使用的 `setPluginAdBlocker`、`setPluginProxy`、`proxyLocked`、`proxyDisabled`、`proxyChecked` 状态变量。
+  2. **移除规则本地 JSON 文件导入功能**：
+     - 移除“📥 导入 JSON”按钮与隐式 `<input type="file" ref={fileRef}>`；
+     - 移除 `onImportFile`、`fileRef` 与 `importRule` 逻辑，同时移除 `validatePluginLocal` 依赖引用；
+     - 更新“↺ 恢复默认”确认提示及空源提示文案。
+  3. **彻底废除播放器偏好中的客户端代理与广告过滤控制**：
+     - 从 `packages/shared/src/player.ts` 的 `PlayerSettings` 接口与 `defaultPlayerSettings` 中彻底移除 `serverProxy` 与 `forceAdBlocker` 字段；
+     - 从 `apps/web/src/stores/settings.ts` 中移除相应字段的持久化、默认值合并与旧版本键清理逻辑；
+     - 从 `SettingsPage.tsx` 的“播放器偏好”面板中彻底删除“服务器代理”与“强制广告过滤”的开关及说明文案，遵循“绝不允许用户客户端越权控制服务端行为”的安全设计原则；
+     - 重构 `apps/web/src/lib/plugin-capabilities.ts` 与 `use-watch-session.ts`，全量代理源可用性判断（`isFullProxySourceUsable`、`pluginShouldUseProxy`）直接与服务端只读健康状态 `mediaFullProxy` 对齐，剥离 `serverProxyEnabled` 客户端中间件。
+  4. **全套自动化测试与类型检查**：
+     - 全仓 `pnpm typecheck` 零错误通过；
+     - 服务端 96 个核心单测与前端 17 个单元测试 100% pass，前端 build 成功；
+     - 遵循规范执行 `pnpm bump patch`，版本升级至 `v1.6.1`。
+- 涉及文件：
+  - apps/web/src/pages/SettingsPage.tsx
+  - apps/web/src/lib/playback-src.ts
+  - apps/web/src/lib/plugin-capabilities.ts
+  - apps/web/src/lib/use-watch-session.ts
+  - apps/web/src/stores/settings.ts
+  - packages/shared/src/player.ts
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+
+---
+
 ## [2026-09-08] 彻底废除 PUBLIC_PROXY / PROXY_TOKEN 与默认视频源全量直连改造 (v1.6.0)
 - 状态：已完成
 - 优先级：P1
