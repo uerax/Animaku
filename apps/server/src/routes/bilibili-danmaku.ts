@@ -593,11 +593,12 @@ bilibiliDanmakuRoutes.get('/bilibili', async (c) => {
       meta: result.meta,
     })
   } catch (e) {
-    console.error('[bilibili-danmaku] 拉取弹幕失败:', e)
+    const message = e instanceof Error ? e.message : String(e)
+    console.warn(`[bilibili-danmaku] 拉取弹幕未成功: ${message}`)
     return c.json(
       {
         error: 'upstream',
-        message: e instanceof Error ? e.message : String(e),
+        message,
       },
       502,
     )

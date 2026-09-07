@@ -4,6 +4,27 @@
 
 ---
 
+## [2026-09-07] B站弹幕拉取失败日志级别从 Error 降级为 Warn (v1.5.13)
+- 状态：已完成
+- 优先级：P3
+- 描述：
+  1. **日志级别与格式优化 (`apps/server/src/routes/bilibili-danmaku.ts`)**：
+     - 用户手动输入 BV/ep/ss 或后台匹配外部 B 站资源时，若遇到稿件失效、区域限制、未找到分 P 或外部接口返回“啥都木有”等正常业务/上游未匹配情况，不再通过 `console.error` 输出包含冗长调用栈的系统级 Error 日志；
+     - 将异常捕获处理降级为单行简洁 `console.warn('[bilibili-danmaku] 拉取弹幕未成功: ...')`，避免服务端终端被虚假红字堆栈刷屏；
+     - 保持原有 HTTP 响应契约及测试一致性。
+  2. **验证与版本递增**：
+     - 全仓 90 项单元测试 100% 通过，`typecheck` 0 错误；
+     - 版本号递增至 `v1.5.13`。
+- 涉及文件：
+  - apps/server/src/routes/bilibili-danmaku.ts
+  - package.json
+  - apps/server/package.json
+  - apps/web/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+
+---
+
 ## [2026-09-07] VideoPlayer 播放器核心架构模块化拆分与职责解耦 (v1.5.12)
 - 状态：已完成
 - 优先级：P1
