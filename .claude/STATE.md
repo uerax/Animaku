@@ -4390,5 +4390,25 @@
   - .claude/STATE.md
 - 备注：全仓类型检查 `pnpm typecheck`（0 错误）、单元测试（139 项单测全部通过）与全量生产构建 `pnpm build` 验证通过。
 
+## [2026-09-08] 时间表页面移除今日冗余文本标签与版本递增 (v1.5.18)
+- 状态：已完成
+- 优先级：P3
+- 描述：
+  1. **时间表周选择器视觉减负**：
+     - 在 `apps/web/src/pages/TimelinePage.tsx` 中移除星期按钮上的 `{isToday ? <span className="ml-1 text-xs opacity-90 font-bold">今日</span> : null}` 文本标签；
+     - 保留默认高亮选中态与前置呼吸微点指示器，消除与按钮选中态/指示点的视觉重复，使放送时间表排版更加整洁聚焦；
+  2. **版本号平滑递增**：
+     - 全仓版本号递增至 `v1.5.18`。
+- 涉及文件：
+  - apps/web/src/pages/TimelinePage.tsx
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+- 备注：全仓类型检查 `pnpm typecheck`（0 错误）与生产打包构建 `pnpm --filter @animaku/web build` 验证通过。
+
+
 
 

@@ -64,7 +64,6 @@ export function TimelinePage() {
                 />
               )}
               {label}
-              {isToday ? <span className="ml-1 text-xs opacity-90 font-bold">今日</span> : null}
               {days?.[i]?.length ? (
                 <span className={`ml-1.5 text-xs font-normal ${active ? 'opacity-85' : 'text-[var(--kz-fg-muted)]'}`}>
                   ({days[i].length})
