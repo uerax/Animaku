@@ -54,6 +54,15 @@ node scripts/probe-source.mjs https://www.cycani.org 鬼灭之刃
 3. **播放解析链路**：获取视频直链的触发方式（`resolve-play-url` / `issue-web-playback`）、鉴权凭证类型（JIT Nonce / Bearer JWT / 临时签名）；
 4. **媒体流可播性与防盗链探查**：`curl.exe -L -I "VIDEO_URL"` 检查 `HTTP 206 Partial Content` 与 `Accept-Ranges: bytes`。
 
+#### 🚨 前置快速死刑判定：高防 WAF / Cloudflare 拦截识别
+在探查上述链路（尤其是播放页与直链解析）时，若出现以下任一特征，**无需继续逆向，直接下达“放弃接入”结论**：
+- **请求中途断连 / 连接重置**：请求到一半突然不通，返回 `curl: (52) Empty reply from server`、`SSL_ERROR_SYSCALL` 或 Node.js `UND_ERR_SOCKET: other side closed`，表明命中高防 WAF / CC 防火墙白名单或频控规则；
+- **强制防火墙 Cookie / 动态跳转**：首次请求返回 302 附带 `cckey=...` 验证跳转，强制写入防护 Cookie（如 `_ok9_` 等），且深入调用时校验真实浏览器 TLS 指纹；
+- **Cloudflare 盾 / 人机验证**：页面返回 403 / 503 且包含 `Just a moment...`、Turnstile 或 Cloudflare Challenge；
+- **DNS 高防反代特征**：CNAME 指向黑产防封/高防盾（如 `*.cnmnmsl.top` 等），多节点 Anycast 频繁丢包或连接超时。
+
+> **核心原则**：带有高防 WAF / Cloudflare 强防御的站点无法提供免盾稳定的公共 API，且媒体切片通常强绑定动态会话，极易因解析失败向服务端引流，违背“零自动回退代理”铁律，应**果断放弃**。
+
 ---
 
 ### 步骤二：编写服务端专有适配器 (`apps/server/src/lib/{name}.ts`)
@@ -244,3 +253,22 @@ const [hlsRes, fbRes] = await Promise.allSettled([
 | **短效鉴权签名正则收敛** | 直链带有 `verify=`、`pt=`、`sign=` 等短效签名，若按 `.mp4` 后缀被赋予 30 分钟缓存，过期后导致死链。 | 在 `ttl-cache.ts` 的 `resolveCacheTtlMs` 中优先匹配短效签名参数，统一收敛为 60s 缓存（`resolveSigned`）。 |
 | **分集命名防噪音** | 源站分集列表中混杂“详情”、“评论”、“报错”、“立即播放”等干扰项。 | 使用 `cleanRoads` 或正则白名单过滤非剧集名称；统一格式为 `第XX集` 或 `SP XX`。 |
 | **SSRF 安全防护** | 规则请求或解析直链时，若链接指向内网会被服务端安全拦截。 | 服务端所有外网请求统一使用 `fetchPublic`，严格阻断私网与内网地址（防 SSRF 攻击）。 |
+| **高防 WAF / CC / Cloudflare 拦截** | 请求中途突然断连（Empty reply / curl 52 / socket closed）、频繁 302 cckey 防火墙跳转、Cloudflare 盾或 TLS 握手重置。 | **直接判定不可接入并终止探测**。高防防护站点无法稳定提供无盾直连 API，且分片常强绑 Cookie，强行接入会导致极高故障率并违背零代理铁律。 |
+
+---
+
+## 4. 视频源准入阻断判定法则（快速死刑清单）
+
+在评估新视频源时，遇到以下任一特征，直接判定为**不予接入**，节省逆向与开发成本：
+
+1. **高防 WAF / CC 动态防御与握手断连**：
+   - 典型表现：首页或搜索接口尚可响应，但只要进入播放页或并发请求，即遭遇 `Empty reply from server`、`UND_ERR_SOCKET`、`SSL_ERROR_SYSCALL`；
+   - 本质原因：配置了 OpenResty CC / Cloudflare / 宝塔网站防火墙等强频控与设备指纹拦截机制，外部爬虫与无头请求无法维持长效稳定。
+2. **强会话凭证与无法脱离代理直连播放**：
+   - 典型表现：视频 m3u8 切片或 mp4 直链强依赖 Cookie、特定 Referer 或短期动态 Token，在前端原生 `<video>` 标签中无法跨域直连播放；
+   - 违规后果：若通过服务端代理发流，彻底违背项目 **Zero Auto Proxy Fallback（严禁偷跑服务端带宽）** 铁律。
+3. **交互式人机验证（CAPTCHA / 5秒盾）**：
+   - 典型表现：主业务链路频繁阻断并展示 Cloudflare Turnstile、Geetest 极验滑块、文字点选等验证码；
+   - 自动化瓶颈：无交互的规则引擎和服务端后台无法自动化通过此类人机校验。
+4. **私有加密协议或强 DRM 体系**：
+   - 典型表现：使用专有客户端私有 P2P 协议传输、Widevine / FairPlay 硬件级 DRM 加密、或者混淆度极高的私有 WASM 播放器发流。

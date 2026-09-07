@@ -39,6 +39,8 @@ async function probe() {
     isSupabase: false,
     hasAntiDebug: false,
     antiDebugDetails: [],
+    hasWaf: false,
+    wafDetails: [],
     apiEndpoints: [],
     cookies: [],
     recommendedShape: 'C (Dedicated Adapter)',
@@ -47,6 +49,7 @@ async function probe() {
   // 1. Fetch Landing Page
   console.log(`[1/5] 正在抓取站点首页与 HTTP 响应头...`)
   let html = ''
+  let serverHeader = ''
   try {
     const res = await fetch(targetUrl, {
       headers: {
@@ -56,6 +59,13 @@ async function probe() {
       },
     })
     console.log(`  -> HTTP 状态码: ${res.status}`)
+    serverHeader = (res.headers.get('server') || '').toLowerCase()
+    if (serverHeader) {
+      console.log(`  -> Server 标头: ${serverHeader}`)
+      if (serverHeader.includes('cloudflare') || serverHeader.includes('openresty')) {
+        fp.wafDetails.push(`Server 标头标识: ${serverHeader}`)
+      }
+    }
     const setCookies =
       res.headers.getSetCookie?.() || [res.headers.get('set-cookie') || '']
     fp.cookies = setCookies
@@ -64,11 +74,28 @@ async function probe() {
       .filter(Boolean)
     if (fp.cookies.length) {
       console.log(`  -> 捕获 Set-Cookie:`, fp.cookies)
+      if (fp.cookies.some((c) => c.startsWith('_ok9_') || c.includes('cf_clearance') || c.includes('cckey'))) {
+        fp.hasWaf = true
+        fp.wafDetails.push(`检测到动态防护 Cookie: ${fp.cookies.join(', ')}`)
+      }
     }
     html = await res.text()
+    if (res.status === 403 || res.status === 503 || html.includes('Just a moment...') || html.includes('challenge-running')) {
+      fp.hasWaf = true
+      fp.wafDetails.push(`检测到 Cloudflare / 盾挑战页面 (HTTP ${res.status})`)
+    }
   } catch (e) {
     console.error(`  ❌ 首页请求失败:`, e)
-    return
+    const errStr = `${e} ${e?.cause ?? ''} ${e?.cause?.code ?? ''}`
+    if (
+      errStr.includes('other side closed') ||
+      errStr.includes('UND_ERR_SOCKET') ||
+      errStr.includes('ECONNRESET') ||
+      errStr.includes('disconnected before secure TLS')
+    ) {
+      fp.hasWaf = true
+      fp.wafDetails.push(`网络握手被服务器主动切断 (高防 WAF / TLS 阻断): ${e?.cause?.message || e?.message}`)
+    }
   }
 
   // 2. Detect Technology Fingerprints
@@ -145,14 +172,20 @@ async function probe() {
           console.log(`     数据样本:`, JSON.stringify(json).slice(0, 150) + '...')
         }
       }
-    } catch {
-      /* ignore */
+    } catch (err) {
+      const errStr = String(err)
+      if (errStr.includes('other side closed') || errStr.includes('UND_ERR_SOCKET') || errStr.includes('ECONNRESET')) {
+        fp.hasWaf = true
+        fp.wafDetails.push(`API 探查连接被主动重置 (WAF / 频控): ${errStr}`)
+      }
     }
   }
 
   // 4. Determine Recommended Integration Shape
   console.log(`\n[4/5] 架构决策矩阵判定...`)
-  if (fp.isMacCMS && !fp.hasAntiDebug && !fp.isNextRSC) {
+  if (fp.hasWaf) {
+    fp.recommendedShape = '不可接入 (Blocked by WAF / Cloudflare)'
+  } else if (fp.isMacCMS && !fp.hasAntiDebug && !fp.isNextRSC) {
     fp.recommendedShape = 'A (MacCMS JSON)'
   } else if (html.includes('release') || html.includes('最新发布页') || html.includes('防封')) {
     fp.recommendedShape = 'B (Release Page)'
@@ -160,12 +193,19 @@ async function probe() {
     fp.recommendedShape = 'C (Dedicated Adapter)'
   }
 
-  console.log(`  🎯 建议接入模式: 【形态 ${fp.recommendedShape}】`)
+  console.log(`  🎯 建议接入模式: 【${fp.recommendedShape}】`)
 
   // 5. Output Summary & Next Actions
   console.log(`\n[5/5] 接入指南与执行建议:`)
   console.log(`------------------------------------------------------`)
-  if (fp.recommendedShape === 'A (MacCMS JSON)') {
+  if (fp.hasWaf) {
+    console.log(`- 状态：🚨 触发准入快速阻断规则 (Fast-Reject)`)
+    console.log(`- 拦截特征详情:`)
+    fp.wafDetails.forEach((d) => console.log(`  • ${d}`))
+    console.log(`- 建议：根据《视频源接入规范》第四节准入阻断判定法则，高防防御站点在接口调用与`)
+    console.log(`  视频直链拉取时极易遭遇连接掐断（Empty reply）与强 Cookie 绑定，无法提供稳定的`)
+    console.log(`  免代理直连流，直接终止探测并放弃接入，避免无意义逆向成本。`)
+  } else if (fp.recommendedShape === 'A (MacCMS JSON)') {
     console.log(`- 模式：零修改代码，纯 JSON 规则配置`)
     console.log(`- 步骤：在 apps/web/src/data/default-plugins/ 新建 JSON 并配置 searchList / chapterRoads XPath 规则`)
   } else if (fp.recommendedShape === 'B (Release Page)') {

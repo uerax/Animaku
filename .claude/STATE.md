@@ -4554,6 +4554,26 @@
   - .claude/STATE.md
 - 备注：全仓类型检查 `pnpm typecheck`（0 错误）与生产打包构建 `pnpm --filter @animaku/web build` 验证通过。
 
+## [2026-09-08] 视频源接入规范补充高防 WAF / Cloudflare 快速阻断法则与探测脚本升级
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **接入指南补充高防防御快速阻断判定法则**：
+     - 在 `docs/video-source-integration.md` 的步骤一中增加“前置快速死刑判定：高防 WAF / Cloudflare 拦截识别”，明确连接掐断、动态 cckey / 防护 Cookie、Cloudflare Challenge 页面及 DNS 高防 CNAME 易断连等核心不可接入特征；
+     - 在“3. 核心注意事项与避坑指南”表格中新增“高防 WAF / CC / Cloudflare 拦截”决策行；
+     - 在文末新增“4. 视频源准入阻断判定法则（快速死刑清单）”，明确列出高防 WAF 拦截、非直连媒体强代理依赖、交互式人机验证及私有 DRM 协议 4 项不可行排除准则，指导后续探查提前终止逆向，避免无意义开发成本；
+  2. **升级自动化探查工具 (`scripts/probe-source.mjs`)**：
+     - 新增 WAF 指纹探测与 Server 标头、Set-Cookie（`_ok9_`、`cf_clearance` 等）识别；
+     - 捕获 TLS 握手主动切断（`other side closed` / `UND_ERR_SOCKET` / `ECONNRESET`）错误并标记 `hasWaf`；
+     - 架构决策矩阵直接输出 `【不可接入 (Blocked by WAF / Cloudflare)】` 阻断结论与执行建议；
+  3. **版本号规范**：
+     - 属于文档与探测脚本修改，无业务代码变更，版本号严格保持 `v1.5.18` 不变。
+- 涉及文件：
+  - docs/video-source-integration.md
+  - scripts/probe-source.mjs
+  - .claude/STATE.md
+- 备注：通过 `node scripts/probe-source.mjs https://www.akianime.com` 实机测试验证快速阻断决策机制生效。
+
 
 
 
