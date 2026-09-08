@@ -11,7 +11,6 @@
   "useNativePlayer": true,
   "usePost": false,
   "useLegacyParser": false,
-  "adBlocker": false,
   "userAgent": "",
   "baseURL": "https://www.tvtfun.net/",
   "searchURL": "https://www.tvtfun.net/api/videos/search?q=@keyword",
@@ -20,5 +19,6 @@
   "searchResult": ".",
   "chapterRoads": "//div",
   "chapterResult": ".//a",
-  "referer": "https://www.tvtfun.net/"
+  "referer": "https://www.tvtfun.net/",
+  "adBlockerMode": "none"
 }

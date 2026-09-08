@@ -72,6 +72,15 @@ export interface PipelineStep {
  * - 'original': Japanese / original title first (e.g. xifan-next, moonci, omofun, libvio)
  * - 'traditional': Traditional Chinese title first (e.g. anime1)
  */
+
+/**
+ * 广告切片清洗模式：
+ * - 'none': 不开启清洗（默认）
+ * - 'client': 客户端本地清洗（纯前端执行，零服务端资源消耗，适用于量子资源等直连开放源）
+ * - 'server': 服务端网关清洗（服务端仅代理清洗 M3U8 文本，切片直连，适用于有防盗链/无跨域头的受限源）
+ */
+export type AdBlockerMode = 'none' | 'client' | 'server'
+
 export type TitlePreference =
   | 'chinese'
   | 'chinese_compact'
@@ -124,7 +133,7 @@ export interface PluginRule {
   useNativePlayer?: boolean
   usePost?: boolean
   useLegacyParser?: boolean
-  adBlocker?: boolean
+  adBlockerMode?: AdBlockerMode
   userAgent?: string
   baseURL: string
   searchURL?: string
@@ -288,6 +297,8 @@ export interface ResolvePlayResult {
   requiresProxy?: boolean
   /** Inferred or declared media format ('hls' | 'mp4') for player engine routing */
   format?: 'hls' | 'mp4'
+  /** Declared or inferred ad blocker mode ('none' | 'client' | 'server') */
+  adBlockerMode?: AdBlockerMode
 }
 
 const CHINESE_DIGITS: Record<string, number> = {
@@ -743,7 +754,7 @@ export function parsePluginRule(raw: unknown): PluginRule {
       useNativePlayer: true,
       usePost: false,
       useLegacyParser: false,
-      adBlocker: Boolean(j.adBlocker ?? false),
+      adBlockerMode: j.adBlockerMode === 'client' || j.adBlockerMode === 'server' ? j.adBlockerMode : 'none',
       searchURL: '',
       searchList: '',
       searchName: '',
@@ -814,7 +825,7 @@ export function parsePluginRule(raw: unknown): PluginRule {
     useNativePlayer: Boolean(j.useNativePlayer ?? true),
     usePost: Boolean(j.usePost ?? false),
     useLegacyParser: Boolean(j.useLegacyParser ?? false),
-    adBlocker: Boolean(j.adBlocker ?? false),
+    adBlockerMode: j.adBlockerMode === 'client' || j.adBlockerMode === 'server' ? j.adBlockerMode : 'none',
     userAgent: String(j.userAgent ?? ''),
     baseURL,
     searchURL,

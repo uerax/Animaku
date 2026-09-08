@@ -12,7 +12,6 @@
   "useNativePlayer": true,
   "usePost": false,
   "useLegacyParser": false,
-  "adBlocker": false,
   "userAgent": "",
   "baseURL": "https://anime1.me/",
   "searchURL": "https://anime1.me/?s=@keyword",
@@ -21,5 +20,6 @@
   "searchResult": "//a",
   "chapterRoads": "//main",
   "chapterResult": "//a",
-  "referer": "https://anime1.me/"
+  "referer": "https://anime1.me/",
+  "adBlockerMode": "none"
 }

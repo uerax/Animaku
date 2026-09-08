@@ -642,10 +642,10 @@ test('sourceRoutes: strictly rejects non-object JSON payloads with 400 bad_reque
 })
 
 test('wrapResolveWithTicket: preserves adFilter=1 on proxyUrl and redacts sensitive credentials from headers', () => {
-  // 1. adBlocker: true should propagate &adFilter=1 to ticket proxyUrl
+  // 1. adBlockerMode: 'server' should propagate &adFilter=1 to ticket proxyUrl
   const ruleWithAdBlocker = {
     name: 'test-ad-blocker',
-    adBlocker: true,
+    adBlockerMode: 'server',
   }
   const res1 = wrapResolveWithTicket(ruleWithAdBlocker as any, {
     playUrl: 'https://cdn.example.com/stream/index.m3u8',

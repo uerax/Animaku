@@ -10,7 +10,6 @@
   "useNativePlayer": true,
   "usePost": false,
   "useLegacyParser": false,
-  "adBlocker": false,
   "baseURL": "https://www.moonci.com/",
   "searchURL": "https://www.moonci.com/search/-------------.html?wd=@keyword",
   "searchList": "//ul[contains(@class, 'hl-one-list')]/li",
@@ -18,5 +17,6 @@
   "searchResult": ".//div[contains(@class, 'hl-item-title')]/a",
   "chapterRoads": "//ul[contains(@class, 'hl-plays-list')]",
   "chapterResult": ".//li/a",
-  "referer": ""
+  "referer": "",
+  "adBlockerMode": "none"
 }

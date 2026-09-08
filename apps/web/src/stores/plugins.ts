@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import type { PluginMeta, PluginRule } from '@animaku/shared'
+import type { AdBlockerMode, PluginMeta, PluginRule } from '@animaku/shared'
 import { parsePluginRule, comparePluginOrder, isAnxRule } from '@animaku/shared'
 import { DEFAULT_PLUGIN_RULES } from '../data/default-plugins'
 import { migrateLocalStorageKey } from '../lib/storage'
@@ -16,6 +16,7 @@ migrateLocalStorageKey('animaku-plugins', [
 /** v10: Anime1 last; HLS sources first */
 /** v11: add pluginOrder for user-custom sorting */
 /** v12: update built-in plugin rules (e.g. LIBVIO suggest API 403 -> xpath static search) */
+/** v31: replace legacy adBlocker with adBlockerMode (none | client | server) */
 /** v13: add xifan-next (next.xifanacg.com) built-in */
 /** v14: fix xifan-next rule searchURL & searchMode definition */
 /** v15: add weight to built-in rules (weight sorting > alphabetical; external rules default to lowest weight) */
@@ -34,7 +35,7 @@ migrateLocalStorageKey('animaku-plugins', [
 /** v28: add mifun & girigiri built-in rules with weight 70 & oldAnimePriority for girigiri */
 /** v29: add lzizy (Apple CMS V10 JSON API + all categories + 0ms direct HLS) with weight 60 */
 /** v30: upgrade title preference from preferOriginalTitle boolean to titlePreference enum ('chinese', 'chinese_compact', 'original', 'traditional') */
-export const PLUGIN_DEFAULTS_VERSION = 30
+export const PLUGIN_DEFAULTS_VERSION = 31
 
 interface PluginState {
   plugins: PluginMeta[]
@@ -48,8 +49,8 @@ interface PluginState {
   ) => PluginMeta
   removePlugin: (id: string) => void
   togglePlugin: (id: string, enabled?: boolean) => void
-  /** Per-rule HLS ad filter */
-  setPluginAdBlocker: (id: string, adBlocker: boolean) => void
+  /** Per-rule HLS ad filter mode */
+  setPluginAdBlockerMode: (id: string, adBlockerMode: AdBlockerMode) => void
   /** Per-rule media proxy toggle */
   setPluginProxy: (id: string, proxy: boolean) => void
   /** Reorder plugins by name list (first = top, becomes default). */
@@ -240,10 +241,10 @@ export const usePluginStore = create<PluginState>()(
             p.id === id ? { ...p, enabled: enabled ?? !p.enabled } : p,
           ),
         })),
-      setPluginAdBlocker: (id, adBlocker) =>
+      setPluginAdBlockerMode: (id, adBlockerMode) =>
         set((s) => ({
           plugins: normalizePlugins(s.plugins).map((p) =>
-            p.id === id ? { ...p, adBlocker } : p,
+            p.id === id ? { ...p, adBlockerMode } : p,
           ),
         })),
       setPluginProxy: (id, proxy) =>
@@ -396,7 +397,7 @@ export const usePluginStore = create<PluginState>()(
           return {
             ...seed,
             enabled: p.enabled ?? seed.enabled,
-            adBlocker: p.adBlocker ?? Boolean(seed.adBlocker),
+            adBlockerMode: p.adBlockerMode ?? seed.adBlockerMode ?? 'none',
             proxy: p.proxy ?? (seed.requiresFullMediaProxy === true ? true : undefined),
             importedAt: p.importedAt ?? seed.importedAt,
           }

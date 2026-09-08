@@ -11,7 +11,6 @@
   "useNativePlayer": true,
   "usePost": false,
   "useLegacyParser": false,
-  "adBlocker": false,
   "baseURL": "https://ani.girigirilove.com/",
   "searchURL": "https://ani.girigirilove.com/index.php/ajax/suggest?mid=1&wd=@keyword",
   "searchList": "//ul[contains(@class, 'hl-one-list')]/li",
@@ -19,5 +18,6 @@
   "searchResult": ".//div[contains(@class, 'hl-item-title')]/a",
   "chapterRoads": "//div[contains(@class, 'anthology-list-box')]",
   "chapterResult": ".//li/a",
-  "referer": ""
+  "referer": "",
+  "adBlockerMode": "none"
 }

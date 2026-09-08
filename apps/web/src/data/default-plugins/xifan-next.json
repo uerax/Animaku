@@ -10,7 +10,6 @@
   "useNativePlayer": true,
   "usePost": false,
   "useLegacyParser": false,
-  "adBlocker": false,
   "userAgent": "",
   "baseURL": "https://next.xifanacg.com/",
   "searchURL": "https://next.xifanacg.com/browse?q=@keyword",
@@ -19,5 +18,6 @@
   "searchResult": ".",
   "chapterRoads": "//div",
   "chapterResult": ".//a",
-  "referer": "https://next.xifanacg.com/"
+  "referer": "https://next.xifanacg.com/",
+  "adBlockerMode": "none"
 }

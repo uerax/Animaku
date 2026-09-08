@@ -49,6 +49,7 @@ export interface VideoPlayerProps {
   title?: string
   src: string
   formatHint?: 'hls' | 'mp4' | string
+  adBlockerMode?: import('@animaku/shared').AdBlockerMode
   initialTime?: number
   comments: DanmakuComment[]
   danmaku: DanmakuSettings

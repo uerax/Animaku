@@ -8,7 +8,6 @@
   "useNativePlayer": true,
   "usePost": false,
   "useLegacyParser": false,
-  "adBlocker": true,
   "userAgent": "",
   "baseURL": "https://www.gugu3.com/",
   "searchURL": "https://www.gugu3.com/index.php/vod/search.html?wd=@keyword",
@@ -17,5 +16,6 @@
   "searchResult": "//div[3]/div[2]/a[1]",
   "chapterRoads": "//ul[@class='anthology-list-play size']",
   "chapterResult": "//li/a",
-  "referer": ""
+  "referer": "",
+  "adBlockerMode": "server"
 }

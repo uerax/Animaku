@@ -10,7 +10,6 @@
   "useNativePlayer": true,
   "usePost": false,
   "useLegacyParser": false,
-  "adBlocker": false,
   "baseURL": "https://ios.mifun.org/",
   "searchURL": "https://ios.mifun.org/index.php/ajax/suggest?mid=1&wd=@keyword",
   "searchList": "//ul[contains(@class, 'hl-one-list')]/li",
@@ -18,5 +17,6 @@
   "searchResult": ".//div[contains(@class, 'hl-item-title')]/a",
   "chapterRoads": "//ul[contains(@class, 'hl-plays-list')]",
   "chapterResult": ".//li/a",
-  "referer": ""
+  "referer": "",
+  "adBlockerMode": "none"
 }

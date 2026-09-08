@@ -10,7 +10,6 @@
   "useNativePlayer": true,
   "usePost": false,
   "useLegacyParser": false,
-  "adBlocker": true,
   "userAgent": "",
   "baseURL": "https://cn.211dm.com/",
   "searchURL": "https://cn.211dm.com/search/-------------.html?wd=@keyword",
@@ -19,5 +18,6 @@
   "searchResult": ".",
   "chapterRoads": "//ul[contains(@class,'play-list-content')]",
   "chapterResult": ".//a[contains(@href,'/play/')]",
-  "referer": "https://cn.211dm.com/"
+  "referer": "https://cn.211dm.com/",
+  "adBlockerMode": "server"
 }

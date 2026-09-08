@@ -239,6 +239,7 @@ export type WatchSession = {
   setKeywordTargetPlugin: (p: PluginMeta | null) => void
   mediaSrc: string
   formatHint?: 'hls' | 'mp4'
+  adBlockerMode?: import('@animaku/shared').AdBlockerMode
   playbackMode: 'direct' | 'proxy'
   /** direct | playlist-proxy (ad hybrid) | full-proxy — for WatchMeta hint */
   playbackTransit: PlaybackTransit
@@ -2083,6 +2084,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     setKeywordTargetPlugin: setManualKeywordTargetPlugin,
     mediaSrc,
     formatHint,
+    adBlockerMode: resolve.data?.data?.adBlockerMode ?? selection?.plugin.adBlockerMode ?? 'none',
     playbackMode: playback.mode,
     /** direct | playlist-proxy (ad hybrid) | full-proxy — for WatchMeta hint */
     playbackTransit: playback.transit,

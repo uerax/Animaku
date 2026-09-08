@@ -8,7 +8,6 @@
   "useNativePlayer": true,
   "usePost": false,
   "useLegacyParser": false,
-  "adBlocker": false,
   "userAgent": "",
   "baseURL": "https://www.7sefun.top/",
   "searchURL": "https://www.7sefun.top/vodsearch/-------------.html?wd=@keyword",
@@ -17,5 +16,6 @@
   "searchResult": "//a",
   "chapterRoads": "//div[2]/div[2]/div[2]/div/div[2]/div[1]/div[2]",
   "chapterResult": "//a",
-  "referer": ""
+  "referer": "",
+  "adBlockerMode": "none"
 }

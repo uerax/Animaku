@@ -191,7 +191,7 @@ export function ruleCacheId(rule: PluginRule): string {
     rule.chapterRoads || '',
     rule.chapterResult || '',
     rule.usePost ? '1' : '0',
-    rule.adBlocker ? '1' : '0',
+    rule.adBlockerMode || 'none',
     JSON.stringify(rule.searchApiConfig ?? null),
     JSON.stringify(rule.chapterApiConfig ?? null),
   ]

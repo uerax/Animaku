@@ -1243,7 +1243,7 @@ export async function resolveAnx(
       url: playUrl,
       referer,
     })
-    if (rule.adBlocker) params.set('adFilter', '1')
+    if (rule.adBlockerMode === 'server') params.set('adFilter', '1')
     const proxyUrl = `/api/media/proxy?${params.toString()}`
 
     return {

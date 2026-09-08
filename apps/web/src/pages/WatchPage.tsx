@@ -333,6 +333,7 @@ export function WatchPage() {
         <VideoPlayerSuspense
           key={w.playerKey}
           formatHint={w.formatHint}
+          adBlockerMode={w.adBlockerMode}
           title={
             w.title
               ? `${w.title}${w.episode ? ` 第 ${w.episode.episode} 集` : ''}`

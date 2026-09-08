@@ -1658,7 +1658,7 @@ function finishResolve(
     referer,
   })
   // Per-rule HLS ad filter (global force is applied client-side on proxy URL)
-  if (rule.adBlocker) params.set('adFilter', '1')
+  if (rule.adBlockerMode === 'server') params.set('adFilter', '1')
   const proxyUrl = `/api/media/proxy?${params.toString()}`
   return wrapResolveWithTicket(rule, {
     playUrl,
@@ -1706,7 +1706,7 @@ export function wrapResolveWithTicket(
     // 闭环广告过滤：若规则开启了 adBlocker 或结果已携带 adFilter=1，且为 HLS 流，在 Ticket 代理入口保留 adFilter=1
     const shouldFilterAds =
       !isMp4 &&
-      (Boolean(rule.adBlocker) ||
+      (rule.adBlockerMode === 'server' ||
         Boolean(
           result.proxyUrl &&
             /[?&]adFilter=(?:1|true)(?:&|$)/.test(result.proxyUrl),
@@ -1731,6 +1731,7 @@ export function wrapResolveWithTicket(
       proxyUrl: `${endpoint}?t=${encodeURIComponent(ticket)}${adFilterQuery}`,
       requiresProxy,
       format,
+      adBlockerMode: rule.adBlockerMode ?? 'none',
       headers: safeHeaders,
     }
   } catch (err) {

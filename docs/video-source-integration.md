@@ -191,7 +191,7 @@ const [hlsRes, fbRes] = await Promise.allSettled([
      "useNativePlayer": true,
      "usePost": false,
      "useLegacyParser": false,
-     "adBlocker": false,
+     "adBlockerMode": "none",
      "baseURL": "https://example.com/",
      "searchURL": "https://example.com/search?q=@keyword",
      "searchList": "//a",

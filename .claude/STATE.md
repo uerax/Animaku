@@ -4,6 +4,52 @@
 
 ---
 
+## [2026-09-08] 视频源切片广告端云分层清洗体系、摒弃旧 adBlocker 字段与 TS 序号断层过滤算法 (v1.10.0)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **摒弃旧 adBlocker 字段，全面升级结构化枚举契约 adBlockerMode**：
+     - 彻底删除已无意义的历史布尔字段 `adBlocker: boolean`，全面升级为架构层级清晰的结构化枚举 `adBlockerMode: 'none' | 'client' | 'server'` (`packages/shared/src/plugin.ts`)；
+     - `ResolvePlayResult` 统一追加透传 `adBlockerMode` 字段；
+     - 清理全量 16 个内置规则 JSON，`lzizy.json` 声明为 `client`（纯前端直连零服务器带宽清洗），`gugu3` / `mxdm` / `omofun` 声明为 `server`（服务端清单改写清洗），其余源保持 `none`；
+     - 升级 `PLUGIN_DEFAULTS_VERSION` (v30 -> v31)，`usePluginStore` 迁移为 `setPluginAdBlockerMode`，老用户浏览器缓存规则自动热刷新。
+  2. **TS 序号连续性与拓扑桥接断层识别算法 (Break Detection & Bypass Continuity)**：
+     - 在 `packages/shared/src/m3u8-ad-filter.ts` 中实现高精 TS 序列号提取器 `extractSegmentSequence`（从文件名尾部剥离扩展名提取连续数字序列，完美适配 lzizy 真实切片格式如 `b2dd7ad0c56000073.ts` 与高位广告序列号）；
+     - 引入首尾桥接连续性判定 (Bypass Continuity)：当 `Group(i-1).maxSeq + 1 === Group(i+1).minSeq` 成立且 `Group(i)` 序列脱离正片时，置信度 100% 判定为中插切片广告，赋予 +60 分高权重判定；
+     - 引入正片连续性保护（免死金牌）：若分组与相邻组序号首尾相接，强制屏蔽 `isSegCountAnomaly` 干扰并将打分归零，彻底杜绝了旧算法在正片分段处的严重剧情误删；
+     - 维持 8% (2/25) 安全熔断阈值；新增 `m3u8-ad-filter.test.ts` 全覆盖单测 (100% pass)。
+  3. **Web 播放器客户端零流量本地清洗流水线 (Client-side Blob Pipeline)**：
+     - 在 `apps/web/src/player/hooks/useMediaEngine.ts` 中装配针对 `adBlockerMode === 'client'` 的异步清洗管道：客户端就近直连拉取 M3U8 文本 -> 纯本地剥离广告切片 -> 生成 `blob:http...` 伪流直喂 `hls.loadSource` 或原生 HLS（**100% 直连源站 CDN，零服务器流量与代理开销**）；
+     - 挂载生命周期安全释放逻辑，在切集、换源或组件卸载时立即调用 `URL.revokeObjectURL(localBlobUrl)` 防止内存泄漏；
+     - 包含异常静默回退降级机制，遇跨域阻断或拉取失败时无缝使用原始 `activeSrc`，保证播放可用性。
+  4. **全套自动化测试、全仓编译与版本递增**：
+     - 覆盖 Bangumi 官方时长基准（《孤独摇滚！》、《间谍过家家》、《我推的孩子》、《鬼灭之刃》、《尼古喵喵》等）多集实测比对，去广告准确率达 100% 且正片零误伤；
+     - 全仓 168 个单元测试全部通过；全仓 `pnpm typecheck` 零错误；`pnpm build` 生产构建成功；
+     - 执行 `pnpm bump minor`，全仓版本升级至 `v1.10.0`。
+- 涉及文件：
+  - packages/shared/src/plugin.ts
+  - packages/shared/src/m3u8-ad-filter.ts
+  - packages/shared/src/m3u8-ad-filter.test.ts
+  - apps/web/src/data/default-plugins/*.json
+  - apps/web/src/stores/plugins.ts
+  - apps/web/src/lib/use-watch-session.ts
+  - apps/web/src/pages/WatchPage.tsx
+  - apps/web/src/player/types.ts
+  - apps/web/src/player/VideoPlayer.tsx
+  - apps/web/src/player/hooks/useMediaEngine.ts
+  - apps/server/src/rule-engine/index.ts
+  - apps/server/src/lib/ttl-cache.ts
+  - apps/server/src/lib/anibaka-adapter.ts
+  - apps/server/src/lib/media/media-gateway.test.ts
+  - docs/video-source-integration.md
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/BUGS.md
+  - .claude/STATE.md
+
 ## [2026-09-08] 修复 CYCani 源站 .mp3 伪装直链格式推导被误判为 HLS 的缺陷 (v1.9.2)
 - 状态：已完成
 - 优先级：P1

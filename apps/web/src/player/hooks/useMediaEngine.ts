@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import type Hls from 'hls.js'
-import type { PlayerSettings } from '@animaku/shared'
+import { filterM3u8AdsIfApplicable, type AdBlockerMode, type PlayerSettings } from '@animaku/shared'
 import {
   bufferedAhead,
   formatTime,
@@ -18,6 +18,7 @@ export interface UseMediaEngineOptions {
   videoRef: RefObject<HTMLVideoElement | null>
   activeSrc: string
   formatHint?: string
+  adBlockerMode?: AdBlockerMode
   playerSettings: PlayerSettings
   onPlayerChange?: (partial: Partial<PlayerSettings>) => void
   onMediaAuthExpired?: (position: number) => void | Promise<void>
@@ -41,6 +42,7 @@ export function useMediaEngine({
   videoRef,
   activeSrc,
   formatHint,
+  adBlockerMode,
   playerSettings,
   onPlayerChange,
   onMediaAuthExpired,
@@ -295,6 +297,7 @@ export function useMediaEngine({
 
     const gen = ++genRef.current
     const alive = () => genRef.current === gen
+    let localBlobUrl: string | null = null
 
     authAttemptingRef.current = false
     authRecoverySucceededRef.current = false
@@ -601,13 +604,13 @@ export function useMediaEngine({
 
     const preferNativeHls = canNativeHls && (isIos || isSafariOrWebKit)
 
-    const attachNativeHls = () => {
+    const attachNativeHls = (targetSrc = activeSrc) => {
       while (video.firstChild) {
         video.removeChild(video.firstChild)
       }
       video.removeAttribute('src')
       const sourceEl = document.createElement('source')
-      sourceEl.src = activeSrc
+      sourceEl.src = targetSrc
       sourceEl.type = 'application/vnd.apple.mpegurl'
       const onHlsError = () => {
         if (!alive()) return
@@ -714,133 +717,180 @@ export function useMediaEngine({
       }
     }
 
+    const resolveClientCleanedSrc = async (rawSrc: string): Promise<string> => {
+      if (adBlockerMode !== 'client') return rawSrc
+      try {
+        const res = await fetch(rawSrc, { cache: 'no-cache' })
+        if (!res.ok) return rawSrc
+        const text = await res.text()
+        if (text.includes('#EXT-X-STREAM-INF')) {
+          const lines = text.split('\n')
+          for (const line of lines) {
+            const trimmed = line.trim()
+            if (trimmed && !trimmed.startsWith('#')) {
+              const variantUrl = new URL(trimmed, rawSrc).href
+              const varRes = await fetch(variantUrl, { cache: 'no-cache' })
+              if (!varRes.ok) return rawSrc
+              const varText = await varRes.text()
+              const clean = filterM3u8AdsIfApplicable(varText, variantUrl)
+              if (clean.filtered) {
+                const blob = new Blob([clean.content], {
+                  type: 'application/vnd.apple.mpegurl',
+                })
+                localBlobUrl = URL.createObjectURL(blob)
+                return localBlobUrl
+              }
+              return rawSrc
+            }
+          }
+        } else {
+          const clean = filterM3u8AdsIfApplicable(text, rawSrc)
+          if (clean.filtered) {
+            const blob = new Blob([clean.content], {
+              type: 'application/vnd.apple.mpegurl',
+            })
+            localBlobUrl = URL.createObjectURL(blob)
+            return localBlobUrl
+          }
+        }
+        return rawSrc
+      } catch (err) {
+        console.warn('[player] client ad-filter fallback:', err)
+        return rawSrc
+      }
+    }
+
     if (isM3u8(activeSrc, formatHintRef.current)) {
-      if (preferNativeHls) {
-        attachNativeHls()
-      } else {
-        void import('hls.js')
-          .then((mod) => {
-            if (!alive()) return
-            const HlsCtor = mod.default
-            if (HlsCtor.isSupported()) {
-              const hls = new HlsCtor({
-                enableWorker: true,
-                startFragPrefetch: true,
-                maxBufferLength: 30,
-                maxMaxBufferLength: 60,
-                maxBufferHole: 0.5,
-                startLevel: -1,
-                abrEwmaDefaultEstimate: 5_000_000,
-                maxBufferSize: 60 * 1000 * 1000,
-                fragLoadingTimeOut: 20_000,
-                manifestLoadingTimeOut: 15_000,
-                fragLoadingRetryDelay: 500,
-                fragLoadingMaxRetry: 4,
-                fragLoadingMaxRetryTimeout: 8_000,
-                levelLoadingRetryDelay: 500,
-                levelLoadingMaxRetry: 4,
-                levelLoadingMaxRetryTimeout: 8_000,
-              })
-              hlsRef.current = hls
-              hls.loadSource(activeSrc)
-              hls.attachMedia(video)
-              hls.on(HlsCtor.Events.MANIFEST_PARSED, () => {
-                if (!alive()) return
-                onReady()
-              })
-              hls.on(HlsCtor.Events.FRAG_LOADED, (_e, data) => {
-                if (!alive()) return
-                onFragLoadedExtraRef.current?.(hls, data)
-              })
-              hls.on(HlsCtor.Events.LEVEL_LOADED, (_e, data) => {
-                if (!alive()) return
-                if (data.details.totalduration) {
-                  setDuration(data.details.totalduration)
-                }
-                tryApplyInitialResumeRef.current?.()
-              })
-              hls.on(HlsCtor.Events.ERROR, (_e, data) => {
-                if (!alive()) return
-                if (!data.fatal) return
-                console.error('[player] hls fatal', data.type, data.details)
-                if (data.type === HlsCtor.ErrorTypes.NETWORK_ERROR) {
-                  const responseCode =
-                    data.response?.code ||
-                    (data.context as { xhr?: { status?: number } } | undefined)
-                      ?.xhr?.status
-                  if (
-                    (responseCode === 401 || responseCode === 403) &&
-                    tryAuthRefresh()
-                  ) {
-                    return
+      void (async () => {
+        const targetSrc = await resolveClientCleanedSrc(activeSrc)
+        if (!alive()) return
+        if (preferNativeHls) {
+          attachNativeHls(targetSrc)
+        } else {
+          void import('hls.js')
+            .then((mod) => {
+              if (!alive()) return
+              const HlsCtor = mod.default
+              if (HlsCtor.isSupported()) {
+                const hls = new HlsCtor({
+                  enableWorker: true,
+                  startFragPrefetch: true,
+                  maxBufferLength: 30,
+                  maxMaxBufferLength: 60,
+                  maxBufferHole: 0.5,
+                  startLevel: -1,
+                  abrEwmaDefaultEstimate: 5_000_000,
+                  maxBufferSize: 60 * 1000 * 1000,
+                  fragLoadingTimeOut: 20_000,
+                  manifestLoadingTimeOut: 15_000,
+                  fragLoadingRetryDelay: 500,
+                  fragLoadingMaxRetry: 4,
+                  fragLoadingMaxRetryTimeout: 8_000,
+                  levelLoadingRetryDelay: 500,
+                  levelLoadingMaxRetry: 4,
+                  levelLoadingMaxRetryTimeout: 8_000,
+                })
+                hlsRef.current = hls
+                hls.loadSource(targetSrc)
+                hls.attachMedia(video)
+                hls.on(HlsCtor.Events.MANIFEST_PARSED, () => {
+                  if (!alive()) return
+                  onReady()
+                })
+                hls.on(HlsCtor.Events.FRAG_LOADED, (_e, data) => {
+                  if (!alive()) return
+                  onFragLoadedExtraRef.current?.(hls, data)
+                })
+                hls.on(HlsCtor.Events.LEVEL_LOADED, (_e, data) => {
+                  if (!alive()) return
+                  if (data.details.totalduration) {
+                    setDuration(data.details.totalduration)
                   }
-                  setLoading(false)
-                  setBufferingUi(false)
-                  setMediaError(`网络连接错误 ${data.details || ''}，建议切换视频源`)
-                  reportLoadFailed(String(data.details || 'hls_network'))
-                  return
-                } else if (data.type === HlsCtor.ErrorTypes.MEDIA_ERROR) {
-                  const now = Date.now()
-                  if (now - lastMediaErrorTimeRef.current > 30_000) {
-                    mediaErrorWindowCountRef.current = 0
-                  }
-                  lastMediaErrorTimeRef.current = now
-                  mediaErrorWindowCountRef.current++
-                  sessionMediaErrorTotalRef.current++
-
-                  const playedSeconds = video.currentTime || 0
-                  const effectiveMinutes = Math.max(playedSeconds / 60, 2)
-                  const errorRatePerMinute =
-                    sessionMediaErrorTotalRef.current / effectiveMinutes
-
-                  if (errorRatePerMinute > 1.0) {
+                  tryApplyInitialResumeRef.current?.()
+                })
+                hls.on(HlsCtor.Events.ERROR, (_e, data) => {
+                  if (!alive()) return
+                  if (!data.fatal) return
+                  console.error('[player] hls fatal', data.type, data.details)
+                  if (data.type === HlsCtor.ErrorTypes.NETWORK_ERROR) {
+                    const responseCode =
+                      data.response?.code ||
+                      (data.context as { xhr?: { status?: number } } | undefined)
+                        ?.xhr?.status
+                    if (
+                      (responseCode === 401 || responseCode === 403) &&
+                      tryAuthRefresh()
+                    ) {
+                      return
+                    }
                     setLoading(false)
                     setBufferingUi(false)
-                    setMediaError('该视频源稳定性较差，建议切换视频源')
-                    reportLoadFailed('hls_media_frequent_errors')
+                    setMediaError(`网络连接错误 ${data.details || ''}，建议切换视频源`)
+                    reportLoadFailed(String(data.details || 'hls_network'))
                     return
-                  }
+                  } else if (data.type === HlsCtor.ErrorTypes.MEDIA_ERROR) {
+                    const now = Date.now()
+                    if (now - lastMediaErrorTimeRef.current > 30_000) {
+                      mediaErrorWindowCountRef.current = 0
+                    }
+                    lastMediaErrorTimeRef.current = now
+                    mediaErrorWindowCountRef.current++
+                    sessionMediaErrorTotalRef.current++
 
-                  if (mediaErrorWindowCountRef.current === 1) {
-                    setMediaError('解码异常，正在尝试恢复…')
-                    hls.recoverMediaError()
-                  } else if (mediaErrorWindowCountRef.current === 2) {
-                    setMediaError('解码异常，置换音频解码器并恢复…')
-                    hls.swapAudioCodec()
-                    hls.recoverMediaError()
+                    const playedSeconds = video.currentTime || 0
+                    const effectiveMinutes = Math.max(playedSeconds / 60, 2)
+                    const errorRatePerMinute =
+                      sessionMediaErrorTotalRef.current / effectiveMinutes
+
+                    if (errorRatePerMinute > 1.0) {
+                      setLoading(false)
+                      setBufferingUi(false)
+                      setMediaError('该视频源稳定性较差，建议切换视频源')
+                      reportLoadFailed('hls_media_frequent_errors')
+                      return
+                    }
+
+                    if (mediaErrorWindowCountRef.current === 1) {
+                      setMediaError('解码异常，正在尝试恢复…')
+                      hls.recoverMediaError()
+                    } else if (mediaErrorWindowCountRef.current === 2) {
+                      setMediaError('解码异常，置换音频解码器并恢复…')
+                      hls.swapAudioCodec()
+                      hls.recoverMediaError()
+                    } else {
+                      setLoading(false)
+                      setBufferingUi(false)
+                      setMediaError('媒体解码不可恢复，建议切换视频源')
+                      reportLoadFailed('hls_media_unrecoverable')
+                    }
                   } else {
                     setLoading(false)
                     setBufferingUi(false)
-                    setMediaError('媒体解码不可恢复，建议切换视频源')
-                    reportLoadFailed('hls_media_unrecoverable')
+                    setMediaError(`播放失败: ${data.details || data.type}`)
+                    reportLoadFailed(String(data.details || data.type))
                   }
-                } else {
-                  setLoading(false)
-                  setBufferingUi(false)
-                  setMediaError(`播放失败: ${data.details || data.type}`)
-                  reportLoadFailed(String(data.details || data.type))
-                }
-              })
-              return
-            }
-            if (canNativeHls) {
-              attachNativeHls()
-              return
-            }
-            setLoading(false)
-            setMediaError('当前浏览器不支持 HLS')
-          })
-          .catch((e) => {
-            if (!alive()) return
-            console.error('[player] hls import failed', e)
-            if (canNativeHls) {
-              attachNativeHls()
-              return
-            }
-            setLoading(false)
-            setMediaError('加载播放器失败')
-          })
-      }
+                })
+                return
+              }
+              if (canNativeHls) {
+                attachNativeHls(targetSrc)
+                return
+              }
+              setLoading(false)
+              setMediaError('当前浏览器不支持 HLS')
+            })
+            .catch((e) => {
+              if (!alive()) return
+              console.error('[player] hls import failed', e)
+              if (canNativeHls) {
+                attachNativeHls(targetSrc)
+                return
+              }
+              setLoading(false)
+              setMediaError('加载播放器失败')
+            })
+        }
+      })()
     } else {
       attachProgressive()
     }
@@ -1058,6 +1108,10 @@ export function useMediaEngine({
 
     return () => {
       genRef.current++
+      if (localBlobUrl) {
+        URL.revokeObjectURL(localBlobUrl)
+        localBlobUrl = null
+      }
       try {
         softPlayCleanup?.()
       } catch {

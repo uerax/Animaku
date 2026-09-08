@@ -9,7 +9,6 @@
   "useNativePlayer": true,
   "usePost": false,
   "useLegacyParser": false,
-  "adBlocker": false,
   "userAgent": "",
   "baseURL": "https://anime.xifanacg.com/",
   "searchURL": "",
@@ -35,5 +34,6 @@
     "namePath": "$.name",
     "sourcePath": "$.id",
     "sourceTemplate": "/bangumi/@source.html"
-  }
+  },
+  "adBlockerMode": "none"
 }
