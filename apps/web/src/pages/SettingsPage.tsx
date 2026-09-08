@@ -181,6 +181,7 @@ export function SettingsPage() {
   const navSummary = useMemo(() => {
     const items = [
       theme === 'light' ? '浅色' : '深色',
+      nav.openInNewTab ? '新标签页打开' : '当前页打开',
       nav.showUserMenu ? '用户中心' : null,
       nav.showHistory ? '历史' : null,
       nav.showThemeToggle ? '黑白模式' : null,
@@ -1310,6 +1311,19 @@ export function SettingsPage() {
             <option value="dark">🌙 深色主题 (Dark)</option>
           </select>
         </label>
+        <div className="pt-2 border-t border-[var(--kz-border)]/40 space-y-2">
+          <div className="text-xs font-semibold text-[var(--kz-fg-muted)] pt-0.5">
+            浏览与打开偏好
+          </div>
+          <Toggle
+            label="在新标签页打开番剧"
+            checked={nav.openInNewTab}
+            onChange={(openInNewTab) => setNav({ openInNewTab })}
+          />
+          <p className="text-[11px] sm:text-xs text-[var(--kz-fg-dim)]">
+            点击首页推荐、番剧目录、放送时间表及搜索结果卡片时，在新标签页打开（保留当前列表浏览与淘番进度）。
+          </p>
+        </div>
         <div className="pt-2 border-t border-[var(--kz-border)]/40 space-y-2">
           <div className="text-xs font-semibold text-[var(--kz-fg-muted)] pt-0.5">
             导航栏右侧快捷按钮展示

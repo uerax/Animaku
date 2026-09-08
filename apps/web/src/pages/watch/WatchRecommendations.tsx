@@ -22,15 +22,23 @@ const RecommendationCard = memo(function RecommendationCard({
 }) {
   const title = item.nameCn || item.name || '未知动画'
   const coverSrc = item.cover
+  const [loadedSrc, setLoadedSrc] = useState<string | null>(null)
+  const isLoaded = Boolean(coverSrc && loadedSrc === coverSrc)
 
   const onWarmup = () => {
     preloadRoute('subject')
     preloadVideoPlayer()
   }
 
-  const toUrl = currentPlugin
-    ? `/subject/${item.id}?plugin=${encodeURIComponent(currentPlugin)}`
-    : `/subject/${item.id}`
+  const toUrl = useMemo(() => {
+    const params = new URLSearchParams()
+    const t = item.nameCn || item.name
+    if (t) params.set('title', t)
+    if (item.cover) params.set('cover', item.cover)
+    if (item.year) params.set('year', String(item.year))
+    const qs = params.toString()
+    return qs ? `/subject/${item.id}?${qs}` : `/subject/${item.id}`
+  }, [item.id, item.nameCn, item.name, item.cover, item.year])
 
   return (
     <Link
@@ -41,15 +49,27 @@ const RecommendationCard = memo(function RecommendationCard({
       className="group flex w-full items-stretch gap-3 rounded-xl p-1.5 transition-colors hover:bg-[var(--kz-bg-hover)]"
     >
       {/* 左侧 B 站同款 16:9 宽幅封面（180*101）：聚焦主角面部与上半身特写 */}
-      <div className="relative h-[90px] w-[160px] sm:h-[101px] sm:w-[180px] shrink-0 overflow-hidden rounded-lg sm:rounded-xl bg-[var(--kz-bg-soft)] shadow-sm ring-1 ring-[var(--kz-border)]/60">
+      <div className="relative h-[90px] w-[160px] sm:h-[101px] sm:w-[180px] shrink-0 overflow-hidden rounded-lg sm:rounded-xl bg-[var(--kz-bg-soft)] shadow-sm ring-1 ring-[var(--kz-border)]/60 dark:ring-white/10 dark:shadow-[0_4px_16px_rgba(0,0,0,0.3)]">
         {coverSrc ? (
-          <img
-            src={bangumiImageUrl(coverSrc)}
-            alt={title}
-            loading="lazy"
-            decoding="async"
-            className="h-full w-full object-cover object-[center_18%] transition-transform duration-300 group-hover:scale-105"
-          />
+          <>
+            {!isLoaded && (
+              <div
+                className="kz-skeleton absolute inset-0 z-0 rounded-[inherit]"
+                aria-hidden="true"
+              />
+            )}
+            <img
+              key={coverSrc}
+              src={bangumiImageUrl(coverSrc)}
+              alt={title}
+              loading="lazy"
+              decoding="async"
+              onLoad={() => setLoadedSrc(coverSrc)}
+              className={`h-full w-full object-cover object-[center_18%] transition-all duration-300 group-hover:scale-105 ${
+                isLoaded ? 'opacity-100' : 'opacity-0'
+              }`}
+            />
+          </>
         ) : (
           <div className="flex h-full w-full items-center justify-center text-[10px] text-[var(--kz-fg-dim)]">
             无封面

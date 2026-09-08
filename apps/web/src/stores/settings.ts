@@ -49,6 +49,8 @@ export interface NavSettings {
   showHistory: boolean
   showThemeToggle: boolean
   showGitHub: boolean
+  /** 点击番剧卡片是否在新标签页打开（默认 true，方便淘番保留列表浏览进度） */
+  openInNewTab: boolean
 }
 
 export const defaultNavSettings: NavSettings = {
@@ -56,6 +58,7 @@ export const defaultNavSettings: NavSettings = {
   showHistory: envBool(import.meta.env.VITE_NAV_SHOW_HISTORY, true),
   showThemeToggle: envBool(import.meta.env.VITE_NAV_SHOW_THEME_TOGGLE, true),
   showGitHub: envBool(import.meta.env.VITE_NAV_SHOW_GITHUB, true),
+  openInNewTab: envBool(import.meta.env.VITE_NAV_OPEN_IN_NEW_TAB, true),
 }
 
 interface SettingsState {
@@ -249,6 +252,10 @@ export const useSettingsStore = create<SettingsState>()(
               p.nav && typeof p.nav.showGitHub === 'boolean'
                 ? p.nav.showGitHub
                 : defaultNavSettings.showGitHub,
+            openInNewTab:
+              p.nav && typeof p.nav.openInNewTab === 'boolean'
+                ? p.nav.openInNewTab
+                : defaultNavSettings.openInNewTab,
           },
         }
       },

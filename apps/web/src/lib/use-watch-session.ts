@@ -344,6 +344,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
       : 0
   const qTitle = params.get('title') || ''
   const qCover = params.get('cover') || ''
+  const qYear = params.get('year') || ''
 
   const ensureDefaults = usePluginStore((s) => s.ensureDefaults)
   const allPlugins = usePluginStore((s) =>
@@ -364,7 +365,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     gcTime: 6 * 60 * 60_000,
   })
   const item = subject.data?.data
-  const isOld = useMemo(() => isOldAnime(item?.airDate), [item?.airDate])
+  const isOld = useMemo(() => isOldAnime(item?.airDate || qYear), [item?.airDate, qYear])
 
   const bgmEpisodesQuery = useQuery({
     queryKey: ['bangumi-episodes', bangumiId],
@@ -603,7 +604,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     dmResetPools()
     pluginSearchGen.current = {}
     setSearchKeyword('')
-    setSearchResults([])
+    // Keep searchResults stable across subjects — smoothly updated in the effect below
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only on subject id
   }, [bangumiId])
 
@@ -863,6 +864,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
             q.delete('pageUrl')
             q.delete('title')
             q.delete('cover')
+            q.delete('year')
             q.delete('source')
             const key = `${bangumiId}|${plugin.name}||${targetEpNum}|${targetRoadIdx}`
             resumeDoneFor.current = key
@@ -876,6 +878,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
             q.delete('road')
             q.delete('title')
             q.delete('cover')
+            q.delete('year')
             q.delete('source')
             safeSetParams(q, { replace: true })
           }

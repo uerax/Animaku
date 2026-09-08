@@ -29,6 +29,8 @@ export const BangumiImage: React.FC<BangumiImageProps> = ({
   const imageUrl = path ? buildImageUrl(path, host) : ''
 
   const [failed, setFailed] = useState(!imageUrl)
+  const [loadedUrl, setLoadedUrl] = useState<string | null>(null)
+  const isLoaded = Boolean(imageUrl && loadedUrl === imageUrl)
 
   useEffect(() => {
     setFailed(!imageUrl)
@@ -44,13 +46,17 @@ export const BangumiImage: React.FC<BangumiImageProps> = ({
 
   return (
     <img
+      key={imageUrl}
       src={imageUrl}
       alt={alt}
       referrerPolicy="no-referrer"
       loading="lazy"
       decoding="async"
+      onLoad={() => setLoadedUrl(imageUrl)}
       onError={() => setFailed(true)}
-      className={className}
+      className={`${className} transition-opacity duration-300 ease-out ${
+        isLoaded ? 'opacity-100' : 'opacity-0'
+      }`}
       {...rest}
     />
   )

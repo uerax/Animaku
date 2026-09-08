@@ -4,6 +4,40 @@
 
 ---
 
+## [2026-09-08] 用户体验升级：新标签页打开番剧、番剧目录即时清理旧数据与骨架流光质感优化 (v1.11.0)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **“点击封面在新标签页打开”偏好与全站卡片适配**：
+     - 在 `apps/web/src/stores/settings.ts` 的 `NavSettings` 中新增 `openInNewTab: boolean`（默认启用，保留淘番与目录浏览进度），并纳入持久化与合并迁移；
+     - 在 `apps/web/src/pages/SettingsPage.tsx` 的【导航栏与外观】面板增加直观的 Toggle 开关与状态摘要展示；
+     - 全站核心淘番卡片全面接入：`BangumiCard`（目录/首页/时间表/搜索结果）、`HeroCoverFlow` 中心焦点卡片、`HomePage` 历史卡片，统一根据偏好安全配置 `target="_blank"` 与 `rel="noopener noreferrer"`；播放页的相关推荐卡片保持当前页面平滑路由载入（符合换台心智，杜绝标签页滥用）。
+  2. **彻底解决番剧目录切换月份/年份/分类时的旧图残留与 0.5s 灰色过程**：
+     - 在 `apps/web/src/pages/AnimePage.tsx` 中彻底移除 `placeholderData: (prev) => prev` 与 `q.isFetching && 'opacity-70'`；
+     - 当用户点击不同月份、年份或类型的一瞬间，立即清空旧月份旧数据，立即呈现 `BangumiGridSkeleton` 骨架流光；新数据到达后平滑直出，彻底杜绝 0.5s 灰色死人脸旧图残留；
+     - 完全移除播放页历史推导首集逻辑，保持未观看番剧的用户自主选集权。
+  3. **推荐切番时视频源面板常驻与关键词平滑切换**：
+     - 在 `apps/web/src/pages/watch/WatchRecommendations.tsx` 中跳转链接透传 `title` 与 `cover` 参数，彻底杜绝切番剧时播放页瞬间降级成全屏白板骨架屏；
+     - 在 `apps/web/src/lib/use-watch-session.ts` 与 `use-source-aggregator.ts` 中移除切番时清空视频源数组（`setSearchResults([])` 与 `setSources({})`）的抖动逻辑，视频源面板与已安装规则 100% 常驻稳定，仅即时平滑切换针对新番剧的检索关键词、别名变体与探活状态。
+  4. **骨架屏微光流光与封面图片加载质感微调**：
+     - 在 `apps/web/src/components/ui.tsx` 中为 `BangumiCard` 封面增加图片未就绪时的 `kz-skeleton` 微光流动占位与 `duration-300` 丝滑淡入，彻底消灭纯灰死板方块；
+     - 深度解决换页/换标签旧图残留缺陷：通过 `key={cover}` 与受控状态 `loadedCover === cover`，在封面变动时立即卸载旧图，新图就绪前 100% 仅展示纯净骨架流光；
+     - `WatchRecommendations.tsx` 推荐卡片与 `BangumiImage.tsx` 通用图片组件同步引入该机制；
+     - 优化海报暗色主题下的微光细边框与深度立体阴影（`dark:shadow-[0_12px_32px_rgba(0,0,0,0.4)] dark:ring-white/10`）。
+- 涉及文件：
+  - `apps/web/src/stores/settings.ts`
+  - `apps/web/src/pages/SettingsPage.tsx`
+  - `apps/web/src/components/ui.tsx`
+  - `apps/web/src/components/HeroCoverFlow.tsx`
+  - `apps/web/src/pages/watch/WatchRecommendations.tsx`
+  - `apps/web/src/pages/HomePage.tsx`
+  - `apps/web/src/pages/AnimePage.tsx`
+  - `apps/web/src/components/BangumiImage.tsx`
+  - `apps/web/src/lib/use-watch-session.ts`
+  - `apps/web/src/lib/use-source-aggregator.ts`
+  - `package.json`, `apps/web/package.json`, `apps/server/package.json`, `packages/shared/package.json`, `packages/shared/src/version.ts`
+- 备注：全仓类型检查 (`pnpm typecheck`) 通过，全量单测 (68/68 tests pass) 通过，全仓生产构建 (`pnpm build`) 成功，Chrome 实机验证通过，版本自动升级至 v1.11.0。
+
 ## [2026-09-08] TvTFun 专有适配器线路 D 优先排序与内置插件权重同步 (v1.10.1)
 - 状态：已完成
 - 优先级：P2

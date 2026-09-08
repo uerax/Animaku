@@ -134,6 +134,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
 }: HeroCoverFlowProps) {
   const host =
     useSettingsStore((s) => s.bangumiImageHost) || DEFAULT_BANGUMI_IMAGE_HOST
+  const openInNewTab = useSettingsStore((s) => s.nav.openInNewTab)
 
   const resolveImageUrl = useCallback(
     (rawSrc?: string | null) => {
@@ -689,6 +690,8 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
             >
               <Link
                 to={`/subject/${item.id}`}
+                target={openInNewTab ? '_blank' : undefined}
+                rel={openInNewTab ? 'noopener noreferrer' : undefined}
                 tabIndex={isCenter ? 0 : -1}
                 onClick={(e) => {
                   if (isDragging.current || isAccelerating) {

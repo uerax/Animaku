@@ -205,7 +205,6 @@ export function AnimePage() {
     // Align with server browse TTL (2h); client shorter for filter-heavy UX
     staleTime: 30 * 60_000,
     gcTime: 2 * 60 * 60_000,
-    placeholderData: (prev) => prev,
   })
 
   const total = q.data?.total ?? 0
@@ -351,15 +350,13 @@ export function AnimePage() {
         </div>
       </section>
 
-      {q.isLoading && !q.data && <BangumiGridSkeleton count={12} />}
-      {q.isError && (
+      {q.isLoading || q.isFetching ? (
+        <BangumiGridSkeleton count={12} />
+      ) : q.isError ? (
         <ErrorState error={q.error} onRetry={() => q.refetch()} />
-      )}
-      {q.data && (
+      ) : q.data ? (
         <>
-          <div className={clsx(q.isFetching && 'opacity-70 transition-opacity')}>
-            <BangumiGrid items={items} />
-          </div>
+          <BangumiGrid items={items} />
 
           {totalPages > 1 && (
             <nav
@@ -395,7 +392,7 @@ export function AnimePage() {
             </nav>
           )}
         </>
-      )}
+      ) : null}
     </div>
   )
 }

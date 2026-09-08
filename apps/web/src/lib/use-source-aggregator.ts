@@ -100,8 +100,20 @@ export function useSourceAggregator({
     activeAutoJobsRef.current.clear()
     queueRef.current = []
     activeJobsRef.current = 0
-    setSources({})
-  }, [bangumiId])
+    // Keep plugin rows intact — smoothly reset items & status to idle for the new subject
+    setSources((prev) => {
+      const next: Record<string, AggregatedSourceState> = {}
+      for (const p of plugins) {
+        next[p.name] = {
+          plugin: p,
+          status: 'idle',
+          items: [],
+          searched: false,
+        }
+      }
+      return next
+    })
+  }, [bangumiId, plugins])
 
   // Sync / initialize plugin state list
   useEffect(() => {

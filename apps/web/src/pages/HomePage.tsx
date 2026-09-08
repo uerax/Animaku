@@ -8,6 +8,7 @@ import {
 } from '../components/ui'
 import { HeroCoverFlow, HeroCoverFlowSkeleton } from '../components/HeroCoverFlow'
 import { useHistoryStore } from '../stores/history'
+import { useSettingsStore } from '../stores/settings'
 import { Link } from 'react-router-dom'
 import { useEffect, useMemo } from 'react'
 import { EMPTY_ARRAY } from '../lib/stable'
@@ -60,6 +61,7 @@ export function HomePage() {
     gcTime: 12 * 60 * 60_000,
   })
 
+  const openInNewTab = useSettingsStore((s) => s.nav.openInNewTab)
   const items = useHistoryStore((s) =>
     Array.isArray(s.items) ? s.items : EMPTY_ARRAY,
   )
@@ -121,6 +123,8 @@ export function HomePage() {
               <Link
                 key={h.id}
                 to={`/play/${h.bangumiId}?plugin=${encodeURIComponent(h.pluginName)}&ep=${h.episode}${h.road > 0 ? `&road=${h.road}` : ''}`}
+                target={openInNewTab ? '_blank' : undefined}
+                rel={openInNewTab ? 'noopener noreferrer' : undefined}
                 onMouseEnter={preloadVideoPlayer}
                 onFocus={preloadVideoPlayer}
                 onTouchStart={preloadVideoPlayer}

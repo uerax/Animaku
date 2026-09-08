@@ -11,6 +11,7 @@ import {
 } from '@animaku/shared'
 import { preloadVideoPlayer } from '../player/lazy'
 import { preloadRoute } from '../lib/route-preload'
+import { useSettingsStore } from '../stores/settings'
 
 export * from './BangumiImage'
 export { UserDropdown } from './UserDropdown'
@@ -68,16 +69,19 @@ export const BangumiCard = memo(function BangumiCard({
   const eager = imagePriority !== 'lazy'
   const isLcp = imagePriority === 'high'
 
-  const [isLoaded, setIsLoaded] = useState(false)
+  const [loadedCover, setLoadedCover] = useState<string | null>(null)
+  const isLoaded = Boolean(cover && loadedCover === cover)
   const [hasError, setHasError] = useState(false)
   const imgRef = useRef<HTMLImageElement>(null)
 
   // 物理级 0 闪烁防线：在首帧 Paint 之前同步检查是否命中本地缓存
   useLayoutEffect(() => {
-    if (imgRef.current?.complete && imgRef.current.naturalWidth > 0) {
-      setIsLoaded(true)
+    if (cover && imgRef.current?.complete && imgRef.current.naturalWidth > 0) {
+      setLoadedCover(cover)
     }
   }, [cover])
+
+  const openInNewTab = useSettingsStore((s) => s.nav.openInNewTab)
 
   const onCardWarmup = () => {
     preloadRoute('subject')
@@ -87,15 +91,24 @@ export const BangumiCard = memo(function BangumiCard({
   return (
     <Link
       to={`/subject/${item.id}`}
+      target={openInNewTab ? '_blank' : undefined}
+      rel={openInNewTab ? 'noopener noreferrer' : undefined}
       // Warm Subject route + player chunk on intent
       onMouseEnter={onCardWarmup}
       onFocus={onCardWarmup}
       onTouchStart={onCardWarmup}
       className="bangumi-card group flex flex-col overflow-hidden rounded-2xl bg-transparent transition-transform duration-200 hover:-translate-y-1"
     >
-      <div className="bangumi-card-cover relative aspect-[3/4] overflow-hidden rounded-2xl bg-[var(--kz-bg-soft)] shadow-[0_10px_28px_rgba(0,0,0,0.18)] ring-1 ring-[var(--kz-border)]">
+      <div className="bangumi-card-cover relative aspect-[3/4] overflow-hidden rounded-2xl bg-[var(--kz-bg-soft)] shadow-[0_10px_28px_rgba(0,0,0,0.18)] dark:shadow-[0_12px_32px_rgba(0,0,0,0.4)] ring-1 ring-[var(--kz-border)] dark:ring-white/10">
+        {!isLoaded && !isLcp && (
+          <div
+            className="kz-skeleton absolute inset-0 z-0 rounded-[inherit]"
+            aria-hidden="true"
+          />
+        )}
         {cover && !hasError ? (
           <img
+            key={cover}
             ref={imgRef}
             src={cover}
             alt={item.nameCn || item.name || '动画封面'}
@@ -113,13 +126,13 @@ export const BangumiCard = memo(function BangumiCard({
             // Intrinsic hint for aspect ratio before CSS; common covers ~200px wide
             width={200}
             height={267}
-            onLoad={() => setIsLoaded(true)}
+            onLoad={() => setLoadedCover(cover)}
             onError={() => setHasError(true)}
             className={`h-full w-full object-cover ${
               isLcp
                 ? 'opacity-100'
                 : isLoaded
-                  ? 'opacity-100 transition-opacity duration-200 ease-out'
+                  ? 'opacity-100 transition-opacity duration-300 ease-out'
                   : 'opacity-0'
             }`}
           />
