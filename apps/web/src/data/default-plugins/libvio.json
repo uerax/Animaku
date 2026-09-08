@@ -4,7 +4,7 @@
   "name": "libvio",
   "version": "1.0",
   "weight": 60,
-  "preferOriginalTitle": true,
+  "titlePreference": "original",
   "requiresFullMediaProxy": true,
   "muliSources": true,
   "useWebview": true,

@@ -4,7 +4,7 @@
   "name": "lzizy",
   "version": "1.0",
   "weight": 60,
-  "preferOriginalTitle": false,
+  "titlePreference": "chinese",
   "muliSources": true,
   "useWebview": false,
   "useNativePlayer": true,

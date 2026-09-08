@@ -10,13 +10,14 @@
  *   - Requires `X-Play-Ctx: base64({ f: 60, v: 1, w: 1920, hgt: 1080, p: 1 })`
  * - Media: High quality 1080P MP4 direct streams / HLS (supports Accept-Ranges byte-level seek)
  */
-import type {
-  PluginChapterResult,
-  PluginRule,
-  PluginSearchResult,
-  ResolvePlayResult,
-  Road,
-  SearchItem,
+import {
+  extractBaseTitle,
+  type PluginChapterResult,
+  type PluginRule,
+  type PluginSearchResult,
+  type ResolvePlayResult,
+  type Road,
+  type SearchItem,
 } from '@animaku/shared'
 import { config } from '../config'
 import { assertPublicHttpUrl, fetchPublic } from './private-host'
@@ -147,37 +148,51 @@ export async function searchTvTFun(
     return { pluginName: rule.name, items: [] }
   }
 
-  const searchUrl = `${TVTFUN_BASE_URL}/api/videos/search?q=${encodeURIComponent(trimmed)}`
-  assertPublicHttpUrl(searchUrl)
-
-  const res = await fetchPublic(
-    searchUrl,
-    {
-      headers: getBaseHeaders(`${TVTFUN_BASE_URL}/videos`),
-    },
-    { timeoutMs: 10_000 },
-  )
-
-  if (!res.ok) {
-    throw new Error(`TvTFun 搜索请求失败 (HTTP ${res.status})`)
+  const queriesToTry = [trimmed]
+  const stripped = extractBaseTitle(trimmed)
+  if (stripped && stripped !== trimmed) {
+    queriesToTry.push(stripped)
   }
 
-  const json = (await res.json()) as TvTFunSearchResponse
-  if (json.error) {
-    throw new Error(`TvTFun 搜索报错: ${json.error}`)
-  }
-
-  const rawVideos = json?.data?.videos || []
   const items: SearchItem[] = []
+  const seenIds = new Set<string>()
 
-  for (const v of rawVideos) {
-    if (!v.id || !v.name) continue
-    const slug = v.slug || v.id
-    videoIdToSlugMap.set(v.id, slug)
-    items.push({
-      name: v.name.trim(),
-      src: `${TVTFUN_BASE_URL}/video/${v.id}?slug=${encodeURIComponent(slug)}`,
-    })
+  for (const q of queriesToTry) {
+    const searchUrl = `${TVTFUN_BASE_URL}/api/videos/search?q=${encodeURIComponent(q)}`
+    assertPublicHttpUrl(searchUrl)
+
+    try {
+      const res = await fetchPublic(
+        searchUrl,
+        {
+          headers: getBaseHeaders(`${TVTFUN_BASE_URL}/videos`),
+        },
+        { timeoutMs: 10_000 },
+      )
+
+      if (!res.ok) continue
+
+      const json = (await res.json()) as TvTFunSearchResponse
+      if (json.error) continue
+
+      const rawVideos = json?.data?.videos || []
+      for (const v of rawVideos) {
+        if (!v.id || !v.name || seenIds.has(v.id)) continue
+        seenIds.add(v.id)
+        const slug = v.slug || v.id
+        videoIdToSlugMap.set(v.id, slug)
+        items.push({
+          name: v.name.trim(),
+          src: `${TVTFUN_BASE_URL}/video/${v.id}?slug=${encodeURIComponent(slug)}`,
+        })
+      }
+
+      if (items.length > 0) {
+        break
+      }
+    } catch {
+      /* continue to fallback query */
+    }
   }
 
   return {

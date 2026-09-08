@@ -498,7 +498,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     keywordTargetPlugin ||
     selection?.plugin ||
     findDefaultSourcePlugin(plugins, pluginOrder, isOld)
-  const preferOriginal = activeTargetPlugin?.preferOriginalTitle === true
+  const preferOriginal = activeTargetPlugin?.titlePreference === 'original'
 
   const keywordCandidates = useMemo(() => {
     if (!item) {
@@ -507,10 +507,13 @@ export function useWatchSession(bangumiId: number): WatchSession {
     }
     // Full title first for the dropdown; shorter variants remain as fallbacks.
     // Honor the active source's title preference (Japanese/original vs Chinese).
+    const pref = activeTargetPlugin?.titlePreference || (preferOriginal ? 'original' : 'chinese')
     const primary = (
-      preferOriginal
+      pref === 'original'
         ? item.name || item.nameCn || ''
-        : item.nameCn || item.name || ''
+        : pref === 'chinese_compact'
+          ? (item.nameCn || item.name || '').replace(/\s+(第\s*[一二三四五六七八九十\d]+\s*[季期部])/g, '$1')
+          : item.nameCn || item.name || ''
     ).trim()
     const variants = buildSearchKeywords(item.nameCn, item.name, item.alias)
     const seen = new Set<string>()
@@ -525,7 +528,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
       out.push(t)
     }
     return out
-  }, [item, qTitle, title, preferOriginal])
+  }, [item, qTitle, title, preferOriginal, activeTargetPlugin])
 
   /** Default search uses the display title, not the shortest stripped variant. */
   const defaultKeyword = useMemo(() => {

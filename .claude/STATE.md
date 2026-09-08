@@ -4,6 +4,49 @@
 
 ---
 
+## [2026-09-08] 视频源检索分层提纯、标题偏好枚举 (titlePreference) 与季度安全锁 (Season Guard) (v1.9.0)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **标题偏好枚举升级 (`packages/shared/src/plugin.ts`)**：
+     - 将原二元布尔参数 `preferOriginalTitle: boolean` 彻底重构为结构化枚举 `titlePreference: 'chinese' | 'chinese_compact' | 'original' | 'traditional'`；
+     - `resolvePluginDefaultKeyword` 针对 `chinese_compact` 自动输出无空格紧凑态（`碧蓝之海第二季`），对 `original` 输出日文/原名，对 `chinese` 输出标准中文；
+     - 更新全量内置插件 JSON，MiFun 标记为 `chinese_compact`，xifan/moonci/omofun/libvio 标记为 `original`，anime1 标记为 `traditional`，其余为 `chinese`；
+     - 升级 `PLUGIN_DEFAULTS_VERSION`（v29 -> v30），驱动客户端自动刷新内置规则。
+  2. **分层候选关键词生成器与垃圾前缀拦截 (`buildSearchKeywords`)**：
+     - 增加汉字数字解析器（支持 1-99 汉字数字转换为阿拉伯数字）；
+     - 实现两阶段递归剥离：第 1 阶段剥离篇章副标题（`夺还篇`、`丧失篇`、`Part.2` 等），第 2 阶段剥离季度后缀，生成 `[官方原名] -> [主名+季度带空格] -> [主名+季度紧凑态] -> [纯净番名]` 四层结构化候选链；
+     - 增加前缀安全黑名单（`['re', 'fate', 'ova', 'sp', 'part', '剧场版']`），阻断切出短于 4 字符的无效前缀（彻底杜绝搜 `"Re"` 导致的全网噪点与高达误报）。
+  3. **Season Guard 季度安全锁 (`titleSimilarity`)**：
+     - 当双方均显式声明季度且数字不一致（如 S4 vs S2）时，触发硬性冲突熔断，打分截断至 0.15 且强制禁止 auto-pick；
+     - 当一方包含季号修饰而另一方未标注（如目标为 S4，候选为 S1 无标记）时，剥夺包含加分，打分封顶 0.45（低于 0.55 自动绑定线），强制降级为 `needs_pick` 待用户点选，彻底杜绝“看第 4 季自动误切第 1 季”；
+     - 双方均未标注季度（如单季番《孤独摇滚！》）时保持绝对中立，零误伤单季番。
+  4. **专有适配器智能自愈 (`apps/server/src/lib/mifun.ts`, `tvtfun.ts`, `girigiri.ts`)**：
+     - `mifun.ts`：增加紧凑态预检优先检索，带副标题搜空时自动退避无副标题词重试；
+     - `tvtfun.ts` & `girigiri.ts`：搜空时自动退避副标题重试，并增加 HTML 实体反转义。
+  5. **全套自动化测试、全仓编译与版本递增**：
+     - 新增 `packages/shared/src/plugin.test.ts`，覆盖中文数字解析、季度提取、分层关键词生成、Season Guard 安全锁等 6 项核心单测（100% pass）；
+     - 全仓 162 个单元测试全部通过；`pnpm typecheck` 零错误；`pnpm build` 全量打包成功；
+     - 执行 `pnpm bump minor`，项目版本升级至 `v1.9.0`。
+- 涉及文件：
+  - packages/shared/src/plugin.ts
+  - packages/shared/src/plugin.test.ts
+  - apps/web/src/data/default-plugins/*.json
+  - apps/web/src/data/default-plugins/index.ts
+  - apps/web/src/stores/plugins.ts
+  - apps/web/src/lib/use-watch-session.ts
+  - apps/server/src/lib/mifun.ts
+  - apps/server/src/lib/tvtfun.ts
+  - apps/server/src/lib/girigiri.ts
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+
+---
+
 ## [2026-09-08] 接入量子资源网 (lzizy) 全品类专有视频源适配器 (v1.8.0)
 - 状态：已完成
 - 优先级：P2

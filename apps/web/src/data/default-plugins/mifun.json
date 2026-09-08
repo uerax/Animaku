@@ -4,7 +4,7 @@
   "name": "mifun",
   "version": "1.0",
   "weight": 70,
-  "preferOriginalTitle": false,
+  "titlePreference": "chinese_compact",
   "muliSources": true,
   "useWebview": false,
   "useNativePlayer": true,

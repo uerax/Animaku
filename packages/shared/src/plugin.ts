@@ -65,6 +65,19 @@ export interface PipelineStep {
   [key: string]: unknown
 }
 
+/**
+ * Title search preference:
+ * - 'chinese': Standard Chinese title (with spaces, e.g. cycani, tvtfun, girigiri)
+ * - 'chinese_compact': Compact Chinese title (multi-season without spaces, e.g. mifun)
+ * - 'original': Japanese / original title first (e.g. xifan-next, moonci, omofun, libvio)
+ * - 'traditional': Traditional Chinese title first (e.g. anime1)
+ */
+export type TitlePreference =
+  | 'chinese'
+  | 'chinese_compact'
+  | 'original'
+  | 'traditional'
+
 /** Plugin rule (subset used by web, supporting both Kazumi V1 and AniBaka V2 pipelines). */
 export interface PluginRule {
   api?: string
@@ -92,10 +105,12 @@ export interface PluginRule {
   oldAnimePriority?: boolean
   /**
    * Title search preference:
-   * When true, prefer Japanese / original title (`item.name`) over Chinese title (`item.nameCn`).
-   * Defaults to false (Chinese title first).
+   * - 'chinese': Standard Chinese title (with spaces, e.g. cycani, tvtfun, girigiri)
+   * - 'chinese_compact': Compact Chinese title (multi-season without spaces, e.g. mifun)
+   * - 'original': Japanese / original title first (e.g. xifan-next, moonci, omofun, libvio)
+   * - 'traditional': Traditional Chinese title first (e.g. anime1)
    */
-  preferOriginalTitle?: boolean
+  titlePreference?: TitlePreference
   /**
    * When true, automatically convert Simplified Chinese search keywords to Traditional Chinese.
    */
@@ -275,29 +290,123 @@ export interface ResolvePlayResult {
   format?: 'hls' | 'mp4'
 }
 
+const CHINESE_DIGITS: Record<string, number> = {
+  '零': 0,
+  '一': 1,
+  '二': 2,
+  '两': 2,
+  '三': 3,
+  '四': 4,
+  '五': 5,
+  '六': 6,
+  '七': 7,
+  '八': 8,
+  '九': 9,
+  '十': 10,
+}
+
+/**
+ * Parse Chinese numeral strings (1-99) into Arabic numbers.
+ * e.g. "一" -> 1, "四" -> 4, "十二" -> 12, "二十三" -> 23
+ */
+export function parseChineseNumber(raw: string): number | null {
+  if (!raw) return null
+  const direct = parseInt(raw, 10)
+  if (!Number.isNaN(direct)) return direct
+  const tenIndex = raw.indexOf('十')
+  if (tenIndex === -1) return CHINESE_DIGITS[raw] ?? null
+  const tens = tenIndex === 0 ? 1 : (CHINESE_DIGITS[raw[0]] ?? 1)
+  const onesPart = raw.slice(tenIndex + 1)
+  const ones = onesPart ? (CHINESE_DIGITS[onesPart] ?? 0) : 0
+  return tens * 10 + ones
+}
+
+const ROMAN_NUMERALS: Record<string, number> = {
+  'Ⅰ': 1, 'Ⅱ': 2, 'Ⅲ': 3, 'Ⅳ': 4, 'Ⅴ': 5, 'Ⅵ': 6, 'Ⅶ': 7, 'Ⅷ': 8, 'Ⅸ': 9, 'Ⅹ': 10,
+  'ii': 2, 'iii': 3, 'iv': 4, 'v': 5, 'vi': 6,
+}
+
+const SEASON_NUM_RE =
+  /第\s*([一二三四五六七八九十\d]+)\s*[季期部]|season\s*(\d+)|\bs(\d+)\b|part\s*(\d+)|([ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ])|\b(II|III|IV|V|VI)\b/i
+
+/**
+ * Extract normalized season number from anime title string.
+ * Supports Chinese numbers, Arabic digits, Season/S tags, and Roman numerals (II, III, Ⅱ, Ⅲ).
+ * Returns null if no explicit season is declared.
+ */
+export function extractSeason(title: string | null | undefined): number | null {
+  if (!title) return null
+  const m = title.match(SEASON_NUM_RE)
+  if (!m) return null
+  if (m[1]) return parseChineseNumber(m[1])
+  const numStr = m[2] || m[3] || m[4]
+  if (numStr) return parseInt(numStr, 10)
+  if (m[5]) return ROMAN_NUMERALS[m[5]] ?? null
+  if (m[6]) return ROMAN_NUMERALS[m[6].toLowerCase()] ?? null
+  return null
+}
+
+const ARC_OR_SEASON_SUFFIX_RE =
+  /\s*(?:第\s*[一二三四五六七八九十\d]+\s*[季期部]|Season\s*\d+|S\d+|Part\s*\d+|[第上下][季期]|[上下前后]篇?|[一二三四五六七八九十\d]+章|特别篇|总集篇|番外篇|剧场版|[一-龥]{2,6}[篇編])\s*$/i
+
+const BRACKET_SUFFIX_RE =
+  /\s*[\(\[（【][^\)\]）】]+[\)\]）】]\s*$/
+
+/**
+ * Extract base anime title by recursively stripping arc/chapter/season suffixes.
+ * e.g. "Re：从零开始的异世界生活 第四季 夺还篇" -> "Re：从零开始的异世界生活 第四季" -> "Re：从零开始的异世界生活"
+ */
+export function extractBaseTitle(fullTitle: string): string {
+  if (!fullTitle) return ''
+  let base = fullTitle.trim()
+  if (BRACKET_SUFFIX_RE.test(base)) {
+    base = base.replace(BRACKET_SUFFIX_RE, '').trim()
+  }
+  if (ARC_OR_SEASON_SUFFIX_RE.test(base)) {
+    base = base.replace(ARC_OR_SEASON_SUFFIX_RE, '').trim()
+  }
+  return base || fullTitle
+}
+
 /**
  * Resolve the default search keyword for a given plugin rule based on its title preference.
- * - When `preferOriginalTitle` is true: item.name (Japanese/original) -> item.nameCn (Chinese) -> fallback
- * - Otherwise: item.nameCn (Chinese) -> item.name (Japanese/original) -> fallback
+ * - 'original': item.name (Japanese/original) -> item.nameCn (Chinese) -> fallback
+ * - 'chinese_compact': Chinese title with multi-season collapsed without spaces (e.g. 碧蓝之海第二季)
+ * - 'traditional': item.nameCn -> item.name -> fallback
+ * - 'chinese': item.nameCn (Chinese) -> item.name (Japanese/original) -> fallback
  */
 export function resolvePluginDefaultKeyword(
-  plugin: { preferOriginalTitle?: boolean } | null | undefined,
+  plugin: { titlePreference?: TitlePreference } | null | undefined,
   item: { nameCn?: string | null; name?: string | null } | null | undefined,
   fallback?: string,
 ): string {
   const name = (item?.name || '').trim()
   const nameCn = (item?.nameCn || '').trim()
   const fb = (fallback || '').trim()
-  if (plugin?.preferOriginalTitle) {
+  const pref = plugin?.titlePreference || 'chinese'
+
+  if (pref === 'original') {
     return name || nameCn || fb
   }
-  return nameCn || name || fb
+
+  const chineseTitle = nameCn || name || fb
+  if (pref === 'chinese_compact') {
+    return chineseTitle.replace(/\s+(第\s*[一二三四五六七八九十\d]+\s*[季期部])/g, '$1')
+  }
+
+  return chineseTitle
 }
 
+const SHORT_PREFIX_BLACKLIST = new Set([
+  're', 'fate', 'ova', 'oad', 'sp', 'part', '剧场版', '特别篇', '总集篇',
+])
+
 /**
- * Build search keyword candidates .
- * Order: short heads / cleaned titles first, then aliases, then full titles.
- * Caller may try several until a plugin returns hits; UI also exposes 别名/手动.
+ * Build structured multi-tier search keyword candidates.
+ * Tier 1: Full original title
+ * Tier 2: Main title + season (with space)
+ * Tier 3: Main title + season (compact, without space)
+ * Tier 4: Base anime title (season and arc stripped)
  */
 export function buildSearchKeywords(
   nameCn?: string | null,
@@ -312,44 +421,107 @@ export function buildSearchKeywords(
   const push = (s: string) => {
     const t = s.replace(/\s+/g, ' ').trim()
     if (!t || t.length < 2) return
-    // skip overly long noise (full season subtitles rarely hit site search)
-    if (t.length > 48) return
+    if (t.length < 4 && SHORT_PREFIX_BLACKLIST.has(t.toLowerCase())) return
+    if (t.length > 60) return
     if (!variants.some((v) => v.toLowerCase() === t.toLowerCase())) {
       variants.push(t)
     }
   }
 
   for (const title of titles) {
-    // head first (best hit rate on MacCMS / anime sites)
-    const head = title.split(/[\s　:：\-–—·・]/)[0]
-    if (head) push(head)
-    push(title.replace(/[～~].*?[～~]/g, ' ').replace(/\s+/g, ' '))
-    push(title.replace(/[（(][^）)]*[）)]/g, ' ').replace(/\s+/g, ' '))
-    // drop season markers like 第2期 / S2 / Season 2
-    push(
-      title
-        .replace(/(第?\s*\d+\s*[期季部作]|S\s*\d+|Season\s*\d+)/gi, ' ')
-        .replace(/\s+/g, ' '),
-    )
+    // 1. Full original title (Tier 1)
     push(title)
+
+    // 2. Compact season without space if original has space (Tier 2/3)
+    const compactSeason = title.replace(/\s+(第\s*[一二三四五六七八九十\d]+\s*[季期部])/g, '$1')
+    if (compactSeason !== title) {
+      push(compactSeason)
+    }
+
+    // 3. Strip trailing arc/subtitle (Level 1 extraction)
+    const baseWithSeason = extractBaseTitle(title)
+    if (baseWithSeason !== title) {
+      push(baseWithSeason)
+      push(baseWithSeason.replace(/\s+(第\s*[一二三四五六七八九十\d]+\s*[季期部])/g, '$1'))
+    }
+
+    // 4. Strip season marker (Level 2 extraction -> Tier 4 pure base)
+    const basePure = extractBaseTitle(baseWithSeason)
+    if (basePure !== baseWithSeason) {
+      push(basePure)
+    }
+
+    // 5. Clean subtitles enclosed in tildes: e.g. "无职转生～到了异世界就拿出真本事～" -> "无职转生"
+    const noTilde = title.replace(/[～~].*?[～~]/g, ' ').replace(/\s+/g, ' ').trim()
+    if (noTilde && noTilde !== title) {
+      push(noTilde)
+      const noTildeBase = extractBaseTitle(noTilde)
+      if (noTildeBase && noTildeBase !== noTilde) {
+        push(noTildeBase)
+        push(noTildeBase.replace(/\s+(第\s*[一二三四五六七八九十\d]+\s*[季期部])/g, '$1'))
+        const noTildePure = extractBaseTitle(noTildeBase)
+        if (noTildePure && noTildePure !== noTildeBase) {
+          push(noTildePure)
+        }
+      }
+    }
+
+    // 6. Clean brackets e.g. (第X季)
+    const noBracket = title.replace(/[（(][^）)]*[）)]/g, ' ').replace(/\s+/g, ' ').trim()
+    if (noBracket && noBracket !== title) {
+      push(noBracket)
+    }
+
+    // 7. Colon/delimiter head ONLY if >= 4 characters and not blacklisted
+    const colonHead = title.split(/[\s　:：\-–—·・]/)[0]?.trim()
+    if (colonHead && colonHead.length >= 4 && !SHORT_PREFIX_BLACKLIST.has(colonHead.toLowerCase())) {
+      push(colonHead)
+    }
   }
 
-  // Prefer shorter keywords (higher site hit rate), then stable order
-  return variants.sort((a, b) => a.length - b.length || a.localeCompare(b))
+  return variants
 }
+
+const MODIFIER_RE =
+  /第\s*[一二三四五六七八九十\d]+\s*[季期部]|season\s*\d+|s\d+|part\s*\d+|剧场版|劇場版|特别篇|特別編|ova|oad|movie|映画/i
 
 /**
  * Cheap title similarity for ranking plugin hits (not a full fuzzy matcher).
- * Used like human pick: surface closer names first, still list all.
+ * Enhanced with Season Guard:
+ * 1. Hard Season Conflict: when both titles explicitly declare seasons and they differ,
+ *    clamp score to 0.15 (completely disqualifies auto-pick).
+ * 2. Modifier Mismatch: when one title has season/modifier while the other does not (e.g. S4 vs S1),
+ *    clamp substring bonus to 0.45 (below AUTO_PICK_MIN_SIMILARITY 0.55, avoiding false auto-picks).
+ * 3. Neutral Jaccard/Bigram when neither title has season indicators (zero impact on single-season anime).
  */
 export function titleSimilarity(a: string, b: string): number {
   const s1 = (a || '').toLowerCase().replace(/\s+/g, '')
   const s2 = (b || '').toLowerCase().replace(/\s+/g, '')
   if (!s1 || !s2) return 0
   if (s1 === s2) return 1
-  if (s1.includes(s2) || s2.includes(s1)) {
-    return 0.85 + 0.1 * (Math.min(s1.length, s2.length) / Math.max(s1.length, s2.length))
+
+  const seasonA = extractSeason(a)
+  const seasonB = extractSeason(b)
+
+  // 1. Hard Season Conflict: both explicitly declare seasons and they differ (e.g. S4 vs S2)
+  if (seasonA !== null && seasonB !== null && seasonA !== seasonB) {
+    return 0.15
   }
+
+  const aHasMod = MODIFIER_RE.test(a)
+  const bHasMod = MODIFIER_RE.test(b)
+  const modMismatch = aHasMod !== bHasMod
+
+  if (s1.includes(s2) || s2.includes(s1)) {
+    const ratio = Math.min(s1.length, s2.length) / Math.max(s1.length, s2.length)
+    if (modMismatch) {
+      // One has season/modifier while the other does not (e.g. Season 4 vs Season 1 without tag)
+      const penalized = (0.65 + ratio * 0.25) * 0.6
+      return Math.min(penalized, 0.45)
+    }
+    return 0.85 + 0.1 * ratio
+  }
+
   // character Jaccard-ish
   const set1 = new Set(s1)
   let inter = 0
@@ -367,7 +539,8 @@ export function titleSimilarity(a: string, b: string): number {
   let bi = 0
   for (const g of b1) if (b2.has(g)) bi++
   const biScore = b1.length ? bi / b1.length : 0
-  return Math.max(jaccard * 0.6 + biScore * 0.4, jaccard)
+  const combined = Math.max(jaccard * 0.6 + biScore * 0.4, jaccard)
+  return modMismatch ? combined * 0.7 : combined
 }
 
 /** Best score of `name` against any reference title (cn/en/aliases). */
@@ -503,10 +676,14 @@ export function parsePluginRule(raw: unknown): PluginRule {
       ? j.oldAnimePriority
       : undefined
 
-  const preferOriginalTitle =
-    typeof j.preferOriginalTitle === 'boolean'
-      ? j.preferOriginalTitle
-      : undefined
+  const rawPref = j.titlePreference
+  const titlePreference: TitlePreference =
+    rawPref === 'chinese' ||
+    rawPref === 'chinese_compact' ||
+    rawPref === 'original' ||
+    rawPref === 'traditional'
+      ? rawPref
+      : 'chinese'
 
   const traditionalChinese =
     typeof j.traditionalChinese === 'boolean'
@@ -559,7 +736,7 @@ export function parsePluginRule(raw: unknown): PluginRule {
           : undefined,
       weight,
       oldAnimePriority,
-      preferOriginalTitle,
+      titlePreference,
       traditionalChinese,
       stripSymbols,
       muliSources: true,
@@ -629,7 +806,7 @@ export function parsePluginRule(raw: unknown): PluginRule {
     version: String(j.version ?? ''),
     weight,
     oldAnimePriority,
-    preferOriginalTitle,
+    titlePreference,
     traditionalChinese,
     stripSymbols,
     muliSources: Boolean(j.muliSources ?? true),

@@ -33,7 +33,8 @@ migrateLocalStorageKey('animaku-plugins', [
 /** v27: retire anime1 & libvio from default built-ins to enforce pure zero-bandwidth CDN direct stream */
 /** v28: add mifun & girigiri built-in rules with weight 70 & oldAnimePriority for girigiri */
 /** v29: add lzizy (Apple CMS V10 JSON API + all categories + 0ms direct HLS) with weight 60 */
-export const PLUGIN_DEFAULTS_VERSION = 29
+/** v30: upgrade title preference from preferOriginalTitle boolean to titlePreference enum ('chinese', 'chinese_compact', 'original', 'traditional') */
+export const PLUGIN_DEFAULTS_VERSION = 30
 
 interface PluginState {
   plugins: PluginMeta[]
@@ -294,14 +295,14 @@ export const usePluginStore = create<PluginState>()(
             if (!seed) return p
             if (
               p.weight !== seed.weight ||
-              p.preferOriginalTitle !== seed.preferOriginalTitle ||
+              p.titlePreference !== seed.titlePreference ||
               p.oldAnimePriority !== seed.oldAnimePriority
             ) {
               changed = true
               return {
                 ...p,
                 weight: seed.weight,
-                preferOriginalTitle: seed.preferOriginalTitle,
+                titlePreference: seed.titlePreference,
                 oldAnimePriority: seed.oldAnimePriority,
               }
             }

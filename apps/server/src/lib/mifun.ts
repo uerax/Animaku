@@ -19,13 +19,14 @@
  *   - Pure native direct playback (0 proxy bandwidth consumption).
  */
 import * as cheerio from 'cheerio'
-import type {
-  PluginChapterResult,
-  PluginRule,
-  PluginSearchResult,
-  ResolvePlayResult,
-  Road,
-  SearchItem,
+import {
+  extractBaseTitle,
+  type PluginChapterResult,
+  type PluginRule,
+  type PluginSearchResult,
+  type ResolvePlayResult,
+  type Road,
+  type SearchItem,
 } from '@animaku/shared'
 import { config } from '../config'
 import { assertPublicHttpUrl, fetchPublic } from './private-host'
@@ -97,38 +98,61 @@ export async function searchMifun(
   const items: SearchItem[] = []
   const seenUrls = new Set<string>()
 
-  try {
-    const suggestUrl = `${baseUrl}/index.php/ajax/suggest?mid=1&wd=${encodeURIComponent(trimmed)}`
-    assertPublicHttpUrl(suggestUrl)
+  // MiFun database 100% names multi-season anime without spaces before season numbers.
+  // Build self-healing query fallback list:
+  const queriesToTry: string[] = []
+  const compact = trimmed.replace(/\s+(第\s*[一二三四五六七八九十\d]+\s*[季期部])/g, '$1')
+  if (compact !== trimmed) {
+    queriesToTry.push(compact) // Try compact first for 0ms direct hit on MiFun
+  }
+  queriesToTry.push(trimmed)
 
-    const res = await fetchPublic(
-      suggestUrl,
-      { headers: getJsonHeaders(`${baseUrl}/`) },
-      { timeoutMs: 8_000 },
-    )
+  const stripped = extractBaseTitle(trimmed)
+  if (stripped && stripped !== trimmed && !queriesToTry.includes(stripped)) {
+    const compactStripped = stripped.replace(/\s+(第\s*[一二三四五六七八九十\d]+\s*[季期部])/g, '$1')
+    if (compactStripped !== stripped && !queriesToTry.includes(compactStripped)) {
+      queriesToTry.push(compactStripped)
+    }
+    queriesToTry.push(stripped)
+  }
 
-    if (res.ok) {
-      const json = (await res.json()) as MifunSuggestResponse
-      if (json && Array.isArray(json.list) && json.list.length > 0) {
-        for (const item of json.list) {
-          if (!item.id || !item.name) continue
-          const detailUrl = `${baseUrl}/voddetail/${item.id}.html`
-          if (!seenUrls.has(detailUrl)) {
-            seenUrls.add(detailUrl)
-            items.push({
-              name: item.name.trim(),
-              src: detailUrl,
-            })
+  for (const q of queriesToTry) {
+    try {
+      const suggestUrl = `${baseUrl}/index.php/ajax/suggest?mid=1&wd=${encodeURIComponent(q)}`
+      assertPublicHttpUrl(suggestUrl)
+
+      const res = await fetchPublic(
+        suggestUrl,
+        { headers: getJsonHeaders(`${baseUrl}/`) },
+        { timeoutMs: 8_000 },
+      )
+
+      if (res.ok) {
+        const json = (await res.json()) as MifunSuggestResponse
+        if (json && Array.isArray(json.list) && json.list.length > 0) {
+          for (const item of json.list) {
+            if (!item.id || !item.name) continue
+            const detailUrl = `${baseUrl}/voddetail/${item.id}.html`
+            if (!seenUrls.has(detailUrl)) {
+              seenUrls.add(detailUrl)
+              items.push({
+                name: item.name.trim(),
+                src: detailUrl,
+              })
+            }
+          }
+          if (items.length > 0) {
+            break // Hit found, stop fallback chain
           }
         }
+      } else {
+        diagnostics.push(`Suggest API 返回非 200 状态码: HTTP ${res.status}`)
       }
-    } else {
-      diagnostics.push(`Suggest API 返回非 200 状态码: HTTP ${res.status}`)
+    } catch (err) {
+      diagnostics.push(
+        `Suggest API 搜索异常: ${err instanceof Error ? err.message : String(err)}`,
+      )
     }
-  } catch (err) {
-    diagnostics.push(
-      `Suggest API 搜索异常: ${err instanceof Error ? err.message : String(err)}`,
-    )
   }
 
   return {

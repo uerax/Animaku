@@ -4,6 +4,7 @@
   "name": "anime1",
   "version": "1.0",
   "weight": 60,
+  "titlePreference": "traditional",
   "traditionalChinese": true,
   "requiresFullMediaProxy": true,
   "muliSources": false,

@@ -4,7 +4,7 @@
   "name": "omofun",
   "version": "1.0",
   "weight": 50,
-  "preferOriginalTitle": true,
+  "titlePreference": "original",
   "muliSources": true,
   "useWebview": true,
   "useNativePlayer": true,

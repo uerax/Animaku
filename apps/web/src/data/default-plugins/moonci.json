@@ -4,7 +4,7 @@
   "name": "moonci",
   "version": "1.0",
   "weight": 65,
-  "preferOriginalTitle": true,
+  "titlePreference": "original",
   "muliSources": true,
   "useWebview": false,
   "useNativePlayer": true,

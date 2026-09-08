@@ -62,7 +62,7 @@
 - 视频源探活聚合器 Hook：`apps/web/src/lib/use-source-aggregator.ts`
 - 视频源历史绑定 Store：`apps/web/src/stores/source-bindings.ts`
 - 内置默认视频源 JSON 规则：`apps/web/src/data/default-plugins/index.ts`
-- 视频源契约与共享类型：`packages/shared/src/plugin.ts`
+- 视频源契约、标题偏好 (titlePreference) 与打分安全锁 (Season Guard)：`packages/shared/src/plugin.ts`
 
 ## 6. 播放会话与页面布局 (Watch Page & Session)
 - 播放页主控制器：`apps/web/src/pages/WatchPage.tsx`

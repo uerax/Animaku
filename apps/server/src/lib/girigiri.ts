@@ -15,13 +15,14 @@
  *   - Supports Accept-Ranges, full CORS reflection, zero-proxy direct streaming.
  */
 import * as cheerio from 'cheerio'
-import type {
-  PluginChapterResult,
-  PluginRule,
-  PluginSearchResult,
-  ResolvePlayResult,
-  Road,
-  SearchItem,
+import {
+  extractBaseTitle,
+  type PluginChapterResult,
+  type PluginRule,
+  type PluginSearchResult,
+  type ResolvePlayResult,
+  type Road,
+  type SearchItem,
 } from '@animaku/shared'
 import { config } from '../config'
 import { assertPublicHttpUrl, fetchPublic } from './private-host'
@@ -97,38 +98,55 @@ export async function searchGirigiri(
   const items: SearchItem[] = []
   const seenUrls = new Set<string>()
 
-  try {
-    const suggestUrl = `${baseUrl}/index.php/ajax/suggest?mid=1&wd=${encodeURIComponent(trimmed)}`
-    assertPublicHttpUrl(suggestUrl)
+  const queriesToTry = [trimmed]
+  const stripped = extractBaseTitle(trimmed)
+  if (stripped && stripped !== trimmed) {
+    queriesToTry.push(stripped)
+  }
 
-    const res = await fetchPublic(
-      suggestUrl,
-      { headers: getJsonHeaders(`${baseUrl}/`) },
-      { timeoutMs: 8_000 },
-    )
+  for (const q of queriesToTry) {
+    try {
+      const suggestUrl = `${baseUrl}/index.php/ajax/suggest?mid=1&wd=${encodeURIComponent(q)}`
+      assertPublicHttpUrl(suggestUrl)
 
-    if (res.ok) {
-      const json = (await res.json()) as GirigiriSuggestResponse
-      if (json && Array.isArray(json.list) && json.list.length > 0) {
-        for (const item of json.list) {
-          if (!item.id || !item.name) continue
-          const detailUrl = `${baseUrl}/GV${item.id}/`
-          if (!seenUrls.has(detailUrl)) {
-            seenUrls.add(detailUrl)
-            items.push({
-              name: item.name.trim(),
-              src: detailUrl,
-            })
+      const res = await fetchPublic(
+        suggestUrl,
+        { headers: getJsonHeaders(`${baseUrl}/`) },
+        { timeoutMs: 8_000 },
+      )
+
+      if (res.ok) {
+        const json = (await res.json()) as GirigiriSuggestResponse
+        if (json && Array.isArray(json.list) && json.list.length > 0) {
+          for (const item of json.list) {
+            if (!item.id || !item.name) continue
+            const detailUrl = `${baseUrl}/GV${item.id}/`
+            if (!seenUrls.has(detailUrl)) {
+              seenUrls.add(detailUrl)
+              const cleanName = item.name
+                .replace(/&amp;/g, '&')
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&quot;/g, '"')
+                .trim()
+              items.push({
+                name: cleanName,
+                src: detailUrl,
+              })
+            }
+          }
+          if (items.length > 0) {
+            break
           }
         }
+      } else {
+        diagnostics.push(`Suggest API 返回非 200 状态码: HTTP ${res.status}`)
       }
-    } else {
-      diagnostics.push(`Suggest API 返回非 200 状态码: HTTP ${res.status}`)
+    } catch (err) {
+      diagnostics.push(
+        `Suggest API 搜索异常: ${err instanceof Error ? err.message : String(err)}`,
+      )
     }
-  } catch (err) {
-    diagnostics.push(
-      `Suggest API 搜索异常: ${err instanceof Error ? err.message : String(err)}`,
-    )
   }
 
   return {
