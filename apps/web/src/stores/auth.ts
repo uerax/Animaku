@@ -9,6 +9,7 @@ import {
   isGuestUser,
 } from '@animaku/shared'
 import { bangumiApi } from '../lib/bangumi'
+import { ApiError, onUnauthorized } from '../lib/api'
 import { useSettingsStore } from './settings'
 
 /**
@@ -31,8 +32,13 @@ export class BangumiAuthProvider implements IAuthProvider {
         provider: this.type,
         profile,
       }
-    } catch {
-      // 网络离线或 Token 校验异常时返回 null，调用方可选择使用离线快照
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        // Token 明确已过期或失效，主动登出清理脏凭证，并向上抛出过期信号
+        await this.logout()
+        throw err
+      }
+      // 网络离线或其他非 401 临时网络抖动时返回 null，调用方可选择使用离线快照
       return null
     }
   }
@@ -162,6 +168,8 @@ interface AuthState {
   setProviderType: (type: AuthProviderType) => void
   /** 从本地 Token / 持久化恢复最新会话 */
   initAuth: () => Promise<void>
+  /** 鉴权失效/401 统一主动登出与脏凭证清理 */
+  handleUnauthorized: (reason?: string) => Promise<void>
 }
 
 let isExplicitLoggingIn = false
@@ -288,8 +296,17 @@ export const useAuthStore = create<AuthState>()(
           return
         }
 
-        const handleFailure = () => {
+        const handleFailure = (isExpired = false) => {
           const curSession = get().session
+          if (isExpired) {
+            set({
+              session: null,
+              profileSnapshot: null,
+              isLoading: false,
+              error: '登录凭据已过期，已自动登出',
+            })
+            return
+          }
           // 若当前已有有效会话且 Token 完全未改变，视为网络抖动或离线，保留现有离线快照
           if (curSession && tokenFromSettings && curSession.token === tokenFromSettings) {
             set({ isLoading: false })
@@ -318,11 +335,34 @@ export const useAuthStore = create<AuthState>()(
               error: null,
             })
           } else {
-            handleFailure()
+            handleFailure(false)
           }
-        } catch {
+        } catch (err) {
           if (seq !== authSeq) return
-          handleFailure()
+          const isExpired = err instanceof ApiError && err.status === 401
+          handleFailure(isExpired)
+        }
+      },
+
+      handleUnauthorized: async (reason = '登录凭据已过期，已自动退出') => {
+        const { providerType, session, profileSnapshot } = get()
+        const hasLegacyToken = Boolean(useSettingsStore.getState().bangumiToken)
+        if (!session && !profileSnapshot && !hasLegacyToken) {
+          return
+        }
+        const adapter = getAuthProvider(providerType)
+        ++authSeq
+        try {
+          if (adapter.logout) {
+            await adapter.logout()
+          }
+        } finally {
+          set({
+            session: null,
+            profileSnapshot: null,
+            isLoading: false,
+            error: reason,
+          })
         }
       },
     }),
@@ -337,6 +377,14 @@ export const useAuthStore = create<AuthState>()(
     },
   ),
 )
+
+// 注册全局 401 拦截事件：Token 失效时主动登出并清理脏凭据（兼容 Bangumi 及未来自建用户体系）
+if (typeof window !== 'undefined') {
+  onUnauthorized(({ path }) => {
+    console.warn(`[useAuthStore] 鉴权已失效 (401 from ${path})，执行自动登出`)
+    void useAuthStore.getState().handleUnauthorized()
+  })
+}
 
 // 自动订阅 settingsStore 中的 bangumiToken 变更，保证单一真理源双向实时同步
 if (typeof window !== 'undefined') {

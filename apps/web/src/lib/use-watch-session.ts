@@ -471,6 +471,14 @@ export function useWatchSession(bangumiId: number): WatchSession {
     return () => clearTimeout(timer)
   }, [hudMessage])
 
+  /** 单个分集最大允许自动重试恢复次数（超出后熔断彻底停止，杜绝死循环重复请求） */
+  const MAX_PLAYBACK_FAIL_RECOVERY_ATTEMPTS = 2
+  const playbackRecoveryTrackerRef = useRef<{
+    key: string
+    attempts: number
+    failed: boolean
+  }>({ key: '', attempts: 0, failed: false })
+
   const clearHudMessage = useCallback(() => setHudMessage(null), [])
 
   const episodeRef = useRef<EpisodePlay | null>(null)
@@ -731,6 +739,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
       setEpisode(null)
       setResumePosition(0)
       resumeOverrideRef.current = null
+      playbackRecoveryTrackerRef.current = { key: '', attempts: 0, failed: false }
       setVisibleRoad(0)
       setSelection(null)
       setPendingSource({ pluginName: plugin.name, src: searchItem.src })
@@ -1455,9 +1464,10 @@ export function useWatchSession(bangumiId: number): WatchSession {
         if (cancelled) return
 
         if (!roads.length) {
+          if (!cancelled) resumeDoneFor.current = key
           setRoadError('续播：未解析到分集，请点击视频源重新选')
           setRoadLoading(false)
-          // Allow retry (e.g. after user re-searches) by not locking the key forever
+          setHudMessage('分集解析失败，请点击下方视频源重新选源')
           return
         }
 
@@ -1539,7 +1549,10 @@ export function useWatchSession(bangumiId: number): WatchSession {
         if (!cancelled) resumeDoneFor.current = key
       } catch (e) {
         if (!cancelled) {
-          setRoadError(e instanceof Error ? e.message : '续播加载失败')
+          resumeDoneFor.current = key
+          const msg = e instanceof Error ? e.message : '续播加载失败'
+          setRoadError(msg)
+          setHudMessage(`视频源分集加载失败：${msg}，建议切换视频源`)
         }
       } finally {
         if (!cancelled) setRoadLoading(false)
@@ -1614,6 +1627,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
         roadIndex,
       )
       resumeOverrideRef.current = null
+      playbackRecoveryTrackerRef.current = { key: '', attempts: 0, failed: false }
       setResumePosition(pos)
       setEpisode({
         pageUrl: slot.pageUrl,
@@ -1851,14 +1865,14 @@ export function useWatchSession(bangumiId: number): WatchSession {
     ],
   )
 
-  const AUTH_REFRESH_DELAYS = [1000, 2500, 5000]
+  const AUTH_REFRESH_DELAYS = [1000, 2500]
 
-  async function reResolveFresh(maxAttempts = 3): Promise<void> {
+  async function reResolveFresh(maxAttempts = 2): Promise<void> {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
         resolveRefreshOnce.current = true
         const res = await resolve.refetch({ throwOnError: true })
-        if (res.isError) {
+        if (res.isError || !res.data?.data?.playUrl) {
           throw res.error || new Error('解析失败')
         }
         setPlayerRemount((n) => n + 1)
@@ -1867,18 +1881,46 @@ export function useWatchSession(bangumiId: number): WatchSession {
         if (attempt === maxAttempts - 1) {
           throw err
         }
-        const delay = AUTH_REFRESH_DELAYS[attempt] ?? 2000
+        const delay = AUTH_REFRESH_DELAYS[attempt] ?? 1500
         await new Promise((r) => setTimeout(r, delay))
       }
     }
   }
 
   async function onMediaAuthExpired(position: number) {
+    const currentTrackKey = `${bangumiId}::${selectionRef.current?.plugin.name}::${episodeRef.current?.episode}::${episodeRef.current?.road}`
+    if (playbackRecoveryTrackerRef.current.key !== currentTrackKey) {
+      playbackRecoveryTrackerRef.current = {
+        key: currentTrackKey,
+        attempts: 0,
+        failed: false,
+      }
+    }
+
+    if (
+      playbackRecoveryTrackerRef.current.failed ||
+      playbackRecoveryTrackerRef.current.attempts >= MAX_PLAYBACK_FAIL_RECOVERY_ATTEMPTS
+    ) {
+      playbackRecoveryTrackerRef.current.failed = true
+      setHudMessage('视频源多次播放失败，已停止重试，建议切换其它视频源或线路')
+      return
+    }
+
+    playbackRecoveryTrackerRef.current.attempts++
+    const attempt = playbackRecoveryTrackerRef.current.attempts
+    setHudMessage(`播放连接异常，正在尝试第 ${attempt}/${MAX_PLAYBACK_FAIL_RECOVERY_ATTEMPTS} 次恢复重试…`)
+
     if (position > 5) {
       resumeOverrideRef.current = position
       setResumePosition(position)
     }
-    await reResolveFresh()
+
+    try {
+      await reResolveFresh(2)
+    } catch {
+      playbackRecoveryTrackerRef.current.failed = true
+      setHudMessage('视频源重试失败，已停止请求，建议切换其它视频源或线路')
+    }
   }
 
   const proxyUrl = episode ? resolve.data?.data.proxyUrl : undefined
@@ -1933,10 +1975,19 @@ export function useWatchSession(bangumiId: number): WatchSession {
       resumeOverrideRef.current = position
       setResumePosition(position)
     }
+    const currentTrackKey = `${bangumiId}::${selectionRef.current?.plugin.name}::${episodeRef.current?.episode}::${episodeRef.current?.road}`
+    if (playbackRecoveryTrackerRef.current.key !== currentTrackKey) {
+      playbackRecoveryTrackerRef.current = {
+        key: currentTrackKey,
+        attempts: 0,
+        failed: false,
+      }
+    }
+    playbackRecoveryTrackerRef.current.failed = true
     // Mark next resolve to bypass cache and fetch fresh stream
     resolveRefreshOnce.current = true
     // Fast-fail: directly prompt user to switch source without wasteful re-resolves on dead links
-    setHudMessage('视频源连接失败，建议点击右侧切换视频源')
+    setHudMessage('视频源连接失败，已停止请求，建议点击右侧或下方切换视频源')
   }
 
   async function reSearchCurrentSource(keyword: string) {

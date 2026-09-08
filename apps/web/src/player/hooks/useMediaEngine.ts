@@ -523,12 +523,13 @@ export function useMediaEngine({
         if (!alive()) return
         if (tryAuthRefresh()) return
         setLoading(false)
+        setBufferingUi(false)
         const reason = video.error?.code
           ? `video_error_${video.error.code}`
           : 'video_load_failed'
         setMediaError(
           video.error?.code
-            ? `视频错误 code=${video.error.code}（建议切换视频源）`
+            ? `视频播放失败 code=${video.error.code}，建议切换视频源`
             : '视频加载失败，建议切换视频源',
         )
         reportLoadFailed(reason)
@@ -583,7 +584,6 @@ export function useMediaEngine({
         })
       }
       video.addEventListener('stalled', onStalled)
-      video.addEventListener('error', onStalled)
       ;(video as HTMLVideoElement & { __a1Stalled?: () => void }).__a1Stalled = onStalled
     }
 

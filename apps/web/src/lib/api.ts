@@ -12,6 +12,31 @@ export class ApiError extends Error {
   }
 }
 
+export type UnauthorizedListener = (info: { path: string; status: number }) => void
+
+const unauthorizedListeners = new Set<UnauthorizedListener>()
+
+export function onUnauthorized(listener: UnauthorizedListener): () => void {
+  unauthorizedListeners.add(listener)
+  return () => {
+    unauthorizedListeners.delete(listener)
+  }
+}
+
+let lastUnauthorizedNotify = 0
+export function notifyUnauthorized(path: string, status: number) {
+  const now = Date.now()
+  if (now - lastUnauthorizedNotify < 1500) return
+  lastUnauthorizedNotify = now
+  for (const listener of unauthorizedListeners) {
+    try {
+      listener({ path, status })
+    } catch (e) {
+      console.warn('[api] unauthorized listener error:', e)
+    }
+  }
+}
+
 export async function api<T>(
   path: string,
   init: RequestInit & { token?: string | null } = {},
@@ -58,6 +83,12 @@ export async function api<T>(
       (data && typeof data === 'object' && 'message' in data
         ? String((data as { message: string }).message)
         : null) || res.statusText || '请求失败'
+    if (
+      res.status === 401 &&
+      (init.token || /^\/api\/(bangumi\/(me|collections)|auth\/)/.test(path))
+    ) {
+      notifyUnauthorized(path, res.status)
+    }
     throw new ApiError(res.status, msg, data)
   }
   return data as T

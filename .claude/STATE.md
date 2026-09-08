@@ -4903,6 +4903,40 @@
   - .claude/STATE.md
 - 备注：实测真实番剧《鬼灭之刃》全链路（搜索 -> 选集 -> 直链解析 -> CDN 直连播放）全部端到端验证通过。
 
+## [2026-09-08] 修复无法正常播放的视频源无限重试请求与 Bangumi Token 过期 401 自动登出清理 (v1.11.3)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **无法正常播放的源有限重试熔断与切源引导机制**：
+     - 在 `apps/web/src/lib/use-watch-session.ts` 中引入受控的播放恢复重试追踪器 `playbackRecoveryTrackerRef`，严格设定最大自动恢复重试上限 `MAX_PLAYBACK_FAIL_RECOVERY_ATTEMPTS = 2`；
+     - 拦截媒体错误与鉴权刷新（`onMediaAuthExpired`），对同一分集达到尝试阈值后彻底熔断停止重试，杜绝循环触发 `reResolveFresh` 与播放器频繁 `setPlayerRemount` 重建；
+     - 播放失败时弹出明确醒目的 HUD 提示：“视频源多次播放失败，已停止重试，建议切换其它视频源或线路”；
+     - 在深链接分集解析与选源阶段，锁定失败状态（`resumeDoneFor.current = key`），杜绝因依赖项渲染反复静默重新拉取分集接口；
+     - 用户手动切集、切源或切换线路时，即时重置重试追踪器，保障全新选中的视频源能正常加载。
+  2. **播放器内核生命周期与事件清理保护**：
+     - 在 `apps/web/src/player/hooks/useMediaEngine.ts` 中移除原生的 `video.addEventListener('error', onStalled)` 冗余绑定，避免原生 MP4 错误时触发非代理地址的多余 Range 探测；
+     - 遇到不可恢复错误时彻底停止 loading 与 buffering，并给出明确的错误原因与切源建议。
+  3. **Bangumi 与统一用户系统 Token 401 自动登出与失效清理适配器机制**：
+     - 在 `apps/web/src/lib/api.ts` 中新增通用的 401 Unauthorized 事件广播通道 `onUnauthorized` / `notifyUnauthorized`，内置 1500ms 防抖杜绝高并发重复通知；
+     - 在 `apps/web/src/stores/auth.ts` 中为 `useAuthStore` 增加通用操作 `handleUnauthorized`，监听 401 时主动调用当前适配器的 `logout()`，彻底清理 `settingsStore.bangumiToken` 与本地 `session`，将用户状态平滑回退至访客模式；
+     - 在 `BangumiAuthProvider.restoreSession` 中精准区分网络离线与确凿的 401 凭证过期，Token 过期时主动登出并抛出异常，不再作为离线快照残留；
+     - 架构完全基于 `IAuthProvider` 与 `useAuthStore` 契约抽象，无缝兼容未来自建用户系统（`local`）的 Token/Cookie 失效自动登出。
+  4. **版本号递增**：
+     - 全仓版本号递增至 `v1.11.3`。
+- 涉及文件：
+  - apps/web/src/lib/api.ts
+  - apps/web/src/stores/auth.ts
+  - apps/web/src/lib/use-watch-session.ts
+  - apps/web/src/player/hooks/useMediaEngine.ts
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/BUGS.md
+  - .claude/STATE.md
+- 备注：Chrome DevTools MCP 验证实测通过，失效 Token 在 401 响应后立即被完全清空，且网络请求达到稳定态后彻底停止，无任何死循环。全仓 `pnpm typecheck`（0 错误）与生产打包构建 `pnpm --filter @animaku/web build` 验证通过。
+
 
 
 
