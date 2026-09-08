@@ -1,10 +1,11 @@
-import { memo, useState, useRef, useLayoutEffect } from 'react'
+import { memo, useState, useRef, useLayoutEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import type { BangumiItem } from '@animaku/shared'
 import {
   airProgressLabel,
   coverOf,
   estimateAirProgress,
+  extractBangumiSeed,
   formatDoingCount,
   formatHeatCount,
   formatCollectCount,
@@ -83,6 +84,7 @@ export const BangumiCard = memo(function BangumiCard({
   }, [cover])
 
   const openInNewTab = useSettingsStore((s) => s.nav.openInNewTab)
+  const seed = useMemo(() => extractBangumiSeed(item), [item])
 
   const onCardWarmup = () => {
     preloadRoute('subject')
@@ -92,6 +94,7 @@ export const BangumiCard = memo(function BangumiCard({
   return (
     <Link
       to={`/subject/${item.id}`}
+      state={seed ? { seed } : undefined}
       target={openInNewTab ? '_blank' : undefined}
       rel={openInNewTab ? 'noopener noreferrer' : undefined}
       // Warm Subject route + player chunk on intent

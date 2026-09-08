@@ -4,6 +4,33 @@
 
 ---
 
+## [2026-09-09] 基于 Seed Hydration 实现播放页零网络秒开直出与资源边界收敛 (v1.11.5)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **确立全站资源预算四大铁律与执行防线**：
+     - Hover Zero Business I/O：卡片悬停/聚焦/触摸仅允许静态 chunk 预热，严禁触发任何 Server/Upstream 业务请求；
+     - Seed Before Fetch：客户端已持有的卡片元数据优先作为播放页 Seed 瞬时直出，杜绝重复请求已有字段；
+     - Navigation-Only Network Intent：只有真正发生路由导航且 WatchPage 挂载后，才按顺序触发 Subject/Episodes 与默认单源搜索流程；
+     - Zero Auto Proxy Fallback：坚持直连失败绝不自动回退服务端代理偷跑流量。
+  2. **定义纯净轻量 BangumiSeed 契约并接入全站核心卡片**：
+     - 在 `packages/shared/src/bangumi.ts` 中定义 `BangumiSeed` 契约与 `extractBangumiSeed` 提纯函数，保证序列化安全；
+     - 在 `BangumiCard`（`ui.tsx`）、`HeroCoverFlow.tsx`、`WatchRecommendations.tsx`、`HistoryCard.tsx` 等全站卡片跳转中通过 Router 的 `state={{ seed }}` 纯内存安全透传，100% 保持浏览器地址栏纯净；
+  3. **在播放会话中实现 resolvedItem 双层数据融合与衍生状态全链路贯穿**：
+     - 在 `use-watch-session.ts` 中读取 `location.state?.seed` 并严格校验 `id === bangumiId` 生成 `validSeed`；
+     - 构建 `resolvedItem = fullItem ?? validSeed`，将标题、封面、老番判定、别名列表、搜索关键词候选集、默认关键字等基础衍生逻辑统一收敛至 `resolvedItem`，首屏 0ms 瞬间点亮；
+     - 严格保持 `useQuery(['subject', bangumiId])` 原有的 30 分钟 staleTime 与标准缓存策略不变，避免 Query freshness 陷阱，全量元数据在后台平滑静默补齐；
+     - 严格约束 `subjectLoading` 门禁（`subject.isLoading && !resolvedItem`），杜绝全屏空白骨架屏闪烁，同时遵守默认单源搜索节奏，严禁多源 fan-out。
+- 涉及文件：
+  - `packages/shared/src/bangumi.ts`
+  - `apps/web/src/components/ui.tsx`
+  - `apps/web/src/components/HeroCoverFlow.tsx`
+  - `apps/web/src/pages/watch/WatchRecommendations.tsx`
+  - `apps/web/src/pages/history/HistoryCard.tsx`
+  - `apps/web/src/lib/use-watch-session.ts`
+  - `package.json`, `apps/web/package.json`, `apps/server/package.json`, `packages/shared/package.json`, `packages/shared/src/version.ts`
+- 备注：全仓类型检查 (`pnpm typecheck`) 通过，全量单元测试 (68 shared + 102 server + 21 web pass) 全部通过，前端生产构建 (`pnpm build`) 成功，版本自动升级至 v1.11.5。
+
 ## [2026-09-09] 彻底清理推荐切番冗余参数与 URL 污染 (v1.11.4)
 - 状态：已完成
 - 优先级：P2

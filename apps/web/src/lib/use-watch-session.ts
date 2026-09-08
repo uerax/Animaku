@@ -30,6 +30,7 @@ import {
   buildPlayableSlots,
   type PlayableSlot,
   type BangumiItem,
+  type BangumiSeed,
   type BangumiEpisode,
   type PluginMeta,
   type SearchItem,
@@ -353,6 +354,10 @@ export function useWatchSession(bangumiId: number): WatchSession {
   const playerSettings = useSettingsStore((s) => s.player ?? FALLBACK_PLAYER)
   const setPlayer = useSettingsStore((s) => s.setPlayer)
 
+  const rawSeed = (location.state as { seed?: BangumiSeed } | null)?.seed
+  const validSeed =
+    rawSeed && Number(rawSeed.id) === bangumiId ? rawSeed : undefined
+
   const subject = useQuery({
     queryKey: ['subject', bangumiId],
     queryFn: ({ signal }) => bangumiApi.subject(bangumiId, { signal }),
@@ -361,8 +366,9 @@ export function useWatchSession(bangumiId: number): WatchSession {
     staleTime: 30 * 60_000,
     gcTime: 6 * 60 * 60_000,
   })
-  const item = subject.data?.data
-  const isOld = useMemo(() => isOldAnime(item?.airDate), [item?.airDate])
+  const fullItem = subject.data?.data
+  const resolvedItem = fullItem ?? (validSeed as unknown as BangumiItem | undefined)
+  const isOld = useMemo(() => isOldAnime(resolvedItem?.airDate), [resolvedItem?.airDate])
 
   const bgmEpisodesQuery = useQuery({
     queryKey: ['bangumi-episodes', bangumiId],
@@ -418,8 +424,8 @@ export function useWatchSession(bangumiId: number): WatchSession {
   const danmakuSettings = useSettingsStore((s) => s.danmaku ?? FALLBACK_DANMAKU)
   const setDanmaku = useSettingsStore((s) => s.setDanmaku)
 
-  const title = item ? item.nameCn || item.name || '' : ''
-  const cover = item ? coverOf(item) : ''
+  const title = resolvedItem ? resolvedItem.nameCn || resolvedItem.name || '' : ''
+  const cover = resolvedItem ? coverOf(resolvedItem) : ''
 
   const [searchResults, setSearchResults] = useState<SearchRow[]>([])
   const [searchKeyword, setSearchKeyword] = useState('')
@@ -496,9 +502,9 @@ export function useWatchSession(bangumiId: number): WatchSession {
   roadLoadingRef.current = roadLoading
 
   const titleRefs = useMemo(() => {
-    if (!item) return []
-    return [item.nameCn, item.name, ...(item.alias || [])].filter(Boolean) as string[]
-  }, [item])
+    if (!resolvedItem) return []
+    return [resolvedItem.nameCn, resolvedItem.name, ...(resolvedItem.alias || [])].filter(Boolean) as string[]
+  }, [resolvedItem])
 
   const activeTargetPlugin =
     keywordTargetPlugin ||
@@ -507,23 +513,23 @@ export function useWatchSession(bangumiId: number): WatchSession {
   const preferOriginal = activeTargetPlugin?.titlePreference === 'original'
 
   const keywordCandidates = useMemo(() => {
-    if (!item) return []
+    if (!resolvedItem) return []
     // Full title first for the dropdown; shorter variants remain as fallbacks.
     // Honor the active source's title preference (Japanese/original vs Chinese).
     const pref = activeTargetPlugin?.titlePreference || (preferOriginal ? 'original' : 'chinese')
     const primary = (
       pref === 'original'
-        ? item.name || item.nameCn || ''
+        ? resolvedItem.name || resolvedItem.nameCn || ''
         : pref === 'chinese_compact'
-          ? (item.nameCn || item.name || '').replace(/\s+(第\s*[一二三四五六七八九十\d]+\s*[季期部])/g, '$1')
-          : item.nameCn || item.name || ''
+          ? (resolvedItem.nameCn || resolvedItem.name || '').replace(/\s+(第\s*[一二三四五六七八九十\d]+\s*[季期部])/g, '$1')
+          : resolvedItem.nameCn || resolvedItem.name || ''
     ).trim()
-    const variants = buildSearchKeywords(item.nameCn, item.name, item.alias)
+    const variants = buildSearchKeywords(resolvedItem.nameCn, resolvedItem.name, resolvedItem.alias)
     const seen = new Set<string>()
     const out: string[] = []
     const titleOrder = preferOriginal
-      ? [primary, item.name, item.nameCn, ...variants]
-      : [primary, item.nameCn, item.name, ...variants]
+      ? [primary, resolvedItem.name, resolvedItem.nameCn, ...variants]
+      : [primary, resolvedItem.nameCn, resolvedItem.name, ...variants]
     for (const k of titleOrder) {
       const t = (k || '').trim()
       if (!t || seen.has(t.toLowerCase())) continue
@@ -531,17 +537,17 @@ export function useWatchSession(bangumiId: number): WatchSession {
       out.push(t)
     }
     return out
-  }, [item, preferOriginal, activeTargetPlugin])
+  }, [resolvedItem, preferOriginal, activeTargetPlugin])
 
   /** Default search uses the display title, not the shortest stripped variant. */
   const defaultKeyword = useMemo(() => {
     return (
-      item?.nameCn ||
-      item?.name ||
+      resolvedItem?.nameCn ||
+      resolvedItem?.name ||
       keywordCandidates[0] ||
       ''
     ).trim()
-  }, [item, keywordCandidates])
+  }, [resolvedItem, keywordCandidates])
 
   /**
    * Resolve keyword for a specific plugin:
@@ -555,11 +561,11 @@ export function useWatchSession(bangumiId: number): WatchSession {
       }
       return resolvePluginDefaultKeyword(
         plugin,
-        item,
+        resolvedItem,
         defaultKeyword || '',
       )
     },
-    [manualKeywords, item, defaultKeyword],
+    [manualKeywords, resolvedItem, defaultKeyword],
   )
 
   const dm = useDanmakuSession({
@@ -1255,7 +1261,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
         const kw = (
           resolvePluginDefaultKeyword(
             preferred,
-            item,
+            resolvedItem,
             defaultKeyword,
           ) || ''
         ).trim()
@@ -1271,7 +1277,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     const kw = (
       resolvePluginDefaultKeyword(
         preferred,
-        item,
+        resolvedItem,
         defaultKeyword,
       ) || ''
     ).trim()
@@ -1289,7 +1295,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     plugins,
     pluginOrder,
     isOld,
-    item,
+    resolvedItem,
     defaultKeyword,
     openPluginSearch,
     pickSource,
@@ -1388,7 +1394,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
           const kw = (
             resolvePluginDefaultKeyword(
               plugin,
-              item,
+              resolvedItem,
               defaultKeyword,
             ) || ''
           ).trim()
@@ -1539,9 +1545,9 @@ export function useWatchSession(bangumiId: number): WatchSession {
     return () => {
       cancelled = true
     }
-    // plugins length/names & item only — avoid identity thrash from ensureDefaults
+    // plugins length/names & resolvedItem only — avoid identity thrash from ensureDefaults
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bangumiId, qPlugin, qPageUrl, qEp, qRoad, plugins.length, item])
+  }, [bangumiId, qPlugin, qPageUrl, qEp, qRoad, plugins.length, resolvedItem])
 
   const resolve = useQuery({
     queryKey: [
@@ -2091,8 +2097,8 @@ export function useWatchSession(bangumiId: number): WatchSession {
     bangumiId,
     title,
     cover,
-    bangumiItem: item,
-    subjectLoading: subject.isLoading,
+    bangumiItem: (fullItem ?? validSeed) as BangumiItem | undefined,
+    subjectLoading: subject.isLoading && !resolvedItem,
     subjectError: subject.error,
     keywordCandidates,
     titleRefs,

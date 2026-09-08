@@ -545,3 +545,45 @@ export function isOldAnime(airDate?: string, yearsAgo = 5): boolean {
   return Number.isFinite(year) && year > 0 && year <= cutoffYear
 }
 
+/**
+ * 播放页首屏极速秒开种子契约 (Seed Hydration)
+ * 仅提纯客户端在卡片列表中已持有的安全只读元数据，供播放页首帧瞬时渲染，不伪装成完整 Subject
+ */
+export type BangumiSeed = Pick<
+  BangumiItem,
+  | 'id'
+  | 'name'
+  | 'nameCn'
+  | 'summary'
+  | 'airDate'
+  | 'images'
+  | 'alias'
+  | 'eps'
+  | 'totalEpisodes'
+  | 'ratingScore'
+  | 'rank'
+  | 'tags'
+>
+
+/**
+ * 从列表卡片对象中安全提纯种子对象，确保序列化安全
+ */
+export function extractBangumiSeed(item: BangumiItem | null | undefined): BangumiSeed | null {
+  if (!item || !Number.isFinite(item.id) || item.id <= 0) return null
+  return {
+    id: item.id,
+    name: item.name || '',
+    nameCn: item.nameCn || '',
+    summary: item.summary || '',
+    airDate: item.airDate || '',
+    images: item.images ? { ...item.images } : {},
+    alias: Array.isArray(item.alias) ? [...item.alias] : [],
+    eps: Number(item.eps) || 0,
+    totalEpisodes: Number(item.totalEpisodes) || 0,
+    ratingScore: Number(item.ratingScore) || 0,
+    rank: Number(item.rank) || 0,
+    tags: Array.isArray(item.tags) ? item.tags.slice(0, 10) : [],
+  }
+}
+
+

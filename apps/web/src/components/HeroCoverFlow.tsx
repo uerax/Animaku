@@ -5,12 +5,14 @@ import {
   coverOf,
   formatDoingCount,
   formatHeatCount,
+  extractBangumiSeed,
   bangumiImageUrl,
   toBangumiOfficialImageUrl,
   DEFAULT_BANGUMI_IMAGE_HOST,
 } from '@animaku/shared'
 import { useSettingsStore } from '../stores/settings'
 import { preloadVideoPlayer } from '../player/lazy'
+import { preloadRoute } from '../lib/route-preload'
 import {
   HERO_STAGE_CONTAINER_CLASS,
   HERO_SECTION_WRAPPER_CLASS,
@@ -690,6 +692,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
             >
               <Link
                 to={`/subject/${item.id}`}
+                state={{ seed: extractBangumiSeed(item) }}
                 target={openInNewTab ? '_blank' : undefined}
                 rel={openInNewTab ? 'noopener noreferrer' : undefined}
                 tabIndex={isCenter ? 0 : -1}
@@ -705,9 +708,18 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
                     slideTo(index)
                   }
                 }}
-                onMouseEnter={preloadVideoPlayer}
-                onFocus={preloadVideoPlayer}
-                onTouchStart={preloadVideoPlayer}
+                onMouseEnter={() => {
+                  preloadRoute('subject')
+                  preloadVideoPlayer()
+                }}
+                onFocus={() => {
+                  preloadRoute('subject')
+                  preloadVideoPlayer()
+                }}
+                onTouchStart={() => {
+                  preloadRoute('subject')
+                  preloadVideoPlayer()
+                }}
                 className="group relative h-full w-full select-none overflow-hidden rounded-[inherit] [isolation:isolate] [transform:translateZ(0)] [mask-image:radial-gradient(white,black)] [-webkit-mask-image:-webkit-radial-gradient(white,black)]"
               >
                 <HeroCardPoster

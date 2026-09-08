@@ -6,6 +6,7 @@ import {
   isPlaybackFinished,
   formatRelativeWatchTime,
   type WatchHistoryEntry,
+  type BangumiSeed,
 } from '@animaku/shared'
 import { preloadVideoPlayer } from '../../player/lazy'
 import { preloadRoute } from '../../lib/route-preload'
@@ -40,6 +41,25 @@ export function HistoryCard({
 
   const playUrl = `/play/${entry.bangumiId}?${resumeQ.toString()}`
   const subjectUrl = `/subject/${entry.bangumiId}`
+
+  const images: Record<string, string> = entry.cover
+    ? { large: entry.cover, common: entry.cover }
+    : {}
+
+  const seed: BangumiSeed = {
+    id: entry.bangumiId,
+    name: entry.title,
+    nameCn: entry.title,
+    summary: '',
+    airDate: '',
+    images,
+    alias: [],
+    eps: 0,
+    totalEpisodes: 0,
+    ratingScore: 0,
+    rank: 0,
+    tags: [],
+  }
 
   const onWarmup = () => {
     preloadRoute('subject')
@@ -103,6 +123,7 @@ export function HistoryCard({
       {/* 封面微缩图（带播放与完播徽章） */}
       <Link
         to={playUrl}
+        state={{ seed }}
         onClick={(e) => {
           if (isBatchMode) {
             e.preventDefault()
@@ -147,6 +168,7 @@ export function HistoryCard({
         <div className="flex items-baseline justify-between gap-2">
           <Link
             to={subjectUrl}
+            state={{ seed }}
             onClick={(e) => {
               if (isBatchMode) {
                 e.preventDefault()

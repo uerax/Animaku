@@ -7,6 +7,7 @@ import {
   resolveCountryTag,
   type BangumiItem,
   type BangumiRecommendationItem,
+  type BangumiSeed,
 } from '@animaku/shared'
 import { bangumiApi } from '../../lib/bangumi'
 import { useSettingsStore } from '../../stores/settings'
@@ -23,6 +24,26 @@ const RecommendationCard = memo(function RecommendationCard({
   const [loadedSrc, setLoadedSrc] = useState<string | null>(null)
   const isLoaded = Boolean(coverSrc && loadedSrc === coverSrc)
 
+  const seed: BangumiSeed = useMemo(() => {
+    const images: Record<string, string> = item.cover
+      ? { large: item.cover, common: item.cover }
+      : {}
+    return {
+      id: item.id,
+      name: item.name || '',
+      nameCn: item.nameCn || '',
+      summary: '',
+      airDate: item.year || '',
+      images,
+      alias: [],
+      eps: 0,
+      totalEpisodes: 0,
+      ratingScore: item.score || 0,
+      rank: 0,
+      tags: [],
+    }
+  }, [item])
+
   const onWarmup = () => {
     preloadRoute('subject')
     preloadVideoPlayer()
@@ -31,6 +52,7 @@ const RecommendationCard = memo(function RecommendationCard({
   return (
     <Link
       to={`/subject/${item.id}`}
+      state={{ seed }}
       onMouseEnter={onWarmup}
       onFocus={onWarmup}
       onTouchStart={onWarmup}
