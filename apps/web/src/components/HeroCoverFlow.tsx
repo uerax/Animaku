@@ -414,9 +414,9 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
       if (!isInViewportRef.current) return
 
       if (e.key === 'ArrowLeft') {
-        moveLeft()
-      } else if (e.key === 'ArrowRight') {
         moveRight()
+      } else if (e.key === 'ArrowRight') {
+        moveLeft()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -750,7 +750,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
         {/* Navigation Arrows (Desktop/Tablet) */}
         <button
           type="button"
-          onClick={moveLeft}
+          onClick={moveRight}
           aria-label="向左滚动"
           className="absolute left-1 z-40 hidden sm:flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/40 text-white backdrop-blur-md transition-all hover:scale-110 hover:bg-black/70 sm:left-4 sm:h-12 sm:w-12 md:left-6"
         >
@@ -759,7 +759,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
 
         <button
           type="button"
-          onClick={moveRight}
+          onClick={moveLeft}
           aria-label="向右滚动"
           className="absolute right-1 z-40 hidden sm:flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/40 text-white backdrop-blur-md transition-all hover:scale-110 hover:bg-black/70 sm:right-4 sm:h-12 sm:w-12 md:right-6"
         >

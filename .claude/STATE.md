@@ -4,6 +4,19 @@
 
 ---
 
+## [2026-09-09] 修复首页轮播图左右切换按钮与键盘方向键映射反向问题 (v1.11.6)
+- 状态：已完成
+- 优先级：P3
+- 描述：
+  1. 调换首页 3D 影院海报轮播组件（`HeroCoverFlow.tsx`）中的左右按钮事件绑定：
+     - 左侧按钮（`IconChevronLeft`）绑定 `moveRight`（对应切回左边上一张卡片）；
+     - 右侧按钮（`IconChevronRight`）绑定 `moveLeft`（对应切到右边下一张卡片）；
+  2. 同步调换全局键盘方向键监听映射：`ArrowLeft` 触发 `moveRight()`，`ArrowRight` 触发 `moveLeft()`，对齐直觉交互。
+- 涉及文件：
+  - `apps/web/src/components/HeroCoverFlow.tsx`
+  - `package.json`, `apps/web/package.json`, `apps/server/package.json`, `packages/shared/package.json`, `packages/shared/src/version.ts`
+- 备注：全仓类型检查 (`pnpm typecheck`) 通过，版本自动升级至 v1.11.6。
+
 ## [2026-09-09] 基于 Seed Hydration 实现播放页零网络秒开直出与资源边界收敛 (v1.11.5)
 - 状态：已完成
 - 优先级：P1
