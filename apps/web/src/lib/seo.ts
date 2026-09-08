@@ -35,7 +35,7 @@ export const STATIC_ROUTE_SEO: Record<
   Omit<PageSeo, 'path' | 'image' | 'jsonLd'>
 > = {
   '/': {
-    title: 'Animaku 动漫 - 在线高清动画多源聚合弹幕平台',
+    title: 'Animaku 动漫',
     description: DEFAULT_DESCRIPTION,
   },
   '/anime': {
@@ -227,11 +227,35 @@ export function buildWebsiteJsonLd(siteUrl = resolveSiteUrl()): Record<string, u
   const base = siteUrl ? siteUrl.replace(/\/+$/, '') : ''
   const url = base ? `${base}/` : undefined
 
+  let hostnameBackup = ''
+  if (base) {
+    try {
+      const urlObj = new URL(base.includes('://') ? base : `https://${base}`)
+      hostnameBackup = urlObj.hostname.toLowerCase()
+    } catch {
+      hostnameBackup = base
+        .replace(/^https?:\/\//i, '')
+        .split('/')[0]
+        .split(':')[0]
+        .toLowerCase()
+    }
+  }
+
+  const alternateName: string[] = ['Animaku 动漫', 'Animaku动漫', 'Animaku']
+  if (
+    hostnameBackup &&
+    hostnameBackup !== 'localhost' &&
+    hostnameBackup !== '127.0.0.1' &&
+    !alternateName.includes(hostnameBackup)
+  ) {
+    alternateName.push(hostnameBackup)
+  }
+
   return {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
     name: SITE_NAME,
-    alternateName: ['Animaku动漫', 'Animaku'],
+    alternateName,
     description: DEFAULT_DESCRIPTION,
     ...(url ? { url } : {}),
     // Absolute SearchAction only when we know the public origin

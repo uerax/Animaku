@@ -494,6 +494,8 @@ export async function resolveCycani(
     playUrl,
     proxyUrl,
     referer,
+    format: 'mp4',
+    contentType: 'video/mp4',
     headers: {
       'User-Agent': rule.userAgent || config.defaultUserAgent,
       Referer: referer,

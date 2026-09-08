@@ -1679,8 +1679,10 @@ export function wrapResolveWithTicket(
   if (!result || !result.playUrl) return result
   try {
     const isMp4 =
+      result.format === 'mp4' ||
       result.contentType === 'video/mp4' ||
-      result.playUrl.toLowerCase().includes('.mp4')
+      result.playUrl.toLowerCase().includes('.mp4') ||
+      result.playUrl.toLowerCase().includes('cycstream.com')
     const format: 'hls' | 'mp4' = result.format || (isMp4 ? 'mp4' : 'hls')
     const cookie = result.headers?.Cookie || result.headers?.cookie
     const requiresProxy =

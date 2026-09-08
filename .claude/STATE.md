@@ -4,6 +4,60 @@
 
 ---
 
+## [2026-09-08] 修复 CYCani 源站 .mp3 伪装直链格式推导被误判为 HLS 的缺陷 (v1.9.2)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **问题成因根因排查**：
+     - CYCani 源站 CDN 对视频直链采用了将真实 MP4 文件名 Base64 编码并在末尾追加 `.mp3` 伪装后缀的防抓取策略（底层仍为 HTTP 206 `Content-Type: video/mp4` 标准 1080P MP4 容器，支持 `Accept-Ranges: bytes`）；
+     - 此前提交 `bcacc24` 在服务端 `wrapResolveWithTicket` 闭环规则格式推导时引入了二元假设：`result.contentType === 'video/mp4' || result.playUrl.toLowerCase().includes('.mp4') ? 'mp4' : 'hls'`；
+     - CYCani 专有适配器此前未显式声明 `format`，导致其 `.mp3` 伪装直链被服务端误判为 `hls` 并下发 `format: 'hls'` 至客户端，强行激活 `Hls.js` 读取二进制 MP4 触发 `manifestParsingError: no EXTM3U delimiter found`，导致视频播放崩溃；
+  2. **契约驱动精准治理（零全局副作用）**：
+     - **源头精准赋权**：在 `apps/server/src/lib/cycani.ts` 的 `resolveCycani` 中显式返回 `format: 'mp4'` 与 `contentType: 'video/mp4'`，源头解决类型歧义；
+     - **规则引擎推导加固**：在 `apps/server/src/rule-engine/index.ts` 的 `wrapResolveWithTicket` 中严格优先信任 `result.format === 'mp4'` 与 `result.contentType === 'video/mp4'`，并增加 `cycstream.com` 域名特征兜底自愈，防止被误判为 `hls`；
+     - **固化适配器对齐**：在 `apps/server/src/lib/source/adapters/cycani.ts` 中同步适配 `res.format === 'mp4'` 判定，保证出站路由与受控网关映射精准；
+     - **避免全局粗暴嗅探**：前端全局通用 `format.ts` 不盲目将任意 `.mp3` 映射为 `video/mp4`（避免损坏真实纯音频资源的解码管道），而是由服务端下发的 `formatHint = 'mp4'` 驱动播放器挂载 `<source type="video/mp4">` 与原生渐进式视频播放引擎，全平台（Chrome / Edge / Safari WebKit / 移动端）零黑屏完美直连播放；
+  3. **自动化测试与版本递增**：
+     - 新增 `apps/server/src/lib/cycani.test.ts`，涵盖规则识别、`.mp3` 伪装直链精准推导为 MP4 与常规 M3U8 对照组测试（100% pass）；
+     - 服务端 102 个单元测试全部通过；全仓 `pnpm typecheck` 零错误；`pnpm build` 全量打包成功；
+     - 执行 `pnpm bump patch`，项目版本升级至 `v1.9.2`。
+- 涉及文件：
+  - apps/server/src/lib/cycani.ts
+  - apps/server/src/rule-engine/index.ts
+  - apps/server/src/lib/source/adapters/cycani.ts
+  - apps/server/src/lib/cycani.test.ts
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+
+## [2026-09-08] 修正首页 Title 并恢复配置域名作为 WebSite 结构化数据备选项 (v1.9.1)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **首页 `<title>` 纯净化去噪**：
+     - 将 `apps/web/index.html` 与 `apps/web/src/lib/seo.ts` 中的首页标题从带有冗长修饰语的 `Animaku 动漫 - 在线高清动画多源聚合弹幕平台` 精简为纯粹的单一品牌词 `Animaku 动漫`；
+     - 同步对齐 `index.html` 中的 `<meta property="og:title">`、`<meta name="twitter:title">` 与 `<noscript>` 占位 `<h1>` 为 `Animaku 动漫`，消除 Googlebot 对首页品牌词断句提取的歧义；
+  2. **恢复配置域名自动注入为 WebSite alternateName 保底备选**：
+     - 在构建期 `apps/web/vite.config.ts` 和客户端运行时 `apps/web/src/lib/seo.ts` 中恢复从用户配置的站点 URL（`VITE_SITE_URL` 或 `window.location.origin`）解析主机名（如 `bakasine.eu.org`）的逻辑；
+     - 在排除 localhost/127.0.0.1 后，将该域名作为安全备选推入 WebSite Schema.org 结构化数据的 `alternateName`（排序在主名称与中文别名之后），严格契合 Google 搜索中心针对二级域名防止被动回退到父域名（如 eu.org）的官方备用规范；
+  3. **质量验证与版本升级**：
+     - 全仓 `pnpm typecheck` 零错误；全套 100+ 单元测试 100% 通过；`pnpm build` 构建验证注入正确；
+     - 执行 `pnpm bump patch`，全仓版本递增至 `v1.9.1`。
+- 涉及文件：
+  - apps/web/index.html
+  - apps/web/src/lib/seo.ts
+  - apps/web/vite.config.ts
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+- 备注：本地构建与 `VITE_SITE_URL="https://bakasine.eu.org"` 模拟构建均已验证，导出的 HTML 首页 title 纯净且 alternateName 正确包含域名保底备选。
+
 ## [2026-09-08] 视频源检索分层提纯、标题偏好枚举 (titlePreference) 与季度安全锁 (Season Guard) (v1.9.0)
 - 状态：已完成
 - 优先级：P1

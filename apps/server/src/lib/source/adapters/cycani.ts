@@ -26,8 +26,10 @@ export const cycaniAdapter: SourceAdapter = {
   async resolve(pageUrl: string): Promise<RawResolveResult> {
     const res = await resolveCycani(CYCANI_RULE, pageUrl)
     const isMp4 =
+      res.format === 'mp4' ||
       res.contentType === 'video/mp4' ||
-      res.playUrl.toLowerCase().includes('.mp4')
+      res.playUrl.toLowerCase().includes('.mp4') ||
+      res.playUrl.toLowerCase().includes('cycstream.com')
     const cookie = res.headers?.Cookie || res.headers?.cookie
     return {
       mediaUrl: res.playUrl,
