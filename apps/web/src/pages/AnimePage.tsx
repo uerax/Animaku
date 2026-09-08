@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { bangumiApi } from '../lib/bangumi'
@@ -207,7 +207,20 @@ export function AnimePage() {
     gcTime: 2 * 60 * 60_000,
   })
 
-  const total = q.data?.total ?? 0
+  const [lastKnownTotal, setLastKnownTotal] = useState<number>(0)
+
+  // Reset cached total when browse filter conditions change (keep clean skeleton on filter switch)
+  useEffect(() => {
+    setLastKnownTotal(0)
+  }, [tag, yearAll, year, monthAll, month, sort])
+
+  useEffect(() => {
+    if (q.data?.total != null) {
+      setLastKnownTotal(q.data.total)
+    }
+  }, [q.data?.total])
+
+  const total = q.data?.total ?? lastKnownTotal
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const items = q.data?.data
 
@@ -354,45 +367,43 @@ export function AnimePage() {
         <BangumiGridSkeleton count={12} />
       ) : q.isError ? (
         <ErrorState error={q.error} onRetry={() => q.refetch()} />
-      ) : q.data ? (
-        <>
-          <BangumiGrid items={items} />
-
-          {totalPages > 1 && (
-            <nav
-              className="mt-8 flex flex-wrap items-center justify-center gap-2"
-              aria-label="分页"
-            >
-              <button
-                type="button"
-                disabled={page <= 1}
-                onClick={() =>
-                  patchParams(
-                    { page: page <= 2 ? null : String(page - 1) },
-                    { resetPage: false },
-                  )
-                }
-                className="kz-pill kz-pill-idle border border-[var(--kz-border)] disabled:opacity-40"
-              >
-                上一页
-              </button>
-              <span className="px-2 text-[13px] tabular-nums text-[var(--kz-fg-muted)]">
-                {page} / {totalPages}
-              </span>
-              <button
-                type="button"
-                disabled={page >= totalPages}
-                onClick={() =>
-                  patchParams({ page: String(page + 1) }, { resetPage: false })
-                }
-                className="kz-pill kz-pill-idle border border-[var(--kz-border)] disabled:opacity-40"
-              >
-                下一页
-              </button>
-            </nav>
-          )}
-        </>
+      ) : items ? (
+        <BangumiGrid items={items} />
       ) : null}
+
+      {!q.isError && totalPages > 1 && (
+        <nav
+          className="mt-8 flex flex-wrap items-center justify-center gap-2"
+          aria-label="分页"
+        >
+          <button
+            type="button"
+            disabled={page <= 1 || q.isFetching}
+            onClick={() =>
+              patchParams(
+                { page: page <= 2 ? null : String(page - 1) },
+                { resetPage: false },
+              )
+            }
+            className="kz-pill kz-pill-idle border border-[var(--kz-border)] disabled:opacity-40"
+          >
+            上一页
+          </button>
+          <span className="px-2 text-[13px] tabular-nums text-[var(--kz-fg-muted)]">
+            {page} / {totalPages}
+          </span>
+          <button
+            type="button"
+            disabled={page >= totalPages || q.isFetching}
+            onClick={() =>
+              patchParams({ page: String(page + 1) }, { resetPage: false })
+            }
+            className="kz-pill kz-pill-idle border border-[var(--kz-border)] disabled:opacity-40"
+          >
+            下一页
+          </button>
+        </nav>
+      )}
     </div>
   )
 }

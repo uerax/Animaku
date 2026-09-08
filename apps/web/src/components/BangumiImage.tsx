@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react'
 import {
   extractImagePath,
   buildImageUrl,
@@ -31,9 +31,14 @@ export const BangumiImage: React.FC<BangumiImageProps> = ({
   const [failed, setFailed] = useState(!imageUrl)
   const [loadedUrl, setLoadedUrl] = useState<string | null>(null)
   const isLoaded = Boolean(imageUrl && loadedUrl === imageUrl)
+  const imgRef = useRef<HTMLImageElement>(null)
 
-  useEffect(() => {
+  // 物理级 0 闪烁防线：首帧 Paint 前同步检查是否命中本地缓存，并重置错误态
+  useLayoutEffect(() => {
     setFailed(!imageUrl)
+    if (imageUrl && imgRef.current?.complete && imgRef.current.naturalWidth > 0) {
+      setLoadedUrl(imageUrl)
+    }
   }, [imageUrl])
 
   if (failed || !imageUrl) {
@@ -47,6 +52,7 @@ export const BangumiImage: React.FC<BangumiImageProps> = ({
   return (
     <img
       key={imageUrl}
+      ref={imgRef}
       src={imageUrl}
       alt={alt}
       referrerPolicy="no-referrer"
@@ -54,7 +60,7 @@ export const BangumiImage: React.FC<BangumiImageProps> = ({
       decoding="async"
       onLoad={() => setLoadedUrl(imageUrl)}
       onError={() => setFailed(true)}
-      className={`${className} transition-opacity duration-300 ease-out ${
+      className={`bg-[var(--kz-bg-soft)] ${className} transition-opacity duration-300 ease-out ${
         isLoaded ? 'opacity-100' : 'opacity-0'
       }`}
       {...rest}

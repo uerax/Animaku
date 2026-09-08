@@ -69,6 +69,8 @@ export function useSourceAggregator({
   const customKeywordsRef = useRef<Record<string, string>>({})
   const activeAutoJobsRef = useRef<Set<string>>(new Set())
   const mountedRef = useRef(true)
+  const pluginsRef = useRef(plugins)
+  pluginsRef.current = plugins
 
   useEffect(() => {
     mountedRef.current = true
@@ -103,7 +105,7 @@ export function useSourceAggregator({
     // Keep plugin rows intact — smoothly reset items & status to idle for the new subject
     setSources((prev) => {
       const next: Record<string, AggregatedSourceState> = {}
-      for (const p of plugins) {
+      for (const p of pluginsRef.current) {
         next[p.name] = {
           plugin: p,
           status: 'idle',
@@ -113,7 +115,7 @@ export function useSourceAggregator({
       }
       return next
     })
-  }, [bangumiId, plugins])
+  }, [bangumiId])
 
   // Sync / initialize plugin state list
   useEffect(() => {

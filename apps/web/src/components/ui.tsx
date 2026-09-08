@@ -74,8 +74,9 @@ export const BangumiCard = memo(function BangumiCard({
   const [hasError, setHasError] = useState(false)
   const imgRef = useRef<HTMLImageElement>(null)
 
-  // 物理级 0 闪烁防线：在首帧 Paint 之前同步检查是否命中本地缓存
+  // 物理级 0 闪烁防线：在首帧 Paint 之前同步检查是否命中本地缓存并重置错误态
   useLayoutEffect(() => {
+    setHasError(false)
     if (cover && imgRef.current?.complete && imgRef.current.naturalWidth > 0) {
       setLoadedCover(cover)
     }

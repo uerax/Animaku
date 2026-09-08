@@ -32,13 +32,14 @@ const RecommendationCard = memo(function RecommendationCard({
 
   const toUrl = useMemo(() => {
     const params = new URLSearchParams()
+    if (currentPlugin) params.set('plugin', currentPlugin)
     const t = item.nameCn || item.name
     if (t) params.set('title', t)
     if (item.cover) params.set('cover', item.cover)
     if (item.year) params.set('year', String(item.year))
     const qs = params.toString()
     return qs ? `/subject/${item.id}?${qs}` : `/subject/${item.id}`
-  }, [item.id, item.nameCn, item.name, item.cover, item.year])
+  }, [item.id, item.nameCn, item.name, item.cover, item.year, currentPlugin])
 
   return (
     <Link

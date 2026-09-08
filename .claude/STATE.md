@@ -4,6 +4,29 @@
 
 ---
 
+## [2026-09-08] 上一轮提交 Review 缺陷全修复与体验微调 (v1.11.1)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **修复 `WatchRecommendations.tsx` 切番丢失 `currentPlugin` 参数缺陷**：
+     - 在构建切番链接 query 时补齐 `if (currentPlugin) params.set('plugin', currentPlugin)`，并将 `currentPlugin` 纳入 `useMemo` 依赖项；用户切番时平滑继承当前正在使用的源插件。
+  2. **收敛 `useSourceAggregator.ts` 的 reset effect 依赖**：
+     - 引入 `pluginsRef` 跟踪最新插件列表，将切番重置 Effect 依赖严格收敛至 `[bangumiId]`，彻底规避插件列表引用变动或非切番场景下误触发重置、中断探活并抹除搜索结果的问题。
+  3. **优化 `AnimePage.tsx` 翻页与分页器流光体验**：
+     - 引入 `lastKnownTotal` 状态缓存；在切换分类/年份/月份/排序时立即重置 `lastKnownTotal` 并展现纯净骨架流光；在同分类下翻页时保持底部分页器常驻（拉取中禁用态 `q.isFetching`），彻底消灭分页器卸载闪烁与页面高度跳动坍塌。
+  4. **修复 `BangumiCard` (`ui.tsx`) 节点复用时 `hasError` 未重置问题**：
+     - 在 `useLayoutEffect` 中，当 `cover` 发生变动时同步重置 `setHasError(false)`，确保列表 DOM 节点复用时新图片能正常渲染。
+  5. **对齐 `BangumiImage.tsx` 0 闪烁防线与流光底色占位**：
+     - 引入 `useLayoutEffect` 对本地缓存图片执行预检（`complete && naturalWidth > 0`）以及同步重置错误态；为图片加入 `bg-[var(--kz-bg-soft)]` 柔和占位底色，对齐物理级 0 闪烁体验。
+- 涉及文件：
+  - `apps/web/src/pages/watch/WatchRecommendations.tsx`
+  - `apps/web/src/lib/use-source-aggregator.ts`
+  - `apps/web/src/pages/AnimePage.tsx`
+  - `apps/web/src/components/ui.tsx`
+  - `apps/web/src/components/BangumiImage.tsx`
+  - `package.json`, `apps/web/package.json`, `apps/server/package.json`, `packages/shared/package.json`, `packages/shared/src/version.ts`
+- 备注：全仓类型检查 (`pnpm typecheck`) 通过，全量测试 (68 shared + 102 server pass) 全部通过，全仓构建 (`pnpm build`) 成功，版本自动升级至 v1.11.1。
+
 ## [2026-09-08] 用户体验升级：新标签页打开番剧、番剧目录即时清理旧数据与骨架流光质感优化 (v1.11.0)
 - 状态：已完成
 - 优先级：P1
