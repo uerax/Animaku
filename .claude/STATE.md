@@ -4,6 +4,26 @@
 
 ---
 
+## [2026-09-08] 修复视频源看板展开仅前6源自动搜索限制失效缺陷 (v1.11.2)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **定位并修复滑动切片导致的后台全量搜索缺陷**：
+     - 原逻辑从 `unprobed` 动态未探测列表中执行 `slice(0, AUTO_PROBE_LIMIT)`；随着前几个高优先级源完成探测，未探测列表动态缩小，导致组件在重渲染或依赖更新时不断将第 7、8、9... 个后续源切入队列，形成滚动传送带，最终误将全量 16 个源全部自动搜索。
+  2. **建立全量优先级全局切片与自动探测配额门禁 (Auto-probe Quota Guard)**：
+     - 引入 `autoProbedSourcesRef: Set<string>` 跟踪当前番剧下已被自动探测或占用配额的源集合；
+     - 自动候选集严格限定于全量插件按优先级全局排序后的前 `AUTO_PROBE_LIMIT` (6) 个源 (`topCandidates = ordered.slice(0, 6)`)；
+     - 当已占用自动探测名额达到 6 个时 (`size >= AUTO_PROBE_LIMIT`)，自动探测 Effect 直接截断退出，彻底阻断任何后续源被误加入队列；
+     - 第 7 个及以后的所有源 100% 保持在 `idle` 待探活状态，页面上清晰展现为“待探活 (点击探测)”与“探活”胶囊按钮。
+  3. **生命周期重置与手动按需探活解耦**：
+     - 切换番剧 (`bangumiId`) 时同步清空 `autoProbedSourcesRef`，保障新番剧能够正常为其前 6 个源发起自动探测；
+     - 用户手动点击任意源（如第 10 个源）卡片或“探活”按钮时，依然通过 `prioritizePlugin` 插队发起探测并抢占并发，完全不受自动限额约束。
+- 涉及文件：
+  - `apps/web/src/lib/use-source-aggregator.ts`
+  - `apps/web/src/lib/use-source-aggregator.test.ts`
+  - `package.json`, `apps/web/package.json`, `apps/server/package.json`, `packages/shared/package.json`, `packages/shared/src/version.ts`
+- 备注：全仓类型检查 (`pnpm typecheck`) 通过，全量单测 (68 shared + 102 server + 3 web aggregator pass) 全部通过，前端生产构建 (`pnpm build:web`) 成功，版本自动升级至 v1.11.2。
+
 ## [2026-09-08] 上一轮提交 Review 缺陷全修复与体验微调 (v1.11.1)
 - 状态：已完成
 - 优先级：P1

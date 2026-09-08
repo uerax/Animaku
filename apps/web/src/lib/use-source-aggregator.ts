@@ -68,6 +68,7 @@ export function useSourceAggregator({
   const probeDoneRef = useRef<Record<string, boolean>>({})
   const customKeywordsRef = useRef<Record<string, string>>({})
   const activeAutoJobsRef = useRef<Set<string>>(new Set())
+  const autoProbedSourcesRef = useRef<Set<string>>(new Set())
   const mountedRef = useRef(true)
   const pluginsRef = useRef(plugins)
   pluginsRef.current = plugins
@@ -100,6 +101,7 @@ export function useSourceAggregator({
     probeDoneRef.current = {}
     customKeywordsRef.current = {}
     activeAutoJobsRef.current.clear()
+    autoProbedSourcesRef.current.clear()
     queueRef.current = []
     activeJobsRef.current = 0
     // Keep plugin rows intact — smoothly reset items & status to idle for the new subject
@@ -402,37 +404,54 @@ export function useSourceAggregator({
     }
   }, [isOpen, plugins, bangumiId, item, defaultKeyword, titleRefs])
 
-  // Trigger streaming probe when panel is opened
+  // Trigger streaming probe when panel is opened (strictly limited to top AUTO_PROBE_LIMIT sources)
   useEffect(() => {
     if (!isOpen || !plugins.length || !Number.isFinite(bangumiId) || bangumiId <= 0) {
       return
     }
 
-    const unprobed: string[] = []
-    for (const p of plugins) {
-      if (!probeDoneRef.current[p.name]) {
-        unprobed.push(p.name)
+    // Quota exhausted: never auto-probe any more sources beyond AUTO_PROBE_LIMIT
+    if (autoProbedSourcesRef.current.size >= AUTO_PROBE_LIMIT) {
+      return
+    }
+
+    // 1. Sort all available plugins by global priority (active source first, then user configured order)
+    const ordered = [...plugins].sort((a, b) => {
+      if (activePluginName) {
+        if (a.name.toLowerCase() === activePluginName.toLowerCase()) return -1
+        if (b.name.toLowerCase() === activePluginName.toLowerCase()) return 1
+      }
+      const ia = pluginOrder.indexOf(a.name)
+      const ib = pluginOrder.indexOf(b.name)
+      if (ia !== -1 && ib !== -1) return ia - ib
+      if (ia !== -1) return -1
+      if (ib !== -1) return 1
+      return 0
+    })
+
+    // 2. Strictly restrict to top N priority sources (AUTO_PROBE_LIMIT = 6); all remaining sources remain idle until on-demand click
+    const topCandidates = ordered.slice(0, AUTO_PROBE_LIMIT)
+
+    const toProbe: string[] = []
+    for (const p of topCandidates) {
+      if (probeDoneRef.current[p.name]) {
+        // Already satisfied (e.g. active playback source or persistent binding)
+        autoProbedSourcesRef.current.add(p.name)
+        continue
+      }
+      if (autoProbedSourcesRef.current.has(p.name) || queueRef.current.includes(p.name)) {
+        continue
+      }
+      if (autoProbedSourcesRef.current.size + toProbe.length < AUTO_PROBE_LIMIT) {
+        toProbe.push(p.name)
       }
     }
 
-    if (unprobed.length > 0) {
-      // Prioritize activePluginName first, then user configured order
-      const ordered = [...unprobed].sort((a, b) => {
-        if (activePluginName) {
-          if (a.toLowerCase() === activePluginName.toLowerCase()) return -1
-          if (b.toLowerCase() === activePluginName.toLowerCase()) return 1
-        }
-        const ia = pluginOrder.indexOf(a)
-        const ib = pluginOrder.indexOf(b)
-        if (ia !== -1 && ib !== -1) return ia - ib
-        if (ia !== -1) return -1
-        if (ib !== -1) return 1
-        return 0
-      })
-
-      // Auto-probe top N sources by priority (AUTO_PROBE_LIMIT = 6); rest remain idle until on-demand click
-      const autoProbed = ordered.slice(0, AUTO_PROBE_LIMIT)
-      queueRef.current = Array.from(new Set([...queueRef.current, ...autoProbed]))
+    if (toProbe.length > 0) {
+      for (const name of toProbe) {
+        autoProbedSourcesRef.current.add(name)
+      }
+      queueRef.current = Array.from(new Set([...queueRef.current, ...toProbe]))
       void processQueue()
     }
   }, [isOpen, plugins, pluginOrder, bangumiId, activePluginName, processQueue])
