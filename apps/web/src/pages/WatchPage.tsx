@@ -505,14 +505,10 @@ export function WatchPage() {
   )
 
   /* 番剧推荐模块（选集下方 B 站小横卡流） */
-  const currentPluginName =
-    w.selection?.plugin.name || w.pluginName || w.defaultSourceName
-
   const recommendationsPanel = (
     <WatchRecommendations
       bangumiId={bangumiId}
       bangumiItem={w.bangumiItem}
-      currentPlugin={currentPluginName}
     />
   )
 

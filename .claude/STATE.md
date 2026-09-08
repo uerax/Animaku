@@ -4,6 +4,25 @@
 
 ---
 
+## [2026-09-09] 彻底清理推荐切番冗余参数与 URL 污染 (v1.11.4)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **彻底将番剧推荐跳转还原为纯净标准路由**：
+     - 在 `WatchRecommendations.tsx` 中彻底移除 `toUrl` 生成逻辑，卡片跳转直接统一为全站标准的 `<Link to={`/subject/${item.id}`} />`；
+     - 彻底清除 `plugin`、`title`、`cover`、`year` 等所有拼接在 URL Query 上的冗余参数；
+     - 清理 `WatchPage.tsx` 与 `WatchRecommendations.tsx` 之间传递 `currentPlugin` 的冗余计算和 prop。
+  2. **全面清理播放会话对 URL 标题与封面的冗余解析与回退逻辑**：
+     - 在 `use-watch-session.ts` 中彻底移除 `qTitle`、`qCover`、`qYear` 的读取逻辑与各处的地址栏清理（`q.delete`）；
+     - `title`、`cover`、`titleRefs`、`keywordCandidates` 与 `defaultKeyword` 彻底回归为基于 Bangumi 标准元数据单向驱动；
+     - 地址栏保持绝对纯净，杜绝公开 URL 泄露临时前端占位参数的架构反模式。
+- 涉及文件：
+  - `apps/web/src/pages/watch/WatchRecommendations.tsx`
+  - `apps/web/src/pages/WatchPage.tsx`
+  - `apps/web/src/lib/use-watch-session.ts`
+  - `package.json`, `apps/web/package.json`, `apps/server/package.json`, `packages/shared/package.json`, `packages/shared/src/version.ts`
+- 备注：全仓类型检查 (`pnpm typecheck`) 通过，全量单元测试 (68 shared pass) 全部通过，前端生产构建 (`pnpm build:web`) 成功，版本自动升级至 v1.11.4。
+
 ## [2026-09-08] 修复视频源看板展开仅前6源自动搜索限制失效缺陷 (v1.11.2)
 - 状态：已完成
 - 优先级：P1

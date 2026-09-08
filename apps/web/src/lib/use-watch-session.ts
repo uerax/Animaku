@@ -342,9 +342,6 @@ export function useWatchSession(bangumiId: number): WatchSession {
     rawQRoad !== null && rawQRoad !== '' && !Number.isNaN(Number(rawQRoad))
       ? Number(rawQRoad)
       : 0
-  const qTitle = params.get('title') || ''
-  const qCover = params.get('cover') || ''
-  const qYear = params.get('year') || ''
 
   const ensureDefaults = usePluginStore((s) => s.ensureDefaults)
   const allPlugins = usePluginStore((s) =>
@@ -365,7 +362,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     gcTime: 6 * 60 * 60_000,
   })
   const item = subject.data?.data
-  const isOld = useMemo(() => isOldAnime(item?.airDate || qYear), [item?.airDate, qYear])
+  const isOld = useMemo(() => isOldAnime(item?.airDate), [item?.airDate])
 
   const bgmEpisodesQuery = useQuery({
     queryKey: ['bangumi-episodes', bangumiId],
@@ -421,9 +418,8 @@ export function useWatchSession(bangumiId: number): WatchSession {
   const danmakuSettings = useSettingsStore((s) => s.danmaku ?? FALLBACK_DANMAKU)
   const setDanmaku = useSettingsStore((s) => s.setDanmaku)
 
-  const title =
-    (item ? item.nameCn || item.name : (qTitle && !/^番剧\s*\d+$/.test(qTitle) ? qTitle : '')) || ''
-  const cover = item ? coverOf(item) : qCover || ''
+  const title = item ? item.nameCn || item.name || '' : ''
+  const cover = item ? coverOf(item) : ''
 
   const [searchResults, setSearchResults] = useState<SearchRow[]>([])
   const [searchKeyword, setSearchKeyword] = useState('')
@@ -500,9 +496,9 @@ export function useWatchSession(bangumiId: number): WatchSession {
   roadLoadingRef.current = roadLoading
 
   const titleRefs = useMemo(() => {
-    if (!item) return [qTitle].filter(Boolean) as string[]
-    return [item.nameCn, item.name, ...(item.alias || [])].filter(Boolean)
-  }, [item, qTitle])
+    if (!item) return []
+    return [item.nameCn, item.name, ...(item.alias || [])].filter(Boolean) as string[]
+  }, [item])
 
   const activeTargetPlugin =
     keywordTargetPlugin ||
@@ -511,10 +507,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
   const preferOriginal = activeTargetPlugin?.titlePreference === 'original'
 
   const keywordCandidates = useMemo(() => {
-    if (!item) {
-      const t = (qTitle || title || '').trim()
-      return t ? [t] : ([] as string[])
-    }
+    if (!item) return []
     // Full title first for the dropdown; shorter variants remain as fallbacks.
     // Honor the active source's title preference (Japanese/original vs Chinese).
     const pref = activeTargetPlugin?.titlePreference || (preferOriginal ? 'original' : 'chinese')
@@ -538,19 +531,17 @@ export function useWatchSession(bangumiId: number): WatchSession {
       out.push(t)
     }
     return out
-  }, [item, qTitle, title, preferOriginal, activeTargetPlugin])
+  }, [item, preferOriginal, activeTargetPlugin])
 
   /** Default search uses the display title, not the shortest stripped variant. */
   const defaultKeyword = useMemo(() => {
     return (
       item?.nameCn ||
       item?.name ||
-      qTitle ||
-      title ||
       keywordCandidates[0] ||
       ''
     ).trim()
-  }, [item, qTitle, title, keywordCandidates])
+  }, [item, keywordCandidates])
 
   /**
    * Resolve keyword for a specific plugin:
@@ -565,12 +556,10 @@ export function useWatchSession(bangumiId: number): WatchSession {
       return resolvePluginDefaultKeyword(
         plugin,
         item,
-        (qTitle && !/^番剧\s*\d+$/.test(qTitle) ? qTitle : '') ||
-          defaultKeyword ||
-          '',
+        defaultKeyword || '',
       )
     },
-    [manualKeywords, item, qTitle, defaultKeyword],
+    [manualKeywords, item, defaultKeyword],
   )
 
   const dm = useDanmakuSession({
@@ -871,9 +860,6 @@ export function useWatchSession(bangumiId: number): WatchSession {
             else q.delete('road')
             // Clean redundant long metadata from address bar
             q.delete('pageUrl')
-            q.delete('title')
-            q.delete('cover')
-            q.delete('year')
             q.delete('source')
             const key = `${bangumiId}|${plugin.name}||${targetEpNum}|${targetRoadIdx}`
             resumeDoneFor.current = key
@@ -885,9 +871,6 @@ export function useWatchSession(bangumiId: number): WatchSession {
             q.delete('pageUrl')
             q.delete('ep')
             q.delete('road')
-            q.delete('title')
-            q.delete('cover')
-            q.delete('year')
             q.delete('source')
             safeSetParams(q, { replace: true })
           }
@@ -901,8 +884,6 @@ export function useWatchSession(bangumiId: number): WatchSession {
           q.delete('pageUrl')
           q.delete('ep')
           q.delete('road')
-          q.delete('title')
-          q.delete('cover')
           q.delete('source')
           safeSetParams(q, { replace: true })
         }
@@ -1275,8 +1256,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
           resolvePluginDefaultKeyword(
             preferred,
             item,
-            (qTitle && !/^番剧\s*\d+$/.test(qTitle) ? qTitle : '') ||
-              defaultKeyword,
+            defaultKeyword,
           ) || ''
         ).trim()
         if (kw && !/^番剧\s*\d+$/.test(kw)) {
@@ -1292,7 +1272,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
       resolvePluginDefaultKeyword(
         preferred,
         item,
-        (qTitle && !/^番剧\s*\d+$/.test(qTitle) ? qTitle : '') || defaultKeyword,
+        defaultKeyword,
       ) || ''
     ).trim()
     if (!kw || /^番剧\s*\d+$/.test(kw)) return
@@ -1310,7 +1290,6 @@ export function useWatchSession(bangumiId: number): WatchSession {
     pluginOrder,
     isOld,
     item,
-    qTitle,
     defaultKeyword,
     openPluginSearch,
     pickSource,
@@ -1402,7 +1381,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
           paramsRef.current.get('source') ||
           lookupHistorySourceUrl(bangumiId, qPlugin, qPageUrl) ||
           ''
-        let sourceTitle = boundItem?.title || qTitle || title || qPlugin
+        let sourceTitle = boundItem?.title || title || qPlugin
 
         // If not bound on this device yet (e.g. shared link), auto-search and bind best match
         if (!sourceUrl) {
@@ -1410,7 +1389,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
             resolvePluginDefaultKeyword(
               plugin,
               item,
-              (qTitle && !/^番剧\s*\d+$/.test(qTitle) ? qTitle : '') || defaultKeyword,
+              defaultKeyword,
             ) || ''
           ).trim()
           // Wait for Bangumi subject metadata if we only have placeholder title
@@ -1541,8 +1520,6 @@ export function useWatchSession(bangumiId: number): WatchSession {
         else q.delete('road')
         // Clean legacy / bloated URL params from address bar
         q.delete('pageUrl')
-        q.delete('title')
-        q.delete('cover')
         q.delete('source')
         safeSetParams(q, { replace: true })
         // Only lock after a successful attach
@@ -1651,8 +1628,6 @@ export function useWatchSession(bangumiId: number): WatchSession {
       else q.delete('road')
       // Clean redundant metadata parameters
       q.delete('pageUrl')
-      q.delete('title')
-      q.delete('cover')
       q.delete('source')
       safeSetParams(q, { replace: true })
     },
