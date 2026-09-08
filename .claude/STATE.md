@@ -4,6 +4,29 @@
 
 ---
 
+## [2026-09-08] TvTFun 专有适配器线路 D 优先排序与内置插件权重同步 (v1.10.1)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **保留用户自定义内置源权重**：
+     - `cycani.json`: 权重微调为 69；
+     - `tvtfun.json`: 权重微调为 64；
+     - `DEFAULT_PLUGIN_RULES`: 同步调整内置规则数组降序顺序并更新 JSDoc 注释。
+  2. **TvTFun 专有适配器线路 D 智能优先重排**：
+     - 在 `apps/server/src/lib/tvtfun.ts` 中针对 `chaptersTvTFun` 实现基于权重的启发式线路排序 (`getTvTFunSourcePriority`)，将国内直连稳定的【线路 D】提升至首位；
+     - 循环构建分集播放 URL 时精准保留原始数据源索引 (`originalIdx`)，确保后续生成播放凭据 (`fetchFreshPlayCookie`) 与 Referer 上下文鉴权完美匹配；
+     - 避免了默认起播命中海外 TikTok CDN 导致的握手超时与 `manifestLoadTimeOut` 缺陷。
+  3. **插件配置版本平滑迁移**：
+     - 将 `PLUGIN_DEFAULTS_VERSION` 升级至 32，保障客户端已持久化的缓存自动迁移到最新权重与线路排序。
+- 涉及文件：
+  - `apps/server/src/lib/tvtfun.ts`
+  - `apps/web/src/data/default-plugins/index.ts`
+  - `apps/web/src/data/default-plugins/cycani.json`
+  - `apps/web/src/data/default-plugins/tvtfun.json`
+  - `apps/web/src/stores/plugins.ts`
+  - `package.json`, `apps/web/package.json`, `apps/server/package.json`, `packages/shared/package.json`, `packages/shared/src/version.ts`
+- 备注：全仓类型检查 (`pnpm typecheck`) 通过，版本自动升级至 v1.10.1。
+
 ## [2026-09-08] 视频源切片广告端云分层清洗体系、摒弃旧 adBlocker 字段与 TS 序号断层过滤算法 (v1.10.0)
 - 状态：已完成
 - 优先级：P1

@@ -204,6 +204,20 @@ export async function searchTvTFun(
 /**
  * 2. Parse video chapters and playback roads.
  */
+/**
+ * 线路优先级排序权重：
+ * TvTFun 线路 D (source-2) 解析为国内优化直连 M3U8，稳定性与速度远超海外 TikTok CDN (线路 A)；
+ * 优先提升线路 D 至首位作为默认起播线路。
+ */
+function getTvTFunSourcePriority(src: { name?: string; fromCode?: string }): number {
+  const name = (src.name || '').trim()
+  if (/线路\s*D\b/i.test(name) || name.includes('线路D')) return 100
+  if (/线路\s*B\b/i.test(name) || name.includes('线路B')) return 80
+  if (/线路\s*C\b/i.test(name) || name.includes('线路C')) return 70
+  if (/线路\s*A\b/i.test(name) || name.includes('线路A')) return 60
+  return 50
+}
+
 export async function chaptersTvTFun(
   rule: PluginRule,
   source: string,
@@ -262,10 +276,24 @@ export async function chaptersTvTFun(
     videoIdToSlugMap.set(data.slug, data.slug)
   }
 
+  // 按照线路优先级排序，优先将国内直连稳定的线路 D 排在首位
+  // 同时保留原始 source 索引以确保 fetchFreshPlayCookie 与 Referer 鉴权完全匹配
+  const indexedSources = data.playSources.map((src, originalIdx) => ({
+    src,
+    originalIdx,
+  }))
+
+  indexedSources.sort((a, b) => {
+    const pA = getTvTFunSourcePriority(a.src)
+    const pB = getTvTFunSourcePriority(b.src)
+    if (pA !== pB) return pB - pA
+    return a.originalIdx - b.originalIdx
+  })
+
   const roads: Road[] = []
 
-  for (let sIdx = 0; sIdx < data.playSources.length; sIdx++) {
-    const src = data.playSources[sIdx]
+  for (let i = 0; i < indexedSources.length; i++) {
+    const { src, originalIdx } = indexedSources[i]
     const episodes = src.episodes || []
     if (episodes.length === 0) continue
 
@@ -273,7 +301,7 @@ export async function chaptersTvTFun(
     const roadName =
       (src.name || '').replace(/\s*\([^()]+\)\s*$/, '').trim() ||
       src.fromCode ||
-      `线路 ${String.fromCharCode(65 + sIdx)}`
+      `线路 ${String.fromCharCode(65 + i)}`
 
     const urls: string[] = []
     const identifiers: string[] = []
@@ -281,7 +309,7 @@ export async function chaptersTvTFun(
     for (const ep of sortedEpisodes) {
       if (!ep.id) continue
       urls.push(
-        `${TVTFUN_BASE_URL}/video/${effectiveSlug}/play?episodeId=${ep.id}&videoId=${videoId}&source=${src.sort ?? sIdx}&epSort=${ep.sort ?? 0}`,
+        `${TVTFUN_BASE_URL}/video/${effectiveSlug}/play?episodeId=${ep.id}&videoId=${videoId}&source=${originalIdx}&epSort=${ep.sort ?? 0}`,
       )
       identifiers.push(ep.name || `第 ${ep.sort + 1} 话`)
     }

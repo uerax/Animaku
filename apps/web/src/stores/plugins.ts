@@ -35,7 +35,8 @@ migrateLocalStorageKey('animaku-plugins', [
 /** v28: add mifun & girigiri built-in rules with weight 70 & oldAnimePriority for girigiri */
 /** v29: add lzizy (Apple CMS V10 JSON API + all categories + 0ms direct HLS) with weight 60 */
 /** v30: upgrade title preference from preferOriginalTitle boolean to titlePreference enum ('chinese', 'chinese_compact', 'original', 'traditional') */
-export const PLUGIN_DEFAULTS_VERSION = 31
+/** v32: tune default plugin weights (girigiri & mifun 70 > cycani 69, moonci 65 > tvtfun 64) and prioritize tvtfun road D */
+export const PLUGIN_DEFAULTS_VERSION = 32
 
 interface PluginState {
   plugins: PluginMeta[]
