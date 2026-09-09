@@ -54,7 +54,8 @@ pluginRoutes.post('/validate', async (c) => {
   }
 })
 
-// Exec routes are open-proxy style (client supplies rule + URLs) — gate them
+// Exec routes allow web clients to query anime sources via server-side fetchPublic
+// (Protected by SafeConnector SSRF mitigation, IP rate-limiting, and SQLite caching)
 pluginRoutes.post('/search', async (c) => {
   const body = await c.req.json<{
     rule: unknown

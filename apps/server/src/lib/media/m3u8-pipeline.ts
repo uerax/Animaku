@@ -1,7 +1,8 @@
 /**
- * M3U8 播放列表处理管道
+ * M3U8 播放列表处理管道 (历史/测试辅助逻辑)
  *
- * 包含播放列表体积限制读取、广告切片清洗过滤、内部 URI 与 EXT 属性改写、以及 VOD/Live 缓存策略计算。
+ * 注：现行生产网关由 `hls-pipeline.ts` (基于 Opaque Ticket 与 AST 全要素结构改写) 承接；
+ * 本文件保留通用流读取器 `readTextLimited` 及单测参考逻辑。
  */
 
 import { filterM3u8AdsIfApplicable } from '@animaku/shared'
@@ -27,7 +28,7 @@ export interface RewriteOpts {
 }
 
 export function isM3u8Path(abs: URL): boolean {
-  return /\.m3u8($|[?#])/i.test(abs.pathname + abs.search)
+  return /\.m3u8$/i.test(abs.pathname) || /\.m3u$/i.test(abs.pathname)
 }
 
 /**

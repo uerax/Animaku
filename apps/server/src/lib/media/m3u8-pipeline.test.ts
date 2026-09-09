@@ -12,7 +12,9 @@ import {
 test('m3u8-pipeline: isM3u8Path & isM3u8Response identify playlist accurately', () => {
   assert.equal(isM3u8Path(new URL('https://cdn.com/stream/index.m3u8')), true)
   assert.equal(isM3u8Path(new URL('https://cdn.com/stream/index.m3u8?token=123')), true)
+  assert.equal(isM3u8Path(new URL('https://cdn.com/stream/index.m3u?token=123')), true)
   assert.equal(isM3u8Path(new URL('https://cdn.com/stream/segment.ts')), false)
+  assert.equal(isM3u8Path(new URL('https://cdn.com/stream/segment.ts?fake=.m3u8')), false)
 
   const hlsHeaders = new Headers({ 'content-type': 'application/vnd.apple.mpegurl' })
   assert.equal(isM3u8Response(new Response(null, { headers: hlsHeaders }), new URL('https://a.com/play')), true)

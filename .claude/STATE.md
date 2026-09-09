@@ -5046,6 +5046,34 @@
   - .claude/STATE.md
 - 备注：Chrome DevTools MCP 验证实测通过，失效 Token 在 401 响应后立即被完全清空，且网络请求达到稳定态后彻底停止，无任何死循环。全仓 `pnpm typecheck`（0 错误）与生产打包构建 `pnpm --filter @animaku/web build` 验证通过。
 
+## [2026-09-09] 审计评估外部安全报告并完成轻量代码卫生清理 (v1.11.9)
+- 状态：已完成
+- 优先级：P3
+- 描述：
+  1. **外部安全报告深度审计核实**：
+     - 对外部 GPT 安全报告提出的三项风险（`/api/plugin/*` 锁死模式未生效、`PUBLIC_PROXY` 默认开放媒体代理、`isM3u8Path()` 把 query 算入 m3u8 判断）进行全仓代码比对与历史溯源；
+     - 证实报告系基于 `v1.6.0` 之前的废弃旧代码产生的幻觉分析，`PUBLIC_PROXY`、`canUsePluginApi`、`requirePluginApiAccess` 早已彻底废除，且 `/api/media/proxy?url=...` 严格 400 阻断，生产全量由 AES-256-GCM Opaque Ticket 网关接管；
+  2. **插件路由历史遗留注释清理**：
+     - 在 `apps/server/src/routes/plugin.ts` 中移除残留的旧注释 `// Exec routes are open-proxy style (client supplies rule + URLs) — gate them`，替换为准确说明 SafeConnector SSRF 防护、IP 频控与 SQLite 削峰缓存防线的架构注释，避免静态扫描与 AI 审计误报；
+  3. **M3U8 路径判断收敛与单测强化**：
+     - 在 `apps/server/src/lib/media/m3u8-pipeline.ts` 中更新顶部定位说明（生产环境由 `hls-pipeline.ts` 承接）；
+     - 将 `isM3u8Path` 严格收敛为只检测 `abs.pathname`（`/\.m3u8$/i.test(abs.pathname) || /\.m3u$/i.test(abs.pathname)`），彻底剥离 query 参数干扰；
+     - 在 `apps/server/src/lib/media/m3u8-pipeline.test.ts` 中补充带有 query 污染的伪装测试用例（`segment.ts?fake=.m3u8` 断言为 `false`）；
+  4. **版本递增与验证**：
+     - 全仓版本号递增至 `v1.11.9`；
+     - 全仓类型检查 `pnpm typecheck`（0 错误）、服务端全部 102 项单元测试 100% 通过。
+- 涉及文件：
+  - apps/server/src/routes/plugin.ts
+  - apps/server/src/lib/media/m3u8-pipeline.ts
+  - apps/server/src/lib/media/m3u8-pipeline.test.ts
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+- 备注：无任何行为破坏性变更。
+
 
 
 
