@@ -106,9 +106,7 @@ app.use(
     allowHeaders: [
       'Content-Type',
       'Authorization',
-      'X-Animaku-Proxy-Token',
-      'X-Aniku-Proxy-Token',
-      'X-Proxy-Token',
+      'X-Admin-Secret',
     ],
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     credentials: false,
@@ -137,7 +135,7 @@ app.post('/api/admin/indexnow', async (c) => {
       {
         ok: false,
         error: 'unauthorized',
-        message: '需要管理员鉴权（X-Admin-Secret / X-Animaku-Proxy-Token）或本机回环访问',
+        message: '需要管理员鉴权（X-Admin-Secret）或本机回环访问',
       },
       403,
     )

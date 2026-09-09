@@ -307,7 +307,6 @@ const SENSITIVE_KEYS = new Set([
   't',
   'ticket',
   'credentials',
-  'x-animaku-proxy-token',
   'x-admin-secret',
 ])
 

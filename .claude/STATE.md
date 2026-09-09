@@ -5130,6 +5130,32 @@
   - .claude/STATE.md
 - 备注：无任何行为破坏性变更。
 
+## [2026-09-10] 彻底澄清 PUBLIC_PROXY / PROXY_TOKEN 历史版本差异并清理遗留残留 (v1.11.12)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **历史文档与代码不一致根因溯源**：
+     - 用户反馈指出的 `PUBLIC_PROXY`（“仅内网可设 0 收紧”）与 `PROXY_TOKEN`（“可选代理密码”）实际上源自 `v1.6.0` 之前（2026-08 历史提交 `dd92186`）的旧版 README 与旧架构文档；
+     - 当前 `master` 分支的 `README.md`、`README.en.md`、`docs/wiki/Configuration-Guide.md` 早在 `v1.6.0`（commit `42b9d33`）时就已彻底废除这两个变量，全仓无任何关于它们的承诺；
+     - 澄清“代理对公网始终开放”的误解：当前架构已不存在开放代理，`/api/media/proxy?url=...` 被硬编码 400 严格阻断，生产全量由 AES-256-GCM Opaque Ticket 网关接管，并受出站白名单与 SSRF 物理拦截保护；
+  2. **服务端历史遗留 Header 与误导提示清理**：
+     - 在 `apps/server/src/index.ts` 中彻底清理 CORS `allowHeaders` 里的已废弃头 `X-Animaku-Proxy-Token`、`X-Aniku-Proxy-Token`、`X-Proxy-Token`，规范收敛为 `X-Admin-Secret`；
+     - 修正 `POST /api/admin/indexnow` 未授权提示文案，移除已不存在的 `/ X-Animaku-Proxy-Token`，准确反映 `isAuthorizedAdmin` 鉴权逻辑；
+     - 在 `apps/server/src/lib/logger.ts` 中移除已废弃的敏感头 `x-animaku-proxy-token`；
+  3. **版本递增与验证**：
+     - 全仓版本号递增至 `v1.11.12`；
+     - 全仓类型检查 `pnpm typecheck`（0 错误）、服务端全部 102 项单元测试 100% 通过。
+- 涉及文件：
+  - apps/server/src/index.ts
+  - apps/server/src/lib/logger.ts
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+- 备注：无破坏性改动。
+
 
 
 
