@@ -327,9 +327,23 @@ export function useWatchSession(bangumiId: number): WatchSession {
   const safeSetParams = useCallback(
     (nextInit: URLSearchParamsInit, navigateOptions?: NavigateOptions) => {
       if (!isWatchPage()) return
+      let nextStr = ''
+      if (nextInit instanceof URLSearchParams) {
+        nextStr = nextInit.toString()
+      } else if (typeof nextInit === 'string') {
+        nextStr = nextInit.replace(/^\?/, '')
+      } else {
+        try {
+          nextStr = new URLSearchParams(nextInit as any).toString()
+        } catch {
+          // fallback
+        }
+      }
+      const currentStr = location.search.replace(/^\?/, '')
+      if (nextStr === currentStr) return
       setParams(nextInit, navigateOptions)
     },
-    [isWatchPage, setParams],
+    [isWatchPage, location.search, setParams],
   )
 
   const qPlugin = params.get('plugin') || ''
@@ -870,7 +884,9 @@ export function useWatchSession(bangumiId: number): WatchSession {
             }
 
             const q = new URLSearchParams(paramsRef.current)
-            q.set('plugin', plugin.name)
+            if (paramsRef.current.has('plugin')) {
+              q.set('plugin', plugin.name)
+            }
             q.set('ep', String(targetEpNum))
             if (targetRoadIdx > 0) q.set('road', String(targetRoadIdx))
             else q.delete('road')
@@ -883,7 +899,9 @@ export function useWatchSession(bangumiId: number): WatchSession {
           } else {
             setEpisode(null)
             const q = new URLSearchParams(paramsRef.current)
-            q.set('plugin', plugin.name)
+            if (paramsRef.current.has('plugin')) {
+              q.set('plugin', plugin.name)
+            }
             q.delete('pageUrl')
             q.delete('ep')
             q.delete('road')
@@ -896,7 +914,9 @@ export function useWatchSession(bangumiId: number): WatchSession {
           setResumePosition(0)
           resumeOverrideRef.current = null
           const q = new URLSearchParams(paramsRef.current)
-          q.set('plugin', plugin.name)
+          if (paramsRef.current.has('plugin')) {
+            q.set('plugin', plugin.name)
+          }
           q.delete('pageUrl')
           q.delete('ep')
           q.delete('road')
@@ -1243,12 +1263,21 @@ export function useWatchSession(bangumiId: number): WatchSession {
     }
     if (!plugins.length) return
 
-    // Preferred plugin: use qPlugin if provided and enabled, otherwise fallback to default source
+    // Preferred plugin: use qPlugin if provided and enabled,
+    // otherwise fallback to last watched plugin for this bangumi,
+    // otherwise fallback to global default source
+    const lastHistory = useHistoryStore.getState().forBangumi(bangumiId)
     const targetPlugin =
       qPlugin
         ? plugins.find((p) => p.name.toLowerCase() === qPlugin.toLowerCase()) ||
           usePluginStore.getState().getByName(qPlugin)
-        : undefined
+        : (lastHistory?.pluginName
+            ? plugins.find(
+                (p) =>
+                  p.name.toLowerCase() ===
+                  lastHistory.pluginName.toLowerCase(),
+              ) || usePluginStore.getState().getByName(lastHistory.pluginName)
+            : undefined)
 
     const preferred =
       targetPlugin || findDefaultSourcePlugin(plugins, pluginOrder, isOld)
@@ -1530,7 +1559,9 @@ export function useWatchSession(bangumiId: number): WatchSession {
             )
         }
         const q = new URLSearchParams(paramsRef.current)
-        q.set('plugin', qPlugin)
+        if (paramsRef.current.has('plugin')) {
+          q.set('plugin', qPlugin)
+        }
         q.set('ep', String(epNum))
         if (roadIdx > 0) q.set('road', String(roadIdx))
         else q.delete('road')
@@ -1638,7 +1669,9 @@ export function useWatchSession(bangumiId: number): WatchSession {
       resumeDoneFor.current = key
 
       const q = new URLSearchParams(paramsRef.current)
-      q.set('plugin', selection.plugin.name)
+      if (paramsRef.current.has('plugin')) {
+        q.set('plugin', selection.plugin.name)
+      }
       q.set('ep', String(epNum))
       if (roadIndex > 0) q.set('road', String(roadIndex))
       else q.delete('road')

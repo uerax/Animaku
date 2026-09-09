@@ -4,6 +4,34 @@
 
 ---
 
+## [2026-09-09] 播放页 URL 插件参数收敛与纯净化 (v1.11.11)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **移除自动选源与切集的 URL plugin 污染 (use-watch-session.ts)**：
+     - 在分集就绪、未选集回退、空分集以及选集切换（`pickSlot`）的所有 URL 参数同步分支中，增加 `paramsRef.current.has('plugin')` 条件门禁；
+     - 正常访问（未显式指定 `plugin`）时，自动选源、测速与切集绝不向地址栏强行注入 `plugin=xxx` 参数，地址栏保持干净的 `/subject/:id` 或 `/subject/:id?ep=x`；
+     - 严格遵循“用户输入的地址不擅自篡改”准则，当且仅当 URL 中原本就存在 `plugin` 参数（外部 Deep Link、书签或用户主动输入）时，才同步并维持实际源标识。
+  2. **安全浅对比拦截无意义路由变更**：
+     - 在 `safeSetParams` 中增加 `nextStr === currentStr` 浅对比校验，若序列化后的查询参数与当前 `location.search` 一致，直接拦截返回，避免空参数变更触发无谓的 `history.replaceState` 与组件二次渲染。
+  3. **基于本地历史状态健全刷新源自愈链路**：
+     - 在首次进入或刷新页面的首选源判定链路上，当 URL 未指定 `qPlugin` 时，优先读取 `useHistoryStore.getState().forBangumi(bangumiId)?.pluginName`；
+     - 用户在页面内手动切换过非默认源后刷新页面，依然能 100% 精确还原上次观看的具体源，彻底摆脱对 URL 参数的依赖，同时新番剧首次进入无缝回退至全局默认源。
+  4. **全链路验证**：
+     - 全仓类型检查 `pnpm typecheck` 0 报错；
+     - Shared 68 项单测、Server 102 项单测、Web 22 项单测全部通过；
+     - 前端生产打包构建 `pnpm build:web` 成功；
+     - 版本号自增至 `v1.11.11`。
+- 涉及文件：
+  - apps/web/src/lib/use-watch-session.ts
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/BUGS.md
+  - .claude/STATE.md
+
 ## [2026-09-09] 修复推荐切番视频源关键词残留与假匹配绿灯缺陷 (v1.11.10)
 - 状态：已完成
 - 优先级：P0
