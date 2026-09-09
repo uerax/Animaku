@@ -21,9 +21,9 @@ export interface PlayerControlsProps {
   settingsMenuOpen?: boolean
   /** Mobile vertical volume popup */
   volumeMenuOpen: boolean
-  current: number
+  current?: number
   duration: number
-  progress: number
+  progress?: number
   comments?: DanmakuComment[]
   danmakuEnabled: boolean
   danmakuSimplify?: boolean

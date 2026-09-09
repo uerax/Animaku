@@ -14,10 +14,12 @@ import {
   PLAYER_SPEEDS,
   type SuperResolutionMode,
 } from '@animaku/shared'
+import { createPlayerTimeStore, PlayerTimeContext } from './timeStore'
 import { SUPER_RESOLUTION_LABELS } from './anime4k'
 import { DanmakuPanel, type DanmakuPanelTab } from './DanmakuPanel'
 import type { DanmakuPanelState, VideoPlayerProps } from './types'
 import { formatTime, isVideoFile, isXmlDanmakuFile } from './media/format'
+import { perfMetrics } from '../lib/performance-metrics'
 import { usePointerMode } from './chrome/usePointerMode'
 import { useChromeVisibility } from './chrome/useChromeVisibility'
 import { useShellPointerHandlers } from './chrome/useShellPointerHandlers'
@@ -94,11 +96,16 @@ export function VideoPlayer({
   widescreen: controlledWidescreen,
   onToggleWidescreen: controlledToggleWidescreen,
 }: VideoPlayerProps) {
+  perfMetrics.recordPlayerRender()
+
   const shellRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const layerRef = useRef<HTMLDivElement>(null)
   const xmlInputRef = useRef<HTMLInputElement>(null)
+
+  // 极轻量播放器时间发布订阅 store（阻断高频 current 向 VideoPlayer 及 Controls 传播）
+  const timeStore = useRef(createPlayerTimeStore(initialTime)).current
 
   // Local video playback override
   const [localVideo, setLocalVideo] = useState<{ url: string; name: string } | null>(null)
@@ -376,7 +383,6 @@ export function VideoPlayer({
     hlsRef,
     loading,
     paused,
-    current,
     duration,
     seekingUi,
     bufferingUi,
@@ -391,9 +397,11 @@ export function VideoPlayer({
   } = useMediaEngine({
     videoRef,
     activeSrc,
+    bangumiId,
     formatHint,
     adBlockerMode,
     playerSettings: player,
+    timeStore,
     onPlayerChange,
     onMediaAuthExpired,
     onMediaLoadFailed,
@@ -756,7 +764,7 @@ export function VideoPlayer({
 
   function handleCopyCurrentTimeUrl() {
     const v = videoRef.current
-    const t = Math.floor(v?.currentTime || current || 0)
+    const t = Math.floor(v?.currentTime || timeStore.getSnapshot().current || 0)
     const url = new URL(window.location.href)
     url.searchParams.set('t', String(t))
     void navigator.clipboard.writeText(url.toString()).then(() => {
@@ -774,7 +782,7 @@ export function VideoPlayer({
     const statsObj = {
       title,
       src: activeSrc,
-      currentTime: current,
+      currentTime: Math.floor(videoRef.current?.currentTime || timeStore.getSnapshot().current || 0),
       duration,
       resolution: `${videoRef.current?.videoWidth || 0}x${videoRef.current?.videoHeight || 0}`,
       bandwidthEstimateBps,
@@ -826,7 +834,7 @@ export function VideoPlayer({
     lastFragStats,
     bufferAhead: videoRef.current ? (videoRef.current.buffered.length > 0 ? videoRef.current.buffered.end(videoRef.current.buffered.length - 1) - videoRef.current.currentTime : 0) : 0,
     duration,
-    currentTime: current,
+    currentTime: Math.floor(videoRef.current?.currentTime || timeStore.getSnapshot().current || 0),
     volume: player.volume ?? 0.7,
     speed: player.speed || 1,
     videoCodec,
@@ -841,10 +849,9 @@ export function VideoPlayer({
     sourceHost,
     aspectRatio: ASPECT_RATIO_LABELS[aspectRatio] || aspectRatio,
     isPaused: paused,
+    ...perfMetrics.getRenderRates(),
+    pipelineMetrics: perfMetrics.getPipelineMetrics(),
   }
-
-  const progress =
-    duration > 0 ? Math.min(100, Math.max(0, (current / duration) * 100)) : 0
 
   const shellClass = [
     'kz-player-shell',
@@ -923,7 +930,6 @@ export function VideoPlayer({
       <OpedMarkerDrawer
         open
         onClose={() => setOpedDrawerOpen(false)}
-        currentTime={current}
         duration={duration}
         bangumiId={bangumiId}
         bangumiTitle={title}
@@ -944,9 +950,7 @@ export function VideoPlayer({
     speedMenuOpen,
     srMenuOpen,
     volumeMenuOpen,
-    current,
     duration,
-    progress,
     comments,
     danmakuEnabled: danmaku.enabled !== false,
     danmakuSimplify: Boolean(danmaku.simplify),
@@ -1072,9 +1076,10 @@ export function VideoPlayer({
   }
 
   return (
-    <div
-      ref={shellRef}
-      className={shellClass}
+    <PlayerTimeContext.Provider value={timeStore}>
+      <div
+        ref={shellRef}
+        className={shellClass}
       onMouseEnter={onShellMouseEnter}
       onMouseMove={onShellMouseMove}
       onMouseLeave={onShellMouseLeave}
@@ -1343,5 +1348,6 @@ export function VideoPlayer({
         />
       )}
     </div>
+  </PlayerTimeContext.Provider>
   )
 }

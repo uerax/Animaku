@@ -13,6 +13,7 @@ import {
 import { preloadVideoPlayer } from '../player/lazy'
 import { preloadRoute } from '../lib/route-preload'
 import { useSettingsStore } from '../stores/settings'
+import { perfMetrics } from '../lib/performance-metrics'
 
 export * from './BangumiImage'
 export { UserDropdown } from './UserDropdown'
@@ -101,6 +102,7 @@ export const BangumiCard = memo(function BangumiCard({
       onMouseEnter={onCardWarmup}
       onFocus={onCardWarmup}
       onTouchStart={onCardWarmup}
+      onClick={() => perfMetrics.markNavigation(item.id)}
       className="bangumi-card group flex flex-col overflow-hidden rounded-2xl bg-transparent transition-transform duration-200 hover:-translate-y-1"
     >
       <div className="bangumi-card-cover relative aspect-[3/4] overflow-hidden rounded-2xl bg-[var(--kz-bg-soft)] shadow-[0_10px_28px_rgba(0,0,0,0.18)] dark:shadow-[0_12px_32px_rgba(0,0,0,0.4)] ring-1 ring-[var(--kz-border)] dark:ring-white/10">

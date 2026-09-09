@@ -4,6 +4,56 @@
 
 ---
 
+## [2026-09-09] 播放器高频播放进度局部订阅隔离与起播性能度量体系 (v1.11.8)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **构建 PlayerTimeStore 与 Context 局部订阅架构**：
+     - 在 `apps/web/src/player/timeStore.ts` 中基于 React 18 `useSyncExternalStore` 构建轻量稳定的时间发布订阅容器与不可变 Snapshot，杜绝状态撕裂与无限渲染循环；
+     - 提供 `usePlayerTime()`（时间文字）、`usePlayerProgress()`（进度滑块与 CSS --kz-progress 变量）和 `usePlayerCurrentTime()`（原始秒数）等细粒度局部 Hook；
+  2. **彻底切断 VideoPlayer 顶层 250ms 高频渲染传导链路**：
+     - 在 `useMediaEngine.ts` 中彻底移除 `current` state 及 `setCurrent`，将每 250ms 一次的 `timeupdate` 同步收敛至 `timeStore.updateTime`，避免向外层组件树扩散；
+     - `VideoPlayer.tsx` 顶层不再持有 `current` state，不再每次播放都重新执行 1200+ 行的组件函数体与全量子组件 VDOM Diff，正常播放期间回归 ~0/s 极静渲染状态；
+     - 彻底清理 `VideoPlayer`、`DesktopControls`、`MobileControls`、`OpedMarkerDrawer` 顶层对 `current` 和 `progress` 的静态 prop 绑定，改由叶子组件按需局部订阅；
+  3. **抽离局部订阅叶子组件 (PlaybackProgressUi.tsx)**：
+     - 抽离 `<PlayerTimeDisplay />` 与 `<PlayerSeekRange />` 作为独立的微型叶子组件；
+     - 仅当进度百分比或秒数实质变化时局部更新，控制栏其他几十个按钮、菜单、遮罩层完全静止，0 次无谓 re-render；
+  4. **建立全链路最小性能度量体系与频次监控 (performance-metrics.ts)**：
+     - 建立 `TTFP`（首屏直出）、`TTFS`（源就绪）、`TTFR`（解析就绪）、`TTFF`（首帧渲染）全链路起播耗时度量；
+     - 实现 `VideoPlayer renders/sec` 与 `Progress UI renders/sec` 滑动窗口采样统计，并在右键详细统计面板（Stats for Nerds）与 `window.__ANIMAKU_PERF__` 实时透出。
+- 涉及文件：
+  - `apps/web/src/player/timeStore.ts`
+  - `apps/web/src/player/chrome/PlaybackProgressUi.tsx`
+  - `apps/web/src/lib/performance-metrics.ts`
+  - `apps/web/src/player/hooks/useMediaEngine.ts`
+  - `apps/web/src/player/VideoPlayer.tsx`
+  - `apps/web/src/player/chrome/DesktopControls.tsx`
+  - `apps/web/src/player/chrome/MobileControls.tsx`
+  - `apps/web/src/player/chrome/OpedMarkerDrawer.tsx`
+  - `apps/web/src/player/chrome/PlayerStatsOverlay.tsx`
+  - `apps/web/src/player/chrome/types.ts`
+  - `apps/web/src/pages/WatchPage.tsx`
+  - `apps/web/src/lib/use-watch-session.ts`
+  - `apps/web/src/components/ui.tsx`
+  - `package.json`, `apps/web/package.json`, `apps/server/package.json`, `packages/shared/package.json`, `packages/shared/src/version.ts`
+- 备注：全仓类型检查 (`pnpm typecheck`) 通过，单元测试 (68 shared pass) 全部通过，前端生产构建 (`pnpm build:web`) 成功，版本自动升级至 v1.11.8。
+
+## [2026-09-09] 修复首页轮播图自动调度双重触发与分页指示条零重排重构 (v1.11.7)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **清除自动轮播定时器双重挂载与调度抖动**：
+     - 在 `HeroCoverFlow.tsx` 中，`autoPlayTimerRef` 的 6000ms 定时器回调原本同时执行 `moveLeftRef.current()` 与 `restartAutoPlayTimer()`，而 `moveLeft()` 内部自身已包含重置倒计时逻辑；
+     - 移除回调中多余的 `restartAutoPlayTimer()`，将调度周期严格收敛至 `moveLeft` 单点驱动，消灭同一时刻的重复 clearTimeout/setTimeout 调度与事件循环微任务抖动。
+  2. **底部分页指示条纯 GPU 合成器化（0 Layout / 0 Reflow）**：
+     - 原实现通过 CSS `width` transition（`w-2` 8px 到 `w-7` 28px）在 300ms 持续动画中每帧触发父容器与同级按钮布局重排（Layout）；
+     - 重构为固定几何尺寸槽位（`h-3 w-6`，12px × 24px 固定热区）+ 内部指示条 `transform: scaleX` 纯合成器缩放（未激活 `scale-x-[0.33]` 对应 8px，激活 `scale-x-100` 对应 24px，hover 弹性 `scale-x-50`）；
+     - 动画完全运行在 GPU 合成器线程，消灭切页过程中的主线程逐帧重排，同时保留 100% 原始视觉风格并优化了无障碍触控热区。
+- 涉及文件：
+  - `apps/web/src/components/HeroCoverFlow.tsx`
+  - `package.json`, `apps/web/package.json`, `apps/server/package.json`, `packages/shared/package.json`, `packages/shared/src/version.ts`
+- 备注：全仓类型检查 (`pnpm typecheck`) 通过，前端生产构建 (`pnpm build:web`) 成功，版本自动升级至 v1.11.7。
+
 ## [2026-09-09] 修复首页轮播图左右切换按钮与键盘方向键映射反向问题 (v1.11.6)
 - 状态：已完成
 - 优先级：P3

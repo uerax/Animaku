@@ -7,6 +7,8 @@ import {
   inferMediaMimeType,
   isM3u8,
 } from '../media/format'
+import type { PlayerTimeStore } from '../timeStore'
+import { perfMetrics } from '../../lib/performance-metrics'
 
 /** Min buffer before first play — tiered for HLS vs progressive MP4. */
 const MIN_START_BUFFER_HLS_SEC = 0.4
@@ -17,9 +19,11 @@ const MAX_START_WAIT_MS = 3_500
 export interface UseMediaEngineOptions {
   videoRef: RefObject<HTMLVideoElement | null>
   activeSrc: string
+  bangumiId?: number
   formatHint?: string
   adBlockerMode?: AdBlockerMode
   playerSettings: PlayerSettings
+  timeStore?: PlayerTimeStore
   onPlayerChange?: (partial: Partial<PlayerSettings>) => void
   onMediaAuthExpired?: (position: number) => void | Promise<void>
   onMediaLoadFailed?: (info: { position: number; reason: string }) => void
@@ -41,9 +45,11 @@ export interface UseMediaEngineOptions {
 export function useMediaEngine({
   videoRef,
   activeSrc,
+  bangumiId,
   formatHint,
   adBlockerMode,
   playerSettings,
+  timeStore,
   onPlayerChange,
   onMediaAuthExpired,
   onMediaLoadFailed,
@@ -83,7 +89,6 @@ export function useMediaEngine({
 
   const [loading, setLoading] = useState(true)
   const [paused, setPaused] = useState(true)
-  const [current, setCurrent] = useState(0)
   const [duration, setDuration] = useState(0)
   const [seekingUi, setSeekingUi] = useState(false)
   const [bufferingUi, setBufferingUi] = useState(false)
@@ -186,7 +191,7 @@ export function useMediaEngine({
     const v = videoRef.current
     if (!v) return
     const safeTarget = Math.max(0, targetTime)
-    setCurrent(safeTarget)
+    timeStore?.updateTime(safeTarget, v.duration || duration)
     pendingSeekTargetRef.current = safeTarget
     seekLockExpiryRef.current = Date.now() + 1500
     applySeek(v, safeTarget)
@@ -205,7 +210,7 @@ export function useMediaEngine({
       onFlashHint?.(`${formattedDelta} (${formattedTarget})`, 1000)
     }
 
-    setCurrent(target)
+    timeStore?.updateTime(target, v.duration || duration)
     pendingSeekTargetRef.current = target
     seekLockExpiryRef.current = Date.now() + 1500
 
@@ -314,7 +319,7 @@ export function useMediaEngine({
     setSeekingUi(false)
     setBufferingUi(false)
     setPaused(true)
-    setCurrent(0)
+    timeStore?.reset()
     setDuration(0)
 
     if (hlsRef.current) {
@@ -920,7 +925,7 @@ export function useMediaEngine({
       if (now - lastUiProgressRef.current >= 250 || floor !== lastUiFloor) {
         lastUiProgressRef.current = now
         lastUiFloor = floor
-        setCurrent(t)
+        timeStore?.updateTime(t, Number.isFinite(d) && d > 0 ? d : 0)
         if (Number.isFinite(d) && d > 0) setDuration(d)
       }
 
@@ -1093,6 +1098,12 @@ export function useMediaEngine({
       onNoteDanmakuReadyRef.current?.()
     }
 
+    const onLoadedData = () => {
+      if (bangumiId && bangumiId > 0) {
+        perfMetrics.markFirstFrame(bangumiId)
+      }
+    }
+
     video.addEventListener('timeupdate', onTime)
     video.addEventListener('pause', onPause)
     video.addEventListener('play', onPlay)
@@ -1105,6 +1116,7 @@ export function useMediaEngine({
     video.addEventListener('stalled', onStalledPlay)
     video.addEventListener('canplay', onCanPlay)
     video.addEventListener('playing', onPlayingClear)
+    video.addEventListener('loadeddata', onLoadedData)
 
     return () => {
       genRef.current++
@@ -1130,6 +1142,7 @@ export function useMediaEngine({
       video.removeEventListener('stalled', onStalledPlay)
       video.removeEventListener('canplay', onCanPlay)
       video.removeEventListener('playing', onPlayingClear)
+      video.removeEventListener('loadeddata', onLoadedData)
       clearStallShowTimer()
 
       const durationChange = (
@@ -1197,8 +1210,6 @@ export function useMediaEngine({
     setLoading,
     paused,
     setPaused,
-    current,
-    setCurrent,
     duration,
     setDuration,
     seekingUi,

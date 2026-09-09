@@ -17,6 +17,9 @@
 - 备用/Iframe 播放器：`apps/web/src/player/EmbedPlayer.tsx`
 
 ## 2. 播放器控制栏与交互层 (Player Controls & UI Chrome)
+- 播放器局部时间状态机：`apps/web/src/player/timeStore.ts`（基于 useSyncExternalStore，隔离每秒 4 次高频 current 传播）
+- 局部订阅进度条与时间组件：`apps/web/src/player/chrome/PlaybackProgressUi.tsx`（`PlayerTimeDisplay`, `PlayerSeekRange`）
+- 播放性能与渲染频率监控：`apps/web/src/lib/performance-metrics.ts`（TTFP/TTFS/TTFR/TTFF 全链路起播指标与 Renders/sec）
 - 桌面端控制栏：`apps/web/src/player/chrome/DesktopControls.tsx`
 - 移动端控制栏：`apps/web/src/player/chrome/MobileControls.tsx`
 - 播放器右键菜单：`apps/web/src/player/chrome/PlayerContextMenu.tsx`

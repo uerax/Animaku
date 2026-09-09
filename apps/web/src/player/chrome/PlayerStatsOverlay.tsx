@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { SuperResolutionMode } from '@animaku/shared'
+import type { PlaybackPipelineMetrics } from '../../lib/performance-metrics'
 import { IconCheck, IconClose, IconCopy, IconStats } from './icons'
 
 export interface PlayerStatsData {
@@ -29,6 +30,9 @@ export interface PlayerStatsData {
   sourceHost?: string
   aspectRatio: string
   isPaused: boolean
+  playerRendersPerSec?: number
+  progressRendersPerSec?: number
+  pipelineMetrics?: PlaybackPipelineMetrics | null
 }
 
 interface PlayerStatsOverlayProps {
@@ -253,6 +257,24 @@ export function PlayerStatsOverlay({
           <>
             <span className="text-slate-400">源站主机</span>
             <span className="truncate text-slate-300">{stats.sourceHost}</span>
+          </>
+        )}
+
+        <span className="text-slate-400">渲染频次</span>
+        <span className="truncate text-slate-200">
+          Player: <span className="text-sky-400 font-semibold">{stats.playerRendersPerSec ?? 0}/s</span>
+          {' · '}UI: <span className="text-emerald-400 font-semibold">{stats.progressRendersPerSec ?? 0}/s</span>
+        </span>
+
+        {stats.pipelineMetrics && (
+          <>
+            <span className="text-slate-400">起播指标</span>
+            <span className="truncate text-slate-300">
+              TTFP:{stats.pipelineMetrics.ttfp !== undefined ? `${stats.pipelineMetrics.ttfp}ms` : '---'}
+              {' · '}TTFS:{stats.pipelineMetrics.ttfs !== undefined ? `${stats.pipelineMetrics.ttfs}ms` : '---'}
+              {' · '}TTFR:{stats.pipelineMetrics.ttfr !== undefined ? `${stats.pipelineMetrics.ttfr}ms` : '---'}
+              {' · '}TTFF:{stats.pipelineMetrics.ttff !== undefined ? `${stats.pipelineMetrics.ttff}ms` : '---'}
+            </span>
           </>
         )}
       </div>

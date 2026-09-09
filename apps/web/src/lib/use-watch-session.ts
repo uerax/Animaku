@@ -59,6 +59,7 @@ import { useSourceBindingStore } from '../stores/source-bindings'
 import { EMPTY_ARRAY, FALLBACK_DANMAKU, FALLBACK_PLAYER } from './stable'
 import { useBangumiOpedData, useResolvedOpedSkip, useBangumiEpisodesDuration } from './bangumi-oped'
 import { useCustomOpedStore } from './custom-oped-store'
+import { perfMetrics } from './performance-metrics'
 
 export type SearchRow = {
   plugin: PluginMeta
@@ -1940,6 +1941,18 @@ export function useWatchSession(bangumiId: number): WatchSession {
     }
     return undefined
   }, [episode, resolve.data?.data])
+
+  useEffect(() => {
+    if (selection && Number.isFinite(bangumiId) && bangumiId > 0) {
+      perfMetrics.markSourceReady(bangumiId)
+    }
+  }, [selection, bangumiId])
+
+  useEffect(() => {
+    if (resolve.data?.data?.playUrl && Number.isFinite(bangumiId) && bangumiId > 0) {
+      perfMetrics.markResolverReady(bangumiId)
+    }
+  }, [resolve.data?.data?.playUrl, bangumiId])
 
   const mediaSrc = episode ? playback.src : ''
   const effectiveResume =

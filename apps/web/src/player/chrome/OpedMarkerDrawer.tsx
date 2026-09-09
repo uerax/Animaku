@@ -19,13 +19,14 @@ import {
   useCustomOpedStore,
 } from '../../lib/custom-oped-store'
 import { formatTime } from '../media/format'
+import { usePlayerCurrentTime } from '../timeStore'
 import { IconCheck, IconCopy, IconLink, IconOpedMarker } from './icons'
 import type { PointerMode } from './usePointerMode'
 
 export interface OpedMarkerDrawerProps {
   open: boolean
   onClose: () => void
-  currentTime: number
+  currentTime?: number
   duration: number
   bangumiId: number
   bangumiTitle?: string
@@ -124,6 +125,8 @@ function OpedPanelContent({
   onSeek,
   onToast,
 }: OpedMarkerDrawerProps & { isMobile: boolean }) {
+  const storeTime = usePlayerCurrentTime()
+  const effectiveCurrentTime = currentTime ?? storeTime
   const [activeEp, setActiveEp] = useState<number>(episodeNumber)
   const [submitting, setSubmitting] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -205,7 +208,7 @@ function OpedPanelContent({
   // 打标动作：Start 采用 Math.round（向上取整防切前置剧情），End 采用 Math.floor（向下取整防切后置正片）
   const handleMarkOpStart = () => {
     if (!bangumiId || activeEp <= 0) return
-    const cur = Math.max(0, Math.round(currentTime))
+    const cur = Math.max(0, Math.round(effectiveCurrentTime))
     store.markOpStart(
       bangumiId,
       activeEp,
@@ -219,14 +222,14 @@ function OpedPanelContent({
 
   const handleMarkOpEnd = () => {
     if (!bangumiId || activeEp <= 0) return
-    const cur = Math.max(0, Math.floor(currentTime))
+    const cur = Math.max(0, Math.floor(effectiveCurrentTime))
     store.markOpEnd(bangumiId, activeEp, cur)
     onToast?.(`已校准第 ${activeEp} 集 OP 终点: ${formatTime(cur)}`)
   }
 
   const handleMarkEdStart = () => {
     if (!bangumiId || activeEp <= 0) return
-    const cur = Math.max(0, Math.round(currentTime))
+    const cur = Math.max(0, Math.round(effectiveCurrentTime))
     store.markEdStart(
       bangumiId,
       activeEp,
@@ -240,7 +243,7 @@ function OpedPanelContent({
 
   const handleMarkEdEnd = () => {
     if (!bangumiId || activeEp <= 0) return
-    const cur = Math.max(0, Math.floor(currentTime))
+    const cur = Math.max(0, Math.floor(effectiveCurrentTime))
     store.markEdEnd(bangumiId, activeEp, cur)
     onToast?.(`已校准第 ${activeEp} 集 ED 终点: ${formatTime(cur)}`)
   }
@@ -384,7 +387,7 @@ function OpedPanelContent({
               </div>
             </div>
             <p className="mt-1 text-[11px] text-[var(--kz-fg-muted)]">
-              当前播放进度: <span className="font-mono text-[var(--kz-fg)] font-semibold">{formatTime(currentTime)}</span> /{' '}
+              当前播放进度: <span className="font-mono text-[var(--kz-fg)] font-semibold">{formatTime(effectiveCurrentTime)}</span> /{' '}
               {formatTime(duration)}
             </p>
           </div>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import type { DanmakuComment, SuperResolutionMode } from '@animaku/shared'
 import type { AspectRatioMode, PlayerControlsProps } from './types'
+import { PlayerSeekRange, PlayerTimeDisplay } from './PlaybackProgressUi'
 import {
   IconCheck,
   IconChevronLeft,
@@ -96,9 +97,7 @@ export function DesktopControls(props: PlayerControlsProps) {
     speedMenuOpen,
     srMenuOpen,
     settingsMenuOpen,
-    current,
     duration,
-    progress,
     comments,
     danmakuEnabled,
     danmakuSimplify,
@@ -298,8 +297,6 @@ export function DesktopControls(props: PlayerControlsProps) {
     }
   }
 
-  const effectiveProgress = dragRatio !== null ? dragRatio * 100 : progress
-
   return (
     <div
       className={`kz-bar ${pinBar ? 'kz-bar--show' : ''}`}
@@ -373,15 +370,9 @@ export function DesktopControls(props: PlayerControlsProps) {
           </div>
         )}
 
-        <input
-          type="range"
-          className="kz-seek"
-          min={0}
-          max={1000}
-          value={Math.round(effectiveProgress * 10)}
-          onChange={(e) => onSeekRatio(Number(e.target.value) / 1000)}
-          style={{ ['--kz-progress' as string]: `${effectiveProgress}%` }}
-          aria-label="进度"
+        <PlayerSeekRange
+          dragRatio={dragRatio}
+          onSeekRatio={onSeekRatio}
         />
       </div>
 
@@ -418,9 +409,7 @@ export function DesktopControls(props: PlayerControlsProps) {
           >
             <IconNext />
           </button>
-          <span className="kz-time">
-            {formatTime(current)} / {formatTime(duration)}
-          </span>
+          <PlayerTimeDisplay staticDuration={duration} />
         </div>
         <div className="kz-bar-right">
           {/* Danmaku 3-state toggle (On -> Simplify -> Off -> On) */}

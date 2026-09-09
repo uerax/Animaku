@@ -23,6 +23,7 @@ import { WatchHudToast } from './watch/WatchHudToast'
 import { WatchRecommendations } from './watch/WatchRecommendations'
 import { WatchComments } from './watch/comments'
 import { ErrorBoundary } from '../components/ErrorBoundary'
+import { perfMetrics } from '../lib/performance-metrics'
 
 /**
  * Unified subject + cinema page (Bilibili-style).
@@ -53,6 +54,9 @@ export function WatchPage() {
   // Reset widescreen mode to standard when navigating to a different subject
   useEffect(() => {
     setWidescreen(false)
+    if (Number.isFinite(bangumiId) && bangumiId > 0) {
+      perfMetrics.markWatchMounted(bangumiId)
+    }
   }, [bangumiId])
 
   /** Last selection key we auto-focused (collapse sources / mobile scroll) */

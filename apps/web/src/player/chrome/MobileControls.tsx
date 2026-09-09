@@ -9,6 +9,7 @@ import {
 } from 'react'
 import type { DanmakuComment, SuperResolutionMode } from '@animaku/shared'
 import type { AspectRatioMode, PlayerControlsProps } from './types'
+import { PlayerSeekRange, PlayerTimeDisplay } from './PlaybackProgressUi'
 import {
   IconBack,
   IconCheck,
@@ -129,9 +130,7 @@ export function MobileControls(props: PlayerControlsProps) {
     srMenuOpen,
     settingsMenuOpen,
     volumeMenuOpen,
-    current,
     duration,
-    progress,
     comments,
     danmakuEnabled,
     danmakuSimplify,
@@ -287,8 +286,6 @@ export function MobileControls(props: PlayerControlsProps) {
       onSeekRatio(ratio)
     }
   }
-
-  const effectiveProgress = dragRatio !== null ? dragRatio * 100 : progress
 
   const barRef = useRef<HTMLDivElement>(null)
   const srBtnRef = useRef<HTMLButtonElement>(null)
@@ -486,15 +483,9 @@ export function MobileControls(props: PlayerControlsProps) {
             />
           )}
 
-          <input
-            type="range"
-            className="kz-seek"
-            min={0}
-            max={1000}
-            value={Math.round(effectiveProgress * 10)}
-            onChange={(e) => onSeekRatio(Number(e.target.value) / 1000)}
-            style={{ ['--kz-progress' as string]: `${effectiveProgress}%` }}
-            aria-label="进度"
+          <PlayerSeekRange
+            dragRatio={dragRatio}
+            onSeekRatio={onSeekRatio}
           />
         </div>
         <div className="kz-bar-row">
@@ -529,9 +520,7 @@ export function MobileControls(props: PlayerControlsProps) {
             >
               <IconNext />
             </button>
-            <span className="kz-time">
-              {formatTime(current)} / {formatTime(duration)}
-            </span>
+            <PlayerTimeDisplay staticDuration={duration} />
           </div>
           <div className="kz-bar-right">
             <button

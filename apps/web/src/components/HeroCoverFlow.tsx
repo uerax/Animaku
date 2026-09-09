@@ -216,6 +216,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
   const moveLeftRef = useRef<() => void>(() => {})
 
   // 自动播放调度器：每次用户主动操作（点击卡片/按钮/手势翻页）时重置 6 秒倒计时，杜绝刚刚翻页就被自动跳页打断
+  // 仅负责唤起 moveLeftRef.current()，下一轮计时由 moveLeft 内部统一排期，杜绝双重挂载
   const restartAutoPlayTimer = useCallback(() => {
     if (autoPlayTimerRef.current) {
       clearTimeout(autoPlayTimerRef.current)
@@ -225,7 +226,6 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
     if (typeof document !== 'undefined' && document.hidden) return
     autoPlayTimerRef.current = setTimeout(() => {
       moveLeftRef.current()
-      restartAutoPlayTimer()
     }, 6000)
   }, [isPaused, count])
 
@@ -805,25 +805,30 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
             </p>
           )}
 
-          {/* 4. Pagination Segmented Indicators */}
-          <div className="mt-4 flex items-center justify-center gap-2 sm:mt-5">
-            {displayItems.map((_, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => slideTo(idx)}
-                aria-label={`切换到第 ${idx + 1} 部番剧`}
-                className={`h-1.5 rounded-full ${
-                  isAccelerating
-                    ? 'transition-none'
-                    : 'transition-all duration-300'
-                } ${
-                  idx === activeIndex
-                    ? 'w-7 bg-[var(--kz-accent)] shadow-sm'
-                    : 'w-2 bg-[var(--kz-border)] hover:bg-[var(--kz-fg-muted)]'
-                }`}
-              />
-            ))}
+          {/* 4. Pagination Segmented Indicators (固定槽位 + 内部 scaleX 纯 GPU 合成器变换，0 Layout / 0 Reflow) */}
+          <div className="mt-4 flex items-center justify-center gap-1.5 sm:mt-5">
+            {displayItems.map((_, idx) => {
+              const isActive = idx === activeIndex
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => slideTo(idx)}
+                  aria-label={`切换到第 ${idx + 1} 部番剧`}
+                  className="group relative flex h-3 w-6 items-center justify-center p-0 cursor-pointer focus:outline-hidden"
+                >
+                  <span
+                    className={`h-1.5 w-6 rounded-full transition-transform duration-300 ease-out ${
+                      isAccelerating ? '!transition-none' : ''
+                    } ${
+                      isActive
+                        ? 'scale-x-100 bg-[var(--kz-accent)] shadow-xs'
+                        : 'scale-x-[0.33] bg-[var(--kz-border)] group-hover:bg-[var(--kz-fg-muted)] group-hover:scale-x-50'
+                    }`}
+                  />
+                </button>
+              )
+            })}
           </div>
         </div>
       )}
