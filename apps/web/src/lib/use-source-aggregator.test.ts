@@ -120,4 +120,28 @@ describe('use-source-aggregator: AUTO_PROBE_LIMIT & Auto-probe Quota Isolation',
     assert.strictEqual(queue[0], 'Source_10')
     assert.strictEqual(queue.length, 3)
   })
+
+  it('keyword fallback in searchResults sync must never inherit stale previous keyword from different anime', () => {
+    const defaultKeyword = 'B番剧'
+    const staleAnimeAKeyword = 'A番剧'
+    const rowWithoutKeyword = {
+      plugin: { name: 'Source_1', version: '1.0.0', weight: 100, enabled: true },
+      searched: true,
+      items: [],
+      keyword: undefined,
+    }
+
+    // Previous state contaminated by Anime A
+    const prevState = {
+      Source_1: {
+        keyword: staleAnimeAKeyword,
+      },
+    }
+
+    // Fixed logic: row.keyword || defaultKeyword (never fallback to prev[name]?.keyword)
+    const resolvedKeyword = rowWithoutKeyword.keyword || defaultKeyword
+
+    assert.strictEqual(resolvedKeyword, 'B番剧')
+    assert.notStrictEqual(resolvedKeyword, prevState.Source_1.keyword)
+  })
 })

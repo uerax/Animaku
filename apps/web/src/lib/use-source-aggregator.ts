@@ -198,10 +198,10 @@ export function useSourceAggregator({
         items: prev[name]?.items?.length ? prev[name].items : [selection.source],
         matchedItem: selection.source,
         searched: true,
-        keyword: prev[name]?.keyword,
+        keyword: prev[name]?.keyword || defaultKeyword,
       },
     }))
-  }, [selection])
+  }, [selection, defaultKeyword])
 
   // Keep sources strictly synchronized with session searchResults
   useEffect(() => {
@@ -241,7 +241,7 @@ export function useSourceAggregator({
           matchedItem,
           errorMsg: row.error,
           searched: true,
-          keyword: row.keyword || prev[name]?.keyword || defaultKeyword,
+          keyword: row.keyword || defaultKeyword,
         }
         changed = true
       }

@@ -1,6 +1,7 @@
 import {
   useState,
   useEffect,
+  useRef,
   type FormEvent,
   startTransition,
 } from 'react'
@@ -53,6 +54,14 @@ export function SourceBoard({
 }: SourceBoardProps) {
   const [expandedPlugin, setExpandedPlugin] = useState<string | null>(null)
   const [cardKwInputs, setCardKwInputs] = useState<Record<string, string>>({})
+  const prevBangumiIdRef = useRef(bangumiId)
+
+  // Immediate synchronous reset during render when subject changes
+  if (prevBangumiIdRef.current !== bangumiId) {
+    prevBangumiIdRef.current = bangumiId
+    if (expandedPlugin !== null) setExpandedPlugin(null)
+    if (Object.keys(cardKwInputs).length > 0) setCardKwInputs({})
+  }
 
   // Reset expanded drawer & manual keyword inputs on subject switch
   useEffect(() => {

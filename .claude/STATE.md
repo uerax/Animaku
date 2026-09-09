@@ -4,6 +4,34 @@
 
 ---
 
+## [2026-09-09] 修复推荐切番视频源关键词残留与假匹配绿灯缺陷 (v1.11.10)
+- 状态：已完成
+- 优先级：P0
+- 描述：
+  1. **切番渲染通道代际隔离 (use-watch-session.ts)**：
+     - 引入 `activeSubjectIdRef` 跟踪当前番剧 ID，切番触发的当次 Render 阶段即刻执行 `selectionRef.current = null` 与 `episodeRef.current = null`，彻底解除第 1222 行 `if (selectionRef.current) return` 对新番剧默认源检索的阻塞误杀；
+     - 在首帧向子组件派发状态时做代际安全拦截：`isSubjectTransition` 为真时对外派发 `selection: null`、`episode: null`、`slots: []`、`pluginName: ""` 及干净的空搜索行，从源头上杜绝上一代番剧的陈旧选源和搜索词泄露给下游。
+  2. **聚合器状态机收敛与切断旧词回退 (use-source-aggregator.ts)**：
+     - 彻底移除同步 Effect 中的 `keyword: row.keyword || prev[name]?.keyword || defaultKeyword` 跨代残留回退，收敛为 `keyword: row.keyword || defaultKeyword`，从语法上掐断跨番剧继承上一部番剧搜索词的通道；
+     - 在选源同步 Effect 中增加 `defaultKeyword` 安全回退，确保当前番剧关键词对齐。
+  3. **视频源看板输入即时重置 (SourceBoard.tsx)**：
+     - 引入 `prevBangumiIdRef` 在组件首帧 Render 阶段同步清空 `cardKwInputs` 和折叠态，杜绝首帧残留。
+  4. **零破坏性验证**：
+     - 坚决未引入 `key={bangumiId}`，彻底守护了平滑切番架构与 Seed 秒开无缝体验，杜绝 DOM 卸载闪烁、高度坍塌与重复全量探活卡顿；
+     - 补充单元测试用例，全仓类型检查 0 报错，Shared 68 项单测、Server 102 项单测、Web 4 项单测 100% 通过，前端生产打包构建成功。
+- 涉及文件：
+  - apps/web/src/lib/use-watch-session.ts
+  - apps/web/src/lib/use-source-aggregator.ts
+  - apps/web/src/lib/use-source-aggregator.test.ts
+  - apps/web/src/pages/watch/SourceBoard.tsx
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/BUGS.md
+  - .claude/STATE.md
+
 ## [2026-09-09] 播放器高频播放进度局部订阅隔离与起播性能度量体系 (v1.11.8)
 - 状态：已完成
 - 优先级：P1

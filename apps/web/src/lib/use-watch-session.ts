@@ -489,12 +489,21 @@ export function useWatchSession(bangumiId: number): WatchSession {
   const visibleRoadRef = useRef<number>(0)
   visibleRoadRef.current = visibleRoad
   const currentPlaybackPositionRef = useRef<number>(0)
+  const selectionRef = useRef<SourceSelection | null>(null)
+
+  /** Subject generation tracker to prevent stale selection/searchResults leakage on transition */
+  const activeSubjectIdRef = useRef(bangumiId)
+  const isSubjectTransition = activeSubjectIdRef.current !== bangumiId
+  if (isSubjectTransition) {
+    activeSubjectIdRef.current = bangumiId
+    selectionRef.current = null
+    episodeRef.current = null
+  } else {
+    selectionRef.current = selection
+  }
 
   /** Auto-start default source once per subject (skip resume deep-links). */
   const defaultSearchDoneFor = useRef<number | null>(null)
-  /** Avoid auto-picking first hit when user already has a selection / resume. */
-  const selectionRef = useRef<SourceSelection | null>(null)
-  selectionRef.current = selection
   const keywordTargetPluginRef = useRef<PluginMeta | null>(null)
   keywordTargetPluginRef.current = keywordTargetPlugin
   const paramsRef = useRef(params)
@@ -2116,13 +2125,24 @@ export function useWatchSession(bangumiId: number): WatchSession {
     keywordCandidates,
     titleRefs,
     sessionKeywords,
-    searchResults,
+    searchResults: isSubjectTransition
+      ? orderSearchRows(
+          plugins.map((plugin) => ({
+            plugin,
+            items: [],
+            pending: false,
+            searched: false,
+          })),
+          pluginOrder,
+          isOld,
+        )
+      : searchResults,
     searchKeyword,
     defaultKeyword,
     defaultSourceName: findDefaultSourcePlugin(plugins, pluginOrder, isOld)?.name || plugins[0]?.name || '',
-    selection,
-    episode,
-    slots,
+    selection: isSubjectTransition ? null : selection,
+    episode: isSubjectTransition ? null : episode,
+    slots: isSubjectTransition ? EMPTY_ARRAY : slots,
     visibleRoad,
     setVisibleRoad,
     roadLoading,
@@ -2175,7 +2195,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     clearHudMessage,
     bgmOpedData: bgmOpedQuery.data,
     pageUrl: episode?.pageUrl || qPageUrl,
-    pluginName: selection?.plugin.name || qPlugin,
+    pluginName: isSubjectTransition ? (qPlugin || '') : (selection?.plugin.name || qPlugin),
   }
 }
 
