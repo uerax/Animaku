@@ -119,7 +119,8 @@
  */
 .kz-watch-cinema--mobile {
   max-width: 100%;
-  --kz-header-offset: 3.5rem; /* sticky top under site header (portrait) */
+  /* Mobile portrait: header naturally scrolls away, player sticks directly at top 0 to maximize viewport */
+  --kz-header-offset: 0px;
 }
 
 .kz-watch-cinema--mobile .kz-player-stack {
@@ -138,6 +139,10 @@
   aspect-ratio: 16 / 9;
   /* No max-height: width drives size so edges align with modules below */
   max-height: none;
+  /* Mobile portrait: edge-to-edge full width with no rounded corners or side borders */
+  border-radius: 0;
+  border-inline: none;
+  border-top: none;
 }
 
 .kz-watch-meta {
@@ -151,8 +156,8 @@
 @media (max-width: 1023px) and (orientation: portrait) {
   .kz-watch-cinema--mobile .kz-player-stack--sticky {
     position: sticky;
-    top: var(--kz-header-offset, 3.5rem);
-    z-index: 30; /* below site header z-40 */
+    top: var(--kz-header-offset, 0px);
+    z-index: 30;
     background: var(--kz-bg, #0a0a0a);
     /* Soft separation when content scrolls underneath */
     box-shadow: 0 1px 0 var(--kz-border, rgba(255, 255, 255, 0.08));

@@ -217,20 +217,28 @@ export function MobileEpsSection({
     return isDescOrder ? [...bucket.items].reverse() : bucket.items
   }, [activeRoad, isMultiRange, slots, rangeBuckets, selectedRangeIndex, isDescOrder])
 
-  // Scroll playing card into view in horizontal strip
+  // Scroll playing card into view (horizontal strip or expanded grid)
   useEffect(() => {
-    if (listExpanded) return
     if (playingIndex < 0) return
     const root = stripRef.current
     if (!root) return
     const card = root.querySelector<HTMLElement>(
       `[data-ep-index="${playingIndex}"]`,
     )
-    card?.scrollIntoView({
-      behavior: 'smooth',
-      inline: 'center',
-      block: 'nearest',
-    })
+    if (!card) return
+    if (!listExpanded) {
+      card.scrollIntoView({
+        behavior: 'smooth',
+        inline: 'center',
+        block: 'nearest',
+      })
+    } else {
+      card.scrollIntoView({
+        behavior: 'smooth',
+        inline: 'nearest',
+        block: 'center',
+      })
+    }
   }, [listExpanded, playingIndex, visibleEpisodes])
 
   // Keep active road pill in view when many lines overflow horizontally

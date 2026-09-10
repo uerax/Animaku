@@ -26,18 +26,20 @@ export function MobileWatchLayout({
   comments?: ReactNode
 }) {
   return (
-    <div className="kz-watch-cinema kz-watch-cinema--mobile space-y-3 px-4">
+    <div className="kz-watch-cinema kz-watch-cinema--mobile space-y-3">
       <div
         id="kz-watch-focus"
-        className="kz-watch-focus kz-player-stack kz-player-stack--sticky min-w-0 scroll-mt-[var(--kz-header-offset,3.5rem)] space-y-2"
+        className="kz-watch-focus kz-player-stack kz-player-stack--sticky min-w-0 scroll-mt-[var(--kz-header-offset,0px)] space-y-2"
       >
         {player}
       </div>
-      <div className="kz-watch-meta min-w-0">{meta}</div>
-      <div className="min-w-0">{sources}</div>
-      <div className="min-w-0">{episodes}</div>
-      {recommendations && <div className="min-w-0">{recommendations}</div>}
-      {comments && <div className="min-w-0">{comments}</div>}
+      <div className="space-y-3 px-3.5 sm:px-4">
+        <div className="kz-watch-meta min-w-0">{meta}</div>
+        <div className="min-w-0">{sources}</div>
+        <div className="min-w-0">{episodes}</div>
+        {recommendations && <div className="min-w-0">{recommendations}</div>}
+        {comments && <div className="min-w-0">{comments}</div>}
+      </div>
     </div>
   )
 }

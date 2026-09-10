@@ -590,7 +590,12 @@ export function Layout() {
   return (
     <div className="flex min-h-screen flex-col bg-[var(--kz-bg)] text-[var(--kz-fg)]">
       <DocumentSeo />
-      <header className="sticky top-0 z-40 border-b border-[var(--kz-border)] bg-[var(--kz-header-bg)] backdrop-blur-xl">
+      <header
+        className={clsx(
+          'z-40 border-b border-[var(--kz-border)] bg-[var(--kz-header-bg)] backdrop-blur-xl',
+          isWatch ? 'relative lg:sticky lg:top-0' : 'sticky top-0',
+        )}
+      >
         <div className="relative mx-auto flex max-w-[1760px] items-center gap-1.5 px-2.5 py-1.5 sm:gap-3 sm:px-5 lg:px-6 sm:py-2">
           <NavLink
             to="/"

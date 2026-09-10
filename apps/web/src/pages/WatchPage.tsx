@@ -445,7 +445,7 @@ export function WatchPage() {
   }
 
   const playerBlock = (
-    <div className="relative w-full space-y-2 lg:static sticky top-0 z-40 bg-[var(--kz-bg)] shadow-md lg:shadow-none">
+    <div className="relative w-full space-y-2">
       {!w.mediaSrc && <WatchHudToast message={w.hudMessage} />}
       {renderPlayerContent()}
     </div>
@@ -583,7 +583,7 @@ export function WatchPage() {
   )
 
   return (
-    <div className="kz-watch -mx-4 -mt-2 sm:mx-0 sm:mt-0">
+    <div className="kz-watch mx-0 -mt-3 sm:mx-0 sm:mt-0">
       {layoutMode === 'desktop' ? (
         <DesktopWatchLayout
           player={playerBlock}

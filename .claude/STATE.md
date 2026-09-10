@@ -4,6 +4,43 @@
 
 ---
 
+## [2026-09-10] 移动端播放页满宽贴边、在播选集定位与收起 Header 顶格吸顶优化 (v1.13.6)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **移动端播放器贴边满宽与圆角边框去化 (MobileWatchLayout.tsx, plyr-overrides.css, WatchPage.tsx)**：
+     - 在 `MobileWatchLayout.tsx` 中解耦播放器与图文内容的内边距：移除最外层 `px-4`，使移动端播放器（`#kz-watch-focus`）获得 100% 贴边满宽，并在下方图文内容区（简介、换源、选集、推荐、评论）统一施加 `px-3.5 sm:px-4 space-y-3` 舒适内边距；
+     - 在 `plyr-overrides.css` 中为 `.kz-watch-cinema--mobile` 定制 `.kz-player-frame` 与 `.kz-player-placeholder`：去除移动端竖屏下的 16px 圆角（`border-radius: 0`）与左右上边框（`border-inline: none; border-top: none;`），消除 375~430px 窄屏上的内缩黑边与边框杂音，沉浸感画面有效尺寸提升约 20%；桌面端（`>= 1024px`）依然完整保持原本优雅的 `rounded-2xl` 与 `border`；
+     - 规范 `WatchPage.tsx` 移动端负边距为 `mx-0 -mt-3 sm:mx-0 sm:mt-0`，与 `Layout.tsx` 中 `isWatch` 的 `px-0` 紧密咬合，消灭 32px 负边距潜在水平滚动溢出风险，并使播放器与 Header 无缝衔接。
+  2. **移动端播放页向下滚动收起 Header 并顶格吸顶播放器 (Layout.tsx, plyr-overrides.css, MobileWatchLayout.tsx)**：
+     - 在 `Layout.tsx` 中解耦移动端播放页的导航栏定位：当处于播放页时，`<header>` 在移动端采用 `relative` 流式布局（桌面端保持 `lg:sticky lg:top-0`），随页面向下滚动自然移出屏幕视口；
+     - 在 `plyr-overrides.css` 中将移动端 `--kz-header-offset` 重置为 `0px`，移动端播放器在 Header 滚出后无缝贴顶 `top: 0` 吸顶驻留；
+     - 此项优化直接释放了原本被导航栏占据的 56px 垂直高度，使用户在竖屏下浏览选集、换源和评论时获得更宽阔的可操作视口空间；滚回页面顶部时导航栏即刻平滑重现。
+  3. **选集在播集数平滑定位与展开网格聚焦 (MobileEpsSection.tsx)**：
+     - 升级 `MobileEpsSection` 的在播集自动滚动逻辑：不仅在折叠横向滑动条下维持平滑居中滚动（`inline: 'center', block: 'nearest'`），同时在展开“全 N 话”大网格视图时新增纵向平滑聚焦（`block: 'center', inline: 'nearest'`），彻底解决长剧集展开后用户找不到当前在播集位置的痛点。
+  4. **清理冗余吸顶结构与样式冲突 (WatchPage.tsx)**：
+     - 移除 `WatchPage.tsx` 中 `playerBlock` 内联的 `sticky top-0 z-40 bg-[var(--kz-bg)] shadow-md lg:shadow-none`，消除与外层 `kz-player-stack--sticky` 构成的 double-sticky 结构，并将层级统一收敛在 CSS 规范下，彻底避免与主顶栏发生层级抢占。
+  5. **质量验证与版本升级**：
+     - 全仓类型检查 `pnpm typecheck` 3 个 workspace 0 报错通过；
+     - Shared 75 项单测、Server 108 项单测全部通过；
+     - 前端生产构建 `pnpm build:web` 顺利通过；
+     - 遵循 CLAUDE.md 规范通过 `pnpm bump patch` 递增全仓版本号至 `v1.13.6`。
+- 涉及文件：
+  - apps/web/src/components/Layout.tsx
+  - apps/web/src/pages/watch/MobileWatchLayout.tsx
+  - apps/web/src/player/plyr-overrides.css
+  - apps/web/src/pages/WatchPage.tsx
+  - apps/web/src/pages/watch/MobileEpsSection.tsx
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+- 备注：严格限制改动范围在移动端播放页布局排版与在播集滚动定位，桌面端交互与既有播放逻辑 100% 保持稳定。
+
+---
+
 ## [2026-09-10] 修复视频源默认选择越界与恢复全局默认源优先权 (v1.13.5)
 - 状态：已完成
 - 优先级：P1
