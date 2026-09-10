@@ -5267,6 +5267,44 @@
   - .claude/STATE.md
 - 备注：Chrome DevTools MCP 测试页面已遵照规则 4 主动关闭清理，零后台资源残留。
 
+## [2026-09-10] 搜索栏历史搜索持久化、下拉气泡流与空状态展示 (v1.13.0)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **搜索历史持久化 Store (useSearchHistoryStore)**：
+     - 新建 `apps/web/src/stores/search-history.ts`，基于 Zustand + `persist` 中间件实现本地 `animaku-search-history` 存储；
+     - 自动做前后空白清洗、去重并将最新搜索词置顶，设定 15 条条目上限，支持单项删除与一键清空；
+     - 支持 `migrateLocalStorageKey` 兼容历史旧存储键。
+  2. **搜索历史下拉浮层组件 (SearchHistoryDropdown)**：
+     - 新建 `apps/web/src/components/SearchHistoryDropdown.tsx`；
+     - 包含时钟标题栏、清空全部按钮、标签磁贴流布局；
+     - 关键拦截：通过 `onMouseDown={(e) => e.preventDefault()}` 阻断输入框提前触发 `onBlur`，确保点击历史词或单项删除按钮时交互精准无抖动；
+     - 完美适配深色/浅色主题设计规范（`--kz-bg-elevated`, `--kz-border`, `--kz-accent` 等）。
+  3. **导航栏搜索交互增强与 A11y 警告消除 (Layout.tsx)**：
+     - 桌面端：在顶栏搜索胶囊框聚焦时展开下拉浮层，支持直接点击历史词搜索、回车搜索记录置顶、Escape 键与点击外部优雅收起；
+     - 移动端：在全屏覆盖式搜索表单下方挂载全宽移动端历史浮层，打通移动端快速选词搜索闭环；
+     - 消除 W3C A11y 规范告警：移除移动端搜索按钮与焦点冲突的 `aria-hidden` 属性，添加 `disabled={mobileSearchOpen}` 并主动在点击时执行 `blur()`，彻底消除 `Blocked aria-hidden on an element because its descendant retained focus` 控制台警告。
+  4. **搜索结果页空状态增强 (SearchPage.tsx)**：
+     - 当访问 `/search` 未输入任何关键词时，在空状态下平铺展示搜索历史磁贴卡片，支持一键点击直接发起搜索与快捷单项删除。
+  5. **版本递增与验证**：
+     - 遵循规则 5，递增版本号至 `v1.13.0`（新增功能特性 feat，Minor 升级）；
+     - `pnpm typecheck`（全仓 3 个 Workspace 0 错误）与 `pnpm --filter @animaku/web build` 编译打包验证全部通过；
+     - 同步更新 `.claude/feature-map.md`。
+- 涉及文件：
+  - apps/web/src/stores/search-history.ts
+  - apps/web/src/components/SearchHistoryDropdown.tsx
+  - apps/web/src/components/Layout.tsx
+  - apps/web/src/pages/SearchPage.tsx
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/feature-map.md
+  - .claude/STATE.md
+- 备注：无破坏性改动，纯前端增强。
+
+
 
 
 

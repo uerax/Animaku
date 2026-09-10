@@ -113,6 +113,7 @@
 - 每日放送时间表页：`apps/web/src/pages/TimelinePage.tsx`
 - 番剧索引与分类筛选页：`apps/web/src/pages/AnimePage.tsx`
 - 搜索结果页：`apps/web/src/pages/SearchPage.tsx`
+- 搜索历史下拉浮层组件：`apps/web/src/components/SearchHistoryDropdown.tsx`
 - 收藏/追番页：`apps/web/src/pages/CollectPage.tsx`
 - 播放历史页与时间轴流：`apps/web/src/pages/HistoryPage.tsx`, `apps/web/src/pages/history/`
 - 设置与功能中心页：`apps/web/src/pages/SettingsPage.tsx`
@@ -128,6 +129,7 @@
 - 全局用户偏好与设置 Store：`apps/web/src/stores/settings.ts`
 - 视频源历史绑定 Store：`apps/web/src/stores/source-bindings.ts`
 - 视频源规则插件 Store：`apps/web/src/stores/plugins.ts`
+- 搜索历史状态管理：`apps/web/src/stores/search-history.ts`
 - 防抖存储与安全 Storage 封装：`apps/web/src/lib/debounced-storage.ts`, `apps/web/src/lib/storage.ts`
 
 ## 11. 服务端核心、数据库与缓存架构 (Server Core, DB & Cache)

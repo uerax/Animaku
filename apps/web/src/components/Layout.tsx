@@ -8,11 +8,13 @@ import {
 } from 'react-router-dom'
 import clsx from 'clsx'
 import { defaultNavSettings, useSettingsStore } from '../stores/settings'
+import { useSearchHistoryStore } from '../stores/search-history'
 import { getSiteBranding } from '../lib/site-branding'
 import { preloadRoute, preloadCoreNavigationRoutes } from '../lib/route-preload'
 import { DocumentSeo } from './DocumentSeo'
 import { SiteFooter } from './SiteFooter'
 import { UserDropdown } from './UserDropdown'
+import { SearchHistoryDropdown } from './SearchHistoryDropdown'
 
 /** Always visible in the top strip (mobile + desktop). */
 const primaryLinks = [
@@ -458,11 +460,15 @@ export function Layout() {
     location.pathname === '/search' ? params.get('q') || '' : ''
   const [q, setQ] = useState(qFromUrl)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [searchFocused, setSearchFocused] = useState(false)
+  const addSearch = useSearchHistoryStore((s) => s.addSearch)
   /** Mobile: icon-only until user opens search; desktop always shows field. */
   const [mobileSearchOpen, setMobileSearchOpen] = useState(
     () => location.pathname === '/search',
   )
   const mobileSearchInputRef = useRef<HTMLInputElement>(null)
+  const mobileSearchFormRef = useRef<HTMLDivElement>(null)
+  const desktopSearchRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -495,9 +501,10 @@ export function Layout() {
     return () => cancel(handle)
   }, [])
 
-  // Close overflow menu on route change
+  // Close overflow menu and search history on route change
   useEffect(() => {
     setMenuOpen(false)
+    setSearchFocused(false)
   }, [location.pathname])
 
   // Outside click / Escape for menu
@@ -517,6 +524,29 @@ export function Layout() {
     }
   }, [menuOpen])
 
+  // Outside click / Escape for search history popover
+  useEffect(() => {
+    if (!searchFocused) return
+    const onDoc = (e: MouseEvent) => {
+      const target = e.target as Node
+      if (
+        !desktopSearchRef.current?.contains(target) &&
+        !mobileSearchFormRef.current?.contains(target)
+      ) {
+        setSearchFocused(false)
+      }
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSearchFocused(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [searchFocused])
+
   useEffect(() => {
     if (mobileSearchOpen) {
       // Focus after expand so mobile keyboard opens
@@ -525,15 +555,26 @@ export function Layout() {
     }
   }, [mobileSearchOpen])
 
-  function onSearch(e: FormEvent) {
-    e.preventDefault()
-    const keyword = q.trim()
-    if (!keyword) {
+  function handleExecuteSearch(keyword: string) {
+    const trimmed = keyword.trim()
+    if (!trimmed) {
       navigate('/search')
       return
     }
-    navigate(`/search?q=${encodeURIComponent(keyword)}`)
+    addSearch(trimmed)
+    navigate(`/search?q=${encodeURIComponent(trimmed)}`)
     setMenuOpen(false)
+    setSearchFocused(false)
+  }
+
+  function onSearch(e: FormEvent) {
+    e.preventDefault()
+    handleExecuteSearch(q)
+  }
+
+  function onSelectHistory(keyword: string) {
+    setQ(keyword)
+    handleExecuteSearch(keyword)
   }
 
   const moreActive = moreLinks.some(
@@ -648,66 +689,78 @@ export function Layout() {
           </nav>
 
           {/* Desktop search — integrated glassmorphic capsule */}
-          <form
-            onSubmit={onSearch}
-            className="hidden shrink-0 items-center md:flex"
-            role="search"
-          >
-            <div
-              className={clsx(
-                'group relative flex items-center rounded-full border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] transition-[border-color,box-shadow,background-color] duration-150 ease-out shadow-sm',
-                'hover:border-[var(--kz-border-subtle)] hover:bg-[var(--kz-bg-soft)]',
-                'focus-within:border-[var(--kz-accent)] focus-within:bg-[var(--kz-bg-elevated)] focus-within:shadow-[0_0_14px_var(--kz-accent-ring)]',
-                'w-56 lg:w-64 xl:w-72',
-              )}
+          <div className="relative hidden shrink-0 items-center md:flex" ref={desktopSearchRef}>
+            <form
+              onSubmit={onSearch}
+              className="flex items-center"
+              role="search"
             >
-              <button
-                type="submit"
-                onMouseEnter={() => preloadRoute('/search')}
-                onFocus={() => preloadRoute('/search')}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[var(--kz-fg-muted)] transition-colors hover:text-[var(--kz-accent)] group-focus-within:text-[var(--kz-accent)]"
-                title="搜索"
-                aria-label="搜索"
+              <div
+                className={clsx(
+                  'group relative flex items-center rounded-full border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] transition-[border-color,box-shadow,background-color] duration-150 ease-out shadow-sm',
+                  'hover:border-[var(--kz-border-subtle)] hover:bg-[var(--kz-bg-soft)]',
+                  'focus-within:border-[var(--kz-accent)] focus-within:bg-[var(--kz-bg-elevated)] focus-within:shadow-[0_0_14px_var(--kz-accent-ring)]',
+                  'w-56 lg:w-64 xl:w-72',
+                )}
               >
-                <SearchIcon />
-              </button>
-              <input
-                value={q}
-                onFocus={() => preloadRoute('/search')}
-                onMouseEnter={() => preloadRoute('/search')}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="搜索番剧…"
-                aria-label="搜索番剧"
-                className="kz-search-input min-w-0 flex-1 border-none bg-transparent py-1.5 pr-2 text-[13.5px] text-[var(--kz-fg)] shadow-none outline-none ring-0 placeholder:text-[var(--kz-fg-dim)] focus:border-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
-              />
-              {q.trim() ? (
                 <button
-                  type="button"
-                  onClick={() => setQ('')}
-                  className="mr-2 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[var(--kz-bg-hover)] text-[var(--kz-fg-muted)] transition-colors hover:bg-[var(--kz-accent)] hover:text-white"
-                  aria-label="清空输入"
-                  title="清空"
+                  type="submit"
+                  onMouseEnter={() => preloadRoute('/search')}
+                  onFocus={() => preloadRoute('/search')}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[var(--kz-fg-muted)] transition-colors hover:text-[var(--kz-accent)] group-focus-within:text-[var(--kz-accent)]"
+                  title="搜索"
+                  aria-label="搜索"
                 >
-                  <svg
-                    width="10"
-                    height="10"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    aria-hidden
-                  >
-                    <path d="M18 6L6 18M6 6l12 12" />
-                  </svg>
+                  <SearchIcon />
                 </button>
-              ) : (
-                <span className="pointer-events-none mr-2.5 hidden select-none rounded border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--kz-fg-dim)] lg:inline-block">
-                  ↵
-                </span>
-              )}
-            </div>
-          </form>
+                <input
+                  value={q}
+                  onFocus={() => {
+                    preloadRoute('/search')
+                    setSearchFocused(true)
+                  }}
+                  onMouseEnter={() => preloadRoute('/search')}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="搜索番剧…"
+                  aria-label="搜索番剧"
+                  className="kz-search-input min-w-0 flex-1 border-none bg-transparent py-1.5 pr-2 text-[13.5px] text-[var(--kz-fg)] shadow-none outline-none ring-0 placeholder:text-[var(--kz-fg-dim)] focus:border-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                />
+                {q.trim() ? (
+                  <button
+                    type="button"
+                    onClick={() => setQ('')}
+                    className="mr-2 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[var(--kz-bg-hover)] text-[var(--kz-fg-muted)] transition-colors hover:bg-[var(--kz-accent)] hover:text-white"
+                    aria-label="清空输入"
+                    title="清空"
+                  >
+                    <svg
+                      width="10"
+                      height="10"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      aria-hidden
+                    >
+                      <path d="M18 6L6 18M6 6l12 12" />
+                    </svg>
+                  </button>
+                ) : (
+                  <span className="pointer-events-none mr-2.5 hidden select-none rounded border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--kz-fg-dim)] lg:inline-block">
+                    ↵
+                  </span>
+                )}
+              </div>
+            </form>
+
+            {searchFocused && (
+              <SearchHistoryDropdown
+                onSelect={onSelectHistory}
+                className="absolute right-0 top-[calc(100%+8px)] w-72 max-w-[calc(100vw-32px)]"
+              />
+            )}
+          </div>
 
           {/* Desktop right action items */}
           <div className="hidden shrink-0 items-center gap-1.5 sm:gap-2 md:flex">
@@ -727,13 +780,14 @@ export function Layout() {
                     type="button"
                     className={clsx(
                       'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] text-[var(--kz-fg)] transition-all duration-200 hover:bg-[var(--kz-bg-hover)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] active:scale-95 shadow-sm sm:h-9 sm:w-9',
-                      mobileSearchOpen && 'invisible',
+                      mobileSearchOpen && 'invisible pointer-events-none',
                     )}
                     aria-label="搜索番剧"
                     title="搜索"
-                    aria-hidden={mobileSearchOpen}
+                    disabled={mobileSearchOpen}
                     tabIndex={mobileSearchOpen ? -1 : 0}
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.currentTarget.blur()
                       setMenuOpen(false)
                       setMobileSearchOpen(true)
                     }}
@@ -758,63 +812,80 @@ export function Layout() {
             squeezes next to 首页/番剧 and collides with text.
           */}
           {mobileSearchOpen && (
-            <form
-              onSubmit={onSearch}
-              role="search"
-              className="absolute inset-0 z-50 flex items-center gap-2 bg-[var(--kz-header-bg)] px-3 backdrop-blur-xl md:hidden"
+            <div
+              ref={mobileSearchFormRef}
+              className="absolute inset-0 z-50 md:hidden"
             >
-              <div className="flex min-w-0 flex-1 items-center rounded-full border border-[var(--kz-accent)] bg-[var(--kz-bg)] shadow-[0_0_12px_var(--kz-accent-ring)]">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center text-[var(--kz-accent)]">
-                  <SearchIcon />
-                </span>
-                <input
-                  ref={mobileSearchInputRef}
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  placeholder="搜索番剧…"
-                  aria-label="搜索番剧"
-                  className="kz-search-input min-w-0 flex-1 border-none bg-transparent py-1.5 pr-2 text-[14px] text-[var(--kz-fg)] shadow-none outline-none ring-0 placeholder:text-[var(--kz-fg-dim)] focus:border-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
-                />
-                {q.trim() && (
-                  <button
-                    type="button"
-                    onClick={() => setQ('')}
-                    className="mr-2 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[var(--kz-bg-hover)] text-[var(--kz-fg-muted)] hover:bg-[var(--kz-accent)] hover:text-white"
-                    aria-label="清空输入"
-                  >
-                    <svg
-                      width="10"
-                      height="10"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                      aria-hidden
+              <form
+                onSubmit={onSearch}
+                role="search"
+                className="flex h-full items-center gap-2 bg-[var(--kz-header-bg)] px-3 backdrop-blur-xl"
+              >
+                <div className="flex min-w-0 flex-1 items-center rounded-full border border-[var(--kz-accent)] bg-[var(--kz-bg)] shadow-[0_0_12px_var(--kz-accent-ring)]">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center text-[var(--kz-accent)]">
+                    <SearchIcon />
+                  </span>
+                  <input
+                    ref={mobileSearchInputRef}
+                    value={q}
+                    onFocus={() => setSearchFocused(true)}
+                    onChange={(e) => setQ(e.target.value)}
+                    placeholder="搜索番剧…"
+                    aria-label="搜索番剧"
+                    className="kz-search-input min-w-0 flex-1 border-none bg-transparent py-1.5 pr-2 text-[14px] text-[var(--kz-fg)] shadow-none outline-none ring-0 placeholder:text-[var(--kz-fg-dim)] focus:border-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                  />
+                  {q.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => setQ('')}
+                      className="mr-2 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[var(--kz-bg-hover)] text-[var(--kz-fg-muted)] hover:bg-[var(--kz-accent)] hover:text-white"
+                      aria-label="清空输入"
                     >
-                      <path d="M18 6L6 18M6 6l12 12" />
-                    </svg>
-                  </button>
-                )}
-              </div>
-              <button
-                type="submit"
-                className="kz-btn-primary shrink-0 !rounded-full !px-3.5 !py-2 text-[13.5px] shadow-sm"
-              >
-                搜索
-              </button>
-              <button
-                type="button"
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[var(--kz-fg-muted)] hover:bg-[var(--kz-bg-hover)] hover:text-[var(--kz-fg)]"
-                aria-label="关闭搜索"
-                onClick={() => {
-                  setMobileSearchOpen(false)
-                  if (location.pathname !== '/search') setQ('')
-                }}
-              >
-                <MenuIcon open />
-              </button>
-            </form>
+                      <svg
+                        width="10"
+                        height="10"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        aria-hidden
+                      >
+                        <path d="M18 6L6 18M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+                <button
+                  type="submit"
+                  className="kz-btn-primary shrink-0 !rounded-full !px-3.5 !py-2 text-[13.5px] shadow-sm"
+                >
+                  搜索
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[var(--kz-fg-muted)] hover:bg-[var(--kz-bg-hover)] hover:text-[var(--kz-fg)]"
+                  aria-label="关闭搜索"
+                  onClick={() => {
+                    setMobileSearchOpen(false)
+                    setSearchFocused(false)
+                    if (location.pathname !== '/search') setQ('')
+                  }}
+                >
+                  <MenuIcon open />
+                </button>
+              </form>
+
+              {searchFocused && (
+                <div className="absolute top-[calc(100%+4px)] inset-x-2">
+                  <SearchHistoryDropdown
+                    onSelect={onSelectHistory}
+                    isMobile
+                    className="w-full"
+                  />
+                </div>
+              )}
+            </div>
           )}
         </div>
       </header>
