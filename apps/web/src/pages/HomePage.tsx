@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { bangumiImageUrl } from '@animaku/shared'
 import { bangumiApi } from '../lib/bangumi'
 import {
@@ -17,8 +17,29 @@ import { useInView } from '../lib/use-in-view'
 import { DESKTOP_MEDIA_QUERY } from '../components/hero-cover-flow.constants'
 
 const SECTION_LIMIT = 18
+const SECTION_STALE_TIME = 2 * 60 * 60_000
+const SECTION_GC_TIME = 12 * 60 * 60_000
+
+const MOVIES_QUERY_KEY = ['home-movies', SECTION_LIMIT] as const
+const moviesQueryFn = ({ signal }: { signal?: AbortSignal }) =>
+  bangumiApi.search('', {
+    tags: ['剧场版'],
+    sort: 'heat',
+    limit: SECTION_LIMIT,
+    signal,
+  })
+
+const OVAS_QUERY_KEY = ['home-ovas', SECTION_LIMIT] as const
+const ovasQueryFn = ({ signal }: { signal?: AbortSignal }) =>
+  bangumiApi.search('', {
+    tags: ['OVA'],
+    sort: 'heat',
+    limit: SECTION_LIMIT,
+    signal,
+  })
 
 export function HomePage() {
+  const queryClient = useQueryClient()
   const [isDesktop, setIsDesktop] = useState(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
       return true
@@ -44,8 +65,8 @@ export function HomePage() {
   const trending = useQuery({
     queryKey: ['trending', SECTION_LIMIT],
     queryFn: ({ signal }) => bangumiApi.trending(SECTION_LIMIT, 0, { signal }),
-    staleTime: 2 * 60 * 60_000,
-    gcTime: 12 * 60 * 60_000,
+    staleTime: SECTION_STALE_TIME,
+    gcTime: SECTION_GC_TIME,
   })
 
   // 深度复用 trending 首屏前 10 项作为焦点舞台数据，提供充足的 3D 环形缓冲池，彻底消除重复的并发 API 请求
@@ -56,33 +77,54 @@ export function HomePage() {
 
   const { ref: moviesRef, inView: moviesInView } = useInView()
   const movies = useQuery({
-    queryKey: ['home-movies', SECTION_LIMIT],
-    queryFn: ({ signal }) =>
-      bangumiApi.search('', {
-        tags: ['剧场版'],
-        sort: 'heat',
-        limit: SECTION_LIMIT,
-        signal,
-      }),
+    queryKey: MOVIES_QUERY_KEY,
+    queryFn: moviesQueryFn,
     enabled: moviesInView,
-    staleTime: 2 * 60 * 60_000,
-    gcTime: 12 * 60 * 60_000,
+    staleTime: SECTION_STALE_TIME,
+    gcTime: SECTION_GC_TIME,
   })
 
   const { ref: ovasRef, inView: ovasInView } = useInView()
   const ovas = useQuery({
-    queryKey: ['home-ovas', SECTION_LIMIT],
-    queryFn: ({ signal }) =>
-      bangumiApi.search('', {
-        tags: ['OVA'],
-        sort: 'heat',
-        limit: SECTION_LIMIT,
-        signal,
-      }),
+    queryKey: OVAS_QUERY_KEY,
+    queryFn: ovasQueryFn,
     enabled: ovasInView,
-    staleTime: 2 * 60 * 60_000,
-    gcTime: 12 * 60 * 60_000,
+    staleTime: SECTION_STALE_TIME,
+    gcTime: SECTION_GC_TIME,
   })
+
+  // 数据层空闲预取：当首屏核心内容（热门番剧）加载完成且处于浏览器空闲时，低优先级静默拉取剧场版与 OVA 数据列表
+  // 消除滚动到达时因等待 API 请求造成的整块骨架屏卡死与瞬间跳变；仅预取 JSON 元数据，不下载图片
+  useEffect(() => {
+    if (!trending.data || typeof window === 'undefined') return
+
+    const schedule =
+      'requestIdleCallback' in window
+        ? (window.requestIdleCallback as (cb: () => void, opts?: { timeout: number }) => number)
+        : (cb: () => void) => window.setTimeout(cb, 1200)
+    const cancel =
+      'cancelIdleCallback' in window
+        ? (window.cancelIdleCallback as (id: number) => void)
+        : (id: number) => window.clearTimeout(id)
+
+    const handle = schedule(
+      () => {
+        queryClient.prefetchQuery({
+          queryKey: MOVIES_QUERY_KEY,
+          queryFn: moviesQueryFn,
+          staleTime: SECTION_STALE_TIME,
+        })
+        queryClient.prefetchQuery({
+          queryKey: OVAS_QUERY_KEY,
+          queryFn: ovasQueryFn,
+          staleTime: SECTION_STALE_TIME,
+        })
+      },
+      { timeout: 3000 },
+    )
+
+    return () => cancel(handle)
+  }, [trending.data, queryClient])
 
   const openInNewTab = useSettingsStore((s) => s.nav.openInNewTab)
   const items = useHistoryStore((s) =>
@@ -235,7 +277,7 @@ export function HomePage() {
         {movies.isError ? (
           <ErrorState error={movies.error} onRetry={() => movies.refetch()} />
         ) : movies.data ? (
-          <BangumiGrid items={movies.data.data} eagerCount={0} />
+          <BangumiGrid items={movies.data.data} />
         ) : (
           <BangumiGridSkeleton count={SECTION_LIMIT} />
         )}
@@ -255,7 +297,7 @@ export function HomePage() {
         {ovas.isError ? (
           <ErrorState error={ovas.error} onRetry={() => ovas.refetch()} />
         ) : ovas.data ? (
-          <BangumiGrid items={ovas.data.data} eagerCount={0} />
+          <BangumiGrid items={ovas.data.data} />
         ) : (
           <BangumiGridSkeleton count={SECTION_LIMIT} />
         )}

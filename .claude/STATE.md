@@ -4,6 +4,36 @@
 
 ---
 
+## [2026-09-11] 首页剧场版与 OVA 数据空闲预取与网格响应式首排预算恢复 (v1.13.7)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **React Query 数据层空闲静默预取 (HomePage.tsx)**：
+     - 抽象强类型的 `MOVIES_QUERY_KEY` / `moviesQueryFn` 与 `OVAS_QUERY_KEY` / `ovasQueryFn`，确保后台预取与页面实际查询 100% 共享相同的缓存键槽与参数；
+     - 引入首屏空闲预取机制：当首屏核心内容（`trending.data`）加载完成、核心 LCP 绘制就绪且处于浏览器空闲时间（`requestIdleCallback`）时，在后台低优先级静默拉取剧场版与 OVA 的 JSON 元数据并写入 React Query 缓存；
+     - 仅预取轻量 JSON 列表元数据，绝不提前拉取任何封面图片资源，彻底避免在首屏偷跑带宽与抢占 LCP；
+     - 用户滚动到达剧场版与 OVA 模块时，直接 0ms 命中本地缓存，彻底消除因临时等待 API 请求导致的“18 块骨架屏卡死等待 ➔ 随后整组内容瞬间粗暴替换”的视觉突变；
+     - 保留 `useInView` 视口响应兜底机制，即使用户极速滑到底部，也能无缝合并 Promise 保证请求不丢失。
+  2. **移除 eagerCount={0} 恢复响应式首排预算 (HomePage.tsx)**：
+     - 移除剧场版和 OVA 模块上硬编码的 `eagerCount={0}`，恢复继承 `BangumiGrid` 在 `v1.13.3` 建立的 `useResponsiveGridEagerCount` 响应式预算（桌面端首排 6 张 eager，移动端首排 2 张 eager，第 0 张 high 优先级）；
+     - 视口外的其余 12~16 张卡片严格交由浏览器原生的 `loading="lazy"` 随用户继续滚动的视口相交自然触发网络请求，并由既有 `transition-opacity` 平滑渐显，杜绝任何人工波浪延时的花架子。
+  3. **质量验证与版本升级**：
+     - 全仓类型检查 `pnpm typecheck` 3 个 workspace 0 报错通过；
+     - Shared 75 项单元测试 100% 通过；
+     - 前端生产构建 `pnpm build:web` 顺利通过；
+     - 遵循 CLAUDE.md 规范通过 `pnpm bump patch` 递增全仓版本号至 `v1.13.7`。
+- 涉及文件：
+  - apps/web/src/pages/HomePage.tsx
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+- 备注：严格限制改动范围仅在 HomePage.tsx 内，不碰任何底层网格或卡片公共组件。
+
+---
+
 ## [2026-09-10] 移动端播放页满宽贴边、在播选集定位与收起 Header 顶格吸顶优化 (v1.13.6)
 - 状态：已完成
 - 优先级：P2
