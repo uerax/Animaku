@@ -283,9 +283,9 @@ export function useBangumiEpisodesDuration(
   enabled: boolean,
 ): Map<number, number> | undefined {
   const query = useQuery({
-    queryKey: ['bangumi-episodes-duration', subjectId],
-    queryFn: async ({ signal }) => {
-      const res = await bangumiApi.episodes(subjectId, { signal })
+    queryKey: ['bangumi-episodes', subjectId],
+    queryFn: ({ signal }) => bangumiApi.episodes(subjectId, { signal }),
+    select: (res) => {
       const episodes = res.data ?? []
       const map = new Map<number, number>()
       for (const ep of episodes) {

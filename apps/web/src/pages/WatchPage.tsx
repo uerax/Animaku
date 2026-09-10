@@ -502,6 +502,17 @@ export function WatchPage() {
   )
 
   /* Bilibili-style 选集 — shared desktop rail + mobile */
+  const isDefaultSearching =
+    !w.selection &&
+    !w.defaultSearchEmpty &&
+    Boolean(
+      w.searchResults?.some(
+        (r) =>
+          r.pending &&
+          r.plugin.name.toLowerCase() === w.defaultSourceName.toLowerCase(),
+      ),
+    )
+
   const epsPanel = (
     <MobileEpsSection
       bangumiId={bangumiId}
@@ -518,6 +529,8 @@ export function WatchPage() {
       pendingPluginName={w.pendingSource?.pluginName}
       hasSelection={Boolean(w.selection)}
       isAutoProbing={isAutoProbingSources}
+      isDefaultSearching={isDefaultSearching}
+      defaultSourceName={w.defaultSourceName}
       onToggleList={() => startTransition(() => setEpsListExpanded((v) => !v))}
       onSelectRoad={(ri) => startTransition(() => w.setVisibleRoad(ri))}
       onPickSlot={(slot, rd) => startTransition(() => w.pickSlot(slot, rd))}

@@ -196,7 +196,7 @@ export function WatchRecommendations({
     )
   }, [bangumiItem])
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isSuccess } = useQuery({
     queryKey: ['bangumi-recommendations', bangumiId, country],
     queryFn: ({ signal }) =>
       bangumiApi.recommendations(bangumiId, {
@@ -213,6 +213,9 @@ export function WatchRecommendations({
   })
 
   const items = data?.data?.items || []
+
+  const isWaitingSubject = !bangumiItem
+  const isActuallyLoading = isWaitingSubject || isLoading
 
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_COUNT)
   const sentinelRef = useRef<HTMLDivElement>(null)
@@ -246,8 +249,8 @@ export function WatchRecommendations({
     [items, visibleCount],
   )
 
-  // If request finished but no items found, hide cleanly
-  if (!isLoading && items.length === 0) {
+  // 仅在明确请求成功且确认无推荐数据时才优雅隐藏，严禁在未就绪或加载中触发空白塌陷
+  if (!isActuallyLoading && isSuccess && items.length === 0) {
     return null
   }
 
@@ -305,7 +308,7 @@ export function WatchRecommendations({
       {/* 折叠内容区 */}
       {isOpen && (
         <div className="border-t border-[var(--kz-border-subtle)] p-2 sm:p-2.5">
-          {isLoading && items.length === 0 ? (
+          {isActuallyLoading && items.length === 0 ? (
             <RecommendationsSkeleton />
           ) : (
             <div className="space-y-1">

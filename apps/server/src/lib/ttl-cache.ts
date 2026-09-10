@@ -24,6 +24,11 @@ export const BANGUMI_CACHE_TTL = {
    * Longer than browse so watch re-entry hits after list navigation.
    */
   subject: 6 * 60 * 60_000,
+  /**
+   * Episode list metadata (ep/sort/duration) — weekly releases during broadcast.
+   * 2h balances prompt visibility of newly aired episodes with upstream request shielding.
+   */
+  episodes: 2 * 60 * 60_000,
   /** Recommendations with 2 random tags — 24h daily exploration cycle. */
   recommendations: 24 * 60 * 60_000,
   /** Comments / 吐槽列表 (统一长效缓存 3 小时). */

@@ -29,6 +29,7 @@ import {
   BANGUMI_CACHE_TTL,
   cacheDelete,
   cacheGet,
+  cacheGetOrSet,
   cacheSet,
   wantsCacheBypass,
 } from '../lib/ttl-cache'
@@ -491,12 +492,28 @@ bangumiRoutes.get('/subjects/:id', async (c) => {
 
 bangumiRoutes.get('/subjects/:id/episodes', async (c) => {
   const id = c.req.param('id')
+  const limit = c.req.query('limit') || '200'
+  const offset = c.req.query('offset') || '0'
+  const type = c.req.query('type') || ''
+  const key = `bangumi:${apiHost}:episodes:${id}:${type}:${limit}:${offset}`
+  const bypass = wantsCacheBypass(c)
+
+  if (bypass) {
+    cacheDelete(key)
+  } else {
+    const hit = cacheGet<{ data: BangumiEpisode[]; total?: number }>(key)
+    if (hit) {
+      setBangumiListCdnHeaders(c, bypass)
+      return c.json(hit, 200, cacheHeaders(true))
+    }
+  }
+
   const url = new URL(`${apiUrl}/v0/episodes`)
   url.searchParams.set('subject_id', id)
-  url.searchParams.set('limit', c.req.query('limit') || '200')
-  url.searchParams.set('offset', c.req.query('offset') || '0')
-  if (c.req.query('type')) {
-    url.searchParams.set('type', c.req.query('type')!)
+  url.searchParams.set('limit', limit)
+  url.searchParams.set('offset', offset)
+  if (type) {
+    url.searchParams.set('type', type)
   }
   const res = await bangumiFetch(url.toString())
   if (!res.ok) {
@@ -516,7 +533,10 @@ bangumiRoutes.get('/subjects/:id/episodes', async (c) => {
     ep: e.ep != null ? Number(e.ep) : undefined,
     duration_seconds: Number(e.duration_seconds ?? 0),
   }))
-  return c.json({ data: episodes, total: json.total })
+  const payload = { data: episodes, total: json.total }
+  cacheSet(key, payload, BANGUMI_CACHE_TTL.episodes)
+  setBangumiListCdnHeaders(c, bypass)
+  return c.json(payload, 200, cacheHeaders(false))
 })
 
 bangumiRoutes.get('/me', async (c) => {
@@ -1158,20 +1178,15 @@ async function handleRecommendationsRoute(
 
   const key = `bangumi:${apiHost}:rec:${subjectId}`
   const bypass = wantsCacheBypass(c)
-  if (bypass) {
-    cacheDelete(key)
-  } else {
-    const hit = cacheGet<BangumiRecommendationsPayload>(key)
-    if (hit) {
-      if (isGet) setRecommendationsCdnHeaders(c, bypass)
-      return c.json({ data: hit }, 200, cacheHeaders(true))
-    }
-  }
 
-  const payload = await computeRecommendations(subjectId, options)
-  cacheSet(key, payload, BANGUMI_CACHE_TTL.recommendations)
+  const { value, hit } = await cacheGetOrSet(
+    key,
+    BANGUMI_CACHE_TTL.recommendations,
+    () => computeRecommendations(subjectId, options),
+    { bypass },
+  )
   if (isGet) setRecommendationsCdnHeaders(c, bypass)
-  return c.json({ data: payload }, 200, cacheHeaders(false))
+  return c.json({ data: value }, 200, cacheHeaders(hit))
 }
 
 bangumiRoutes.get('/subjects/:id/recommendations', async (c) => {

@@ -187,17 +187,17 @@ Animaku 系统内部已实施了精细化的响应头策略（`Cache-Control`, `
   - **浏览器 TTL (Browser TTL)**：`🔘 替代源服务器，使用此 TTL (Override origin server and use this TTL)` -> 选择 `1 年 (1 year)`
   - **目的**：Vite 构建产物自带内容 Hash，1 年强缓存实现 0ms 边缘毫秒级秒开。
 
-#### 规则 4：日历、热门、视频源列表、番剧推荐与番剧吐槽 API 缓存 (API Soft Cache)
+#### 规则 4：日历、热门、视频源列表、分集列表、番剧推荐与番剧吐槽 API 缓存 (API Soft Cache)
 - **规则名称**：`animaku-api-soft-cache`
 - **匹配表达式 (Expression)**：
   ```text
-  (http.request.method eq "GET" and (starts_with(http.request.uri.path, "/api/bangumi/calendar") or starts_with(http.request.uri.path, "/api/bangumi/trending") or starts_with(http.request.uri.path, "/api/bangumi/recommendations") or http.request.uri.path eq "/api/source/list" or (starts_with(http.request.uri.path, "/api/bangumi/subjects/") and (http.request.uri.path contains "/comments" or http.request.uri.path contains "/recommendations"))))
+  (http.request.method eq "GET" and (starts_with(http.request.uri.path, "/api/bangumi/calendar") or starts_with(http.request.uri.path, "/api/bangumi/trending") or starts_with(http.request.uri.path, "/api/bangumi/recommendations") or http.request.uri.path eq "/api/source/list" or (starts_with(http.request.uri.path, "/api/bangumi/subjects/") and (http.request.uri.path contains "/comments" or http.request.uri.path contains "/recommendations" or http.request.uri.path contains "/episodes"))))
   ```
 - **缓存设置**：
   - **缓存资格 (Cache Eligibility)**：`符合缓存条件 (Eligible for cache)`
-  - **边缘 TTL (Edge TTL)**：`🔘 使用缓存控制标头（如果存在），否则绕过缓存 (Use cache control header if present, bypass cache otherwise)`（服务端通过 `setBangumiListCdnHeaders` 对日历/热门下发 `s-maxage=7200` 即 2 小时、通过 `setCommentsCdnHeaders` 对番剧吐槽下发 `s-maxage=3600` 即 1 小时、通过 `setRecommendationsCdnHeaders` 对番剧推荐下发 `s-maxage=86400` 即 24 小时，由源站精确控制）
+  - **边缘 TTL (Edge TTL)**：`🔘 使用缓存控制标头（如果存在），否则绕过缓存 (Use cache control header if present, bypass cache otherwise)`（服务端通过 `setBangumiListCdnHeaders` 对日历/热门/分集下发 `s-maxage=7200` 即 2 小时、通过 `setCommentsCdnHeaders` 对番剧吐槽下发 `s-maxage=3600` 即 1 小时、通过 `setRecommendationsCdnHeaders` 对番剧推荐下发 `s-maxage=86400` 即 24 小时，由源站精确控制）
   - **浏览器 TTL (Browser TTL)**：`🔘 接受源服务器 TTL (Respect origin server TTL)`（源站下发 `max-age=0`，不占用客户端浏览器内存，由 React Query 管理）
-  - **目的**：将高频访问的番剧推荐列表（`/api/bangumi/subjects/:id/recommendations`）、番剧吐槽列表（`/api/bangumi/subjects/:id/comments`）、日历（`/api/bangumi/calendar`）、热门（`/api/bangumi/trending`）与固化源列表（`/api/source/list`）拦截在边缘 CDN，极大降低服务端与 Bangumi 上游并发压力。
+  - **目的**：将高频访问的番剧分集列表（`/api/bangumi/subjects/:id/episodes`）、推荐列表（`/api/bangumi/subjects/:id/recommendations`）、吐槽列表（`/api/bangumi/subjects/:id/comments`）、日历（`/api/bangumi/calendar`）、热门（`/api/bangumi/trending`）与固化源列表（`/api/source/list`）拦截在边缘 CDN，极大降低服务端与 Bangumi 上游并发压力。
 
 #### 规则 5：SSR 番剧详情页边缘缓存 (SSR Subject Cache)
 - **规则名称**：`animaku-ssr-subject-cache`

@@ -52,6 +52,8 @@ export function MobileEpsSection({
   pendingPluginName,
   hasSelection,
   isAutoProbing,
+  isDefaultSearching,
+  defaultSourceName,
   onToggleList,
   onSelectRoad,
   onPickSlot,
@@ -74,6 +76,8 @@ export function MobileEpsSection({
   pendingPluginName?: string | null
   hasSelection: boolean
   isAutoProbing?: boolean
+  isDefaultSearching?: boolean
+  defaultSourceName?: string
   onToggleList: () => void
   onSelectRoad: (index: number) => void
   onPickSlot?: (slot: PlayableSlot, roadIndex: number) => void
@@ -398,11 +402,34 @@ export function MobileEpsSection({
 
       <div className="kz-watch-eps-body kz-bili-eps-body">
         {roadLoading && (
-          <p className="kz-bili-empty">
-            加载分集
-            {pendingPluginName ? `（${pendingPluginName}）` : ''}
-            …
-          </p>
+          <div className="space-y-2 py-1">
+            <div className="flex items-center gap-2 text-xs text-[var(--kz-fg-muted)]">
+              <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-[var(--kz-border)] border-t-[var(--kz-accent)]" />
+              <span>
+                加载分集{pendingPluginName ? `（${pendingPluginName}）` : ''}…
+              </span>
+            </div>
+            <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-4 pt-1">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="kz-skeleton h-10 rounded-lg" />
+              ))}
+            </div>
+          </div>
+        )}
+        {isDefaultSearching && !hasSelection && !roadLoading && !isAutoProbing && (
+          <div className="space-y-2 py-1">
+            <div className="flex items-center gap-2 text-xs text-[var(--kz-fg-muted)]">
+              <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-[var(--kz-border)] border-t-[var(--kz-accent)]" />
+              <span>
+                已默认检索 {defaultSourceName || '默认源'}，正在匹配分集…
+              </span>
+            </div>
+            <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-4 pt-1">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="kz-skeleton h-10 rounded-lg" />
+              ))}
+            </div>
+          </div>
         )}
         {isAutoProbing && !hasSelection && !roadLoading && (
           <div className="kz-bili-hint my-2 flex flex-col items-center justify-center gap-2 rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/60 p-5 text-center">
@@ -411,8 +438,8 @@ export function MobileEpsSection({
             <p className="text-[11px] text-[var(--kz-fg-muted)]">正在为您探活主流备选站点，稍后将自动切入播放</p>
           </div>
         )}
-        {!isAutoProbing && roadError && !hasSelection && <p className="kz-bili-error">{roadError}</p>}
-        {!isAutoProbing && !hasSelection && !roadLoading && !roadError && (
+        {!isAutoProbing && roadError && !hasSelection && !isDefaultSearching && <p className="kz-bili-error">{roadError}</p>}
+        {!isAutoProbing && !hasSelection && !roadLoading && !roadError && !isDefaultSearching && (
           <div className="kz-bili-hint my-2 rounded-xl bg-[var(--kz-bg-soft)]/50 p-4 border border-[var(--kz-border)]">
             <p className="text-[var(--kz-fg)] font-medium">
               <span className="kz-watch-step bg-[var(--kz-accent)] text-white shadow-sm">1</span>

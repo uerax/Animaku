@@ -5207,6 +5207,42 @@
   - .claude/STATE.md
 - 备注：无破坏性改动。
 
+## [2026-09-10] 消除播放页并发连接风暴、修复推荐区判空塌陷并补全分集缓存 (v1.12.1)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **统一前端 `bangumi-episodes` queryKey**：
+     - 在 `apps/web/src/lib/bangumi-oped.ts` 中，将 `useBangumiEpisodesDuration` 的 queryKey 统一为 `['bangumi-episodes', subjectId]`，并通过 TanStack Query 的 `select` 算子转换为 `Map<number, number>`；
+     - 彻底消除播放页挂载时由于两个不同 queryKey（`bangumi-episodes` 与 `bangumi-episodes-duration`）导致的重复网络请求，使浏览器向服务端的 HTTP 连接直接节省 1 个槽位。
+  2. **修复番剧推荐区 TanStack Query v5 判定 Bug**：
+     - 修复 `apps/web/src/pages/watch/WatchRecommendations.tsx` 中 `!isLoading && items.length === 0` 的缺陷。此前在 `bangumiItem` 尚未就绪处于 disabled 阶段时，v5 规范返回 `isLoading: false`，导致组件被错误地判定为无推荐而直接 `return null` 空白塌陷；
+     - 细化判断区分“条目未就绪/加载中”（展示稳定面板与骨架屏 `RecommendationsSkeleton`）与“确凿请求成功但无推荐”（`!isActuallyLoading && isSuccess && items.length === 0` 时才优雅隐藏），杜绝闪烁和空白。
+  3. **服务端分集路由增加 2h TTL 缓存与推荐接口防击穿**：
+     - 在 `apps/server/src/lib/ttl-cache.ts` 的 `BANGUMI_CACHE_TTL` 中新增 `episodes: 2 * 60 * 60_000`（2 小时），兼顾新集数可见性与防上游击穿；
+     - 在 `apps/server/src/routes/bangumi.ts` 的 `GET /subjects/:id/episodes` 中增加 `cacheGet` / `cacheSet` 与 `wantsCacheBypass` 支持；
+     - 在推荐路由 `handleRecommendationsRoute` 中引入 `cacheGetOrSet`，阻断高并发穿透与多次采样风暴。
+  4. **选集区默认源检索过渡期增加骨架屏**：
+     - 在 `apps/web/src/pages/watch/MobileEpsSection.tsx` 中，对默认源正在后台检索分集（`isDefaultSearching`）或正在加载分集（`roadLoading`）阶段提供 8 个骨架集数卡片与进度提示，不再直接展示“点击视频源选源”的误导文案，消除“选集空白卡死”的视觉体验问题。
+  5. **版本递增与全仓验证**：
+     - 全仓版本号递增：`v1.12.0` -> `v1.12.1`；
+     - 全仓类型检查 `pnpm typecheck`（3 个 Workspace 0 错误）、服务端 108 项单测全部通过（0 fail）、前端生产构建 `pnpm --filter @animaku/web build` 验证通过；
+     - Chrome DevTools MCP 实机验证：重复 episodes 请求完全消失、分集接口命中服务端 HIT（0ms）、推荐区加载过渡稳定且随后命中 HIT。
+- 涉及文件：
+  - apps/web/src/lib/bangumi-oped.ts
+  - apps/web/src/pages/watch/WatchRecommendations.tsx
+  - apps/server/src/lib/ttl-cache.ts
+  - apps/server/src/routes/bangumi.ts
+  - apps/web/src/pages/watch/MobileEpsSection.tsx
+  - apps/web/src/pages/WatchPage.tsx
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/BUGS.md
+  - .claude/STATE.md
+- 备注：Chrome DevTools MCP 测试页面已遵照规则 4 主动关闭清理，零后台资源残留。
+
 
 
 
