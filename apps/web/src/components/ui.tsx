@@ -1,4 +1,4 @@
-import { memo, useState, useRef, useLayoutEffect, useMemo } from 'react'
+import { memo, useState, useRef, useLayoutEffect, useMemo, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import type { BangumiItem } from '@animaku/shared'
 import {
@@ -231,20 +231,68 @@ export const BangumiCard = memo(function BangumiCard({
 const BANGUMI_GRID_CLASS =
   'grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 sm:gap-x-5 sm:gap-y-7 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-6 2xl:grid-cols-6'
 
+const GRID_MQ_LG = '(min-width: 1024px)'
+const GRID_MQ_SM = '(min-width: 640px)'
+
 /**
- * 组件默认 eager 数量（首屏两到三行封面）。
- * 架构约束：任何情况下该默认值都必须保持 >= BANGUMI_GRID_CLASS 的最大列数（当前为 6）。
+ * 依据 BANGUMI_GRID_CLASS 实际列数断点，计算首屏第一排封面的 eager 资源预算：
+ * - 移动端 (<640px, 2列): 2
+ * - 平板端 (640px~1023px, 3~4列): 4
+ * - 桌面端 (>=1024px, 6列): 6
  */
-const DEFAULT_EAGER_COVERS = 18
+function getResponsiveGridEagerCount(): number {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return 6 // SSR / 无 window 环境默认兜底桌面首排
+  }
+  if (window.matchMedia(GRID_MQ_LG).matches) return 6
+  if (window.matchMedia(GRID_MQ_SM).matches) return 4
+  return 2
+}
+
+export function useResponsiveGridEagerCount(): number {
+  const [count, setCount] = useState(getResponsiveGridEagerCount)
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return
+    }
+    const mqLg = window.matchMedia(GRID_MQ_LG)
+    const mqSm = window.matchMedia(GRID_MQ_SM)
+    const update = () => setCount(getResponsiveGridEagerCount())
+    update()
+    if (typeof mqLg.addEventListener === 'function') {
+      mqLg.addEventListener('change', update)
+      mqSm.addEventListener('change', update)
+      return () => {
+        mqLg.removeEventListener('change', update)
+        mqSm.removeEventListener('change', update)
+      }
+    }
+    mqLg.addListener(update)
+    mqSm.addListener(update)
+    return () => {
+      mqLg.removeListener(update)
+      mqSm.removeListener(update)
+    }
+  }, [])
+
+  return count
+}
 
 export const BangumiGrid = memo(function BangumiGrid({
   items,
-  /** How many leading covers load eagerly (rest stay lazy). */
-  eagerCount = DEFAULT_EAGER_COVERS,
+  /**
+   * 首屏优先积极加载的封面数量，其余卡片严格保持视口懒加载（loading="lazy"）。
+   * 若未指定，则默认精确对齐 BANGUMI_GRID_CLASS 的第一排实际列数（移动 2 / 平板 4 / 桌面 6）。
+   */
+  eagerCount: userEagerCount,
 }: {
   items: BangumiItem[] | undefined | null
   eagerCount?: number
 }) {
+  const responsiveEager = useResponsiveGridEagerCount()
+  const eagerCount = userEagerCount ?? responsiveEager
+
   const list = Array.isArray(items) ? items : []
   if (!list.length) {
     return <EmptyState text="暂无数据" />
@@ -273,13 +321,16 @@ export const BangumiGrid = memo(function BangumiGrid({
 /**
  * CLS stand-in for BangumiGrid while list queries load.
  * Matches column gutters + 3:4 cover + title block height of BangumiCard.
+ * 默认渲染 2 整排骨架（移动端 4、平板端 8、桌面端 12），消除移动端超长骨架屏高度坍塌跳跃。
  */
 export function BangumiGridSkeleton({
-  count = DEFAULT_EAGER_COVERS,
+  count: userCount,
 }: {
   count?: number
 }) {
-  const n = Math.max(1, Math.min(count, 28))
+  const responsiveEager = useResponsiveGridEagerCount()
+  const defaultCount = responsiveEager * 2
+  const n = Math.max(1, Math.min(userCount ?? defaultCount, 28))
   return (
     <div
       className={BANGUMI_GRID_CLASS}

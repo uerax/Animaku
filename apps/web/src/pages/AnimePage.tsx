@@ -364,7 +364,7 @@ export function AnimePage() {
       </section>
 
       {q.isLoading || q.isFetching ? (
-        <BangumiGridSkeleton count={12} />
+        <BangumiGridSkeleton />
       ) : q.isError ? (
         <ErrorState error={q.error} onRetry={() => q.refetch()} />
       ) : items ? (

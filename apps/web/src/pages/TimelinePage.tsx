@@ -73,7 +73,7 @@ export function TimelinePage() {
           )
         })}
       </div>
-      {q.isLoading && <BangumiGridSkeleton count={12} />}
+      {q.isLoading && <BangumiGridSkeleton />}
       {q.isError && (
         <ErrorState error={q.error} onRetry={() => q.refetch()} />
       )}

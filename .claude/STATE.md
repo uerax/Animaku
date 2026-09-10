@@ -4,6 +4,39 @@
 
 ---
 
+## [2026-09-10] 全局番剧网格首屏封面图片响应式并发预算与骨架屏规格对齐 (v1.13.3)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **首排封面并发预算与 CSS Grid 真实断点精确对齐 (ui.tsx)**：
+     - 在公共网格核心组件 `BangumiGrid` 内新增 `useResponsiveGridEagerCount` 响应式钩子，完全贴合 `BANGUMI_GRID_CLASS`（`grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6`）的列数变化：
+       - 移动端（`< 640px`，2 列）：`eagerCount = 2`；
+       - 平板端（`640px ~ 1023px`，3~4 列）：`eagerCount = 4`；
+       - 桌面端（`>= 1024px`，6 列）：`eagerCount = 6`；
+     - 彻底破除历史遗留硬编码全局 `DEFAULT_EAGER_COVERS = 18` 造成的移动端 9 排离屏图片积极加载缺陷，单次加载直接减少 14~16 个首屏高优先级并发抢占，将原生视口懒加载（`loading="lazy"`）安全归还给离屏卡片；
+     - 保持向前兼容契约：外部显式传入 `eagerCount` 时（如 `HomePage`）优先采用显式传参。
+  2. **骨架屏规格对齐与防跳动优化 (ui.tsx, AnimePage.tsx, TimelinePage.tsx)**：
+     - 将 `BangumiGridSkeleton` 默认卡片数量重构为首屏 2 排响应式自适应（移动端 4、平板端 8、桌面端 12）；
+     - 同步更新 `AnimePage` 和 `TimelinePage`，彻底消除移动端在加载阶段因 12 个骨架块（6 排）拉出超长空白滚动条引起的页面高度坍塌与 CLS 视口跳动。
+  3. **质量验证与版本升级**：
+     - 全仓类型检查 `pnpm typecheck` 0 报错通过；
+     - Shared 68 项单元测试、Server 108 项单元测试全部通过；
+     - 前端生产构建 `pnpm build:web` 100% 成功；
+     - 遵循 CLAUDE.md 规范通过 `pnpm bump patch` 递增全仓版本号至 `v1.13.3`。
+- 涉及文件：
+  - apps/web/src/components/ui.tsx
+  - apps/web/src/pages/AnimePage.tsx
+  - apps/web/src/pages/TimelinePage.tsx
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+- 备注：采纳评审收敛建议，拒绝推测性自动预取与翻页状态过度设计，聚焦高杠杆资源预算对齐。
+
+---
+
 ## [2026-09-10] 首页首屏图片梯形滑窗调度与移动端资源预算优化 (v1.13.2)
 - 状态：已完成
 - 优先级：P2
