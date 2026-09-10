@@ -13,6 +13,7 @@ import { bangumiApi } from '../../lib/bangumi'
 import { useSettingsStore } from '../../stores/settings'
 import { preloadRoute } from '../../lib/route-preload'
 import { preloadVideoPlayer } from '../../player/lazy'
+import { useWatchLayoutMode } from './useWatchLayoutMode'
 
 const RecommendationCard = memo(function RecommendationCard({
   item,
@@ -134,12 +135,17 @@ const RecommendationCard = memo(function RecommendationCard({
   )
 })
 
-const INITIAL_VISIBLE_COUNT = 8
+const DESKTOP_INITIAL_VISIBLE_COUNT = 8
+const MOBILE_INITIAL_VISIBLE_COUNT = 4
 
-function RecommendationsSkeleton() {
+function RecommendationsSkeleton({
+  count = DESKTOP_INITIAL_VISIBLE_COUNT,
+}: {
+  count?: number
+}) {
   return (
     <div className="space-y-2" aria-busy="true" aria-label="加载推荐中">
-      {Array.from({ length: 8 }, (_, i) => (
+      {Array.from({ length: count }, (_, i) => (
         <div
           key={i}
           className="flex w-full items-stretch gap-3 rounded-xl p-1.5"
@@ -217,13 +223,19 @@ export function WatchRecommendations({
   const isWaitingSubject = !bangumiItem
   const isActuallyLoading = isWaitingSubject || isLoading
 
-  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_COUNT)
+  const layoutMode = useWatchLayoutMode()
+  const initialVisibleCount =
+    layoutMode === 'desktop'
+      ? DESKTOP_INITIAL_VISIBLE_COUNT
+      : MOBILE_INITIAL_VISIBLE_COUNT
+
+  const [visibleCount, setVisibleCount] = useState(initialVisibleCount)
   const sentinelRef = useRef<HTMLDivElement>(null)
 
-  // 切换番剧时重置可见数量为首屏默认数 (8 部)
+  // 切换番剧或屏幕布局模式时重置可见数量为首屏默认数 (桌面端 8 部 / 移动端 4 部)
   useEffect(() => {
-    setVisibleCount(INITIAL_VISIBLE_COUNT)
-  }, [bangumiId])
+    setVisibleCount(initialVisibleCount)
+  }, [bangumiId, initialVisibleCount])
 
   // 用户向下滚动接近列表末尾时，无感增量挂载剩余卡片 (监听 isOpen 确保展开时重新绑定哨兵)
   useEffect(() => {
@@ -309,7 +321,7 @@ export function WatchRecommendations({
       {isOpen && (
         <div className="border-t border-[var(--kz-border-subtle)] p-2 sm:p-2.5">
           {isActuallyLoading && items.length === 0 ? (
-            <RecommendationsSkeleton />
+            <RecommendationsSkeleton count={initialVisibleCount} />
           ) : (
             <div className="space-y-1">
               {visibleItems.map((item) => (

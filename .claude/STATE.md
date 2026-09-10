@@ -4,6 +4,36 @@
 
 ---
 
+## [2026-09-10] 播放页番剧推荐移动端初始挂载数量与骨架屏规格对齐 (v1.13.4)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **响应式初始挂载数量解耦 (WatchRecommendations.tsx)**：
+     - 引入 `useWatchLayoutMode` 响应式断点检测，彻底解耦双端资源预算：
+       - 桌面端（`>= 1024px`）：保持原先的 `DESKTOP_INITIAL_VISIBLE_COUNT = 8`，完美适配右侧侧边栏轨道（Rail）高度，保证宽屏信息密度；
+       - 移动端（`< 1024px`）：优化为 `MOBILE_INITIAL_VISIBLE_COUNT = 4`，初始挂载高度从 ~720px 缩减至 ~360px，首屏 DOM 节点与首批懒加载预取预算直接减半（-50%）；
+     - 视口触底无感衔接：继续保留 `IntersectionObserver`（`rootMargin: '150px'`）在接近底部时每次增量追加 7 张卡片的渐进挂载机制，滚动体验 100% 丝滑无迟滞。
+  2. **骨架屏规格响应式对齐与防跳动 (CLS) 优化 (WatchRecommendations.tsx)**：
+     - 将 `RecommendationsSkeleton` 升级为支持动态 `count` 规格；
+     - 在骨架屏渲染处同步传入 `initialVisibleCount`（桌面端 8 块骨架屏，移动端 4 块骨架屏）；
+     - 彻底消除移动端在加载中因 8 个超长骨架块撑开超高占位、数据返回后瞬间缩回 4 个卡片引起的视口抖动与高度坍塌缺陷。
+  3. **质量验证与版本升级**：
+     - 全仓类型检查 `pnpm typecheck` 0 报错通过；
+     - Shared 68 项单元测试、Server 108 项单元测试全部通过；
+     - 前端生产构建 `pnpm build:web` 100% 成功；
+     - 遵循 CLAUDE.md 规范通过 `pnpm bump patch` 递增全仓版本号至 `v1.13.4`。
+- 涉及文件：
+  - apps/web/src/pages/watch/WatchRecommendations.tsx
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+- 备注：严格限制改动范围在 WatchRecommendations 组件内，不扩散到其他业务与播放器核心链路。
+
+---
+
 ## [2026-09-10] 全局番剧网格首屏封面图片响应式并发预算与骨架屏规格对齐 (v1.13.3)
 - 状态：已完成
 - 优先级：P2
