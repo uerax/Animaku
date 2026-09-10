@@ -28,6 +28,8 @@ import {
   alignSourceToOfficial,
   resolveAlignedEpisodeNumber,
   buildPlayableSlots,
+  findDefaultSourcePlugin,
+  resolveTargetSourcePlugin,
   type PlayableSlot,
   type BangumiItem,
   type BangumiSeed,
@@ -170,29 +172,7 @@ function lookupHistorySourceUrl(
   return (hitAny?.sourceUrl || '').trim()
 }
 
-/**
- * First enabled plugin based on user order, falling back to weight > alphabetical name order.
- * This is the default source auto-searched on first visit.
- * When isOldAnime is true, plugins with oldAnimePriority receive +12 weight bonus.
- */
-function findDefaultSourcePlugin(
-  list: PluginMeta[],
-  order: string[],
-  isOldAnime = false,
-): PluginMeta | undefined {
-  if (!list.length) return undefined
-  if (order.length) {
-    // Find first plugin whose name appears in the user's order
-    for (const name of order) {
-      const hit = list.find(
-        (p) => p.name.toLowerCase() === name.toLowerCase(),
-      )
-      if (hit) return hit
-    }
-  }
-  // Fallback: weight descending > alphabetical name order.
-  return [...list].sort((a, b) => comparePluginOrder(a, b, isOldAnime))[0]
-}
+export { findDefaultSourcePlugin, resolveTargetSourcePlugin }
 
 /** Sort search rows by stored order (first = top), falling back to weight > alphabetical. */
 function orderSearchRows(
@@ -690,13 +670,13 @@ export function useWatchSession(bangumiId: number): WatchSession {
   useEffect(() => {
     if (!plugins.length) return
     if (selection || manualTargetPluginRef.current) return
-    const target =
-      (qPlugin &&
-        (plugins.find(
-          (p) => p.name.toLowerCase() === qPlugin.toLowerCase(),
-        ) ||
-          usePluginStore.getState().getByName(qPlugin))) ||
-      findDefaultSourcePlugin(plugins, pluginOrder, isOld)
+    const target = resolveTargetSourcePlugin(
+      qPlugin,
+      plugins,
+      pluginOrder,
+      isOld,
+      (name) => usePluginStore.getState().getByName(name),
+    )
     if (target && target.name.toLowerCase() !== keywordTargetPlugin?.name.toLowerCase()) {
       setKeywordTargetPlugin(target)
     }
@@ -1280,24 +1260,15 @@ export function useWatchSession(bangumiId: number): WatchSession {
     }
     if (!plugins.length) return
 
-    // Preferred plugin: use qPlugin if provided and enabled,
-    // otherwise fallback to last watched plugin for this bangumi,
-    // otherwise fallback to global default source
-    const lastHistory = useHistoryStore.getState().forBangumi(bangumiId)
-    const targetPlugin =
-      qPlugin
-        ? plugins.find((p) => p.name.toLowerCase() === qPlugin.toLowerCase()) ||
-          usePluginStore.getState().getByName(qPlugin)
-        : (lastHistory?.pluginName
-            ? plugins.find(
-                (p) =>
-                  p.name.toLowerCase() ===
-                  lastHistory.pluginName.toLowerCase(),
-              ) || usePluginStore.getState().getByName(lastHistory.pluginName)
-            : undefined)
-
-    const preferred =
-      targetPlugin || findDefaultSourcePlugin(plugins, pluginOrder, isOld)
+    // Preferred plugin: use qPlugin if provided and enabled (e.g. from history resume / deep-link),
+    // otherwise strictly fallback to global default source (never leak lastHistory to avoid hijacking default source)
+    const preferred = resolveTargetSourcePlugin(
+      qPlugin,
+      plugins,
+      pluginOrder,
+      isOld,
+      (name) => usePluginStore.getState().getByName(name),
+    )
     if (!preferred) return
 
     // Check persistent binding first!

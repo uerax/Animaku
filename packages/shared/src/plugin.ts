@@ -261,6 +261,53 @@ export function comparePluginOrder(
   return (a.name || '').localeCompare(b.name || '')
 }
 
+/**
+ * First enabled plugin based on user order, falling back to weight > alphabetical name order.
+ * This is the default source auto-searched on first visit.
+ * When isOldAnime is true, plugins with oldAnimePriority receive +12 weight bonus.
+ */
+export function findDefaultSourcePlugin(
+  list: PluginMeta[],
+  order: string[],
+  isOldAnime = false,
+): PluginMeta | undefined {
+  if (!list.length) return undefined
+  if (order.length) {
+    // Find first plugin whose name appears in the user's order
+    for (const name of order) {
+      const hit = list.find(
+        (p) => p.name.toLowerCase() === name.toLowerCase(),
+      )
+      if (hit) return hit
+    }
+  }
+  // Fallback: weight descending > alphabetical name order.
+  return [...list].sort((a, b) => comparePluginOrder(a, b, isOldAnime))[0]
+}
+
+/**
+ * Resolve initial target plugin:
+ * Only explicit qPlugin (e.g. from history deep-link / shared URL) overrides default source.
+ * Regular entry points (no qPlugin in URL) strictly fallback to global default source,
+ * never leaking lastHistory to avoid hijacking user-configured default source priority.
+ */
+export function resolveTargetSourcePlugin(
+  qPlugin: string | undefined | null,
+  plugins: PluginMeta[],
+  pluginOrder: string[],
+  isOldAnime = false,
+  getFallbackPlugin?: (name: string) => PluginMeta | undefined,
+): PluginMeta | undefined {
+  const normQ = (qPlugin || '').trim()
+  if (normQ) {
+    const hit =
+      plugins.find((p) => p.name.toLowerCase() === normQ.toLowerCase()) ||
+      getFallbackPlugin?.(normQ)
+    if (hit) return hit
+  }
+  return findDefaultSourcePlugin(plugins, pluginOrder, isOldAnime)
+}
+
 export interface SearchItem {
   name: string
   src: string

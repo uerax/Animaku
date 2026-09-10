@@ -4,6 +4,36 @@
 
 ---
 
+## [2026-09-10] 修复视频源默认选择越界与恢复全局默认源优先权 (v1.13.5)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **移除普通入口对历史播放源的越界窃取 (use-watch-session.ts, plugin.ts)**：
+     - 修复此前 v1.11.11 遗留的跨次访问默认源越界缺陷：在无 URL `qPlugin` 参数的普通访问场景（从搜索、主页热门推荐、新番时间表、番剧详情、分类等直接进入 `/subject/:id`）中，严禁从 `useHistoryStore` 窃取上一次切源的历史记录来覆盖全局默认源；
+     - 严格恢复产品契约与用户预期：当且仅当用户**显式从历史播放入口（如首页「历史观看」卡片或「历史记录」页面点击播放，URL 携带 `?plugin=xxx&ep=xxx`）进入**时，才读取历史播放的视频源与续播分集；从所有常规入口进入时，始终无条件优先采用全局默认视频源（`findDefaultSourcePlugin`，按用户配置排序与权重降序裁决）；
+  2. **提取权威目标源裁决纯逻辑并全覆盖单测 (plugin.ts, plugin.test.ts)**：
+     - 在 `@animaku/shared` 中提取并固化 `resolveTargetSourcePlugin` 与 `findDefaultSourcePlugin` 纯函数；
+     - 统一 `use-watch-session.ts` 中的预选源（`keywordTargetPlugin`）与首次加载首选源（`preferred`）裁决管线，彻底消除状态分歧；
+     - 在 `plugin.test.ts` 中新增 7 项测试，涵盖：用户自定义排序优先、默认权重降序、老番加权、无 `qPlugin` 时严格保持全局默认源（杜绝历史记录篡改）、历史播放深链精准定位、大小写不敏感匹配以及非法源优雅回退。
+  3. **质量验证与版本升级**：
+     - 全仓类型检查 `pnpm typecheck` 3 个 workspace 0 报错通过；
+     - Shared 75 项单元测试、Server 108 项单元测试、Web 30 项单元测试全部 100% 通过；
+     - 前端生产构建 `pnpm build:web` 构建成功；
+     - 遵循 CLAUDE.md 规范通过 `pnpm bump patch` 递增全仓版本号至 `v1.13.5`。
+- 涉及文件：
+  - apps/web/src/lib/use-watch-session.ts
+  - packages/shared/src/plugin.ts
+  - packages/shared/src/plugin.test.ts
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+- 备注：严格限制改动范围在选源解析与纯函数单元测试内，保护既有播放器及自适应探活机制不受影响。
+
+---
+
 ## [2026-09-10] 播放页番剧推荐移动端初始挂载数量与骨架屏规格对齐 (v1.13.4)
 - 状态：已完成
 - 优先级：P2
