@@ -37,17 +37,28 @@ function escapeJsonLdScript(jsonStr: string): string {
 interface HeroCardPosterProps {
   cover: string
   title: string
+  offset: number
   isCenter: boolean
 }
 
 const HeroCardPoster = memo(function HeroCardPoster({
   cover,
   title,
+  offset,
   isCenter,
 }: HeroCardPosterProps) {
   const [isLoaded, setIsLoaded] = useState(false)
   const [hasError, setHasError] = useState(false)
   const imgRef = useRef<HTMLImageElement>(null)
+
+  // 视距滑窗梯度调度（梯形资源预算）：
+  // 1. 中心卡片（offset === 0 / isCenter）：作为页面最重要的 LCP 候选之一，优先保证其加载（eager + high）；
+  // 2. 左右邻居（|offset| === 1）：保持视口边缘自然预热，普通优先级（lazy + auto），保障轻划 1 步顺滑接续；
+  // 3. 远端卡片（|offset| >= 2）：降低资源调度优先级（lazy + low），主动消除首屏图片并发竞争。
+  const isCenterCard = isCenter || offset === 0
+  const isNeighbor = Math.abs(offset) === 1
+  const loading = isCenterCard ? 'eager' : 'lazy'
+  const fetchPriority = isCenterCard ? 'high' : isNeighbor ? 'auto' : 'low'
 
   // 物理级 0 闪烁防线：在首帧 Paint 之前同步检查是否命中内存/本地缓存
   useLayoutEffect(() => {
@@ -71,9 +82,9 @@ const HeroCardPoster = memo(function HeroCardPoster({
           ref={imgRef}
           src={cover}
           alt={title}
-          loading="eager"
+          loading={loading}
           decoding="async"
-          fetchPriority={isCenter ? 'high' : 'auto'}
+          fetchPriority={fetchPriority}
           referrerPolicy="no-referrer"
           onLoad={() => setIsLoaded(true)}
           onError={() => setHasError(true)}
@@ -725,6 +736,7 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
                 <HeroCardPoster
                   cover={cover}
                   title={title}
+                  offset={offset}
                   isCenter={isCenter}
                 />
 

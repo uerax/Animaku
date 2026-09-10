@@ -4,6 +4,35 @@
 
 ---
 
+## [2026-09-10] 首页首屏图片梯形滑窗调度与移动端资源预算优化 (v1.13.2)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **Hero 3D 轮播图梯形滑窗调度 (HeroCoverFlow.tsx)**：
+     - 在 `HeroCardPoster` 中引入 `offset` 相对焦点视距调度逻辑；
+     - 实施梯形资源预算：中心焦点卡片（`offset === 0`）作为最重要的 LCP 候选之一，享有最高 `loading="eager"` + `fetchPriority="high"`；左右紧邻卡片（`|offset| === 1`）享受视口边缘预热并赋予 `loading="lazy"` + `fetchPriority="auto"`，保障轻划 1 步顺滑接续；远端不可见卡片（`|offset| >= 2`）降级为 `loading="lazy"` + `fetchPriority="low"`，主动释放首屏网络并发与解码拥塞；
+     - **完整保留全部核心护栏**：10 个卡片 DOM 节点 100% 完整保留，3D 环形计算、手势拖拽滑动、`stableCoverRef`（加速连滚冻结背景）、骨架微光层与图片分辨率完全保持原貌。
+  2. **Trending 热门网格首屏响应式预算 (HomePage.tsx)**：
+     - 利用 `DESKTOP_MEDIA_QUERY`（`min-width: 768px`）解耦双端资源加载预算；
+     - 桌面端（`>= 768px`）严格锁定 `eagerCount = 6`，坚决捍卫 `commit 84df0be` 建立的“首排右侧不留白”体验契约；
+     - 移动端（`< 768px`）网格为 2 列（`grid-cols-2`）且上方有 270px 轮播图，适配为 `eagerCount = 2`，消除折叠线下方卡片在首屏挤占移动端带宽。
+  3. **质量验证**：
+     - 全仓类型检查 `pnpm typecheck` 3 个 workspace 0 报错通过；
+     - 前端生产构建 `pnpm build:web` 100% 成功构建；
+     - 遵循 CLAUDE.md 规范通过 `pnpm bump patch` 递增全仓版本号至 `v1.13.2`。
+- 涉及文件：
+  - apps/web/src/components/HeroCoverFlow.tsx
+  - apps/web/src/pages/HomePage.tsx
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+- 备注：严格控制单一变量，不改变 DOM 数量与海报规格，兼顾真实人机交互手感与移动端首屏资源调度。
+
+---
+
 ## [2026-09-10] 搜索结果页动漫/非动漫类型过滤与放送时间即时排序 (v1.13.1)
 - 状态：已完成
 - 优先级：P2

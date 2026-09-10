@@ -10,14 +10,37 @@ import { HeroCoverFlow, HeroCoverFlowSkeleton } from '../components/HeroCoverFlo
 import { useHistoryStore } from '../stores/history'
 import { useSettingsStore } from '../stores/settings'
 import { Link } from 'react-router-dom'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { EMPTY_ARRAY } from '../lib/stable'
 import { preloadVideoPlayer } from '../player/lazy'
 import { useInView } from '../lib/use-in-view'
+import { DESKTOP_MEDIA_QUERY } from '../components/hero-cover-flow.constants'
 
 const SECTION_LIMIT = 18
 
 export function HomePage() {
+  const [isDesktop, setIsDesktop] = useState(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return true
+    }
+    return window.matchMedia(DESKTOP_MEDIA_QUERY).matches
+  })
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return
+    }
+    const mq = window.matchMedia(DESKTOP_MEDIA_QUERY)
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches)
+    setIsDesktop(mq.matches)
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', handler)
+      return () => mq.removeEventListener('change', handler)
+    }
+    mq.addListener(handler)
+    return () => mq.removeListener(handler)
+  }, [])
+
   const trending = useQuery({
     queryKey: ['trending', SECTION_LIMIT],
     queryFn: ({ signal }) => bangumiApi.trending(SECTION_LIMIT, 0, { signal }),
@@ -188,11 +211,13 @@ export function HomePage() {
           <ErrorState error={trending.error} onRetry={() => trending.refetch()} />
         )}
         {trending.data && (
-          // 【性能与体验红线】：
-          // 此处的 eagerCount={6} 必须严格保持 >= 桌面端最大断点列数 (lg:grid-cols-6)。
-          // 严禁调小此数值（如改成 3 或 4），否则桌面端首屏第一排右侧的卡片会被错误判定为 loading="lazy"，
-          // 导致首屏右侧卡片出现明显的加载空缺与滞后，重新引入全站懒加载拖慢首屏的 Bug！
-          <BangumiGrid items={trending.data.data} eagerCount={6} />
+          // 【性能与体验契约防线】：
+          // 桌面端（>= 768px）必须严格保持 eagerCount=6，完全对齐 lg:grid-cols-6 第一排满行展示，杜绝首排右侧留白滞后；
+          // 移动端（< 768px）网格为 2 列（grid-cols-2）且上方有轮播图，适配为 eagerCount=2，消解首屏过度并发竞争。
+          <BangumiGrid
+            items={trending.data.data}
+            eagerCount={isDesktop ? 6 : 2}
+          />
         )}
       </section>
 
