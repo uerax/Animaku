@@ -324,28 +324,10 @@ export function WatchPage() {
   )
   const item = w.bangumiItem
 
-  const playerBlock = (
-    <div className="relative w-full space-y-2 lg:static sticky top-0 z-40 bg-[var(--kz-bg)] shadow-md lg:shadow-none">
-      {!w.mediaSrc && <WatchHudToast message={w.hudMessage} />}
-      {w.resolveLoading && !w.mediaSrc && (
-        <div className="kz-player-placeholder text-sm text-[var(--kz-fg-muted)]">
-          <div className="flex flex-col items-center gap-2">
-            <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-[var(--kz-border)] border-t-[var(--kz-accent)]" />
-            解析播放地址…
-          </div>
-        </div>
-      )}
-
-      {isAutoProbingSources && !w.mediaSrc && !w.selection && !w.resolveLoading && (
-        <div className="kz-player-placeholder text-sm text-[var(--kz-fg-muted)]">
-          <div className="flex flex-col items-center gap-2">
-            <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-[var(--kz-border)] border-t-[var(--kz-accent)]" />
-            默认源未收录，正在并发检索备用播放源…
-          </div>
-        </div>
-      )}
-
-      {w.mediaSrc && (
+  const renderPlayerContent = () => {
+    // 1. 媒体流已就绪：原生全功能播放器
+    if (w.mediaSrc) {
+      return (
         <VideoPlayerSuspense
           key={w.playerKey}
           formatHint={w.formatHint}
@@ -400,41 +382,72 @@ export function WatchPage() {
           widescreen={widescreen}
           onToggleWidescreen={() => setWidescreen((v) => !v)}
         />
-      )}
+      )
+    }
 
-      {w.selection &&
-        w.episode &&
-        Boolean(w.resolveError) &&
-        !w.mediaSrc &&
-        !w.resolveLoading && (
-          <EmbedPlayerSuspense
-            pageUrl={w.pageUrl}
-            title={w.title}
-            reason={
-              w.resolveError instanceof Error
-                ? w.resolveError.message
-                : '静态解析失败'
-            }
-            onRetryResolve={w.refetchResolve}
-          />
-        )}
+    // 2. 静态解析失败且选集已就绪：嵌入式 / Iframe 网页播放器
+    if (w.selection && w.episode && Boolean(w.resolveError) && !w.resolveLoading) {
+      return (
+        <EmbedPlayerSuspense
+          pageUrl={w.pageUrl}
+          title={w.title}
+          reason={
+            w.resolveError instanceof Error
+              ? w.resolveError.message
+              : '静态解析失败'
+          }
+          onRetryResolve={w.refetchResolve}
+        />
+      )
+    }
 
-      {!w.mediaSrc && !w.resolveLoading && !w.resolveError && (
-        <div className="kz-player-placeholder flex-col gap-1.5 text-sm text-[var(--kz-fg-muted)]">
-          <span>
-            {w.roadLoading
-              ? `正在加载 ${w.pendingSource?.pluginName || w.defaultSourceName} 分集…`
-              : w.selection
-                ? '请在选集区点击集数开始播放'
-                : `已默认搜索 ${w.defaultSourceName}，请稍候或点下方结果`}
-          </span>
-          <span className="text-xs text-[var(--kz-fg-dim)]">
-            {w.selection
-              ? `${w.selection.plugin.name} 分集已就绪 · 点击集数即时起播`
-              : '默认会选中第一条搜索结果并加载分集；其它源需手动点搜'}
-          </span>
+    // 3. 正在解析分集播放地址
+    if (w.resolveLoading) {
+      return (
+        <div className="kz-player-placeholder text-sm text-[var(--kz-fg-muted)]">
+          <div className="flex flex-col items-center gap-2">
+            <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-[var(--kz-border)] border-t-[var(--kz-accent)]" />
+            解析播放地址…
+          </div>
         </div>
-      )}
+      )
+    }
+
+    // 4. 默认源未收录，正在并发检索备用播放源
+    if (isAutoProbingSources && !w.selection) {
+      return (
+        <div className="kz-player-placeholder text-sm text-[var(--kz-fg-muted)]">
+          <div className="flex flex-col items-center gap-2">
+            <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-[var(--kz-border)] border-t-[var(--kz-accent)]" />
+            默认源未收录，正在并发检索备用播放源…
+          </div>
+        </div>
+      )
+    }
+
+    // 5. 兜底未起播占位框
+    return (
+      <div className="kz-player-placeholder flex-col gap-1.5 text-sm text-[var(--kz-fg-muted)]">
+        <span>
+          {w.roadLoading
+            ? `正在加载 ${w.pendingSource?.pluginName || w.defaultSourceName} 分集…`
+            : w.selection
+              ? '请在选集区点击集数开始播放'
+              : `已默认搜索 ${w.defaultSourceName}，请稍候或点下方结果`}
+        </span>
+        <span className="text-xs text-[var(--kz-fg-dim)]">
+          {w.selection
+            ? `${w.selection.plugin.name} 分集已就绪 · 点击集数即时起播`
+            : '默认会选中第一条搜索结果并加载分集；其它源需手动点搜'}
+        </span>
+      </div>
+    )
+  }
+
+  const playerBlock = (
+    <div className="relative w-full space-y-2 lg:static sticky top-0 z-40 bg-[var(--kz-bg)] shadow-md lg:shadow-none">
+      {!w.mediaSrc && <WatchHudToast message={w.hudMessage} />}
+      {renderPlayerContent()}
     </div>
   )
 

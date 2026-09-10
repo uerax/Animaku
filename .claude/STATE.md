@@ -4,6 +4,30 @@
 
 ---
 
+## [2026-09-10] 重构 WatchPage 播放器为互斥单一状态机并消除探活加载态双占位框缺陷 (v1.12.2)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **消除双播放器占位框冲突 (WatchPage.tsx)**：
+     - 将此前平铺的 5 个并列布尔表达式（`mediaSrc`、`resolveError`、`resolveLoading`、`isAutoProbingSources`、兜底占位）重构为 `renderPlayerContent()` 单一互斥状态机渲染逻辑；
+     - 彻底消除在冷门番自愈探活加载期间由于条件重叠（`isAutoProbingSources` 与默认未起播兜底条件同时为 true）导致页面左侧垂直并排挂载两个 16:9 黑色占位框的 UI 缺陷；
+     - 确保在任何时刻、任意加载或起播阶段，左侧播放器区域在数学逻辑上有且仅有一个播放器或占位框。
+  2. **全链路验证**：
+     - 全仓类型检查 `pnpm typecheck` 0 报错；
+     - Shared 68 项单测、Server 108 项单测、Web 30 项单测全部通过；
+     - 前端生产构建 `pnpm build:web` 构建成功；
+     - 遵循 CLAUDE.md 规范递增 Patch 版本号至 `v1.12.2`。
+- 涉及文件：
+  - apps/web/src/pages/WatchPage.tsx
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+- 备注：彻底收敛播放器状态机分支，未扩散底层 Hooks 逻辑。
+
+---
+
 ## [2026-09-10] 冷门番视频源智能展开、自适应宽限仲裁与单飞半开熔断器 (v1.12.0)
 - 状态：已完成
 - 优先级：P1
