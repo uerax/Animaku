@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   type BangumiItem,
   type PluginMeta,
@@ -42,9 +42,11 @@ export interface UseSourceAggregatorOptions {
   activePluginName?: string
   selection?: SourceSelection | null
   searchResults?: SearchRow[]
+  /** 当默认源搜索失败时，即使面板收起也允许在后台静默预探测保底源 */
+  autoProbeOnFallback?: boolean
 }
 
-const CONCURRENCY_LIMIT = 2
+const CONCURRENCY_LIMIT = 3
 const PROBE_TIMEOUT_MS = 5000
 /** Limit automatic background probing to top N priority sources when board opens */
 export const AUTO_PROBE_LIMIT = 6
@@ -60,6 +62,7 @@ export function useSourceAggregator({
   activePluginName,
   selection,
   searchResults,
+  autoProbeOnFallback = false,
 }: UseSourceAggregatorOptions) {
   const [sources, setSources] = useState<Record<string, AggregatedSourceState>>({})
   const activeJobsRef = useRef<number>(0)
@@ -250,7 +253,7 @@ export function useSourceAggregator({
   }, [searchResults, titleRefs, defaultKeyword])
 
   const processQueue = useCallback(async () => {
-    if (!mountedRef.current || !isOpen) return
+    if (!mountedRef.current || (!isOpen && !autoProbeOnFallback)) return
 
     while (activeJobsRef.current < CONCURRENCY_LIMIT && queueRef.current.length > 0) {
       const pluginName = queueRef.current.shift()
@@ -402,11 +405,12 @@ export function useSourceAggregator({
         }
       })()
     }
-  }, [isOpen, plugins, bangumiId, item, defaultKeyword, titleRefs])
+  }, [isOpen, autoProbeOnFallback, plugins, bangumiId, item, defaultKeyword, titleRefs])
 
-  // Trigger streaming probe when panel is opened (strictly limited to top AUTO_PROBE_LIMIT sources)
+  // Trigger streaming probe when panel is opened or during background fallback probe
   useEffect(() => {
-    if (!isOpen || !plugins.length || !Number.isFinite(bangumiId) || bangumiId <= 0) {
+    const shouldProbe = isOpen || autoProbeOnFallback
+    if (!shouldProbe || !plugins.length || !Number.isFinite(bangumiId) || bangumiId <= 0) {
       return
     }
 
@@ -454,7 +458,7 @@ export function useSourceAggregator({
       queueRef.current = Array.from(new Set([...queueRef.current, ...toProbe]))
       void processQueue()
     }
-  }, [isOpen, plugins, pluginOrder, bangumiId, activePluginName, processQueue])
+  }, [isOpen, autoProbeOnFallback, plugins, pluginOrder, bangumiId, activePluginName, processQueue])
 
   // Preemption: User clicks a specific source card -> jump to front of queue
   const prioritizePlugin = useCallback(
@@ -522,9 +526,36 @@ export function useSourceAggregator({
     [plugins, prioritizePlugin],
   )
 
+  const inFlightPlugins = useMemo(() => {
+    const set = new Set<string>()
+    for (const [name, state] of Object.entries(sources)) {
+      if (state.status === 'probing') {
+        set.add(name)
+      }
+    }
+    for (const name of queueRef.current) {
+      set.add(name)
+    }
+    return Array.from(set)
+  }, [sources])
+
+  const isAutoProbing = Boolean(
+    autoProbeOnFallback && !selection && (inFlightPlugins.length > 0 || autoProbedSourcesRef.current.size === 0),
+  )
+
+  const allFallbacksExhausted = Boolean(
+    autoProbeOnFallback &&
+      !selection &&
+      inFlightPlugins.length === 0 &&
+      autoProbedSourcesRef.current.size > 0,
+  )
+
   return {
     sources,
     prioritizePlugin,
     reProbePlugin,
+    inFlightPlugins,
+    isAutoProbing,
+    allFallbacksExhausted,
   }
 }

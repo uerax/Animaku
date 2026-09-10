@@ -228,6 +228,7 @@ export type WatchSession = {
   searchResults: SearchRow[]
   searchKeyword: string
   defaultKeyword: string
+  defaultSearchEmpty: boolean
   /** Default / auto-started rule name based on user order and capability. */
   defaultSourceName: string
   selection: SourceSelection | null
@@ -281,7 +282,11 @@ export type WatchSession = {
     },
   ) => Promise<void>
   reSearchCurrentSource: (keyword: string) => Promise<void>
-  switchToPlugin: (plugin: PluginMeta, targetItem?: SearchItem) => Promise<void>
+  switchToPlugin: (
+    plugin: PluginMeta,
+    targetItem?: SearchItem,
+    opts?: { hudMessage?: string; autoFallback?: boolean },
+  ) => Promise<void>
   pickSource: (plugin: PluginMeta, item: SearchItem) => Promise<void>
   slots: PlayableSlot[]
   pickSlot: (slot: PlayableSlot, roadIndex?: number) => void
@@ -480,6 +485,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
   /** Next resolve queryFn uses refresh=1 once (auth expiry / hard media fail). */
   const resolveRefreshOnce = useRef(false)
   const [hudMessage, setHudMessage] = useState<string | null>(null)
+  const [defaultSearchEmpty, setDefaultSearchEmpty] = useState(false)
   useEffect(() => {
     if (!hudMessage) return
     const timer = setTimeout(() => {
@@ -631,6 +637,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     dmResetPools()
     pluginSearchGen.current = {}
     setSearchKeyword('')
+    setDefaultSearchEmpty(false)
     // Keep searchResults stable across subjects — smoothly updated in the effect below
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only on subject id
   }, [bangumiId])
@@ -840,6 +847,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
         }
 
         setSelection({ plugin, source: searchItem, roads })
+        setDefaultSearchEmpty(false)
         setVisibleRoad(targetRoadIdx)
         setPendingSource(null)
         setRoadError('')
@@ -1108,6 +1116,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
 
       if (!items.length) {
         if (opts?.autoPickFirst && !selectionRef.current) {
+          setDefaultSearchEmpty(true)
           setRoadError(`${plugin.name} 未搜到该番剧资源，请点击上方「视频源」选择其他播放源`)
           setHudMessage(`${plugin.name} 未搜到该番剧，请切换视频源`)
         }
@@ -1204,9 +1213,17 @@ export function useWatchSession(bangumiId: number): WatchSession {
   )
 
   const switchToPlugin = useCallback(
-    async (plugin: PluginMeta, targetItem?: SearchItem) => {
+    async (
+      plugin: PluginMeta,
+      targetItem?: SearchItem,
+      opts?: { hudMessage?: string; autoFallback?: boolean },
+    ) => {
       setKeywordTargetPlugin(plugin)
-      if (episodeRef.current) {
+      if (opts?.hudMessage) {
+        setHudMessage(opts.hudMessage)
+      } else if (opts?.autoFallback) {
+        setHudMessage(`默认源未收录，已为你切换至 ${plugin.name}`)
+      } else if (episodeRef.current) {
         setHudMessage(`正在切换至 ${plugin.name}…`)
       }
       if (targetItem) {
@@ -2172,6 +2189,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
       : searchResults,
     searchKeyword,
     defaultKeyword,
+    defaultSearchEmpty: isSubjectTransition ? false : defaultSearchEmpty,
     defaultSourceName: findDefaultSourcePlugin(plugins, pluginOrder, isOld)?.name || plugins[0]?.name || '',
     selection: isSubjectTransition ? null : selection,
     episode: isSubjectTransition ? null : episode,

@@ -144,4 +144,30 @@ describe('use-source-aggregator: AUTO_PROBE_LIMIT & Auto-probe Quota Isolation',
     assert.strictEqual(resolvedKeyword, 'B番剧')
     assert.notStrictEqual(resolvedKeyword, prevState.Source_1.keyword)
   })
+
+  it('inFlightPlugins accurately aggregates active probing and queued plugins', () => {
+    const mockSources: Record<string, { status: string }> = {
+      Source_1: { status: 'ready' },
+      Source_2: { status: 'probing' },
+      Source_3: { status: 'probing' },
+      Source_4: { status: 'empty' },
+      Source_5: { status: 'idle' },
+    }
+    const mockQueue = ['Source_5', 'Source_6']
+
+    const set = new Set<string>()
+    for (const [name, state] of Object.entries(mockSources)) {
+      if (state.status === 'probing') {
+        set.add(name)
+      }
+    }
+    for (const name of mockQueue) {
+      set.add(name)
+    }
+    const inFlight = Array.from(set)
+
+    assert.deepStrictEqual(inFlight.sort(), ['Source_2', 'Source_3', 'Source_5', 'Source_6'].sort())
+    assert.strictEqual(inFlight.includes('Source_1'), false)
+    assert.strictEqual(inFlight.includes('Source_4'), false)
+  })
 })

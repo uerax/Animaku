@@ -4,6 +4,57 @@
 
 ---
 
+## [2026-09-10] 冷门番视频源智能展开、自适应宽限仲裁与单飞半开熔断器 (v1.12.0)
+- 状态：已完成
+- 优先级：P1
+- 描述：
+  1. **冷门番静默保底探活与全灭兜底展开 (WatchPage.tsx & SourceBoard.tsx & MobileEpsSection.tsx)**：
+     - **彻底消除面板闪烁展开折叠缺陷**：默认源搜索确认无结果（`items.length === 0`）时，视频源面板**坚决保持折叠**，不产生突兀的展开动画；
+     - **选集与播放器检索加载态**：在后台预探测期间，选集区域和播放器占位区呈现友好的检索中卡片：`「默认源未收录，正在并发检索备用播放源…」`（带轻量动画），给用户清晰明确的系统自愈心理预期；
+     - **保底成功（0 闪烁直接起播）**：当命中可用源时直接无缝起播，面板自始至终不展开，HUD 弹出提示：`「默认源未收录，已为你切换至 [XX源] 播放」`；
+     - **保底全灭（兜底自动展开）**：当且仅当所有前 6 个保底源均探测完毕且全灭（无任何高置信度可用源）时，触发 `onAllFallbacksFailed` 自动展开面板，用户可一览已探活的各源红/黄状态灯与顶部备选关键词胶囊，手动换词或选条目，展开后不再有任何折叠；
+     - **修复全灭后无法手动折叠的无限重开死循环**：在 `use-auto-source-pick` 中建立 `allFallbacksTriggeredRef` 单次门禁，并在用户手动点击折叠标题栏时激活 `onUserAction` 互斥锁，确保展开后用户可随时自由折叠收起。
+  2. **聚合器并发度提升与排队状态透出 (use-source-aggregator.ts)**：
+     - 将后台预探测并发数 `CONCURRENCY_LIMIT` 从 2 调至 3，加快前 6 个主力源的探活收敛速度；
+     - 增加 `autoProbeOnFallback` 开关，支持在面板折叠状态下静默后台探活；
+     - 聚合计算并透出 `inFlightPlugins`、`isAutoProbing` 与 `allFallbacksExhausted` 状态，为上层 UI 与仲裁器提供实时判定依据。
+  3. **自适应宽限防抢跑仲裁器与操作互斥锁 (use-auto-source-pick.ts & SourceBoard.tsx)**：
+     - 彻底解决并发探测下“低质量源响应快导致抢跑截胡高优先级优质源”的优先级倒挂缺陷；
+     - 若当前就绪源高于或等于所有仍处于探测/排队中的源，触发 0ms 秒提；
+     - 若存在更高优先级源正在探测，启动 1200ms 动态宽限定时器，并在源卡片标注 `就绪中 (准备切换…)`；
+     - 提前解除（Early Settle）：在宽限期内，若所有更高优先级源陆续确认 `empty` 或 `error`，无需等满 1200ms，立即提前秒提当前就绪源；
+     - 用户最高操作锁：用户在面板中点击任何源卡片或提交关键词时，立即激活 `onUserAction()` 永久取消自动仲裁，杜绝后台探测覆盖用户意图；
+     - 自动选源命中时触发 HUD 提示 `「默认源未收录，已为你切换至 [XX源]」`。
+  4. **服务端插件级单飞半开熔断器 (plugin-circuit-breaker.ts & routes/plugin.ts)**：
+     - 针对源站宕机与超时故障建立整站级熔断器（按 plugin 维度，不带 keyword，避免换词时重复承受 5 秒超时）；
+     - 软故障（超时/504）30 秒内连续 2 次触发 90 秒冷却，硬故障（ECONNREFUSED/ENOTFOUND）单次直接触发；
+     - 单飞半开互斥保护（Single-Flight Half-Open）：冷却期满后仅放行单个真实探测请求，试探期间并发到达的其他请求直接沿用 504 熔断快速返回，杜绝“每 90 秒集中爆发超时”；
+     - 故障快速短路返回 HTTP 504，绝不返回 200 假空结果，彻底避免客户端 `sessionStorage` 负向持久化污染。
+  5. **全链路验证**：
+     - 补充 `plugin-circuit-breaker.test.ts`（6 项）与 `use-auto-source-pick.test.ts`（6 项）测试；
+     - 全仓类型检查 `pnpm typecheck` 0 报错；
+     - Shared 68 项单测、Server 108 项单测、Web 29 项单测全部通过；
+     - 前端生产打包 `pnpm build:web` 与服务端构建 `pnpm build:server` 成功；
+     - 根据 CLAUDE.md 规范递增次版本号至 `v1.12.0`。
+- 涉及文件：
+  - apps/server/src/lib/source/plugin-circuit-breaker.ts
+  - apps/server/src/lib/source/plugin-circuit-breaker.test.ts
+  - apps/server/src/routes/plugin.ts
+  - apps/web/src/lib/use-source-aggregator.ts
+  - apps/web/src/lib/use-source-aggregator.test.ts
+  - apps/web/src/pages/watch/use-auto-source-pick.ts
+  - apps/web/src/pages/watch/use-auto-source-pick.test.ts
+  - apps/web/src/pages/watch/SourceBoard.tsx
+  - apps/web/src/lib/use-watch-session.ts
+  - apps/web/src/pages/WatchPage.tsx
+  - .claude/feature-map.md
+  - .claude/STATE.md
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+
 ## [2026-09-09] 播放页 URL 插件参数收敛与纯净化 (v1.11.11)
 - 状态：已完成
 - 优先级：P1

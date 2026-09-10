@@ -50,10 +50,13 @@ export function WatchPage() {
   const [epsListExpanded, setEpsListExpanded] = useState(false)
   /** Wide-screen theater mode — active only for current watch session (not persisted). */
   const [widescreen, setWidescreen] = useState(false)
+  /** 是否正在后台并发检索备用视频源（保持视频源面板折叠，避免闪烁展开） */
+  const [isAutoProbingSources, setIsAutoProbingSources] = useState(false)
 
   // Reset widescreen mode to standard when navigating to a different subject
   useEffect(() => {
     setWidescreen(false)
+    setIsAutoProbingSources(false)
     if (Number.isFinite(bangumiId) && bangumiId > 0) {
       perfMetrics.markWatchMounted(bangumiId)
     }
@@ -333,6 +336,15 @@ export function WatchPage() {
         </div>
       )}
 
+      {isAutoProbingSources && !w.mediaSrc && !w.selection && !w.resolveLoading && (
+        <div className="kz-player-placeholder text-sm text-[var(--kz-fg-muted)]">
+          <div className="flex flex-col items-center gap-2">
+            <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-[var(--kz-border)] border-t-[var(--kz-accent)]" />
+            默认源未收录，正在并发检索备用播放源…
+          </div>
+        </div>
+      )}
+
       {w.mediaSrc && (
         <VideoPlayerSuspense
           key={w.playerKey}
@@ -471,9 +483,9 @@ export function WatchPage() {
       bangumiItem={w.bangumiItem}
       defaultKeyword={w.defaultKeyword}
       keywordOptions={keywordOptions}
-      onSwitchSource={(plugin, targetItem) => {
+      onSwitchSource={(plugin, targetItem, opts) => {
         startTransition(() => {
-          void w.switchToPlugin(plugin, targetItem)
+          void w.switchToPlugin(plugin, targetItem, opts)
         })
       }}
       selection={w.selection}
@@ -481,6 +493,11 @@ export function WatchPage() {
       roadLoading={w.roadLoading}
       defaultSourceName={w.defaultSourceName}
       searchResults={w.searchResults}
+      defaultSearchEmpty={w.defaultSearchEmpty}
+      onAllFallbacksFailed={() => {
+        setSourcesOpen(true)
+      }}
+      onAutoProbingChange={setIsAutoProbingSources}
     />
   )
 
@@ -500,6 +517,7 @@ export function WatchPage() {
       roadError={w.roadError || null}
       pendingPluginName={w.pendingSource?.pluginName}
       hasSelection={Boolean(w.selection)}
+      isAutoProbing={isAutoProbingSources}
       onToggleList={() => startTransition(() => setEpsListExpanded((v) => !v))}
       onSelectRoad={(ri) => startTransition(() => w.setVisibleRoad(ri))}
       onPickSlot={(slot, rd) => startTransition(() => w.pickSlot(slot, rd))}

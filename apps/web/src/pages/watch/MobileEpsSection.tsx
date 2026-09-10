@@ -51,6 +51,7 @@ export function MobileEpsSection({
   roadError,
   pendingPluginName,
   hasSelection,
+  isAutoProbing,
   onToggleList,
   onSelectRoad,
   onPickSlot,
@@ -72,6 +73,7 @@ export function MobileEpsSection({
   roadError?: string | null
   pendingPluginName?: string | null
   hasSelection: boolean
+  isAutoProbing?: boolean
   onToggleList: () => void
   onSelectRoad: (index: number) => void
   onPickSlot?: (slot: PlayableSlot, roadIndex: number) => void
@@ -402,8 +404,15 @@ export function MobileEpsSection({
             …
           </p>
         )}
-        {roadError && !hasSelection && <p className="kz-bili-error">{roadError}</p>}
-        {!hasSelection && !roadLoading && (
+        {isAutoProbing && !hasSelection && !roadLoading && (
+          <div className="kz-bili-hint my-2 flex flex-col items-center justify-center gap-2 rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/60 p-5 text-center">
+            <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-[var(--kz-border)] border-t-[var(--kz-accent)]" />
+            <p className="text-xs font-medium text-[var(--kz-fg)]">默认源未收录，正在并发检索备用播放源…</p>
+            <p className="text-[11px] text-[var(--kz-fg-muted)]">正在为您探活主流备选站点，稍后将自动切入播放</p>
+          </div>
+        )}
+        {!isAutoProbing && roadError && !hasSelection && <p className="kz-bili-error">{roadError}</p>}
+        {!isAutoProbing && !hasSelection && !roadLoading && !roadError && (
           <div className="kz-bili-hint my-2 rounded-xl bg-[var(--kz-bg-soft)]/50 p-4 border border-[var(--kz-border)]">
             <p className="text-[var(--kz-fg)] font-medium">
               <span className="kz-watch-step bg-[var(--kz-accent)] text-white shadow-sm">1</span>

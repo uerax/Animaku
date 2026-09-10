@@ -59,10 +59,12 @@
   - anime1 / omofun：`apps/server/src/lib/anime1.ts`, `apps/server/src/lib/omofun.ts`
   - anibaka-adapter (AniBaka anx-rule/2 流水线算子解释器与解密)：`apps/server/src/lib/anibaka-adapter.ts`
 - 视频源路由端点：`apps/server/src/routes/plugin.ts`
+- 插件故障短路与单飞半开熔断器：`apps/server/src/lib/source/plugin-circuit-breaker.ts`
 - 客户端视频源 API 桥接：`apps/web/src/lib/plugin-api.ts`
 - 客户端视频源 Store 与版本控制：`apps/web/src/stores/plugins.ts`
 - 视频源看板与多源探活组件：`apps/web/src/pages/watch/SourceBoard.tsx`
 - 视频源探活聚合器 Hook：`apps/web/src/lib/use-source-aggregator.ts`
+- 自适应宽限选源仲裁器 Hook：`apps/web/src/pages/watch/use-auto-source-pick.ts`
 - 视频源历史绑定 Store：`apps/web/src/stores/source-bindings.ts`
 - 内置默认视频源 JSON 规则：`apps/web/src/data/default-plugins/index.ts`
 - 视频源契约、标题偏好 (titlePreference) 与打分安全锁 (Season Guard)：`packages/shared/src/plugin.ts`

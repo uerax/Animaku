@@ -23,6 +23,7 @@ import {
   wantsCacheBypass,
 } from '../lib/ttl-cache'
 import { pluginSearchCache, pluginChaptersCache } from '../db'
+import { pluginCircuitBreaker } from '../lib/source/plugin-circuit-breaker'
 
 export const pluginRoutes = new Hono()
 
@@ -102,13 +103,26 @@ pluginRoutes.post('/search', async (c) => {
     }
   }
 
+  // 3. Circuit breaker check before making outbound request on cache miss
+  const breakerCheck = pluginCircuitBreaker.checkBeforeSearch(rule.name)
+  if (!breakerCheck.allowed) {
+    return c.json(
+      {
+        error: 'circuit_breaker_tripped',
+        message: breakerCheck.reason || '源站响应异常，熔断冷却中 (请稍后重试)',
+      },
+      504,
+    )
+  }
+
   try {
-    // 3. Cache MISS: execute upstream search with single-flight loader deduplication
+    // 4. Cache MISS: execute upstream search with single-flight loader deduplication
     const { value, hit } = await cacheGetOrSet(
       key,
       PLUGIN_CACHE_TTL.search,
       async () => {
         const result = await searchWithRule(rule, keyword)
+        pluginCircuitBreaker.recordSuccess(rule.name)
         // Store in SQLite database for durable persistence
         pluginSearchCache.set(
           key,
@@ -125,6 +139,7 @@ pluginRoutes.post('/search', async (c) => {
     // Always 200 when we finished parsing — empty items is a soft failure
     return c.json({ data: value }, 200, cacheHeaders(hit))
   } catch (e) {
+    pluginCircuitBreaker.recordFailure(rule.name, e)
     const message = e instanceof Error ? e.message : String(e)
     console.error('[plugin/search]', message)
     return c.json({ error: 'search_failed', message }, errStatus(message))

@@ -13,6 +13,7 @@ import {
   type AggregatedSourceState,
 } from '../../lib/use-source-aggregator'
 import type { SourceSelection, SearchRow } from '../../lib/use-watch-session'
+import { useAutoSourcePick } from './use-auto-source-pick'
 
 export interface SourceBoardProps {
   bangumiId: number
@@ -26,12 +27,19 @@ export interface SourceBoardProps {
   bangumiItem?: BangumiItem | null
   defaultKeyword: string
   keywordOptions: string[]
-  onSwitchSource: (plugin: PluginMeta, targetItem?: SearchItem) => void
+  onSwitchSource: (
+    plugin: PluginMeta,
+    targetItem?: SearchItem,
+    opts?: { hudMessage?: string; autoFallback?: boolean },
+  ) => void
   selection: SourceSelection | null
   pendingSource: { pluginName: string; src: string } | null
   roadLoading: boolean
   defaultSourceName: string
   searchResults?: SearchRow[]
+  defaultSearchEmpty?: boolean
+  onAllFallbacksFailed?: () => void
+  onAutoProbingChange?: (isProbing: boolean) => void
 }
 
 export function SourceBoard({
@@ -51,6 +59,9 @@ export function SourceBoard({
   pendingSource,
   defaultSourceName,
   searchResults,
+  defaultSearchEmpty,
+  onAllFallbacksFailed,
+  onAutoProbingChange,
 }: SourceBoardProps) {
   const [expandedPlugin, setExpandedPlugin] = useState<string | null>(null)
   const [cardKwInputs, setCardKwInputs] = useState<Record<string, string>>({})
@@ -69,7 +80,14 @@ export function SourceBoard({
     setCardKwInputs({})
   }, [bangumiId])
 
-  const { sources, prioritizePlugin, reProbePlugin } = useSourceAggregator({
+  const {
+    sources,
+    prioritizePlugin,
+    reProbePlugin,
+    inFlightPlugins,
+    isAutoProbing,
+    allFallbacksExhausted,
+  } = useSourceAggregator({
     bangumiId,
     plugins,
     pluginOrder,
@@ -80,10 +98,28 @@ export function SourceBoard({
     activePluginName,
     selection,
     searchResults,
+    autoProbeOnFallback: Boolean(defaultSearchEmpty && !selection),
+  })
+
+  // Sync auto-probing status to parent (WatchPage & Episode section)
+  useEffect(() => {
+    onAutoProbingChange?.(isAutoProbing)
+  }, [isAutoProbing, onAutoProbingChange])
+
+  const { onUserAction, pendingCandidateName } = useAutoSourcePick({
+    bangumiId,
+    enabled: Boolean(defaultSearchEmpty && !selection),
+    sources,
+    pluginOrder,
+    inFlightPlugins,
+    allFallbacksExhausted,
+    onSwitchSource,
+    onAllFallbacksFailed,
   })
 
   function handleCardKeywordSubmit(pluginName: string, e: FormEvent) {
     e.preventDefault()
+    onUserAction()
     const kw = (cardKwInputs[pluginName] || '').trim()
     if (!kw) return
     reProbePlugin(pluginName, kw)
@@ -104,7 +140,10 @@ export function SourceBoard({
       {/* Header bar */}
       <button
         type="button"
-        onClick={() => startTransition(onToggleSourcesOpen)}
+        onClick={() => {
+          onUserAction()
+          startTransition(onToggleSourcesOpen)
+        }}
         className="kz-bili-sec-head kz-bili-sec-head--btn flex w-full items-center justify-between px-3 py-2.5 text-left transition-colors hover:bg-[var(--kz-bg-hover)]"
         aria-expanded={sourcesOpen}
       >
@@ -205,6 +244,7 @@ export function SourceBoard({
                   {/* Card Main Row */}
                   <div
                     onClick={() => {
+                      onUserAction()
                       prioritizePlugin(plugin.name)
                       if (isActive) {
                         return
@@ -290,10 +330,15 @@ export function SourceBoard({
 
                         {state.status === 'ready' && (
                           <span
-                            className="truncate block"
+                            className={clsx(
+                              'truncate block',
+                              pendingCandidateName === plugin.name && !isActive && 'text-[var(--kz-accent)] font-medium',
+                            )}
                             title={matchedTitle || plugin.name}
                           >
-                            {matchedTitle || plugin.name}
+                            {pendingCandidateName === plugin.name && !isActive
+                              ? `就绪中 (准备切换…)`
+                              : matchedTitle || plugin.name}
                           </span>
                         )}
 
@@ -445,6 +490,7 @@ export function SourceBoard({
                                   key={`${it.src}:${idx}`}
                                   type="button"
                                   onClick={() => {
+                                    onUserAction()
                                     onSwitchSource(plugin, it)
                                   }}
                                   className={clsx(
