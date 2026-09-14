@@ -3,6 +3,9 @@ import path from 'node:path'
 import type { Context } from 'hono'
 import {
   coverOf,
+  formatSubjectDescription,
+  formatSubjectTitle,
+  generateSubjectKeywords,
   parseBangumiItem,
   toBangumiOfficialImageUrl,
   type BangumiItem,
@@ -246,6 +249,8 @@ export function buildJsonLd(args: {
   origin: string
   ratingScore?: number
   ratingVotes?: number
+  genre?: string[]
+  keywords?: string
 }): [Record<string, unknown>, Record<string, unknown>] {
   const tvSeries: Record<string, unknown> = {
     '@context': 'https://schema.org',
@@ -257,6 +262,20 @@ export function buildJsonLd(args: {
     ...(args.description ? { description: args.description } : {}),
     ...(args.image ? { image: args.image } : {}),
     ...(args.datePublished ? { datePublished: args.datePublished } : {}),
+    ...(args.genre && args.genre.length > 0 ? { genre: args.genre } : {}),
+    ...(args.keywords ? { keywords: args.keywords } : {}),
+    potentialAction: {
+      '@type': 'WatchAction',
+      target: {
+        '@type': 'EntryPoint',
+        urlTemplate: args.canonicalUrl,
+        inLanguage: 'zh-CN',
+        actionPlatform: [
+          'http://schema.org/DesktopWebPlatform',
+          'http://schema.org/MobileWebPlatform',
+        ],
+      },
+    },
     ...(args.ratingScore && args.ratingScore > 0 && args.ratingVotes && args.ratingVotes > 0
       ? {
           aggregateRating: {
@@ -313,14 +332,17 @@ export function renderSuccessPage(
   const name = item.nameCn || item.name || `番剧 ${subjectId}`
   const altName =
     item.nameCn && item.name && item.nameCn !== item.name ? item.name : undefined
-  const pageTitle = altName ? `${name}（${altName}）· Animaku` : `${name} · Animaku`
+  const pageTitle = formatSubjectTitle(name, altName, 'Animaku')
   const rawSummary = (item.summary || '').trim()
-  const metaDesc = rawSummary
-    ? truncateDescription(rawSummary, 200)
-    : `${name} — 在 Animaku 查看 Bangumi 详细资料、每日更新与高清弹幕播放`
+  const metaDesc = formatSubjectDescription(name, rawSummary, 160)
   const canonicalUrl = origin ? `${origin}/subject/${subjectId}` : `/subject/${subjectId}`
   const rawCover = coverOf(item, 'large') || coverOf(item)
   const coverUrl = rawCover ? toBangumiOfficialImageUrl(rawCover) : ''
+
+  const tagNames = item.tags?.map((t) => t.name).filter(Boolean) || []
+  const keywordsList = generateSubjectKeywords(name, altName, tagNames)
+  const keywordsStr = keywordsList.join(', ')
+  const genreList = Array.from(new Set(['动画', '动漫', '日本动画', ...tagNames.slice(0, 5)]))
 
   const [tvSeriesJson, breadcrumbsJson] = buildJsonLd({
     id: subjectId,
@@ -333,6 +355,8 @@ export function renderSuccessPage(
     origin,
     ratingScore: item.ratingScore,
     ratingVotes: item.votes,
+    genre: genreList,
+    keywords: keywordsStr,
   })
 
   let html = templateHtml
@@ -345,6 +369,19 @@ export function renderSuccessPage(
     /<meta\s+name="description"\s+content="[\s\S]*?"\s*\/?>/i,
     `<meta name="description" content="${escapeHtml(metaDesc)}" />`,
   )
+
+  // Replace or inject <meta name="keywords" ...>
+  if (/<meta\s+name="keywords"\s+content="[\s\S]*?"\s*\/?>/i.test(html)) {
+    html = html.replace(
+      /<meta\s+name="keywords"\s+content="[\s\S]*?"\s*\/?>/i,
+      `<meta name="keywords" content="${escapeHtml(keywordsStr)}" />`,
+    )
+  } else {
+    html = html.replace(
+      /<head>/i,
+      `<head>\n    <meta name="keywords" content="${escapeHtml(keywordsStr)}" />`,
+    )
+  }
 
   // 3. Replace og:type and og:title
   html = html.replace(
@@ -404,10 +441,11 @@ export function renderSuccessPage(
 
   // 7. Inject Semantic <noscript> inside #root
   const noscriptContent = `      <noscript>
-        <h1>${escapeHtml(name)}</h1>
+        <h1>《${escapeHtml(name)}》动漫全集在线观看</h1>
         ${altName ? `<h2>${escapeHtml(altName)}</h2>` : ''}
-        <p>${escapeHtml(rawSummary || metaDesc)}</p>
-        ${coverUrl ? `<img src="${escapeHtml(coverUrl)}" alt="${escapeHtml(name)}" width="400" height="533" />` : ''}
+        <p>Animaku 动漫为您提供《${escapeHtml(name)}》1080P 高清无广告在线播放、分集列表与多源播放支持。</p>
+        <p>剧情简介：${escapeHtml(rawSummary || metaDesc)}</p>
+        ${coverUrl ? `<img src="${escapeHtml(coverUrl)}" alt="《${escapeHtml(name)}》动漫在线观看海报" width="400" height="533" />` : ''}
       </noscript>`
 
   html = html.replace(

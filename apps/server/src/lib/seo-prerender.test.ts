@@ -37,6 +37,11 @@ test('buildJsonLd: builds TVSeries and BreadcrumbList schema objects with aggreg
   assert.equal(tvSeries.alternateName, 'Fate UBW')
   assert.equal(tvSeries.url, 'https://animaku.app/subject/100403')
 
+  // Verify WatchAction
+  const watchAction = tvSeries.potentialAction as Record<string, unknown>
+  assert.ok(watchAction)
+  assert.equal(watchAction['@type'], 'WatchAction')
+
   // Verify aggregateRating structure
   const agg = tvSeries.aggregateRating as Record<string, unknown>
   assert.ok(agg)
@@ -120,8 +125,14 @@ test('renderSuccessPage: injects modulepreload tags cleanly into head', () => {
   const rendered = renderSuccessPage(mockTemplate, 622206, mockItem, 'https://animaku.app', preloadTags)
 
   assert.ok(rendered.includes('<link rel="modulepreload" crossorigin href="/assets/PlayPage-Test.js">'))
-  assert.ok(rendered.includes('<title>尼古喵喵（ヤニねこ）· Animaku</title>'))
+  assert.ok(rendered.includes('<title>《尼古喵喵》（ヤニねこ）动漫在线观看全集 - 1080P高清播放 · Animaku</title>'))
   assert.ok(rendered.includes('data-animaku-jsonld="1"'))
+  assert.ok(rendered.includes('"@type":"WatchAction"'))
+  assert.ok(rendered.includes('name="keywords"'))
+  assert.ok(rendered.includes('尼古喵喵在线'))
+  assert.ok(rendered.includes('尼古喵喵 在线'))
+  assert.ok(rendered.includes('尼古喵喵动漫'))
+  assert.ok(rendered.includes('<h1>《尼古喵喵》动漫全集在线观看</h1>'))
 })
 
 test('matchRouteName: matches all core routes and returns null for unmapped/home', () => {

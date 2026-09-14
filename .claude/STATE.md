@@ -4,6 +4,47 @@
 
 ---
 
+## [2026-09-15] 播放页 SEO 关键词全链路优化（覆盖 A在线 / A 在线 / A动漫）(v1.13.8)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **跨端同构 SEO 工具抽象 (`packages/shared/src/seo.ts`)**：
+     - 新增 `formatSubjectTitle`：输出《{name}》（{altName}）动漫在线观看全集 - 1080P高清播放 · {siteName}，前置核心词实现与「A动漫」0字符物理距离邻近，同时全覆盖「A 在线」「A在线」「A 在线观看」「A全集」等高频搜索词；
+     - 新增 `formatSubjectDescription`：前置引导核心意图词（《{name}》动漫全集高清在线观看！Animaku 为您提供《{name}》无广告弹幕在线播放与画质超分），后接剧情简介自适应截断（<= 160 字符），使 SERP 摘要精准加粗标红高亮；
+     - 新增 `generateSubjectKeywords`：输出完整覆盖精准词与近邻词的关键词阵列，消除搜索引擎分词歧义。
+  2. **服务端 SSR 预渲染管线与结构化数据升级 (`apps/server/src/lib/seo-prerender.ts`)**：
+     - 在 `renderSuccessPage` 中接入同构标题与描述生成器，并同步注入/更新 `<meta name="keywords" ...>`；
+     - 在 `buildJsonLd` 中为 `TVSeries` 升级 Google 官方推荐的 `potentialAction: WatchAction`（流媒体在线播放动作标记）及 `genre`、`keywords` 属性；
+     - 在 `<noscript>` 语义预埋中，升级 `<h1>《{name}》动漫全集在线观看</h1>` 及明确的在线播放服务说明，为纯文本爬虫构建清晰的意图上下文。
+  3. **客户端 SPA 路由与视觉无感语义加固 (`DocumentSeo.tsx`, `seo.ts`, `WatchMeta.tsx`)**：
+     - 在 `DocumentSeo.tsx` 中与服务端 100% 同构对齐标题、描述、关键词与 `WatchAction` 结构化数据，杜绝 Cloaking 作弊风险；
+     - 在 `WatchMeta.tsx` 的移动端与桌面端 `<h1>` 标签内增设 `<span className="sr-only"> 动漫全集在线观看 1080P高清播放</span>`，在保持既有 UI 极简纯粹的同时，为 DOM 爬虫与屏幕阅读器加固意图权重；
+     - 在 `formatDocumentTitle` 中支持 `Animaku` 品牌词防重逻辑，避免多重拼接。
+  4. **质量验证与版本升级**：
+     - 全仓类型检查 `pnpm typecheck` 3 个 workspace 0 报错通过；
+     - Shared 78 项单元测试、Server 108 项单元测试 100% 通过；
+     - 前端生产构建 `pnpm build:web` 顺利通过；
+     - 遵循 CLAUDE.md 规范通过 `pnpm bump patch` 递增全仓版本号至 `v1.13.8`。
+- 涉及文件：
+  - packages/shared/src/seo.ts
+  - packages/shared/src/seo.test.ts
+  - packages/shared/src/index.ts
+  - apps/server/src/lib/seo-prerender.ts
+  - apps/server/src/lib/seo-prerender.test.ts
+  - apps/web/src/components/DocumentSeo.tsx
+  - apps/web/src/lib/seo.ts
+  - apps/web/src/pages/watch/WatchMeta.tsx
+  - .claude/feature-map.md
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+- 备注：严格限制改动范围在 SEO 元数据、结构化数据与语义层，完全不影响播放器引擎与流媒体传输。
+
+---
+
 ## [2026-09-14] 按照生产爬虫扫描日志在现有 Cloudflare WAF 规则中平滑补充特征项 (纯文档修改，版本号保持 v1.13.7)
 - 状态：已完成
 - 优先级：P2

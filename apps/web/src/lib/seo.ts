@@ -25,6 +25,7 @@ export type PageSeo = {
   /** Path only, e.g. /anime — used for canonical / og:url */
   path?: string
   robots?: SeoRobots
+  keywords?: string
   /** Optional JSON-LD object or list (serialized into application/ld+json) */
   jsonLd?: Record<string, unknown> | Record<string, unknown>[]
 }
@@ -87,7 +88,7 @@ export function truncateDescription(text: string, max = DESC_MAX): string {
 export function formatDocumentTitle(pageTitle: string, siteName = SITE_NAME): string {
   const t = pageTitle.trim()
   if (!t || t === siteName) return siteName
-  if (t.includes(siteName)) return t
+  if (t.includes(siteName) || t.includes('Animaku')) return t
   return `${t} · ${siteName}`
 }
 
@@ -192,6 +193,9 @@ export function applyPageSeo(seo: PageSeo): void {
   document.title = title
 
   ensureMetaByName('description', description)
+  if (seo.keywords) {
+    ensureMetaByName('keywords', seo.keywords)
+  }
   ensureMetaByName('robots', fullRobots)
   ensureMetaByName('googlebot', fullRobots)
   ensureMetaByName('application-name', SITE_NAME)
@@ -282,8 +286,11 @@ export function buildTvSeriesJsonLd(args: {
   image?: string
   datePublished?: string
   path: string
+  genre?: string[]
+  keywords?: string
 }): Record<string, unknown> {
   const siteUrl = resolveSiteUrl()
+  const canonicalUrl = toAbsoluteUrl(args.path, siteUrl)
   return {
     '@context': 'https://schema.org',
     '@type': 'TVSeries',
@@ -294,7 +301,21 @@ export function buildTvSeriesJsonLd(args: {
     ...(args.description ? { description: truncateDescription(args.description, 300) } : {}),
     ...(args.image ? { image: toAbsoluteUrl(args.image, siteUrl) } : {}),
     ...(args.datePublished ? { datePublished: args.datePublished } : {}),
-    url: toAbsoluteUrl(args.path, siteUrl),
+    ...(args.genre && args.genre.length > 0 ? { genre: args.genre } : {}),
+    ...(args.keywords ? { keywords: args.keywords } : {}),
+    potentialAction: {
+      '@type': 'WatchAction',
+      target: {
+        '@type': 'EntryPoint',
+        urlTemplate: canonicalUrl,
+        inLanguage: 'zh-CN',
+        actionPlatform: [
+          'http://schema.org/DesktopWebPlatform',
+          'http://schema.org/MobileWebPlatform',
+        ],
+      },
+    },
+    url: canonicalUrl,
     identifier: String(args.id),
   }
 }

@@ -1,7 +1,12 @@
 import { useEffect, useMemo } from 'react'
 import { matchPath, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { coverOf } from '@animaku/shared'
+import {
+  coverOf,
+  formatSubjectDescription,
+  formatSubjectTitle,
+  generateSubjectKeywords,
+} from '@animaku/shared'
 import { bangumiApi } from '../lib/bangumi'
 import {
   STATIC_ROUTE_SEO,
@@ -53,17 +58,23 @@ export function DocumentSeo() {
           ? item.name
           : undefined
       const summary = item?.summary?.trim()
-      const description = summary
-        ? summary
-        : `${name} — 在 Animaku 查看 Bangumi 资料并选源播放`
+      const title = item || subject.isError
+        ? formatSubjectTitle(name, alt)
+        : '加载中…'
+      const description = formatSubjectDescription(name, summary, 160)
       const cover = item ? coverOf(item, 'large') || coverOf(item) : ''
+      const tagNames = item?.tags?.map((t) => t.name).filter(Boolean) || []
+      const keywords = generateSubjectKeywords(name, alt, tagNames).join(', ')
+      const genre = Array.from(new Set(['动画', '动漫', '日本动画', ...tagNames.slice(0, 5)]))
+
       // Always canonicalize to /subject/:id (even when user is on /play/:id)
       const path = `/subject/${subjectId}`
       const indexable =
         !isPlayAlias && Boolean(item || subject.isError)
       return {
-        title: name,
+        title,
         description,
+        keywords,
         image: cover || undefined,
         path,
         robots: indexable ? 'index,follow' : 'noindex,follow',
@@ -78,6 +89,8 @@ export function DocumentSeo() {
                   image: cover || undefined,
                   datePublished: item.airDate || undefined,
                   path,
+                  genre,
+                  keywords,
                 }),
                 buildBreadcrumbJsonLd([
                   { name: '首页', path: '/' },

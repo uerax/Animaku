@@ -15,4 +15,5 @@ export * from './comment'
 export * from './comment-censor'
 export * from './oped-skip'
 export * from './user'
+export * from './seo'
 
