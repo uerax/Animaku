@@ -14,7 +14,6 @@
 - Anime4K 画质超分 (WebGL/WebGPU)：`apps/web/src/player/anime4k.ts`
 - 全屏控制与屏幕常亮唤醒锁：`apps/web/src/player/media/fullscreen.ts`
 - 媒体与时间格式化：`apps/web/src/player/media/format.ts`
-- 备用/Iframe 播放器：`apps/web/src/player/EmbedPlayer.tsx`
 
 ## 2. 播放器控制栏与交互层 (Player Controls & UI Chrome)
 - 播放器局部时间状态机：`apps/web/src/player/timeStore.ts`（基于 useSyncExternalStore，隔离每秒 4 次高频 current 传播）

@@ -4,6 +4,42 @@
 
 ---
 
+## [2026-09-15] 移除 EmbedPlayer iframe 兜底并统一解析失败换源占位提示 (v1.13.9)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **彻底移除不可行的 EmbedPlayer iframe 降级方案**：
+     - 彻底删除 `apps/web/src/player/EmbedPlayer.tsx`；
+     - 清理 `apps/web/src/player/lazy.tsx` 中 `LazyEmbedPlayer`、`preloadEmbedPlayer` 与 `EmbedPlayerSuspense` 等导出，避免无意义的 chunk 分包；
+     - 同步微调 `main.tsx` 中的样式尺寸说明注释。
+  2. **统一播放器解析失败占位与换源引导 (`WatchPage.tsx`, `SourceBoard.tsx`)**：
+     - 将分集解析失败（`Boolean(w.resolveError)`）时的兜底视图统一为与站内设计规范对齐的 `kz-player-placeholder`；
+     - 直观展示「当前视频源播放失败」、失败具体原因（如 502 Bad Gateway / 无法提取直链）及当前源与集数；
+     - 提供「重试解析」和「切换视频源」操作按钮；
+     - 为 `SourceBoard.tsx` 补充 `id="kz-watch-sources"` 锚点，用户点击「切换视频源」时自动展开面板并平滑滚动到多源列表区。
+  3. **功能索引维护与工程验证**：
+     - 依据 CLAUDE.md 规范从 `.claude/feature-map.md` 中同步剔除已下线的 `EmbedPlayer.tsx` 条目；
+     - 全仓 `pnpm typecheck` 0 报错通过；
+     - Shared 78 项单元测试 100% 通过；
+     - 前端生产打包 `pnpm build:web` 1.85s 构建成功，且无任何遗留引用；
+     - 依据规范通过 `pnpm bump patch` 将版本号提升至 `v1.13.9`。
+- 涉及文件：
+  - apps/web/src/player/EmbedPlayer.tsx (已删除)
+  - apps/web/src/player/lazy.tsx
+  - apps/web/src/pages/WatchPage.tsx
+  - apps/web/src/pages/watch/SourceBoard.tsx
+  - apps/web/src/main.tsx
+  - .claude/feature-map.md
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+- 备注：彻底解决源站禁止 iframe 嵌入（X-Frame-Options / CSP）导致的白屏问题与第三方源站恶意弹窗安全隐患。
+
+---
+
 ## [2026-09-15] 播放页 SEO 关键词全链路优化（覆盖 A在线 / A 在线 / A动漫）(v1.13.8)
 - 状态：已完成
 - 优先级：P2

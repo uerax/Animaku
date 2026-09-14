@@ -10,14 +10,9 @@ import { lazy, Suspense, type ComponentProps } from 'react'
 const videoPlayerImport = () =>
   import('./VideoPlayer').then((m) => ({ default: m.VideoPlayer }))
 
-const embedPlayerImport = () =>
-  import('./EmbedPlayer').then((m) => ({ default: m.EmbedPlayer }))
-
 export const LazyVideoPlayer = lazy(videoPlayerImport)
-export const LazyEmbedPlayer = lazy(embedPlayerImport)
 
 let videoPlayerPreload: Promise<unknown> | null = null
-let embedPlayerPreload: Promise<unknown> | null = null
 
 /** Idempotent — safe on every card hover / watch mount. */
 export function preloadVideoPlayer(): void {
@@ -25,13 +20,6 @@ export function preloadVideoPlayer(): void {
   videoPlayerPreload = videoPlayerImport().catch(() => {
     // Allow retry after a failed network attempt
     videoPlayerPreload = null
-  })
-}
-
-export function preloadEmbedPlayer(): void {
-  if (embedPlayerPreload) return
-  embedPlayerPreload = embedPlayerImport().catch(() => {
-    embedPlayerPreload = null
   })
 }
 
@@ -49,16 +37,6 @@ export function VideoPlayerSuspense(
   return (
     <Suspense fallback={<PlayerFallback text="加载播放器…" />}>
       <LazyVideoPlayer {...props} />
-    </Suspense>
-  )
-}
-
-export function EmbedPlayerSuspense(
-  props: ComponentProps<typeof LazyEmbedPlayer>,
-) {
-  return (
-    <Suspense fallback={<PlayerFallback text="加载嵌入播放器…" />}>
-      <LazyEmbedPlayer {...props} />
     </Suspense>
   )
 }

@@ -132,6 +132,7 @@ export function SourceBoard({
 
   return (
     <section
+      id="kz-watch-sources"
       className={clsx(
         'kz-watch-panel shrink-0 overflow-hidden rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] shadow-sm transition-all duration-300',
         sourcesOpen && 'kz-watch-sources',

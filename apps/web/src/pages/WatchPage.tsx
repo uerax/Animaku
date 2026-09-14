@@ -9,7 +9,6 @@ import { usePluginStore } from '../stores/plugins'
 import { ApiError } from '../lib/api'
 import { NotFoundPage } from './NotFoundPage'
 import {
-  EmbedPlayerSuspense,
   VideoPlayerSuspense,
   preloadVideoPlayer,
 } from '../player/lazy'
@@ -385,19 +384,58 @@ export function WatchPage() {
       )
     }
 
-    // 2. 静态解析失败且选集已就绪：嵌入式 / Iframe 网页播放器
+    // 2. 选集解析失败：提示当前源播放失败，引导换源或重试
     if (w.selection && w.episode && Boolean(w.resolveError) && !w.resolveLoading) {
+      const errReason =
+        w.resolveError instanceof Error
+          ? w.resolveError.message
+          : typeof w.resolveError === 'string'
+            ? w.resolveError
+            : '解析分集播放地址失败'
+
       return (
-        <EmbedPlayerSuspense
-          pageUrl={w.pageUrl}
-          title={w.title}
-          reason={
-            w.resolveError instanceof Error
-              ? w.resolveError.message
-              : '静态解析失败'
-          }
-          onRetryResolve={w.refetchResolve}
-        />
+        <div className="kz-player-placeholder flex-col gap-2.5 text-sm text-[var(--kz-fg-muted)]">
+          <div className="flex items-center gap-1.5 font-medium text-[var(--kz-danger,#ef4444)]">
+            <svg
+              className="h-4 w-4 shrink-0"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                fillRule="evenodd"
+                d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z"
+                clipRule="evenodd"
+              />
+            </svg>
+            <span>当前视频源播放失败</span>
+          </div>
+          <span className="max-w-md text-center text-xs text-[var(--kz-fg-dim)] line-clamp-2">
+            {w.selection.plugin.name} · 第 {w.episode.episode} 集（{errReason}）
+          </span>
+          <div className="mt-1 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={w.refetchResolve}
+              className="rounded-lg bg-[var(--kz-bg-soft)] px-3 py-1 text-xs text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] transition-colors"
+            >
+              重试解析
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSourcesOpen(true)
+                const el = document.getElementById('kz-watch-sources')
+                if (el) {
+                  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+                }
+              }}
+              className="rounded-lg bg-[var(--kz-accent)] px-3 py-1 text-xs text-white hover:bg-[var(--kz-accent-hover)] transition-colors"
+            >
+              切换视频源
+            </button>
+          </div>
+        </div>
       )
     }
 
