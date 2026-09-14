@@ -4,6 +4,22 @@
 
 ---
 
+## [2026-09-14] 按照生产爬虫扫描日志在现有 Cloudflare WAF 规则中平滑补充特征项 (纯文档修改，版本号保持 v1.13.7)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. 严格沿用原版单一自定义规则（`Block-Scanners-And-Sensitive-Files`）的现有结构与语法风格，不增设多余规则与方法限制；
+  2. 在路径关键词中精准补充日志中漏网的特征项：
+     - WordPress 探针：`/wp-json`, `/wp/`, `/wordpress`, `/xmlrpc`；
+     - 框架与调试端点：`/livewire`, `/_ignition`, `/__clockwork`, `/_debugbar`, `/_profiler`, `/telescope`, `/horizon`, `/phpinfo`, `/nginx-status`；
+     - 本地/敏感文件与凭据：`/.claude`, `/.bashrc`, `/service-account`, `/client_secrets`, `/private-key`, `/firebase`, `/postman`；
+  3. 在扩展名列表 `http.request.uri.path.extension in { ... }` 中平滑补充日志中涉及的后缀：`"ppk" "prisma" "neon" "dist" "lock" "rb" "toml"`；
+  4. 同步更新 `docs/cloudflare-cdn-rules.md` 中的单行表达式与维度表；
+  5. 纯文档修改豁免，版本号严格保持 `v1.13.7` 不变。
+- 涉及文件：
+  - docs/cloudflare-cdn-rules.md
+- 备注：保持原本规则设计 100% 一致，仅平滑扩充关键词与后缀。
+
 ## [2026-09-11] 首页剧场版与 OVA 数据空闲预取与网格响应式首排预算恢复 (v1.13.7)
 - 状态：已完成
 - 优先级：P2
