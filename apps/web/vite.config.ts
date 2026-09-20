@@ -151,7 +151,7 @@ export default defineConfig(({ mode }) => {
             name: 'Animaku 动漫',
             alternateName,
             description:
-              'Animaku 多资源聚合的日漫番剧、剧场版动画在线观看，支持高性能自研弹幕播放、1080P 高清画质、画质超分、OP / ED智能跳过、Bangumi 每日更新时间表与追番历史，打造轻快稳定的二次元追番体验。',
+              'Animaku 多资源聚合的日漫番剧、剧场版动画在线观看，支持高性能自研弹幕播放、画质超分、OP / ED 智能跳过、Bangumi 每日更新时间表与追番历史。',
             ...(siteUrl ? { url: `${siteUrl}/` } : {}),
             ...(siteUrl
               ? {

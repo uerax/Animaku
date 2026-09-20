@@ -6,10 +6,10 @@ export const DEFAULT_SITE_NAME = 'Animaku'
 
 /**
  * 格式化番剧详情/播放页的标准 SEO 标题。
- * 覆盖场景：A在线、A 在线、A动漫、A 在线观看、A 全集、1080P高清播放。
+ * 覆盖场景：A在线、A 在线、A动漫、A 在线观看。
  * 示例：
- * - 有原名/别名：《葬送的芙莉莲》（葬送のフリーレン）动漫在线观看全集 - 1080P高清播放 · Animaku
- * - 无原名：《葬送的芙莉莲》动漫在线观看全集 - 1080P高清播放 · Animaku
+ * - 有原名/别名：《葬送的芙莉莲》（葬送のフリーレン）动漫在线观看 · Animaku
+ * - 无原名：《葬送的芙莉莲》动漫在线观看 · Animaku
  */
 export function formatSubjectTitle(
   name: string,
@@ -22,12 +22,12 @@ export function formatSubjectTitle(
     cleanAlt && cleanAlt !== baseName
       ? `《${baseName}》（${cleanAlt}）`
       : `《${baseName}》`
-  return `${displayTitle}动漫在线观看全集 - 1080P高清播放 · ${siteName}`
+  return `${displayTitle}动漫在线观看 · ${siteName}`
 }
 
 /**
  * 格式化番剧详情/播放页的标准 SEO Meta Description。
- * 覆盖场景：前置引导核心意图词（全集在线观看、在线播放、无广告弹幕、画质超分），后接剧情简介截取。
+ * 覆盖场景：前置引导真实核心能力（动漫在线观看、聚合多个视频源、弹幕与选集播放），后接剧情简介截取。
  */
 export function formatSubjectDescription(
   name: string,
@@ -35,7 +35,7 @@ export function formatSubjectDescription(
   maxLen = 160,
 ): string {
   const baseName = (name || '').trim() || '番剧'
-  const prefix = `《${baseName}》动漫全集高清在线观看！Animaku 为您提供《${baseName}》无广告弹幕在线播放与画质超分。`
+  const prefix = `《${baseName}》动漫在线观看。Animaku 聚合多个视频源，支持弹幕与选集播放。`
   const summary = (rawSummary || '').replace(/\s+/g, ' ').trim()
   if (!summary) {
     return prefix
@@ -58,7 +58,7 @@ export function generateSubjectKeywords(
   tags?: string[],
 ): string[] {
   const baseName = (name || '').trim()
-  if (!baseName) return ['番剧在线', '在线观看', '1080P高清播放', '无广告动漫']
+  if (!baseName) return ['番剧在线', '在线观看']
 
   const list = [
     baseName,
@@ -66,11 +66,8 @@ export function generateSubjectKeywords(
     `${baseName} 在线`,
     `${baseName}动漫`,
     `${baseName} 在线观看`,
-    `${baseName}全集`,
     '番剧在线',
     '在线观看',
-    '1080P高清播放',
-    '无广告动漫',
   ]
   if (altName && altName.trim() && altName.trim() !== baseName) {
     const cleanAlt = altName.trim()

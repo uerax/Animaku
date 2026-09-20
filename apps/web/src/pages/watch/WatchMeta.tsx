@@ -388,6 +388,8 @@ export function WatchMeta({
   if (compact && !metaOpen) {
     return (
       <div className="kz-watch-meta">
+        {/* 移动端默认折叠：此时没有其它 h1，补一个同文案的 sr-only h1（展开态由下方可见 h1 接管） */}
+        <h1 className="sr-only">{title}</h1>
         <button
           type="button"
           onClick={onToggleMeta}
@@ -433,7 +435,6 @@ export function WatchMeta({
             <div className="flex items-start gap-2">
               <h1 className="min-w-0 flex-1 text-sm font-semibold leading-snug tracking-tight text-[var(--kz-fg)]">
                 {title}
-                <span className="sr-only"> 动漫全集在线观看 1080P高清播放</span>
               </h1>
               {onToggleMeta ? (
                 <button
@@ -512,7 +513,6 @@ export function WatchMeta({
       <div className="min-w-0 flex-1 space-y-2">
         <h1 className="text-lg font-semibold leading-snug tracking-tight text-[var(--kz-fg)] sm:text-xl">
           {title}
-          <span className="sr-only"> 动漫全集在线观看 1080P高清播放</span>
         </h1>
         {item?.nameCn && item.name && item.nameCn !== item.name && (
           <p className="text-[13px] text-[var(--kz-fg-muted)]">{item.name}</p>

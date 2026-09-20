@@ -439,18 +439,20 @@ export function renderSuccessPage(
 
   html = html.replace(/<\/head>/i, headInject)
 
-  // 7. Inject Semantic <noscript> inside #root
-  const noscriptContent = `      <noscript>
-        <h1>《${escapeHtml(name)}》动漫全集在线观看</h1>
-        ${altName ? `<h2>${escapeHtml(altName)}</h2>` : ''}
-        <p>Animaku 动漫为您提供《${escapeHtml(name)}》1080P 高清无广告在线播放、分集列表与多源播放支持。</p>
-        <p>剧情简介：${escapeHtml(rawSummary || metaDesc)}</p>
-        ${coverUrl ? `<img src="${escapeHtml(coverUrl)}" alt="《${escapeHtml(name)}》动漫在线观看海报" width="400" height="533" />` : ''}
-      </noscript>`
+  // 7. Inject static SEO skeleton into #root as REAL DOM (not <noscript>).
+  // Keep h1 text identical to the client-rendered h1 (WatchMeta) — one h1 per page.
+  // No <div> here: the replace regex below stops at the first </div>.
+  // Style attribute guarantees ZERO flash of unstyled content (FOUC) before external CSS loads.
+  const SKELETON_STYLE = 'position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;'
+  const skeleton = `      <h1 class="sr-only" style="${SKELETON_STYLE}">${escapeHtml(name)}</h1>
+      ${altName ? `<p class="sr-only" style="${SKELETON_STYLE}">${escapeHtml(altName)}</p>` : ''}
+      <p class="sr-only" style="${SKELETON_STYLE}">${escapeHtml(rawSummary || metaDesc)}</p>
+      ${coverUrl ? `<img class="sr-only" style="${SKELETON_STYLE}" src="${escapeHtml(coverUrl)}" alt="${escapeHtml(name)} 海报" width="400" height="533" />` : ''}
+      <noscript>请启用 JavaScript 以使用播放器与弹幕功能。</noscript>`
 
   html = html.replace(
     /<div id="root">[\s\S]*?<\/div>/i,
-    `<div id="root">\n${noscriptContent}\n    </div>`,
+    `<div id="root">\n${skeleton}\n    </div>`,
   )
 
   return html
@@ -496,15 +498,14 @@ export function render404Page(templateHtml: string, subjectId: number): string {
     )
   }
 
-  // Noscript 404 notice
-  const noscript404 = `      <noscript>
-        <h1>404 - 该番剧不存在或已下架</h1>
-        <p>未找到对应的 Bangumi 条目 (ID: ${escapeHtml(String(subjectId))})。</p>
-      </noscript>`
+  // 404 skeleton as REAL DOM (not <noscript>)
+  const skeleton404 = `      <h1 class="sr-only" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;">404 - 该番剧不存在或已下架</h1>
+      <p class="sr-only" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;">未找到对应的 Bangumi 条目 (ID: ${escapeHtml(String(subjectId))})。</p>
+      <noscript>请启用 JavaScript 以使用完整功能。</noscript>`
 
   html = html.replace(
     /<div id="root">[\s\S]*?<\/div>/i,
-    `<div id="root">\n${noscript404}\n    </div>`,
+    `<div id="root">\n${skeleton404}\n    </div>`,
   )
 
   return html

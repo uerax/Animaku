@@ -4,6 +4,48 @@
 
 ---
 
+## [2026-09-20] 修复全站缺失 h1 缺陷、收敛夸大 SEO 措辞并解决首屏 FOUC 闪烁 (v1.13.10)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **首屏静态骨架转正为真实 DOM 并彻底根除闪烁 (`index.html`, `seo-prerender.ts`)**：
+     - 将 `<h1>` 与简介移出 `<noscript>`，作为真实 DOM 输出在 `#root` 内部；
+     - 注入原生内联样式 `style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;"` 并在 `<head>` 预定义 `.sr-only`，彻底解决外部 CSS 未下载完成前浏览器按默认 UA 样式裸露渲染巨大黑字标题的 FOUC 闪烁问题；
+     - 注释注明此处避免包裹 `<div>`，防止服务端正则替换提前截断；
+     - 404 页面同步改造为带内联样式的真实 DOM 骨架。
+  2. **收敛详情页与整站 SEO 措辞（只写对每部番成立的事实，`shared/src/seo.ts`, `web/src/lib/seo.ts`, `vite.config.ts`）**：
+     - 详情页 `<title>` 收敛为《{name}》（{altName}）动漫在线观看 · Animaku，剔除不可靠的「全集」「1080P高清播放」夸大承诺；
+     - 详情页 Meta Description 前缀收敛为《{name}》动漫在线观看。Animaku 聚合多个视频源，支持弹幕与选集播放。；
+     - Meta Keywords 剔除「X全集」「1080P高清播放」「无广告动漫」；
+     - 首页与 WebSite JSON-LD 描述收敛剔除「1080P 高清画质」，统一为自研弹幕播放、画质超分、OP / ED 智能跳过、Bangumi 每日更新时间表与追番历史。
+  3. **播放页移动端折叠态补齐与标题去重 (`WatchMeta.tsx`)**：
+     - 修复移动端在默认折叠态（`compact && !metaOpen`）下缺少 `<h1>` 导致爬虫抓取不到的隐蔽缺陷，补充同文案的 `<h1 className="sr-only">{title}</h1>`；
+     - 移除移动端展开态和桌面端两处隐蔽关键词堆砌（`<span className="sr-only"> 动漫全集在线观看 1080P高清播放</span>`），使全端 `<h1>` 纯粹统一。
+  4. **全链路工程与反向断言验证**：
+     - 单元测试全面补充负向断言：断言标题和描述中绝对不再出现 `1080P|高清|全集|无广告`；
+     - 断言页面严格只有 1 个 `<h1>`，且绝不在 `<noscript>` 内；
+     - 全仓 `pnpm typecheck` 0 报错通过；
+     - 服务端 108 项、Shared 78 项单元测试 100% 通过；
+     - 前端生产打包 `pnpm build:web` 成功，经真实打包产物与 SSR 渲染验证，首页、详情页、404 页均恰好 1 个真实 `<h1>`，且带内联防闪样式。
+- 涉及文件：
+  - apps/web/index.html
+  - apps/web/vite.config.ts
+  - apps/web/src/lib/seo.ts
+  - apps/web/src/pages/watch/WatchMeta.tsx
+  - apps/server/src/lib/seo-prerender.ts
+  - apps/server/src/lib/seo-prerender.test.ts
+  - packages/shared/src/seo.ts
+  - packages/shared/src/seo.test.ts
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+- 备注：彻底修复 Bing Webmaster 报告的“缺少 <h1> 标记”问题，消除爬虫移动端无 h1 及内部关键词堆砌风险。
+
+---
+
 ## [2026-09-15] 移除 EmbedPlayer iframe 兜底并统一解析失败换源占位提示 (v1.13.9)
 - 状态：已完成
 - 优先级：P2

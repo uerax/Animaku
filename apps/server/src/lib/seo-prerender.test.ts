@@ -125,14 +125,24 @@ test('renderSuccessPage: injects modulepreload tags cleanly into head', () => {
   const rendered = renderSuccessPage(mockTemplate, 622206, mockItem, 'https://animaku.app', preloadTags)
 
   assert.ok(rendered.includes('<link rel="modulepreload" crossorigin href="/assets/PlayPage-Test.js">'))
-  assert.ok(rendered.includes('<title>《尼古喵喵》（ヤニねこ）动漫在线观看全集 - 1080P高清播放 · Animaku</title>'))
+  assert.ok(rendered.includes('<title>《尼古喵喵》（ヤニねこ）动漫在线观看 · Animaku</title>'))
+  const titleMatch = rendered.match(/<title>([\s\S]*?)<\/title>/i)?.[1] || ''
+  const descMatch = rendered.match(/<meta\s+name="description"\s+content="([\s\S]*?)"\s*\/?>/i)?.[1] || ''
+  assert.ok(!/(1080P|高清|全集|无广告)/.test(titleMatch))
+  assert.ok(!/(1080P|高清|全集|无广告)/.test(descMatch))
   assert.ok(rendered.includes('data-animaku-jsonld="1"'))
   assert.ok(rendered.includes('"@type":"WatchAction"'))
   assert.ok(rendered.includes('name="keywords"'))
   assert.ok(rendered.includes('尼古喵喵在线'))
   assert.ok(rendered.includes('尼古喵喵 在线'))
   assert.ok(rendered.includes('尼古喵喵动漫'))
-  assert.ok(rendered.includes('<h1>《尼古喵喵》动漫全集在线观看</h1>'))
+  assert.ok(!rendered.includes('1080P高清播放'))
+  assert.ok(!rendered.includes('无广告动漫'))
+  assert.ok(!rendered.includes('尼古喵喵全集'))
+  assert.ok(/<h1 class="sr-only"[^>]*>尼古喵喵<\/h1>/.test(rendered))
+  // exactly one h1, and none of it lives inside <noscript>
+  assert.equal((rendered.match(/<h1[\s>]/g) || []).length, 1)
+  assert.ok(!/<noscript>[\s\S]*?<h1/i.test(rendered))
 })
 
 test('matchRouteName: matches all core routes and returns null for unmapped/home', () => {

@@ -39,9 +39,9 @@
     <title>Animaku 动漫</title>
     <meta
       name="description"
-      content="Animaku 多资源聚合的日漫番剧、剧场版动画在线观看，支持高性能自研弹幕播放、1080P 高清画质、画质超分、OP / ED智能跳过、Bangumi 每日更新时间表与追番历史，打造轻快稳定的二次元追番体验。"
+      content="Animaku 多资源聚合的日漫番剧、剧场版动画在线观看，支持高性能自研弹幕播放、画质超分、OP / ED 智能跳过、Bangumi 每日更新时间表与追番历史。"
     />
-    <meta name="keywords" content="Animaku,动漫,番剧,日漫,在线播放,弹幕,1080P,画质超分,Bangumi,追番时间表,剧场版动画" />
+    <meta name="keywords" content="Animaku,动漫,番剧,日漫,在线播放,弹幕,画质超分,Bangumi,追番时间表,剧场版动画" />
 
     <!--canonical-url-->
     <!--website-jsonld-->
@@ -52,7 +52,7 @@
     <meta property="og:title" content="Animaku 动漫" />
     <meta
       property="og:description"
-      content="Animaku 多资源聚合的日漫番剧、剧场版动画在线观看，支持高性能自研弹幕播放、1080P 高清画质、画质超分、OP / ED智能跳过、Bangumi 每日更新时间表与追番历史，打造轻快稳定的二次元追番体验。"
+      content="Animaku 多资源聚合的日漫番剧、剧场版动画在线观看，支持高性能自研弹幕播放、画质超分、OP / ED 智能跳过、Bangumi 每日更新时间表与追番历史。"
     />
     <meta property="og:image" content="/android-chrome-512x512.png" />
 
@@ -60,17 +60,20 @@
     <meta name="twitter:title" content="Animaku 动漫" />
     <meta
       name="twitter:description"
-      content="Animaku 多资源聚合的日漫番剧、剧场版动画在线观看，支持高性能自研弹幕播放、1080P 高清画质、画质超分、OP / ED智能跳过、Bangumi 每日更新时间表与追番历史，打造轻快稳定的二次元追番体验。"
+      content="Animaku 多资源聚合的日漫番剧、剧场版动画在线观看，支持高性能自研弹幕播放、画质超分、OP / ED 智能跳过、Bangumi 每日更新时间表与追番历史。"
     />
     <meta name="twitter:image" content="/android-chrome-512x512.png" />
+    <style>
+      .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0; }
+    </style>
   </head>
   <body>
     <div id="root">
-      <!-- 预埋静态 SEO 占位内容：供爬虫直接提取高质量文本，React 挂载后自动替换 -->
-      <noscript>
-        <h1>Animaku 动漫</h1>
-        <p>Animaku 多资源聚合的日漫番剧、剧场版动画在线观看，支持高性能自研弹幕播放、1080P 高清画质、画质超分、OP / ED智能跳过、Bangumi 每日更新时间表与追番历史，打造轻快稳定的二次元追番体验。</p>
-      </noscript>
+      <!-- 静态 SEO 骨架：真实 DOM（非 noscript），爬虫读原始 HTML 即可拿到唯一 h1；React 挂载后整体替换。
+           注意：此处不要放 <div>，服务端预渲染用 /<div id="root">[\s\S]*?<\/div>/ 替换。 -->
+      <h1 class="sr-only" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;">Animaku 动漫 - 在线高清动画多源聚合弹幕平台</h1>
+      <p class="sr-only" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;">Animaku 多资源聚合的日漫番剧、剧场版动画在线观看，支持高性能自研弹幕播放、画质超分、OP / ED 智能跳过、Bangumi 每日更新时间表与追番历史。</p>
+      <noscript>请启用 JavaScript 以使用播放器与弹幕功能。</noscript>
     </div>
     <script>
       // Early theme paint before React — match animaku-settings localStorage
