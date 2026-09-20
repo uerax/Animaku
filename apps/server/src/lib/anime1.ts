@@ -7,13 +7,14 @@
  *  resolve  → episode HTML data-apireq → POST https://v.anime1.me/api
  *             → progressive mp4 + path-scoped cookies → media proxy
  */
-import type {
-  PluginChapterResult,
-  PluginRule,
-  PluginSearchResult,
-  ResolvePlayResult,
-  Road,
-  SearchItem,
+import {
+  decodeHtmlEntities,
+  type PluginChapterResult,
+  type PluginRule,
+  type PluginSearchResult,
+  type ResolvePlayResult,
+  type Road,
+  type SearchItem,
 } from '@animaku/shared'
 import { config } from '../config'
 import { fetchPublic } from './private-host'
@@ -177,17 +178,7 @@ function extractSearchHits(html: string): {
 }
 
 function decodeHtml(s: string): string {
-  return s
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, h) =>
-      String.fromCharCode(parseInt(h, 16)),
-    )
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&nbsp;/g, ' ')
-    .trim()
+  return decodeHtmlEntities(s).trim()
 }
 
 /** Group episode posts into series SearchItems via category page */

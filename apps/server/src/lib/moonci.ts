@@ -14,13 +14,14 @@
  *   - Referer: Must NOT send moonci referer (CDN returns 400 with referer, 206 without referer).
  *   - Native no-referrer player direct playback (0 proxy bandwidth consumption).
  */
-import type {
-  PluginChapterResult,
-  PluginRule,
-  PluginSearchResult,
-  ResolvePlayResult,
-  Road,
-  SearchItem,
+import {
+  decodeHtmlEntities,
+  type PluginChapterResult,
+  type PluginRule,
+  type PluginSearchResult,
+  type ResolvePlayResult,
+  type Road,
+  type SearchItem,
 } from '@animaku/shared'
 import { config } from '../config'
 import { assertPublicHttpUrl, fetchPublic } from './private-host'
@@ -58,18 +59,7 @@ interface MoonciSuggestResponse {
 }
 
 function decodeHtml(s: string): string {
-  return s
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, h) =>
-      String.fromCharCode(parseInt(h, 16)),
-    )
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, ' ')
-    .trim()
+  return decodeHtmlEntities(s).trim()
 }
 
 /**

@@ -4,6 +4,53 @@
 
 ---
 
+## [2026-09-21] 修复 Sitemap 虚假 lastmod 与实体二次转义，移除 AggregateRating 并收敛 llms.txt (v1.13.12)
+- 状态：已完成
+- 优先级：P2
+- 描述：
+  1. **Sitemap lastmod 语义收敛与根除未来日期 (`apps/server/src/lib/seo-static.ts`)**：
+     - 彻底删除将开播日期当修改时间的 `getValidLastmodDate` 函数；
+     - 番剧条目（`/subject/:id`）按 sitemap.org 官方规范彻底移除 `<lastmod>` 标签，杜绝未来日期与 07-01 批量伪造时间对搜索引擎信誉的损害；
+     - 静态路由中仅对真正每日连载更新的 `/` 与 `/timeline` 输出 `<lastmod>${today}</lastmod>`，每周维度的 `/anime` 省略 `<lastmod>`。
+  2. **公共单遍 HTML 实体解码器与数据源清洗 (`packages/shared/src/html.ts`, `packages/shared/src/bangumi.ts`)**：
+     - 新增 `decodeHtmlEntities` 工具，采用单次正则扫描遍历，从机制上杜绝 `&amp;#39;` 多重递归误解码；
+     - 覆盖十进制、十六进制（不区分大小写）与命名实体，无效码点安全保留不崩溃；
+     - 在 `parseBangumiItem` 解析 `name`、`nameCn`、`summary` 与别名 `parseBangumiAliases` 时前置清洗实体，彻底解决类似 `595106`（`Let&#39;s Go 怪奇组`）在 Sitemap 图片标题中被二次转义为 `Let&amp;#39;s Go` 的缺陷；
+     - 视频源适配器 `moonci.ts`、`anime1.ts`、`omofun.ts` 内部重复的 `decodeHtml` 统一收敛复用该函数，`danmaku.ts` 保持原样独立不动避免破坏弹幕去重。
+  3. **遵守 Google 规范彻底移除 AggregateRating (`apps/server/src/lib/seo-prerender.ts`)**：
+     - 遵守 Google Review Snippet 指南（严禁第三方站搬运其他平台评分），彻底移除详情页 JSON-LD 中的 `AggregateRating`，杜绝结构化数据人工处罚风险，仅保留合规的 `TVSeries` 与 `BreadcrumbList`。
+  4. **单一信源化与收敛 llms.txt 规范 (`apps/server/src/lib/seo-static.ts`, `apps/web/public/llms.txt`)**：
+     - 删除静态副本 `apps/web/public/llms.txt`，由服务端动态路由统一为单一真实信源（SSOT）；
+     - 修正《葬送的芙莉莲》示例 ID 为真实的 `400602`（纠正旧有漫画 ID 400653）；
+     - 统一品牌名称为 Animaku，剔除“无广告”、“高清流媒体播放”、“100% 同步”等夸大表述，并移除公开 API 承诺。
+  5. **工程验证**：
+     - 全仓 `pnpm typecheck` 0 报错；
+     - Shared 84 项、Server 109 项单元测试（共 193 项）100% 通过；
+     - 前端生产打包 `pnpm build:web` 1.87s 构建成功；
+     - 依据规范通过 `pnpm bump patch` 将版本号提升至 `v1.13.12`。
+- 涉及文件：
+  - packages/shared/src/html.ts (新增)
+  - packages/shared/src/html.test.ts (新增)
+  - packages/shared/src/index.ts
+  - packages/shared/src/bangumi.ts
+  - packages/shared/src/bangumi.test.ts
+  - apps/server/src/lib/moonci.ts
+  - apps/server/src/lib/anime1.ts
+  - apps/server/src/lib/omofun.ts
+  - apps/server/src/lib/seo-static.ts
+  - apps/server/src/lib/seo-static.test.ts
+  - apps/server/src/lib/seo-prerender.ts
+  - apps/server/src/lib/seo-prerender.test.ts
+  - apps/web/public/llms.txt (已删除)
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+
+---
+
 ## [2026-09-20] 精简 SEO 骨架行内样式与迁移 root 容器防截断注释 (v1.13.11)
 - 状态：已完成
 - 优先级：P3

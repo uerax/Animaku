@@ -137,3 +137,21 @@ test('parseBangumiItem: doing, collect and heat count extraction', () => {
   assert.equal(item4.doing, 1200)
   assert.equal(item4.heat, 5800)
 })
+
+test('parseBangumiItem & parseBangumiAliases: decodes HTML entities in name, nameCn, summary and aliases', () => {
+  const item = parseBangumiItem({
+    id: 595106,
+    name: 'レッツゴー怪奇組',
+    name_cn: 'Let&#39;s Go 怪奇组',
+    summary: '测试简介 &amp; &#39;剧情&#39; &quot;前瞻&quot;',
+    infobox: [
+      { key: '别名', value: 'Let&#39;s Go! 怪奇组' },
+      { key: '别名', values: ['怪奇组&#39;s 冒险', '怪奇组 &amp; 小伙伴'] },
+    ],
+  })
+
+  assert.equal(item.nameCn, "Let's Go 怪奇组")
+  assert.equal(item.summary, '测试简介 & \'剧情\' "前瞻"')
+  assert.equal(item.alias[0], "Let's Go! 怪奇组")
+})
+

@@ -276,17 +276,6 @@ export function buildJsonLd(args: {
         ],
       },
     },
-    ...(args.ratingScore && args.ratingScore > 0 && args.ratingVotes && args.ratingVotes > 0
-      ? {
-          aggregateRating: {
-            '@type': 'AggregateRating',
-            ratingValue: Number(args.ratingScore.toFixed(1)),
-            bestRating: 10,
-            worstRating: 1,
-            ratingCount: args.ratingVotes,
-          },
-        }
-      : {}),
     url: args.canonicalUrl,
     identifier: String(args.id),
   }

@@ -11,12 +11,13 @@
  *
  * Match only omofun/211dm hosts or exact rule names — never other plugins.
  */
-import type {
-  PluginChapterResult,
-  PluginRule,
-  PluginSearchResult,
-  Road,
-  SearchItem,
+import {
+  decodeHtmlEntities,
+  type PluginChapterResult,
+  type PluginRule,
+  type PluginSearchResult,
+  type Road,
+  type SearchItem,
 } from '@animaku/shared'
 import { config } from '../config'
 import { assertPublicHttpUrl, fetchPublic } from './private-host'
@@ -96,18 +97,7 @@ function getSetCookieList(res: Response): string[] {
 }
 
 function decodeHtml(s: string): string {
-  return s
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, h) =>
-      String.fromCharCode(parseInt(h, 16)),
-    )
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, ' ')
-    .trim()
+  return decodeHtmlEntities(s).trim()
 }
 
 /** Parse search result cards → unique /anime/{hash}.html items */

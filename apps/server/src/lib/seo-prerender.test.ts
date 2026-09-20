@@ -18,7 +18,7 @@ import {
   stripTemplateHomepageSeo,
 } from './seo-prerender'
 
-test('buildJsonLd: builds TVSeries and BreadcrumbList schema objects with aggregateRating', () => {
+test('buildJsonLd: builds TVSeries and BreadcrumbList schema objects without aggregateRating (Google compliance)', () => {
   const [tvSeries, breadcrumbs] = buildJsonLd({
     id: 100403,
     name: 'Fate/stay night [Unlimited Blade Works]',
@@ -42,14 +42,8 @@ test('buildJsonLd: builds TVSeries and BreadcrumbList schema objects with aggreg
   assert.ok(watchAction)
   assert.equal(watchAction['@type'], 'WatchAction')
 
-  // Verify aggregateRating structure
-  const agg = tvSeries.aggregateRating as Record<string, unknown>
-  assert.ok(agg)
-  assert.equal(agg['@type'], 'AggregateRating')
-  assert.equal(agg.ratingValue, 8.4)
-  assert.equal(agg.bestRating, 10)
-  assert.equal(agg.worstRating, 1)
-  assert.equal(agg.ratingCount, 12500)
+  // Strictly assert aggregateRating is omitted to comply with Google review snippet guidelines
+  assert.equal(tvSeries.aggregateRating, undefined)
 
   // Verify breadcrumbs
   assert.equal(breadcrumbs['@type'], 'BreadcrumbList')
@@ -59,7 +53,7 @@ test('buildJsonLd: builds TVSeries and BreadcrumbList schema objects with aggreg
   assert.equal(list[2].name, 'Fate/stay night [Unlimited Blade Works]')
 })
 
-test('buildJsonLd: gracefully omits aggregateRating when score or votes is missing', () => {
+test('buildJsonLd: consistently omits aggregateRating when score or votes is missing', () => {
   const [tvSeries] = buildJsonLd({
     id: 999999,
     name: '新番未开播',

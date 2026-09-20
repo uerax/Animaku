@@ -1,4 +1,5 @@
 import { bangumiImageUrl, preferResizedCover } from './bangumi-endpoint'
+import { decodeHtmlEntities } from './html'
 export { preferResizedCover }
 
 /** Local collect type — CollectType (const object for better ESM interop) */
@@ -426,9 +427,9 @@ export function parseBangumiItem(json: Record<string, unknown>): BangumiItem {
   return {
     id: Number(json.id),
     type: Number(json.type ?? 2),
-    name: String(json.name ?? ''),
-    nameCn: String(nameCnRaw),
-    summary: String(json.summary ?? ''),
+    name: decodeHtmlEntities(String(json.name ?? '')),
+    nameCn: decodeHtmlEntities(String(nameCnRaw)),
+    summary: decodeHtmlEntities(String(json.summary ?? '')),
     airDate: String(airDate),
     airWeekday: dateToWeekday(String(airDate)),
     rank: Number(rating.rank ?? 0),
@@ -473,14 +474,17 @@ export function parseBangumiAliases(
     if (Array.isArray(raw)) {
       return raw
         .map((element) => {
+          let str = ''
           if (element && typeof element === 'object' && 'v' in element) {
-            return String((element as { v: unknown }).v ?? '').trim()
+            str = String((element as { v: unknown }).v ?? '').trim()
+          } else {
+            str = String(element ?? '').trim()
           }
-          return String(element ?? '').trim()
+          return decodeHtmlEntities(str).trim()
         })
         .filter((a) => a.length > 0)
     }
-    const text = String(raw).trim()
+    const text = decodeHtmlEntities(String(raw)).trim()
     return text ? [text] : []
   }
   return []
