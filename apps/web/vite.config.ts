@@ -84,6 +84,52 @@ export default defineConfig(({ mode }) => {
   const apiProxyTarget =
     get('API_PROXY_TARGET') || `http://${apiProxyHost}:${apiPort}`
 
+  const clarityId = (get('VITE_CLARITY_ID') || get('CLARITY_ID') || '').trim()
+  const gaId = (get('VITE_GA_ID') || get('GA_ID') || '').trim()
+  const baiduTongjiId = (
+    get('VITE_BAIDU_TONGJI_ID') ||
+    get('BAIDU_TONGJI_ID') ||
+    ''
+  ).trim()
+
+  const safeClarityId = clarityId.replace(/[^a-zA-Z0-9_-]/g, '')
+  const safeGaId = gaId.replace(/[^a-zA-Z0-9_-]/g, '')
+  const safeBaiduTongjiId = baiduTongjiId.replace(/[^a-zA-Z0-9_-]/g, '')
+
+  const analyticsSnippets: string[] = []
+  if (safeClarityId) {
+    analyticsSnippets.push(`    <!-- Microsoft Clarity -->
+    <script type="text/javascript">
+      (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i+"?ref=bwt";
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+      })(window, document, "clarity", "script", "${safeClarityId}");
+    </script>`)
+  }
+  if (safeGaId) {
+    analyticsSnippets.push(`    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=${safeGaId}"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', '${safeGaId}');
+    </script>`)
+  }
+  if (safeBaiduTongjiId) {
+    analyticsSnippets.push(`    <!-- Baidu Tongji -->
+    <script>
+      var _hmt = _hmt || [];
+      (function() {
+        var hm = document.createElement("script");
+        hm.src = "https://hm.baidu.com/hm.js?${safeBaiduTongjiId}";
+        var s = document.getElementsByTagName("script")[0];
+        s.parentNode.insertBefore(hm, s);
+      })();
+    </script>`)
+  }
+
   return {
     envDir: repoRoot,
     plugins: [
@@ -189,6 +235,17 @@ export default defineConfig(({ mode }) => {
             .replace('<!--website-jsonld-->', scriptTag)
         },
       },
+      {
+        // Inject privacy-compliant analytics scripts (Clarity, GA4, Baidu Tongji) if configured in env.
+        name: 'animaku-analytics-injection',
+        transformIndexHtml(html: string) {
+          const replacement =
+            analyticsSnippets.length > 0 ? `${analyticsSnippets.join('\n')}\n` : ''
+          return html
+            .replace('    <!--analytics-scripts-->\n', replacement)
+            .replace('<!--analytics-scripts-->', replacement)
+        },
+      },
     ],
     define: {
       'import.meta.env.VITE_APP_VERSION': JSON.stringify(
@@ -209,6 +266,8 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.VITE_NAV_SHOW_GITHUB': JSON.stringify(
         get('VITE_NAV_SHOW_GITHUB') ?? '',
       ),
+      'import.meta.env.VITE_CLARITY_ID': JSON.stringify(safeClarityId),
+      'import.meta.env.VITE_GA_ID': JSON.stringify(safeGaId),
     },
     resolve: {
       alias: {

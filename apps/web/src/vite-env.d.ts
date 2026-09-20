@@ -35,6 +35,14 @@ interface ImportMetaEnv {
    * Bangumi 封面图片源 host；由 vite.config.ts 注入，设置页可覆盖。
    */
   readonly VITE_BANGUMI_IMAGE_HOST?: string
+  /**
+   * Microsoft Clarity 项目 ID（如 your_clarity_project_id）
+   */
+  readonly VITE_CLARITY_ID?: string
+  /**
+   * Google Analytics 4 (GA4) 衡量 ID（如 G-XXXXXXXXXX）
+   */
+  readonly VITE_GA_ID?: string
 }
 
 interface ImportMeta {
