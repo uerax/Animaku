@@ -228,11 +228,11 @@ const [hlsRes, fbRes] = await Promise.allSettled([
 
 ---
 
-### 步骤六：全仓验证与状态记录
+### 步骤六：全仓验证与代码提交
 
 1. **类型检查**：运行 `pnpm typecheck`，确保 3 个 Workspace 编译 0 错误；
 2. **构建测试**：运行 `pnpm build`，验证前后端打包完全成功；
-3. **状态记录**：按照 `CLAUDE.md` 规则，在 `.claude/STATE.md` 中追加记录本次改动。
+3. **规范提交**：按照规范提交 Git commit 记录本次视频源改动。
 
 ---
 

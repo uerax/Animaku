@@ -71,29 +71,31 @@ test('buildDynamicSitemapXml: subjects have no lastmod and no double-escaped ent
   const calKey = `bangumi:${config.bangumiApiHost}:calendar`
   const trendKey = `bangumi:${config.bangumiApiHost}:trending:2:48:0`
 
+  const testOrigin = 'https://sitemap-test.animaku.local'
+
   // Pre-seed calendar and trending cache to test real parsing and isolate from external network
   cacheSet(calKey, { data: [[parsedItem]] }, 60_000)
   cacheSet(trendKey, { data: [parsedItem] }, 60_000)
 
   try {
-    const xml = await buildDynamicSitemapXml('https://animaku.test', true)
+    const xml = await buildDynamicSitemapXml(testOrigin, true)
 
     assert.ok(xml.startsWith('<?xml version="1.0" encoding="UTF-8"?>'))
-    assert.ok(xml.includes('<loc>https://animaku.test/</loc>'))
-    assert.ok(xml.includes('<loc>https://animaku.test/anime</loc>'))
-    assert.ok(xml.includes('<loc>https://animaku.test/timeline</loc>'))
+    assert.ok(xml.includes(`<loc>${testOrigin}/</loc>`))
+    assert.ok(xml.includes(`<loc>${testOrigin}/anime</loc>`))
+    assert.ok(xml.includes(`<loc>${testOrigin}/timeline</loc>`))
 
     // 1. Static entries: / and /timeline have daily lastmod, /anime does NOT have lastmod
     const today = new Date().toISOString().slice(0, 10)
     const homeBlock = xml.slice(
-      xml.indexOf('<loc>https://animaku.test/</loc>'),
-      xml.indexOf('<loc>https://animaku.test/anime</loc>'),
+      xml.indexOf(`<loc>${testOrigin}/</loc>`),
+      xml.indexOf(`<loc>${testOrigin}/anime</loc>`),
     )
     assert.ok(homeBlock.includes(`<lastmod>${today}</lastmod>`), 'Home route has daily lastmod')
 
     const animeBlock = xml.slice(
-      xml.indexOf('<loc>https://animaku.test/anime</loc>'),
-      xml.indexOf('<loc>https://animaku.test/timeline</loc>'),
+      xml.indexOf(`<loc>${testOrigin}/anime</loc>`),
+      xml.indexOf(`<loc>${testOrigin}/timeline</loc>`),
     )
     assert.ok(!animeBlock.includes('<lastmod>'), 'Anime route omits lastmod because it is weekly')
 
