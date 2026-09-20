@@ -1,5 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { parseBangumiItem } from '@animaku/shared'
+import { config } from '../config'
+import { cacheSet, cacheDelete } from './ttl-cache'
 import { buildRobotsTxt, buildLlmsTxt, buildDynamicSitemapXml } from './seo-static'
 
 test('buildRobotsTxt: contains explicit rules for mainstream AI bots', () => {
@@ -51,28 +54,65 @@ test('buildLlmsTxt: generates restrained markdown with accurate Frieren ID and n
 })
 
 test('buildDynamicSitemapXml: subjects have no lastmod and no double-escaped entities', async () => {
-  const xml = await buildDynamicSitemapXml('https://animaku.test', true)
-
-  assert.ok(xml.startsWith('<?xml version="1.0" encoding="UTF-8"?>'))
-  assert.ok(xml.includes('<loc>https://animaku.test/</loc>'))
-  assert.ok(xml.includes('<loc>https://animaku.test/anime</loc>'))
-  assert.ok(xml.includes('<loc>https://animaku.test/timeline</loc>'))
-
-  // 1. Static entries: / and /timeline have daily lastmod, /anime does NOT have lastmod
-  const today = new Date().toISOString().slice(0, 10)
-  const homeBlock = xml.slice(xml.indexOf('<loc>https://animaku.test/</loc>'), xml.indexOf('<loc>https://animaku.test/anime</loc>'))
-  assert.ok(homeBlock.includes(`<lastmod>${today}</lastmod>`), 'Home route has daily lastmod')
-
-  const animeBlock = xml.slice(xml.indexOf('<loc>https://animaku.test/anime</loc>'), xml.indexOf('<loc>https://animaku.test/timeline</loc>'))
-  assert.ok(!animeBlock.includes('<lastmod>'), 'Anime route omits lastmod because it is weekly')
-
-  // 2. Dynamic subject entries MUST NOT contain <lastmod>
-  const subjectUrlBlocks = xml.split('<url>').filter((b) => b.includes('/subject/'))
-  for (const block of subjectUrlBlocks) {
-    assert.ok(!block.includes('<lastmod>'), 'Subject entries must omit <lastmod> to prevent fake/future dates')
+  // Pass upstream raw JSON with HTML entity through parseBangumiItem (real pipeline)
+  const rawSubject = {
+    id: 595106,
+    name: 'レッツゴー怪奇組',
+    name_cn: 'Let&#39;s Go 怪奇组',
+    images: {
+      large: 'https://lain.bgm.tv/pic/cover/l/61/8d/595106.jpg',
+    },
+    air_date: '2026-07-05',
+    airtime: { date: '2026-07-05' },
+    summary: '测试简介',
   }
+  const parsedItem = parseBangumiItem(rawSubject)
 
-  // 3. Must not contain double-escaped HTML entities like &amp;#39; or &amp;#
-  assert.ok(!xml.includes('&amp;#'), 'Sitemap XML must not double-escape HTML entities into &amp;#')
+  const calKey = `bangumi:${config.bangumiApiHost}:calendar`
+  const trendKey = `bangumi:${config.bangumiApiHost}:trending:2:48:0`
+
+  // Pre-seed calendar and trending cache to test real parsing and isolate from external network
+  cacheSet(calKey, { data: [[parsedItem]] }, 60_000)
+  cacheSet(trendKey, { data: [parsedItem] }, 60_000)
+
+  try {
+    const xml = await buildDynamicSitemapXml('https://animaku.test', true)
+
+    assert.ok(xml.startsWith('<?xml version="1.0" encoding="UTF-8"?>'))
+    assert.ok(xml.includes('<loc>https://animaku.test/</loc>'))
+    assert.ok(xml.includes('<loc>https://animaku.test/anime</loc>'))
+    assert.ok(xml.includes('<loc>https://animaku.test/timeline</loc>'))
+
+    // 1. Static entries: / and /timeline have daily lastmod, /anime does NOT have lastmod
+    const today = new Date().toISOString().slice(0, 10)
+    const homeBlock = xml.slice(
+      xml.indexOf('<loc>https://animaku.test/</loc>'),
+      xml.indexOf('<loc>https://animaku.test/anime</loc>'),
+    )
+    assert.ok(homeBlock.includes(`<lastmod>${today}</lastmod>`), 'Home route has daily lastmod')
+
+    const animeBlock = xml.slice(
+      xml.indexOf('<loc>https://animaku.test/anime</loc>'),
+      xml.indexOf('<loc>https://animaku.test/timeline</loc>'),
+    )
+    assert.ok(!animeBlock.includes('<lastmod>'), 'Anime route omits lastmod because it is weekly')
+
+    // 2. Dynamic subject entries: ensure mock subject is included and MUST NOT contain <lastmod>
+    const subjectUrlBlocks = xml.split('<url>').filter((b) => b.includes('/subject/'))
+    assert.ok(subjectUrlBlocks.length > 0, 'Subject entries count must be > 0 to guarantee verification')
+    for (const block of subjectUrlBlocks) {
+      assert.ok(!block.includes('<lastmod>'), 'Subject entries must omit <lastmod> to prevent fake/future dates')
+    }
+
+    // 3. Entity decoding in XML: Title must be escaped into &apos; (Let&apos;s Go), NOT &amp;#39;
+    assert.ok(
+      xml.includes('<image:title>Let&apos;s Go 怪奇组</image:title>'),
+      'Subject title must be safely decoded from &#39; and escaped as &apos;',
+    )
+    assert.ok(!xml.includes('&amp;#'), 'Sitemap XML must not double-escape HTML entities into &amp;#')
+  } finally {
+    cacheDelete(calKey)
+    cacheDelete(trendKey)
+  }
 })
 

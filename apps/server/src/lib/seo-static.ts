@@ -116,7 +116,7 @@ export function buildLlmsTxt(origin: string): string {
 
   return `# Animaku
 
-> Animaku 是一个极简、现代的番剧信息与聚合播放平台。以 Bangumi 官方权威元数据为主权，集成多源视频解析、双源弹幕实时对齐与去重、以及现代化播放体验。
+> Animaku 是一个极简、现代的番剧信息与聚合播放平台。以 Bangumi 官方权威元数据为准，集成多源视频解析、双源弹幕实时对齐与去重、以及现代化播放体验。
 
 ## 核心页面与索引 (Core Pages)
 

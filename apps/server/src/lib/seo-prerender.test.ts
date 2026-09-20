@@ -28,8 +28,6 @@ test('buildJsonLd: builds TVSeries and BreadcrumbList schema objects without agg
     datePublished: '2014-10-04',
     canonicalUrl: 'https://animaku.app/subject/100403',
     origin: 'https://animaku.app',
-    ratingScore: 8.4,
-    ratingVotes: 12500,
   })
 
   assert.equal(tvSeries['@type'], 'TVSeries')
@@ -53,14 +51,12 @@ test('buildJsonLd: builds TVSeries and BreadcrumbList schema objects without agg
   assert.equal(list[2].name, 'Fate/stay night [Unlimited Blade Works]')
 })
 
-test('buildJsonLd: consistently omits aggregateRating when score or votes is missing', () => {
+test('buildJsonLd: consistently omits aggregateRating across minimal subjects', () => {
   const [tvSeries] = buildJsonLd({
     id: 999999,
     name: '新番未开播',
     canonicalUrl: 'https://animaku.app/subject/999999',
     origin: 'https://animaku.app',
-    ratingScore: 0,
-    ratingVotes: 0,
   })
 
   assert.equal(tvSeries.aggregateRating, undefined)

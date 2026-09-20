@@ -14,23 +14,27 @@
      - 静态路由中仅对真正每日连载更新的 `/` 与 `/timeline` 输出 `<lastmod>${today}</lastmod>`，每周维度的 `/anime` 省略 `<lastmod>`。
   2. **公共单遍 HTML 实体解码器与数据源清洗 (`packages/shared/src/html.ts`, `packages/shared/src/bangumi.ts`)**：
      - 新增 `decodeHtmlEntities` 工具，采用单次正则扫描遍历，从机制上杜绝 `&amp;#39;` 多重递归误解码；
-     - 覆盖十进制、十六进制（不区分大小写）与命名实体，无效码点安全保留不崩溃；
+     - **XML 1.0 安全码点保护 (`isXmlSafeCodePoint`)**：十进制与十六进制严格校验 `0x9 | 0xA | 0xD | [0x20-0xD7FF] | [0xE000-0x10FFFF]`，遇到 `&#0;`、C0 控制字符或代理区码点（`0xD800-0xDFFF`）时原样保留为实体字符串，杜绝破坏 XML 语法导致全站 Sitemap 被拒读；
      - 在 `parseBangumiItem` 解析 `name`、`nameCn`、`summary` 与别名 `parseBangumiAliases` 时前置清洗实体，彻底解决类似 `595106`（`Let&#39;s Go 怪奇组`）在 Sitemap 图片标题中被二次转义为 `Let&amp;#39;s Go` 的缺陷；
      - 视频源适配器 `moonci.ts`、`anime1.ts`、`omofun.ts` 内部重复的 `decodeHtml` 统一收敛复用该函数，`danmaku.ts` 保持原样独立不动避免破坏弹幕去重。
-  3. **遵守 Google 规范彻底移除 AggregateRating (`apps/server/src/lib/seo-prerender.ts`)**：
-     - 遵守 Google Review Snippet 指南（严禁第三方站搬运其他平台评分），彻底移除详情页 JSON-LD 中的 `AggregateRating`，杜绝结构化数据人工处罚风险，仅保留合规的 `TVSeries` 与 `BreadcrumbList`。
+  3. **遵守 Google 规范彻底移除 AggregateRating 并清理废弃参数 (`apps/server/src/lib/seo-prerender.ts`)**：
+     - 遵守 Google Review Snippet 指南（严禁第三方站搬运其他平台评分），彻底移除详情页 JSON-LD 中的 `AggregateRating`，杜绝结构化数据人工处罚风险，仅保留合规的 `TVSeries` 与 `BreadcrumbList`；
+     - 清理 `buildJsonLd` 参数类型与 `renderSuccessPage` 中残留的废弃 `ratingScore`、`ratingVotes` 参数。
   4. **单一信源化与收敛 llms.txt 规范 (`apps/server/src/lib/seo-static.ts`, `apps/web/public/llms.txt`)**：
      - 删除静态副本 `apps/web/public/llms.txt`，由服务端动态路由统一为单一真实信源（SSOT）；
      - 修正《葬送的芙莉莲》示例 ID 为真实的 `400602`（纠正旧有漫画 ID 400653）；
-     - 统一品牌名称为 Animaku，剔除“无广告”、“高清流媒体播放”、“100% 同步”等夸大表述，并移除公开 API 承诺。
-  5. **工程验证**：
+     - 统一品牌名称为 Animaku，剔除“无广告”、“高清流媒体播放”、“100% 同步”等夸大表述，并将“为主权”润色为“为准”，彻底移除公开 API 承诺。
+  5. **Sitemap 真实链路单元测试重构与变异测试验证 (`apps/server/src/lib/seo-static.test.ts`)**：
+     - 测试脱离外部网络，通过将带 `&#39;` 的原始 JSON 经 `parseBangumiItem` 真实清洗后再预置到内存缓存中；
+     - 显式断言条目数量大于 0，杜绝空循环假绿；断言条目无 `<lastmod>`，且标题被正确转义为 `Let&apos;s Go 怪奇组`（全篇无 `&amp;#`）；
+     - 人为变异测试：临时去掉清洗调用，确认新测试精准拦截失败，再行恢复，确保测试 100% 有效。
+  6. **工程验证**：
      - 全仓 `pnpm typecheck` 0 报错；
      - Shared 84 项、Server 109 项单元测试（共 193 项）100% 通过；
-     - 前端生产打包 `pnpm build:web` 1.87s 构建成功；
-     - 依据规范通过 `pnpm bump patch` 将版本号提升至 `v1.13.12`。
+     - 前端生产打包 `pnpm build:web` 构建成功。
 - 涉及文件：
-  - packages/shared/src/html.ts (新增)
-  - packages/shared/src/html.test.ts (新增)
+  - packages/shared/src/html.ts
+  - packages/shared/src/html.test.ts
   - packages/shared/src/index.ts
   - packages/shared/src/bangumi.ts
   - packages/shared/src/bangumi.test.ts

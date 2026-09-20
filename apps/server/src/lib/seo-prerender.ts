@@ -247,8 +247,6 @@ export function buildJsonLd(args: {
   datePublished?: string
   canonicalUrl: string
   origin: string
-  ratingScore?: number
-  ratingVotes?: number
   genre?: string[]
   keywords?: string
 }): [Record<string, unknown>, Record<string, unknown>] {
@@ -342,8 +340,6 @@ export function renderSuccessPage(
     datePublished: item.airDate || undefined,
     canonicalUrl,
     origin,
-    ratingScore: item.ratingScore,
-    ratingVotes: item.votes,
     genre: genreList,
     keywords: keywordsStr,
   })

@@ -25,9 +25,21 @@ test('decodeHtmlEntities: strict single-pass decoding prevents recursive decodin
   assert.equal(decodeHtmlEntities('Let&amp;#39;s Go'), 'Let&#39;s Go')
 })
 
-test('decodeHtmlEntities: preserves unknown entities and invalid code points safely without crash', () => {
+test('decodeHtmlEntities: preserves unknown entities, invalid code points and XML 1.0 illegal characters safely', () => {
   assert.equal(decodeHtmlEntities('&unknown;'), '&unknown;')
   assert.equal(decodeHtmlEntities('&#999999999;'), '&#999999999;')
   assert.equal(decodeHtmlEntities('&#x999999999;'), '&#x999999999;')
   assert.equal(decodeHtmlEntities('&#xyz;'), '&#xyz;')
+
+  // XML 1.0 illegal control characters and surrogates must be preserved as-is
+  assert.equal(decodeHtmlEntities('&#0;'), '&#0;', 'Preserves NUL character entity &#0;')
+  assert.equal(decodeHtmlEntities('&#x0;'), '&#x0;', 'Preserves hex NUL &#x0;')
+  assert.equal(decodeHtmlEntities('&#x1;'), '&#x1;', 'Preserves C0 control character &#x1;')
+  assert.equal(decodeHtmlEntities('&#xD800;'), '&#xD800;', 'Preserves surrogate half &#xD800;')
+  assert.equal(decodeHtmlEntities('&#xDFFF;'), '&#xDFFF;', 'Preserves surrogate half &#xDFFF;')
+
+  // Normal valid characters (including Japanese / CJK / unicode) must still be decoded normally
+  assert.equal(decodeHtmlEntities('&#x3042;'), 'あ', 'Normal valid unicode still decodes correctly')
+  assert.equal(decodeHtmlEntities('&#x9;'), '\t', 'Tab is safe in XML and decodes')
+  assert.equal(decodeHtmlEntities('&#xA;'), '\n', 'Newline is safe in XML and decodes')
 })
