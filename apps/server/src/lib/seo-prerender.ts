@@ -441,13 +441,11 @@ export function renderSuccessPage(
 
   // 7. Inject static SEO skeleton into #root as REAL DOM (not <noscript>).
   // Keep h1 text identical to the client-rendered h1 (WatchMeta) — one h1 per page.
-  // No <div> here: the replace regex below stops at the first </div>.
-  // Style attribute guarantees ZERO flash of unstyled content (FOUC) before external CSS loads.
-  const SKELETON_STYLE = 'position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;'
-  const skeleton = `      <h1 class="sr-only" style="${SKELETON_STYLE}">${escapeHtml(name)}</h1>
-      ${altName ? `<p class="sr-only" style="${SKELETON_STYLE}">${escapeHtml(altName)}</p>` : ''}
-      <p class="sr-only" style="${SKELETON_STYLE}">${escapeHtml(rawSummary || metaDesc)}</p>
-      ${coverUrl ? `<img class="sr-only" style="${SKELETON_STYLE}" src="${escapeHtml(coverUrl)}" alt="${escapeHtml(name)} 海报" width="400" height="533" />` : ''}
+  // Note: Do not wrap with <div> here; the replace regex below stops at the first </div>.
+  const skeleton = `      <h1 class="sr-only">${escapeHtml(name)}</h1>
+      ${altName ? `<p class="sr-only">${escapeHtml(altName)}</p>` : ''}
+      <p class="sr-only">${escapeHtml(rawSummary || metaDesc)}</p>
+      ${coverUrl ? `<img class="sr-only" src="${escapeHtml(coverUrl)}" alt="${escapeHtml(name)} 海报" width="400" height="533" />` : ''}
       <noscript>请启用 JavaScript 以使用播放器与弹幕功能。</noscript>`
 
   html = html.replace(
@@ -499,8 +497,8 @@ export function render404Page(templateHtml: string, subjectId: number): string {
   }
 
   // 404 skeleton as REAL DOM (not <noscript>)
-  const skeleton404 = `      <h1 class="sr-only" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;">404 - 该番剧不存在或已下架</h1>
-      <p class="sr-only" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;">未找到对应的 Bangumi 条目 (ID: ${escapeHtml(String(subjectId))})。</p>
+  const skeleton404 = `      <h1 class="sr-only">404 - 该番剧不存在或已下架</h1>
+      <p class="sr-only">未找到对应的 Bangumi 条目 (ID: ${escapeHtml(String(subjectId))})。</p>
       <noscript>请启用 JavaScript 以使用完整功能。</noscript>`
 
   html = html.replace(

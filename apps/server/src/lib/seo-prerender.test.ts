@@ -139,7 +139,7 @@ test('renderSuccessPage: injects modulepreload tags cleanly into head', () => {
   assert.ok(!rendered.includes('1080P高清播放'))
   assert.ok(!rendered.includes('无广告动漫'))
   assert.ok(!rendered.includes('尼古喵喵全集'))
-  assert.ok(/<h1 class="sr-only"[^>]*>尼古喵喵<\/h1>/.test(rendered))
+  assert.ok(rendered.includes('<h1 class="sr-only">尼古喵喵</h1>'))
   // exactly one h1, and none of it lives inside <noscript>
   assert.equal((rendered.match(/<h1[\s>]/g) || []).length, 1)
   assert.ok(!/<noscript>[\s\S]*?<h1/i.test(rendered))

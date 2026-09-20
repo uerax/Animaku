@@ -4,15 +4,41 @@
 
 ---
 
+## [2026-09-20] 精简 SEO 骨架行内样式与迁移 root 容器防截断注释 (v1.13.11)
+- 状态：已完成
+- 优先级：P3
+- 描述：
+  1. **迁移正则防护注释至 `#root` 外部 (`apps/web/index.html`)**：
+     - 将原本位于 `#root` 内部且包含 `<div>` 说明的注释移至 `#root` 上方外部，彻底规避后续维护误改导致服务端预渲染非贪婪匹配截断的潜在风险。
+  2. **剔除冗余重复的内联 style (`index.html`, `seo-prerender.ts`, `seo-prerender.test.ts`)**：
+     - 依托 `<head>` 预置的 `.sr-only` 规则统领首屏 0 像素占位防闪烁能力，清理 `index.html` 与 `seo-prerender.ts` 骨架标签上重复的行内 `style` 属性，保持 HTML 源码轻量清爽。
+  3. **工程验证**：
+     - 单元测试与全仓 `pnpm typecheck` 0 报错通过；
+     - 生产打包 `pnpm build:web` 成功，SSR 渲染验证无行内样式残留且闭合完整；
+     - 依据规范执行 `pnpm bump patch` 升级至 `v1.13.11`。
+- 涉及文件：
+  - apps/web/index.html
+  - apps/server/src/lib/seo-prerender.ts
+  - apps/server/src/lib/seo-prerender.test.ts
+  - package.json
+  - apps/web/package.json
+  - apps/server/package.json
+  - packages/shared/package.json
+  - packages/shared/src/version.ts
+  - .claude/STATE.md
+
+---
+
 ## [2026-09-20] 修复全站缺失 h1 缺陷、收敛夸大 SEO 措辞并解决首屏 FOUC 闪烁 (v1.13.10)
 - 状态：已完成
 - 优先级：P2
 - 描述：
   1. **首屏静态骨架转正为真实 DOM 并彻底根除闪烁 (`index.html`, `seo-prerender.ts`)**：
      - 将 `<h1>` 与简介移出 `<noscript>`，作为真实 DOM 输出在 `#root` 内部；
-     - 注入原生内联样式 `style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;"` 并在 `<head>` 预定义 `.sr-only`，彻底解决外部 CSS 未下载完成前浏览器按默认 UA 样式裸露渲染巨大黑字标题的 FOUC 闪烁问题；
-     - 注释注明此处避免包裹 `<div>`，防止服务端正则替换提前截断；
-     - 404 页面同步改造为带内联样式的真实 DOM 骨架。
+     - 在 `<head>` 预定义 `.sr-only` 内联样式，彻底解决外部 CSS 未下载完成前浏览器按默认 UA 样式裸露渲染巨大黑字标题的 FOUC 闪烁问题；
+     - 将正则相关提示注释挪出 `#root` 容器外部，避免注释内容出现 `<div>` 字眼诱发服务端正则截断隐患；
+     - 剔除各标签上冗余重复的内联 style，保持 HTML 清爽轻量；
+     - 404 页面同步改造为纯净真实 DOM 骨架。
   2. **收敛详情页与整站 SEO 措辞（只写对每部番成立的事实，`shared/src/seo.ts`, `web/src/lib/seo.ts`, `vite.config.ts`）**：
      - 详情页 `<title>` 收敛为《{name}》（{altName}）动漫在线观看 · Animaku，剔除不可靠的「全集」「1080P高清播放」夸大承诺；
      - 详情页 Meta Description 前缀收敛为《{name}》动漫在线观看。Animaku 聚合多个视频源，支持弹幕与选集播放。；
