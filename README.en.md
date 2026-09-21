@@ -45,7 +45,7 @@
 | **🔌 Sources & Switching** | Built-in curated streaming sources, drag-and-drop priority sorting, and quick source switching |
 | **📅 Wiki & Tracking** | Bangumi weekly schedule, anime / cinema search, watchlist tracking with Bangumi Token sync |
 | **🖥️ UX & Design** | Desktop Widescreen mode, smart recommendations, mobile touch gestures, light/dark dual-theme |
-| **🔒 Privacy & Perf** | 100% stored locally in browser, zero tracking; ultra-lightweight memory footprint |
+| **🔒 Privacy & Perf** | 100% stored locally in browser, zero tracking by default (optional build-time analytics for self-hosters); ultra-lightweight memory footprint |
 
 ## ✨ Core Features
 
@@ -80,7 +80,7 @@
   - **Mobile Touch Gestures**: Double-tap to play/pause, long-press for 2.0x turbo speed, and smooth horizontal slide to seek with time delta HUD.
 
 - 🔒 **Private & Resource-Efficient**
-  - **Zero Telemetry**: No tracking SDKs or commercial analytics. All history, bookmarks, and tokens stay in your browser.
+  - **Zero Tracking by Default**: No tracking SDKs or commercial analytics bundled by default. All history, bookmarks, and tokens stay in your browser. Deployers may opt in via build-time env vars and are responsible for user disclosure and compliance.
   - **Ultra-Lightweight**: Minimal memory and CPU usage; runs effortlessly even on small 512MB RAM virtual machines.
 
 ## 🚀 Quick Start
@@ -215,7 +215,7 @@ By default, the client uses a shared built-in key. For maximum stability, regist
 This software is provided "as is" for learning, personal self-hosting, and educational purposes. Animaku does not host or distribute any video media. All content is indexed from third-party public sources. Users are responsible for complying with applicable local laws and intellectual property rights.
 
 ### Privacy Protection
-* **Zero Telemetry**: No usage analytics or commercial tracking scripts.
+* **Zero Telemetry by Default**: No usage analytics or commercial tracking scripts by default. Deployers configuring third-party analytics (e.g., Clarity/GA4) must handle user notification and local compliance.
 * **Local Storage**: All history, favorites, and settings remain 100% in your browser (`localStorage`).
 
 ### Acknowledgements

@@ -236,7 +236,7 @@ export default defineConfig(({ mode }) => {
         },
       },
       {
-        // Inject privacy-compliant analytics scripts (Clarity, GA4, Baidu Tongji) if configured in env.
+        // Inject optional analytics scripts (Clarity, GA4, Baidu Tongji) if configured in build-time env.
         name: 'animaku-analytics-injection',
         transformIndexHtml(html: string) {
           const replacement =
@@ -266,8 +266,6 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.VITE_NAV_SHOW_GITHUB': JSON.stringify(
         get('VITE_NAV_SHOW_GITHUB') ?? '',
       ),
-      'import.meta.env.VITE_CLARITY_ID': JSON.stringify(safeClarityId),
-      'import.meta.env.VITE_GA_ID': JSON.stringify(safeGaId),
     },
     resolve: {
       alias: {

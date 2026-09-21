@@ -33,6 +33,9 @@ services:
         VITE_HOMEPAGE_LABEL: ${VITE_HOMEPAGE_LABEL:-}
         VITE_CONTACT_EMAIL: ${VITE_CONTACT_EMAIL:-}
         VITE_FOOTER_NOTE: ${VITE_FOOTER_NOTE:-}
+        VITE_CLARITY_ID: ${VITE_CLARITY_ID:-}
+        VITE_GA_ID: ${VITE_GA_ID:-}
+        VITE_BAIDU_TONGJI_ID: ${VITE_BAIDU_TONGJI_ID:-}
     image: animaku:local
     container_name: animaku
     # Host PORT → container PORT (production single process; no Vite)

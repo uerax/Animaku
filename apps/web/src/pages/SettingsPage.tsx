@@ -486,6 +486,7 @@ export function SettingsPage() {
           创建后粘贴到下方。Token 仅保存在本机浏览器。
         </p>
         <textarea
+          data-clarity-mask="True"
           value={tokenInput}
           onChange={(e) => setTokenInput(e.target.value)}
           rows={3}
