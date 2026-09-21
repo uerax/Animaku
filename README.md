@@ -220,7 +220,6 @@ Anime4K 依赖本地浏览器的 WebGPU 显卡硬件计算。如果设备显卡�
 
 ### 特别致谢
 感谢以下优秀的开源项目与平台为 Animaku 提供的灵感支持：
-* [AniBaka](https://github.com/AniBakaBaka/AniBaka) —— 灵感参考
 * [Kazumi](https://github.com/Predidit/Kazumi) —— 早期灵感参考
 * [Bangumi 番组计划](https://bangumi.tv/) 开放平台 —— 丰富的二次元番剧元数据与时间表
 * [弹弹play](https://www.dandanplay.com/) 开放平台 —— 详尽的番剧弹幕库支持

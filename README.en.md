@@ -219,7 +219,6 @@ This software is provided "as is" for learning, personal self-hosting, and educa
 * **Local Storage**: All history, favorites, and settings remain 100% in your browser (`localStorage`).
 
 ### Acknowledgements
-* [AniBaka](https://github.com/AniBakaBaka/AniBaka) —— Design inspiration
 * [Kazumi](https://github.com/Predidit/Kazumi) —— Architecture and design inspiration
 * [Bangumi 番组计划](https://bangumi.tv/)
 * [弹弹play](https://www.dandanplay.com/)
