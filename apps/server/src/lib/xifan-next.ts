@@ -19,12 +19,14 @@ import type {
 import { config } from '../config'
 import { fetchPublic } from './private-host'
 
-const DEFAULT_SUPABASE_URL = 'https://rzmsnqblptbceicadbyd.supabase.co'
+const DEFAULT_SUPABASE_URL = 'https://api.xifanacg.com'
 const DEFAULT_PUBLISHABLE_KEY =
-  'sb_publishable_aCb7uwyLN6H-sMjze4dRGA_2MDuROLF'
+  'sb_publishable_OBIVAWACIX6lPXrO98_z24_HcsmalkA'
 
+let cachedBaseUrl = DEFAULT_SUPABASE_URL
 let cachedKey = DEFAULT_PUBLISHABLE_KEY
-let keyLastRefreshedAt = 0
+let credentialsLastRefreshedAt = 0
+let refreshingPromise: Promise<{ baseUrl: string; key: string }> | null = null
 
 export function isXifanNextRule(rule: PluginRule): boolean {
   const name = (rule.name || '').toLowerCase().trim()
@@ -34,8 +36,24 @@ export function isXifanNextRule(rule: PluginRule): boolean {
   const base = (rule.baseURL || '').toLowerCase()
   return (
     base.includes('next.xifanacg.com') ||
+    base.includes('api.xifanacg.com') ||
     base.includes('rzmsnqblptbceicadbyd.supabase.co')
   )
+}
+
+function isAllowedSupabaseBaseUrl(urlStr: string): boolean {
+  try {
+    const u = new URL(urlStr)
+    if (u.protocol !== 'https:') return false
+    const host = u.hostname.toLowerCase()
+    return (
+      host === 'api.xifanacg.com' ||
+      host.endsWith('.xifanacg.com') ||
+      host.endsWith('.supabase.co')
+    )
+  } catch {
+    return false
+  }
 }
 
 function getHeaders(customKey?: string): Record<string, string> {
@@ -50,56 +68,109 @@ function getHeaders(customKey?: string): Record<string, string> {
 }
 
 /**
- * Auto-recover publishable key from next.xifanacg.com JS chunks if Supabase returns 401/403.
+ * Auto-recover publishable key and base URL from next.xifanacg.com JS chunks if Supabase returns 401/403.
+ * Uses single-flight deduplication to avoid multiple concurrent refreshes.
  */
-async function refreshPublishableKey(): Promise<string> {
+async function refreshSupabaseCredentials(): Promise<{
+  baseUrl: string
+  key: string
+}> {
+  if (refreshingPromise) {
+    return refreshingPromise
+  }
+
   const now = Date.now()
-  if (now - keyLastRefreshedAt < 60_000 && cachedKey !== DEFAULT_PUBLISHABLE_KEY) {
-    return cachedKey
+  if (now - credentialsLastRefreshedAt < 60_000) {
+    return { baseUrl: cachedBaseUrl, key: cachedKey }
   }
-  keyLastRefreshedAt = now
+  credentialsLastRefreshedAt = now
 
-  try {
-    const homeRes = await fetchPublic(
-      'https://next.xifanacg.com',
-      {
-        headers: { 'User-Agent': config.defaultUserAgent },
-      },
-      { timeoutMs: 5_000 },
-    )
-    if (!homeRes.ok) return cachedKey
-    const html = await homeRes.text()
+  refreshingPromise = (async () => {
+    try {
+      const homeRes = await fetchPublic(
+        'https://next.xifanacg.com',
+        {
+          headers: { 'User-Agent': config.defaultUserAgent },
+        },
+        { timeoutMs: 5_000 },
+      )
+      if (!homeRes.ok) return { baseUrl: cachedBaseUrl, key: cachedKey }
+      const html = await homeRes.text()
 
-    const chunkPaths = [
-      ...html.matchAll(/src=["'](\/_next\/static\/chunks\/[^"']+\.js)["']/g),
-    ].map((m) => m[1])
+      const chunkPaths = [
+        ...html.matchAll(/src=["'](\/_next\/static\/chunks\/[^"']+\.js)["']/g),
+      ].map((m) => m[1])
 
-    // Concurrently probe up to 6 JS chunks to quickly extract publishable key
-    const targets = chunkPaths.slice(0, 6)
-    const results = await Promise.allSettled(
-      targets.map(async (chunkPath) => {
-        const chunkRes = await fetchPublic(
-          `https://next.xifanacg.com${chunkPath}`,
-          { headers: { 'User-Agent': config.defaultUserAgent } },
-          { timeoutMs: 4_000 },
-        )
-        if (!chunkRes.ok) return null
-        const chunkText = await chunkRes.text()
-        const match = chunkText.match(/sb_publishable_[A-Za-z0-9_-]+/)
-        return match ? match[0] : null
-      }),
-    )
+      // Concurrently probe JS chunks to extract base URL and publishable key
+      const results = await Promise.allSettled(
+        chunkPaths.map(async (chunkPath) => {
+          const chunkRes = await fetchPublic(
+            `https://next.xifanacg.com${chunkPath}`,
+            { headers: { 'User-Agent': config.defaultUserAgent } },
+            { timeoutMs: 4_000 },
+          )
+          if (!chunkRes.ok) return null
+          const chunkText = await chunkRes.text()
 
-    for (const r of results) {
-      if (r.status === 'fulfilled' && r.value) {
-        cachedKey = r.value
-        return cachedKey
+          // Match pattern like ("https://api.xifanacg.com","sb_publishable_...")
+          const pairMatch = chunkText.match(
+            /"(https:\/\/[^"]+)","(sb_publishable_[A-Za-z0-9_-]+)"/,
+          )
+          if (pairMatch && isAllowedSupabaseBaseUrl(pairMatch[1])) {
+            return { baseUrl: pairMatch[1], key: pairMatch[2] }
+          }
+
+          const keyMatch = chunkText.match(/sb_publishable_[A-Za-z0-9_-]+/)
+          const urlMatch = chunkText.match(
+            /https:\/\/(?:[a-z0-9-]+\.supabase\.co|api\.xifanacg\.com)/,
+          )
+          if (keyMatch) {
+            const urlCandidate = urlMatch ? urlMatch[0] : null
+            return {
+              baseUrl:
+                urlCandidate && isAllowedSupabaseBaseUrl(urlCandidate)
+                  ? urlCandidate
+                  : null,
+              key: keyMatch[0],
+            }
+          }
+          return null
+        }),
+      )
+
+      for (const r of results) {
+        if (r.status === 'fulfilled' && r.value) {
+          if (r.value.baseUrl) {
+            cachedBaseUrl = r.value.baseUrl
+          }
+          if (r.value.key) {
+            cachedKey = r.value.key
+          }
+          if (r.value.baseUrl && r.value.key) {
+            break
+          }
+        }
       }
+    } catch {
+      /* ignore refresh failure */
     }
-  } catch {
-    /* ignore refresh failure */
+    return { baseUrl: cachedBaseUrl, key: cachedKey }
+  })().finally(() => {
+    refreshingPromise = null
+  })
+
+  return refreshingPromise
+}
+
+function buildSupabaseUrl(baseUrl: string, endpoint: string): string {
+  let url = `${baseUrl}${endpoint}`
+  if (endpoint.startsWith('/functions/v1/')) {
+    const separator = url.includes('?') ? '&' : '?'
+    if (!url.includes('forceFunctionRegion=')) {
+      url = `${url}${separator}forceFunctionRegion=ap-southeast-1`
+    }
   }
-  return cachedKey
+  return url
 }
 
 async function fetchSupabaseJson<T>(
@@ -111,13 +182,7 @@ async function fetchSupabaseJson<T>(
     headers?: Record<string, string>
   } = {},
 ): Promise<T> {
-  let url = `${DEFAULT_SUPABASE_URL}${endpoint}`
-  if (endpoint.startsWith('/functions/v1/')) {
-    const separator = url.includes('?') ? '&' : '?'
-    if (!url.includes('forceFunctionRegion=')) {
-      url = `${url}${separator}forceFunctionRegion=ap-southeast-1`
-    }
-  }
+  let url = buildSupabaseUrl(cachedBaseUrl, endpoint)
   const method = options.method || (options.body ? 'POST' : 'GET')
   const timeoutMs = options.timeoutMs ?? 10_000
 
@@ -135,13 +200,14 @@ async function fetchSupabaseJson<T>(
   )
 
   if (res.status === 401 || res.status === 403) {
-    const newKey = await refreshPublishableKey()
+    const refreshed = await refreshSupabaseCredentials()
+    url = buildSupabaseUrl(refreshed.baseUrl, endpoint)
     res = await fetchPublic(
       url,
       {
         method,
         headers: {
-          ...getHeaders(newKey),
+          ...getHeaders(refreshed.key),
           ...options.headers,
         },
         body: options.body ? JSON.stringify(options.body) : undefined,
