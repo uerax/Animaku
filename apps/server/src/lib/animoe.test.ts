@@ -52,6 +52,8 @@ test('animoe: readTextLimited auto-decrypts enc! XOR obfuscated M3U8 stream', as
     encrypted[encryptedIdx] =
       textBytes[n] ^ mask[encryptedIdx % 10 < mask.length ? encryptedIdx % 10 : mask.length - 1] ^ key
   }
+  // The first character '#' (35) XOR mask[3] (167) XOR key (165) always produces 33 ('!')
+  assert.equal(encrypted[3], 33)
 
   const mockResponse = new Response(encrypted, {
     headers: { 'content-type': 'application/x-mpegURL' },
@@ -68,4 +70,13 @@ test('animoe: readTextLimited passes plain #EXTM3U without mutation', async () =
   })
   const text = await readTextLimited(mockResponse)
   assert.equal(text, plainM3u8)
+})
+
+test('animoe: readTextLimited does not decrypt non-enc! payloads', async () => {
+  const customPayload = 'enctest-non-m3u8-data'
+  const mockResponse = new Response(customPayload, {
+    headers: { 'content-type': 'text/plain' },
+  })
+  const text = await readTextLimited(mockResponse)
+  assert.equal(text, customPayload)
 })
