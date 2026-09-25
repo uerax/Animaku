@@ -960,6 +960,22 @@ export async function searchWithRule(
     }
   }
 
+  // animoe — dedicated adapter (MacCMS suggest API + NetEase CDN fMP4 HLS)
+  {
+    const { isAnimoeRule, searchAnimoe } = await import('../lib/animoe')
+    if (isAnimoeRule(rule)) {
+      try {
+        return await searchAnimoe(rule, keyword)
+      } catch (e) {
+        return {
+          pluginName: rule.name,
+          items: [],
+          diagnostics: [e instanceof Error ? e.message : String(e)],
+        }
+      }
+    }
+  }
+
   // Omofun / 211dm — search gate + hash detail URLs (chapters/resolve stay generic)
   {
     const { isOmofunRule, searchOmofun } = await import('../lib/omofun')
@@ -1292,6 +1308,22 @@ export async function chaptersWithRule(
     if (isLzizyRule(rule)) {
       try {
         return await chaptersLzizy(rule, source)
+      } catch (e) {
+        return {
+          pluginName: rule.name,
+          roads: [],
+          diagnostics: [e instanceof Error ? e.message : String(e)],
+        }
+      }
+    }
+  }
+
+  // animoe — dedicated adapter (module-tab-item & module-play-list multi-road extraction)
+  {
+    const { isAnimoeRule, chaptersAnimoe } = await import('../lib/animoe')
+    if (isAnimoeRule(rule)) {
+      try {
+        return await chaptersAnimoe(rule, source)
       } catch (e) {
         return {
           pluginName: rule.name,
@@ -1815,6 +1847,14 @@ export async function resolvePlay(
     const { isLzizyRule, resolveLzizy } = await import('../lib/lzizy')
     if (isLzizyRule(rule)) {
       return wrapResolveWithTicket(rule, await resolveLzizy(rule, pageUrl))
+    }
+  }
+
+  // animoe: dedicated adapter (player_aaaa & NetEase CDN fMP4 HLS Resolver)
+  {
+    const { isAnimoeRule, resolveAnimoe } = await import('../lib/animoe')
+    if (isAnimoeRule(rule)) {
+      return wrapResolveWithTicket(rule, await resolveAnimoe(rule, pageUrl))
     }
   }
 

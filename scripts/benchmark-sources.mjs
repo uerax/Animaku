@@ -20,6 +20,7 @@ function loadJson(relPath) {
 }
 
 const SOURCES = [
+  { key: 'animoe', name: 'Animoe (animoe.org)', rule: loadJson('apps/web/src/data/default-plugins/animoe.json') },
   { key: 'xifan-next', name: '稀饭 (xifan-next)', rule: loadJson('apps/web/src/data/default-plugins/xifan-next.json') },
   { key: 'cycani', name: '次元城 (cycani)', rule: loadJson('apps/web/src/data/default-plugins/cycani.json') },
   { key: 'girigiri', name: 'girigiri愛動漫', rule: loadJson('apps/web/src/data/default-plugins/girigiri.json') },
@@ -77,7 +78,7 @@ async function testCdn(url, referer) {
 
 async function main() {
   console.log('\n' + '='.repeat(80))
-  console.log('🏁 视频源性能与老番资源覆盖度全链路评测 (xifan-next / cycani / girigiri / mifun)')
+  console.log('🏁 视频源性能与老番资源覆盖度全链路评测 (animoe / xifan-next / cycani / girigiri / mifun)')
   console.log('='.repeat(80))
 
   // =========================================================================

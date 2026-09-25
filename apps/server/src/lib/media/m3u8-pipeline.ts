@@ -87,6 +87,21 @@ export async function readTextLimited(
     merged.set(c, offset)
     offset += c.byteLength
   }
+
+  // 识别并就地解密 MacCMS/AssPlayer 混淆的 M3U8 播放列表 (以 enc! 开头, ASCII: 101, 110, 99)
+  if (merged.length > 3 && merged[0] === 101 && merged[1] === 110 && merged[2] === 99) {
+    const mask = [144, 223, 214, 167, 22, 76, 53]
+    const key = 165
+    for (let n = 3; n < merged.length; n++) {
+      merged[n] = merged[n] ^ mask[n % 10 < mask.length ? n % 10 : mask.length - 1] ^ key
+    }
+    let text = new TextDecoder('utf-8', { fatal: false }).decode(merged.slice(3))
+    if (text.indexOf('#EXTM3U') > 300) {
+      text = text.slice(312)
+    }
+    return text
+  }
+
   return new TextDecoder('utf-8', { fatal: false }).decode(merged)
 }
 

@@ -1,0 +1,23 @@
+{
+  "api": "1",
+  "type": "anime",
+  "name": "animoe",
+  "version": "1.0",
+  "weight": 58,
+  "titlePreference": "chinese",
+  "muliSources": true,
+  "useWebview": false,
+  "useNativePlayer": true,
+  "usePost": false,
+  "useLegacyParser": false,
+  "userAgent": "",
+  "baseURL": "https://animoe.org/",
+  "searchURL": "https://animoe.org/index.php/ajax/suggest?mid=1&wd=@keyword",
+  "searchList": "//a",
+  "searchName": ".",
+  "searchResult": ".",
+  "chapterRoads": "//div",
+  "chapterResult": ".//a",
+  "referer": "https://animoe.org/",
+  "adBlockerMode": "none"
+}

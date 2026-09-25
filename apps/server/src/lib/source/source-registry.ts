@@ -14,6 +14,7 @@ import { cycaniAdapter } from './adapters/cycani'
 import { moonciAdapter } from './adapters/moonci'
 import { tvtfunAdapter } from './adapters/tvtfun'
 import { anime1Adapter } from './adapters/anime1'
+import { animoeAdapter } from './adapters/animoe'
 
 export interface SourceRegistryOptions {
   playback?: PlaybackRegistry
@@ -42,6 +43,7 @@ export class SourceRegistry {
       moonciAdapter,
       tvtfunAdapter,
       anime1Adapter,
+      animoeAdapter,
     ]
 
     for (const adapter of initialAdapters) {
@@ -97,6 +99,13 @@ export class SourceRegistry {
     }
     if (normalized === 'anime1' || normalized === 'anime1.me') {
       return this.adapters.get('anime1') || null
+    }
+    if (
+      normalized === 'animoe' ||
+      normalized === 'animoe动漫' ||
+      normalized === 'animoe.org'
+    ) {
+      return this.adapters.get('animoe') || null
     }
     return null
   }

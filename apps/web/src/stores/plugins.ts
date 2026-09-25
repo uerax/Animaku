@@ -36,7 +36,8 @@ migrateLocalStorageKey('animaku-plugins', [
 /** v29: add lzizy (Apple CMS V10 JSON API + all categories + 0ms direct HLS) with weight 60 */
 /** v30: upgrade title preference from preferOriginalTitle boolean to titlePreference enum ('chinese', 'chinese_compact', 'original', 'traditional') */
 /** v32: tune default plugin weights (girigiri & mifun 70 > cycani 69, moonci 65 > tvtfun 64) and prioritize tvtfun road D */
-export const PLUGIN_DEFAULTS_VERSION = 32
+/** v33: add animoe (animoe.org) built-in with weight 58 (below lzizy 59) */
+export const PLUGIN_DEFAULTS_VERSION = 33
 
 interface PluginState {
   plugins: PluginMeta[]
@@ -355,6 +356,7 @@ export const usePluginStore = create<PluginState>()(
             'mifun',
             'girigiri',
             'lzizy',
+            'animoe',
           ].map((s) => s.toLowerCase()),
         )
         const onlyLegacyBuiltins = plugins.every(

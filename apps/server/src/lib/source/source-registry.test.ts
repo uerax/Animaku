@@ -19,6 +19,7 @@ test('source-registry: lists built-in 6 tier adapters and handles alias normaliz
   assert.ok(ids.includes('moonci'))
   assert.ok(ids.includes('tvtfun'))
   assert.ok(ids.includes('anime1'))
+  assert.ok(ids.includes('animoe'))
 
   // 独立源独立存在
   const xifanNext = registry.getAdapter('xifan-next')
@@ -36,6 +37,7 @@ test('source-registry: lists built-in 6 tier adapters and handles alias normaliz
   assert.equal(registry.getAdapter('次元城')?.id, 'cycani')
   assert.equal(registry.getAdapter('月之祠')?.id, 'moonci')
   assert.equal(registry.getAdapter('anime1.me')?.id, 'anime1')
+  assert.equal(registry.getAdapter('animoe动漫')?.id, 'animoe')
 })
 
 test('source-registry: validateEgress enforces protocol, standard web ports, and public host boundary', () => {

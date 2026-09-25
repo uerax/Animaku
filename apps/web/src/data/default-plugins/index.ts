@@ -1,6 +1,7 @@
 import type { PluginRule } from '@animaku/shared'
 import cycani from './cycani.json'
 import tvtfun from './tvtfun.json'
+import animoe from './animoe.json'
 import moonci from './moonci.json'
 import mifun from './mifun.json'
 import girigiri from './girigiri.json'
@@ -19,7 +20,8 @@ import omofun from './omofun.json'
  * - cycani: 次元城 cycani.org — RESTful JSON API + multiple player lines + CF 1080P MP4 (weight: 69, titlePreference: chinese, oldAnimePriority: true)
  * - moonci: 月之祠 moonci.com — MacCMS JSON suggest API + multi-road extraction + 1080P MP4 (weight: 65, titlePreference: original)
  * - tvtfun: TvTFun tvtfun.net — Next.js RESTful API + 线路D优先 + 1080P BytePlus/Akamai MP4 (weight: 64, titlePreference: chinese)
- * - lzizy: 量子资源 lzizy.net / cj.lziapi.com — Apple CMS V10 JSON API + 全品类影视 + 0ms 纯直链 HLS (weight: 60, titlePreference: chinese)
+ * - lzizy: 量子资源 lzizy.net / cj.lziapi.com — Apple CMS V10 JSON API + 全品类影视 + 0ms 纯直链 HLS (weight: 59, titlePreference: chinese)
+ * - animoe: Animoe animoe.org — MacCMS suggest API + 多线路字幕组 + 网易云 CDN fMP4 HLS (weight: 58, titlePreference: chinese)
  * - mxdm: MacCMS-style third party (weight: 55)
  * - omofun: 211dm/omofuns — server search adapter (verify gate) + XPath chapters + player_aaaa (weight: 50, titlePreference: original)
  * - xifan: 稀饭 anime.xifanacg.com — suggest API search + HTML chapters + player_aaaa (weight: 50)
@@ -33,6 +35,7 @@ export const DEFAULT_PLUGIN_RULES: PluginRule[] = [
   moonci as PluginRule,
   tvtfun as PluginRule,
   lzizy as PluginRule,
+  animoe as PluginRule,
   mxdm as PluginRule,
   omofun as PluginRule,
   xifan as PluginRule,
