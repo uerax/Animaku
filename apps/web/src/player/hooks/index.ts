@@ -27,3 +27,11 @@ export {
   useMediaEngine,
   type UseMediaEngineOptions,
 } from './useMediaEngine'
+export {
+  useAudioBooster,
+  isAudioBoostSupported,
+  AUDIO_BOOST_OPTIONS,
+  type UseAudioBoosterOptions,
+  type UseAudioBoosterResult,
+} from './useAudioBooster'
+

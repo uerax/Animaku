@@ -15,9 +15,11 @@ import {
   IconSparkles,
   IconSpeed,
   IconStats,
+  IconVolume,
   IconWebFs,
   IconWidescreen,
 } from './icons'
+import { AUDIO_BOOST_OPTIONS } from '../hooks'
 
 export interface PlayerContextMenuProps {
   x: number
@@ -56,6 +58,10 @@ export interface PlayerContextMenuProps {
   videoWidth?: number
   videoHeight?: number
   bandwidthEstimateBps?: number
+  audioBoost?: number
+  audioBoostSupported?: boolean
+  onPickAudioBoost?: (multiplier: number) => void
+  onFlashHint?: (msg: string, ms?: number) => void
 }
 
 const ASPECT_RATIO_OPTIONS: { value: AspectRatioMode; label: string }[] = [
@@ -113,10 +119,14 @@ export function PlayerContextMenu({
   videoWidth = 0,
   videoHeight = 0,
   bandwidthEstimateBps = 0,
+  audioBoost = 1,
+  audioBoostSupported = true,
+  onPickAudioBoost,
+  onFlashHint,
 }: PlayerContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
   const [activeSubmenu, setActiveSubmenu] = useState<
-    'aspectRatio' | 'speed' | 'sr' | 'fullscreen' | null
+    'aspectRatio' | 'speed' | 'audioBoost' | 'sr' | 'fullscreen' | null
   >(null)
 
   // Open submenu to the right when context menu is near left border, otherwise to left
@@ -316,6 +326,57 @@ export function PlayerContextMenu({
           )}
         </div>
 
+        {/* Audio Boost Submenu */}
+        {onPickAudioBoost && (
+          <div
+            className="relative"
+            onMouseEnter={() => {
+              if (audioBoostSupported) setActiveSubmenu('audioBoost')
+            }}
+            onMouseLeave={() => {
+              if (audioBoostSupported) setActiveSubmenu(null)
+            }}
+          >
+            <MenuItem
+              icon={<IconVolume />}
+              label="声音增强"
+              value={
+                !audioBoostSupported
+                  ? '当前源不支持'
+                  : audioBoost > 1
+                    ? `${audioBoost.toFixed(1)}x`
+                    : '关闭'
+              }
+              active={audioBoostSupported && audioBoost > 1}
+              disabled={!audioBoostSupported}
+              hasSubmenu={audioBoostSupported}
+              onClick={
+                !audioBoostSupported
+                  ? () => {
+                      onFlashHint?.('当前第三方直链源受跨域限制，请切换 HLS 视频源', 2200)
+                      onClose()
+                    }
+                  : undefined
+              }
+            />
+            {audioBoostSupported && activeSubmenu === 'audioBoost' && (
+              <SubmenuContainer side={submenuSide}>
+                {AUDIO_BOOST_OPTIONS.map((opt) => (
+                  <SubmenuItem
+                    key={opt.value}
+                    label={opt.label}
+                    selected={Math.abs(audioBoost - opt.value) < 0.05}
+                    onClick={() => {
+                      onPickAudioBoost(opt.value)
+                      onClose()
+                    }}
+                  />
+                ))}
+              </SubmenuContainer>
+            )}
+          </div>
+        )}
+
         {/* Super Resolution Submenu */}
         <div
           className="relative"
@@ -456,6 +517,7 @@ interface MenuItemProps {
   value?: string
   shortcut?: string
   active?: boolean
+  disabled?: boolean
   hasSubmenu?: boolean
   onClick?: () => void
 }
@@ -466,17 +528,21 @@ function MenuItem({
   value,
   shortcut,
   active,
+  disabled,
   hasSubmenu,
   onClick,
 }: MenuItemProps) {
   return (
     <button
       type="button"
+      disabled={disabled}
       onClick={onClick}
       className={`flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs font-normal transition-colors ${
-        active
-          ? 'bg-sky-500/20 text-sky-300 font-medium'
-          : 'text-slate-200 hover:bg-white/10 hover:text-white'
+        disabled
+          ? 'cursor-not-allowed opacity-45 text-slate-400'
+          : active
+            ? 'bg-sky-500/20 text-sky-300 font-medium'
+            : 'text-slate-200 hover:bg-white/10 hover:text-white'
       }`}
     >
       <div className="flex items-center gap-2 truncate">

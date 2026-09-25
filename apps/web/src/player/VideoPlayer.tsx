@@ -53,6 +53,7 @@ import {
   useDanmakuBridge,
   usePlaybackResume,
   useMediaEngine,
+  useAudioBooster,
 } from './hooks'
 
 export type { DanmakuPanelState, VideoPlayerProps } from './types'
@@ -547,6 +548,19 @@ export function VideoPlayer({
     onFlashHint: flashSrHint,
   })
 
+  // Audio Booster (Web Audio gain + soft limiter)
+  const {
+    audioBoost,
+    setAudioBoost,
+    supported: audioBoostSupported,
+  } = useAudioBooster({
+    videoRef,
+    activeSrc,
+    formatHint,
+    isLocal: Boolean(localVideo),
+    onFlashHint: flashSkipHint,
+  })
+
   // First episode skip protection handlers
   function handleConfirmFirstEpSkip() {
     if (!firstEpPrompt) return
@@ -792,6 +806,11 @@ export function VideoPlayer({
       aspectRatio,
       speed: player.speed || 1,
       volume: player.volume ?? 0.7,
+      audioBoost: !audioBoostSupported
+        ? '不支持 (直链受限)'
+        : audioBoost > 1
+          ? `${audioBoost.toFixed(1)}x`
+          : '1.0x (关闭)',
       srMode: player.superResolution || 'off',
       srActive,
       engine: activeSrc.includes('.m3u8') ? 'HLS.js (MSE)' : 'Progressive MP4',
@@ -1121,6 +1140,7 @@ export function VideoPlayer({
     >
       {/* Full-size video */}
       <video
+        key={audioBoostSupported ? 'cors-audio' : 'direct-audio'}
         ref={videoRef}
         className="kz-native-video"
         playsInline
@@ -1316,6 +1336,10 @@ export function VideoPlayer({
           videoWidth={videoRef.current?.videoWidth || 0}
           videoHeight={videoRef.current?.videoHeight || 0}
           bandwidthEstimateBps={bandwidthEstimateBps}
+          audioBoost={audioBoost}
+          audioBoostSupported={audioBoostSupported}
+          onPickAudioBoost={setAudioBoost}
+          onFlashHint={flashSkipHint}
         />
       )}
 
