@@ -68,7 +68,7 @@ async function fetchText(
         {
           headers,
         },
-        { timeoutMs: opts.timeoutMs ?? 15_000 },
+        { timeoutMs: opts.timeoutMs ?? 15_000, source: 'anime1' },
       )
     } catch (e) {
       // Network-level failure — different headers won't change routing, stop.
@@ -460,7 +460,7 @@ export async function resolveAnime1(
       },
       body: `d=${apireq}`,
     },
-    { timeoutMs: 15_000 },
+    { timeoutMs: 15_000, source: 'anime1' },
   )
 
   const cookie = cookiesFromResponse(apiRes)

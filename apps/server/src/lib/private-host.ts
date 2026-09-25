@@ -4,6 +4,7 @@
  */
 import dns from 'node:dns'
 import { fetch as undiciFetch, Agent, buildConnector } from 'undici'
+import { getDispatcherForSource } from './outbound-proxy'
 
 function stripBrackets(hostname: string): string {
   if (hostname.startsWith('[') && hostname.endsWith(']')) {
@@ -306,6 +307,8 @@ export async function fetchPublic(
     maxRedirects?: number
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     dispatcher?: any
+    /** 声明调用来源视频源（如 'cycani'），支持通过 SOURCE_PROXY_MAP 路由至专属出站代理 */
+    source?: string
   } = {},
 ): Promise<Response> {
   const timeoutMs = opts.timeoutMs ?? 20_000
@@ -323,7 +326,8 @@ export async function fetchPublic(
   const currentHeaders = new Headers(init.headers || {})
   let currentMethod = (init.method || 'GET').toUpperCase()
   let currentBody: BodyInit | null | undefined = init.body
-  const dispatcher = opts.dispatcher || safeDispatcher
+  const sourceDispatcher = opts.source ? getDispatcherForSource(opts.source) : null
+  const dispatcher = opts.dispatcher || sourceDispatcher || safeDispatcher
 
   for (let hop = 0; hop <= maxRedirects; hop++) {
     const signal =

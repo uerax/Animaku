@@ -322,7 +322,7 @@ export async function executeApiRequest(
         headers,
         body,
       },
-      { timeoutMs: 15_000 },
+      { timeoutMs: 15_000, source: rule.name },
     )
   } catch (e) {
     throw new ApiRuleError(

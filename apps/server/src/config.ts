@@ -94,6 +94,92 @@ function resolveTimezone(): string {
   return raw || 'Asia/Shanghai'
 }
 
+/**
+ * 解析以 PROXY_ 或 OUTBOUND_PROXY_ 开头的代理池配置
+ * 自动归一化键名，使得 proxy1, proxy_1 都可以被检索到
+ */
+export function parseProxyPool(env: NodeJS.ProcessEnv = process.env): Record<string, string> {
+  const pool: Record<string, string> = {}
+  for (const [key, val] of Object.entries(env)) {
+    if (!val || typeof val !== 'string') continue
+    const trimmedVal = val.trim()
+    if (!trimmedVal) continue
+
+    const upperKey = key.toUpperCase()
+    if (
+      upperKey.startsWith('PROXY_') ||
+      upperKey.startsWith('OUTBOUND_PROXY_') ||
+      /^PROXY\d+$/.test(upperKey)
+    ) {
+      let name = ''
+      if (upperKey.startsWith('OUTBOUND_PROXY_')) {
+        name = upperKey.slice('OUTBOUND_PROXY_'.length).toLowerCase()
+      } else if (upperKey.startsWith('PROXY_')) {
+        name = upperKey.slice('PROXY_'.length).toLowerCase()
+      } else {
+        name = upperKey.toLowerCase()
+      }
+      if (name) {
+        pool[name] = trimmedVal
+        const cleanName = name.replace(/_/g, '')
+        pool[cleanName] = trimmedVal
+        pool[`proxy${cleanName}`] = trimmedVal
+        pool[`proxy_${cleanName}`] = trimmedVal
+      }
+    }
+  }
+  return pool
+}
+
+/**
+ * 解析视频源到代理的映射关系
+ * 支持：
+ * 1. SOURCE_PROXY_MAP="cycani:proxy1,anime1:proxy2" 或 JSON 字符串 '{"cycani":"proxy1"}'
+ * 2. 独立环境变量覆盖 SOURCE_PROXY_CYCANI=proxy1
+ */
+export function parseSourceProxyMap(env: NodeJS.ProcessEnv = process.env): Record<string, string> {
+  const map: Record<string, string> = {}
+
+  const rawMap = (env.SOURCE_PROXY_MAP || env.SOURCE_PROXIES || '').trim()
+  if (rawMap) {
+    if (rawMap.startsWith('{') && rawMap.endsWith('}')) {
+      try {
+        const parsed = JSON.parse(rawMap)
+        if (parsed && typeof parsed === 'object') {
+          for (const [k, v] of Object.entries(parsed)) {
+            if (k && typeof v === 'string' && v.trim()) {
+              map[k.trim().toLowerCase()] = v.trim().toLowerCase()
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[config] 无法解析 SOURCE_PROXY_MAP JSON:', err)
+      }
+    } else {
+      const pairs = rawMap.split(',')
+      for (const pair of pairs) {
+        const [source, proxy] = pair.split(':')
+        if (source && proxy) {
+          map[source.trim().toLowerCase()] = proxy.trim().toLowerCase()
+        }
+      }
+    }
+  }
+
+  for (const [key, val] of Object.entries(env)) {
+    if (!val || typeof val !== 'string') continue
+    const upperKey = key.toUpperCase()
+    if (upperKey.startsWith('SOURCE_PROXY_') && upperKey !== 'SOURCE_PROXY_MAP') {
+      const sourceName = upperKey.slice('SOURCE_PROXY_'.length).toLowerCase()
+      if (sourceName) {
+        map[sourceName] = val.trim().toLowerCase()
+      }
+    }
+  }
+
+  return map
+}
+
 const dataDir = resolveDataDir()
 const appVersion = resolveAppVersion()
 const cleanVersion = appVersion.replace(/^v/, '')
@@ -224,4 +310,12 @@ export const config = {
    * Must be explicitly set to 1/true in production .env to prevent local dev test leakage.
    */
   indexnowEnabled: envBool(process.env.INDEXNOW_ENABLED, false),
+  /**
+   * 外部出站代理池（键名为归一化小写，如 proxy1, proxy_1, proxy_cn）
+   */
+  proxyPool: parseProxyPool(),
+  /**
+   * 视频源到代理的映射关系（键名为视频源小写，如 cycani -> proxy1）
+   */
+  sourceProxyMap: parseSourceProxyMap(),
 }

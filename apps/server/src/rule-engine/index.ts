@@ -207,7 +207,7 @@ export async function fetchHtml(
           headers,
           body: opts.body,
         },
-        { timeoutMs },
+        { timeoutMs, source: rule.name },
       )
       if (!res.ok) {
         // retry on 429 / 5xx once

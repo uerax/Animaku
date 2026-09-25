@@ -117,7 +117,7 @@ async function ensureValidToken(forceRefresh = false): Promise<string> {
           password: CYCANI_PASSWORD,
         }),
       },
-      { timeoutMs: 8_000 },
+      { source: 'cycani', timeoutMs: 8_000 },
     )
 
     if (!res.ok) {
@@ -189,7 +189,7 @@ export async function searchCycani(
         method: 'GET',
         headers: getBaseHeaders(),
       },
-      { timeoutMs: 10_000 },
+      { source: 'cycani', timeoutMs: 10_000 },
     )
 
     if (!res.ok) {
@@ -294,7 +294,7 @@ export async function chaptersCycani(
         method: 'GET',
         headers: getBaseHeaders(),
       },
-      { timeoutMs: 8_000 },
+      { source: 'cycani', timeoutMs: 8_000 },
     )
 
     if (!detailRes.ok) {
@@ -334,7 +334,7 @@ export async function chaptersCycani(
               method: 'GET',
               headers: getBaseHeaders(),
             },
-            { timeoutMs: 8_000 },
+            { source: 'cycani', timeoutMs: 8_000 },
           )
 
           if (!sectionsRes.ok) return
@@ -440,7 +440,7 @@ export async function resolveCycani(
       method: 'GET',
       headers: getBaseHeaders(token),
     },
-    { timeoutMs: 10_000 },
+    { source: 'cycani', timeoutMs: 10_000 },
   )
 
   // 401 Self-healing: Refresh token and retry once
@@ -452,7 +452,7 @@ export async function resolveCycani(
         method: 'GET',
         headers: getBaseHeaders(token),
       },
-      { timeoutMs: 10_000 },
+      { source: 'cycani', timeoutMs: 10_000 },
     )
   }
 
@@ -473,7 +473,7 @@ export async function resolveCycani(
         method: 'GET',
         headers: getBaseHeaders(token),
       },
-      { timeoutMs: 10_000 },
+      { source: 'cycani', timeoutMs: 10_000 },
     )
     const retryJson = (await retryRes.json()) as PlayUrlResponse
     if (retryJson.code !== 0 || !retryJson.data?.url) {
