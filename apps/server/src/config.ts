@@ -96,7 +96,7 @@ function resolveTimezone(): string {
 
 /**
  * 解析以 PROXY_ 或 OUTBOUND_PROXY_ 开头的代理池配置
- * 自动归一化键名，使得 proxy1, proxy_1 都可以被检索到
+ * 自动支持完整变量名（如 proxy_1、proxy_cn）及其标识符（如 1、cn、proxy1）
  */
 export function parseProxyPool(env: NodeJS.ProcessEnv = process.env): Record<string, string> {
   const pool: Record<string, string> = {}
@@ -111,20 +111,26 @@ export function parseProxyPool(env: NodeJS.ProcessEnv = process.env): Record<str
       upperKey.startsWith('OUTBOUND_PROXY_') ||
       /^PROXY\d+$/.test(upperKey)
     ) {
-      let name = ''
+      // 1. 注册完整环境变量名，如 proxy_1 / outbound_proxy_1 / proxy1
+      const fullKey = upperKey.toLowerCase()
+      pool[fullKey] = trimmedVal
+
+      // 2. 提取后缀标识，如 1 / cn
+      let suffix = ''
       if (upperKey.startsWith('OUTBOUND_PROXY_')) {
-        name = upperKey.slice('OUTBOUND_PROXY_'.length).toLowerCase()
+        suffix = upperKey.slice('OUTBOUND_PROXY_'.length).toLowerCase()
       } else if (upperKey.startsWith('PROXY_')) {
-        name = upperKey.slice('PROXY_'.length).toLowerCase()
+        suffix = upperKey.slice('PROXY_'.length).toLowerCase()
       } else {
-        name = upperKey.toLowerCase()
+        suffix = upperKey.slice('PROXY'.length).toLowerCase()
       }
-      if (name) {
-        pool[name] = trimmedVal
-        const cleanName = name.replace(/_/g, '')
-        pool[cleanName] = trimmedVal
-        pool[`proxy${cleanName}`] = trimmedVal
-        pool[`proxy_${cleanName}`] = trimmedVal
+
+      if (suffix) {
+        pool[suffix] = trimmedVal
+        const cleanSuffix = suffix.replace(/_/g, '')
+        pool[cleanSuffix] = trimmedVal
+        pool[`proxy${cleanSuffix}`] = trimmedVal
+        pool[`proxy_${cleanSuffix}`] = trimmedVal
       }
     }
   }

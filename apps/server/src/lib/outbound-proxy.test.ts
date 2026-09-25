@@ -17,48 +17,51 @@ test('parseProxyPool: correctly extracts and normalizes proxy pool from env', ()
 
   const pool = parseProxyPool(env)
 
-  // PROXY_1 -> proxy1 and proxy_1
-  assert.equal(pool['proxy1'], 'http://127.0.0.1:7890')
+  // PROXY_1 -> proxy_1, proxy1, and 1
   assert.equal(pool['proxy_1'], 'http://127.0.0.1:7890')
+  assert.equal(pool['proxy1'], 'http://127.0.0.1:7890')
+  assert.equal(pool['1'], 'http://127.0.0.1:7890')
 
-  // PROXY_2 -> proxy2 and proxy_2 (socks5)
-  assert.equal(pool['proxy2'], 'socks5://127.0.0.1:1080')
+  // PROXY_2 -> proxy_2, proxy2, and 2 (socks5)
   assert.equal(pool['proxy_2'], 'socks5://127.0.0.1:1080')
+  assert.equal(pool['proxy2'], 'socks5://127.0.0.1:1080')
+  assert.equal(pool['2'], 'socks5://127.0.0.1:1080')
 
-  // PROXY_CN -> proxy_cn and proxycn
+  // PROXY_CN -> proxy_cn, proxycn, and cn
   assert.equal(pool['proxy_cn'], 'http://192.168.1.50:8080')
   assert.equal(pool['proxycn'], 'http://192.168.1.50:8080')
+  assert.equal(pool['cn'], 'http://192.168.1.50:8080')
 
   // Unrelated variables should not be included
   assert.equal(pool['unrelated_env'], undefined)
 })
 
 test('parseSourceProxyMap: parses comma-delimited strings, JSON and overrides', () => {
-  // 1. Comma-separated
+  // 1. Direct variable name matching (e.g. cycani:PROXY_1)
   const env1: NodeJS.ProcessEnv = {
-    SOURCE_PROXY_MAP: 'cycani:proxy1, Anime1:proxy2 ,mxdm:proxy_cn',
+    SOURCE_PROXY_MAP: 'cycani:PROXY_1, Anime1:PROXY_2 ,mxdm:PROXY_CN',
   }
   const map1 = parseSourceProxyMap(env1)
-  assert.equal(map1['cycani'], 'proxy1')
-  assert.equal(map1['anime1'], 'proxy2')
+  assert.equal(map1['cycani'], 'proxy_1')
+  assert.equal(map1['anime1'], 'proxy_2')
   assert.equal(map1['mxdm'], 'proxy_cn')
 
   // 2. JSON format
   const env2: NodeJS.ProcessEnv = {
     SOURCE_PROXY_MAP: JSON.stringify({
-      CYCANI: 'proxy1',
-      anime1: 'proxy2',
+      CYCANI: 'PROXY_1',
+      anime1: 'PROXY_2',
     }),
   }
   const map2 = parseSourceProxyMap(env2)
-  assert.equal(map2['cycani'], 'proxy1')
-  assert.equal(map2['anime1'], 'proxy2')
+  assert.equal(map2['cycani'], 'proxy_1')
+  assert.equal(map2['anime1'], 'proxy_2')
 
   // 3. Dedicated environment variable overrides
   const env3: NodeJS.ProcessEnv = {
-    SOURCE_PROXY_MAP: 'cycani:proxy1',
-    SOURCE_PROXY_CYCANI: 'proxy_override',
-    SOURCE_PROXY_GIRIGIRI: 'proxy_special',
+    SOURCE_PROXY_MAP: 'cycani:PROXY_1',
+    SOURCE_PROXY_CYCANI: 'PROXY_OVERRIDE',
+    SOURCE_PROXY_GIRIGIRI: 'PROXY_SPECIAL',
   }
   const map3 = parseSourceProxyMap(env3)
   assert.equal(map3['cycani'], 'proxy_override')
