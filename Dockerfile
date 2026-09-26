@@ -1,6 +1,6 @@
 # Animaku — single image: Hono API + Vite SPA
 # Build:  docker build -t animaku .
-# Run:    docker compose up -d --build
+# Run:    docker compose up -d (pull pre-built) OR docker compose -f docker-compose.build.yml up -d --build
 #         open http://localhost:$PORT  (default 8787; SPA + /api same origin)
 
 # ---- deps ----

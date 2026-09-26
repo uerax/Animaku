@@ -97,8 +97,8 @@ cd animaku
 # 2. Configure environment
 cp .env.example .env
 
-# 3. Start container
-docker compose up -d --build
+# 3. Start container (pulls pre-built image, instant start without local compilation)
+docker compose up -d
 ```
 
 Access the web interface at **`http://localhost:8787`**.
@@ -112,6 +112,9 @@ docker compose logs -f
 
 # Stop container
 docker compose down
+
+# Build from local source (supports custom VITE_* build-time branding)
+docker compose -f docker-compose.build.yml up -d --build
 
 # Single command run (without docker compose)
 docker build -t animaku .

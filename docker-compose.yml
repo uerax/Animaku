@@ -1,84 +1,88 @@
-# Animaku — one-command deploy
-#   cp .env.example .env   # set PORT / optional VITE_* branding
-#   docker compose up -d --build
-# Open http://localhost:${PORT:-8787}  (SPA + /api on same origin)
+# Animaku — 免编译 Docker 极速一键部署
 #
-# Footer branding (VITE_*): rebuild image after changing — baked at Vite build time.
+# 使用方式：
+#   cp .env.example .env   # （可选）按需修改端口 PORT 或数据持久化配置
+#   docker compose up -d   # 自动拉取官方预编译镜像并启动
+# 访问地址：http://localhost:${PORT:-8787}
+#
+# 注：如需二次开发或修改源码/前端品牌变量，请使用：
+#   docker compose -f docker-compose.build.yml up -d --build
 
 services:
   animaku:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        # Build-time only (Vite). Runtime .env changes will not update the footer / client SEO origin.
-        BANGUMI_API: ${BANGUMI_API:-mirror}
-        BANGUMI_IMAGE: ${BANGUMI_IMAGE:-mirror}
-        VITE_BANGUMI_API_HOST: ${VITE_BANGUMI_API_HOST:-}
-        VITE_BANGUMI_IMAGE_HOST: ${VITE_BANGUMI_IMAGE_HOST:-}
-        VITE_SITE_URL: ${VITE_SITE_URL:-}
-        VITE_APP_VERSION: ${VITE_APP_VERSION:-}
-        VITE_DEFAULT_THEME: ${VITE_DEFAULT_THEME:-}
-        VITE_NAV_SHOW_USER_MENU: ${VITE_NAV_SHOW_USER_MENU:-}
-        VITE_NAV_SHOW_HISTORY: ${VITE_NAV_SHOW_HISTORY:-}
-        VITE_NAV_SHOW_THEME_TOGGLE: ${VITE_NAV_SHOW_THEME_TOGGLE:-}
-        VITE_NAV_SHOW_GITHUB: ${VITE_NAV_SHOW_GITHUB:-}
-        VITE_GITHUB_URL: ${VITE_GITHUB_URL:-}
-        VITE_GITHUB_LABEL: ${VITE_GITHUB_LABEL:-}
-        VITE_PRODUCT_NAME: ${VITE_PRODUCT_NAME:-}
-        VITE_SITE_TAGLINE: ${VITE_SITE_TAGLINE:-}
-        VITE_MAINTAINER_NAME: ${VITE_MAINTAINER_NAME:-}
-        VITE_MAINTAINER_URL: ${VITE_MAINTAINER_URL:-}
-        VITE_HOMEPAGE_URL: ${VITE_HOMEPAGE_URL:-}
-        VITE_HOMEPAGE_LABEL: ${VITE_HOMEPAGE_LABEL:-}
-        VITE_CONTACT_EMAIL: ${VITE_CONTACT_EMAIL:-}
-        VITE_FOOTER_NOTE: ${VITE_FOOTER_NOTE:-}
-        VITE_CLARITY_ID: ${VITE_CLARITY_ID:-}
-        VITE_GA_ID: ${VITE_GA_ID:-}
-        VITE_BAIDU_TONGJI_ID: ${VITE_BAIDU_TONGJI_ID:-}
-    image: animaku:local
+    # 官方预编译镜像（支持 linux/amd64 与 linux/arm64，可指定 latest 或特定版本标签如 :v1.17.0）
+    image: ghcr.io/uerax/animaku:latest
     container_name: animaku
-    # Host PORT → container PORT (production single process; no Vite)
-    # Browser: http://localhost:$PORT
+
+    # 端口映射：宿主机 PORT -> 容器内 PORT
     ports:
       - "${HOST:-0.0.0.0}:${PORT:-8787}:${PORT:-8787}"
+
+    # 持久化数据目录：保存 SQLite 数据库、缓存及自定义数据
     volumes:
-      # Persistent SQLite database & cache directory (persists across container updates)
       - ./data:/app/data
+
+    # 服务端核心运行时环境变量（可直接在此修改，也可在 .env 文件中统一覆盖）
     environment:
-      # Listen inside the container (must match the right-hand side of ports)
+      # 基础服务监听与运行目录
       PORT: ${PORT:-8787}
       HOST: "0.0.0.0"
       WEB_DIST: "public"
       DATA_DIR: "/app/data"
+      TZ: ${TZ:-Asia/Shanghai}
+
+      # 跨域与外部域名 (用于 sitemap.xml 与 robots.txt 等)
       CORS_ORIGINS: ${CORS_ORIGINS:-}
-      # Public origin for /robots.txt Sitemap + /sitemap.xml (runtime)
       SITE_URL: ${SITE_URL:-}
-      # Optional overrides; empty → use server built-in defaults (proper Bangumi UA, etc.)
+
+      # 数据库持久化配置（默认 false 为纯内存/无状态模式，公网建站持久化统计可设为 true）
+      DB_ENABLED: ${DB_ENABLED:-false}
+      DB_DRIVER: ${DB_DRIVER:-sqlite}
+      SQLITE_PATH: ${SQLITE_PATH:-/app/data/animaku.db}
+
+      # Bangumi 接口与封面图片（mirror 代理免翻 / official 官方直连）
       BANGUMI_API: ${BANGUMI_API:-mirror}
       BANGUMI_IMAGE: ${BANGUMI_IMAGE:-mirror}
       BANGUMI_API_HOST: ${BANGUMI_API_HOST:-}
       BANGUMI_IMAGE_HOST: ${BANGUMI_IMAGE_HOST:-}
+
+      # 弹弹play 开放平台凭证（选填，留空使用内置客户端公共凭据）
       DANDAN_APP_ID: ${DANDAN_APP_ID:-}
       DANDAN_APP_SECRET: ${DANDAN_APP_SECRET:-}
+
+      # 客户端 UA 标识覆盖（选填）
       BANGUMI_USER_AGENT: ${BANGUMI_USER_AGENT:-}
       PRODUCT_USER_AGENT: ${PRODUCT_USER_AGENT:-}
       DEFAULT_USER_AGENT: ${DEFAULT_USER_AGENT:-}
+
+      # 规则商店与第三方镜像
       PLUGIN_SHOP: ${PLUGIN_SHOP:-}
       PLUGIN_SHOP_MIRROR: ${PLUGIN_SHOP_MIRROR:-}
+
+      # 日志格式（pretty 高可读彩显 / json 结构化日志）
       LOG_FORMAT: ${LOG_FORMAT:-pretty}
-      TZ: ${TZ:-Asia/Shanghai}
+
+      # 搜索引擎即时推送 (IndexNow) 与管理员密钥（公网建站选填）
+      INDEXNOW_ENABLED: ${INDEXNOW_ENABLED:-0}
+      INDEXNOW_KEY: ${INDEXNOW_KEY:-}
+      ADMIN_SECRET: ${ADMIN_SECRET:-}
+
+    # 自动加载同目录下的 .env 环境变量文件（如存在）
     env_file:
       - path: .env
         required: false
+
     restart: unless-stopped
-    # Logging controller & log rotation persistence
+
+    # 容器日志轮转配置，防止长期运行占用大量磁盘
     logging:
       driver: "json-file"
       options:
         max-size: "${LOG_MAX_SIZE:-5m}"
         max-file: "${LOG_MAX_FILE:-10}"
         compress: "true"
+
+    # 容器健康检查
     healthcheck:
       test:
         [

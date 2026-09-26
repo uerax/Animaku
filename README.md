@@ -97,8 +97,8 @@ cd animaku
 # 2. 准备配置文件（可按需修改端口等）
 cp .env.example .env
 
-# 3. 启动容器
-docker compose up -d --build
+# 3. 启动容器（自动拉取官方预编译镜像，免编译秒级启动）
+docker compose up -d
 ```
 
 启动完成后，使用浏览器访问 **`http://localhost:8787`** 即可开启追番之旅。
@@ -112,6 +112,9 @@ docker compose logs -f
 
 # 停止容器
 docker compose down
+
+# 本地源码构建与二次开发部署（支持自定义前端 VITE_* 变量）
+docker compose -f docker-compose.build.yml up -d --build
 
 # 单命令运行（不使用 compose）
 docker build -t animaku .

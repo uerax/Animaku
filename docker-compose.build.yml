@@ -1,0 +1,97 @@
+# Animaku — 源码构建与开发部署配置
+#
+# 适用场景：
+# - 二次开发、修改源码调试
+# - 需要自定义前端构建期变量 (VITE_* 品牌、站点名称、统计 ID 等) 并重新打包镜像
+#
+# 使用方式：
+#   cp .env.example .env
+#   docker compose -f docker-compose.build.yml up -d --build
+# 访问地址：http://localhost:${PORT:-8787}
+
+services:
+  animaku:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Build-time only (Vite). Runtime .env changes will not update the footer / client SEO origin.
+        BANGUMI_API: ${BANGUMI_API:-mirror}
+        BANGUMI_IMAGE: ${BANGUMI_IMAGE:-mirror}
+        VITE_BANGUMI_API_HOST: ${VITE_BANGUMI_API_HOST:-}
+        VITE_BANGUMI_IMAGE_HOST: ${VITE_BANGUMI_IMAGE_HOST:-}
+        VITE_SITE_URL: ${VITE_SITE_URL:-}
+        VITE_APP_VERSION: ${VITE_APP_VERSION:-}
+        VITE_DEFAULT_THEME: ${VITE_DEFAULT_THEME:-}
+        VITE_NAV_SHOW_USER_MENU: ${VITE_NAV_SHOW_USER_MENU:-}
+        VITE_NAV_SHOW_HISTORY: ${VITE_NAV_SHOW_HISTORY:-}
+        VITE_NAV_SHOW_THEME_TOGGLE: ${VITE_NAV_SHOW_THEME_TOGGLE:-}
+        VITE_NAV_SHOW_GITHUB: ${VITE_NAV_SHOW_GITHUB:-}
+        VITE_GITHUB_URL: ${VITE_GITHUB_URL:-}
+        VITE_GITHUB_LABEL: ${VITE_GITHUB_LABEL:-}
+        VITE_PRODUCT_NAME: ${VITE_PRODUCT_NAME:-}
+        VITE_SITE_TAGLINE: ${VITE_SITE_TAGLINE:-}
+        VITE_MAINTAINER_NAME: ${VITE_MAINTAINER_NAME:-}
+        VITE_MAINTAINER_URL: ${VITE_MAINTAINER_URL:-}
+        VITE_HOMEPAGE_URL: ${VITE_HOMEPAGE_URL:-}
+        VITE_HOMEPAGE_LABEL: ${VITE_HOMEPAGE_LABEL:-}
+        VITE_CONTACT_EMAIL: ${VITE_CONTACT_EMAIL:-}
+        VITE_FOOTER_NOTE: ${VITE_FOOTER_NOTE:-}
+        VITE_CLARITY_ID: ${VITE_CLARITY_ID:-}
+        VITE_GA_ID: ${VITE_GA_ID:-}
+        VITE_BAIDU_TONGJI_ID: ${VITE_BAIDU_TONGJI_ID:-}
+    image: animaku:local
+    container_name: animaku
+    # Host PORT → container PORT (production single process; no Vite)
+    # Browser: http://localhost:$PORT
+    ports:
+      - "${HOST:-0.0.0.0}:${PORT:-8787}:${PORT:-8787}"
+    volumes:
+      # Persistent SQLite database & cache directory (persists across container updates)
+      - ./data:/app/data
+    environment:
+      # Listen inside the container (must match the right-hand side of ports)
+      PORT: ${PORT:-8787}
+      HOST: "0.0.0.0"
+      WEB_DIST: "public"
+      DATA_DIR: "/app/data"
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      # Public origin for /robots.txt Sitemap + /sitemap.xml (runtime)
+      SITE_URL: ${SITE_URL:-}
+      # Optional overrides; empty → use server built-in defaults (proper Bangumi UA, etc.)
+      BANGUMI_API: ${BANGUMI_API:-mirror}
+      BANGUMI_IMAGE: ${BANGUMI_IMAGE:-mirror}
+      BANGUMI_API_HOST: ${BANGUMI_API_HOST:-}
+      BANGUMI_IMAGE_HOST: ${BANGUMI_IMAGE_HOST:-}
+      DANDAN_APP_ID: ${DANDAN_APP_ID:-}
+      DANDAN_APP_SECRET: ${DANDAN_APP_SECRET:-}
+      BANGUMI_USER_AGENT: ${BANGUMI_USER_AGENT:-}
+      PRODUCT_USER_AGENT: ${PRODUCT_USER_AGENT:-}
+      DEFAULT_USER_AGENT: ${DEFAULT_USER_AGENT:-}
+      PLUGIN_SHOP: ${PLUGIN_SHOP:-}
+      PLUGIN_SHOP_MIRROR: ${PLUGIN_SHOP_MIRROR:-}
+      LOG_FORMAT: ${LOG_FORMAT:-pretty}
+      TZ: ${TZ:-Asia/Shanghai}
+    env_file:
+      - path: .env
+        required: false
+    restart: unless-stopped
+    # Logging controller & log rotation persistence
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "${LOG_MAX_SIZE:-5m}"
+        max-file: "${LOG_MAX_FILE:-10}"
+        compress: "true"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:'+(process.env.PORT||8787)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
