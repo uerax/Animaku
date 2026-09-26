@@ -12,6 +12,7 @@ services:
   animaku:
     # 官方预编译镜像（支持 linux/amd64 与 linux/arm64，可指定 latest 或特定版本标签如 :v1.17.0）
     image: ghcr.io/uerax/animaku:latest
+    pull_policy: always
     container_name: animaku
 
     # 端口映射：宿主机 PORT -> 容器内 PORT
