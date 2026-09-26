@@ -1,6 +1,6 @@
 import { config } from '../../config'
 import { isLoopbackIp } from '../../lib/private-host'
-import { getDatabase, prepareStatement } from '../connection'
+import { getDatabase, prepareStatement, isDatabaseActive } from '../connection'
 
 export interface IpAccessLogRow {
   ip: string
@@ -44,7 +44,7 @@ export class IpAccessRepository {
    * Execute atomic UPSERT into SQLite with accumulated batch count.
    */
   recordHitBatchSync(ip: string, increment: number, customDateStr?: string): void {
-    if (!ip || increment <= 0) return
+    if (!isDatabaseActive() || !ip || increment <= 0) return
     const normalizedIp = ip.trim()
     if (!normalizedIp || isLoopbackIp(normalizedIp)) return
 
@@ -77,7 +77,7 @@ export class IpAccessRepository {
    * into a single SQLite write operation (+N).
    */
   recordHit(ip: string): void {
-    if (!ip || typeof ip !== 'string') return
+    if (!isDatabaseActive() || !ip || typeof ip !== 'string') return
     const normalizedIp = ip.trim()
     if (!normalizedIp || isLoopbackIp(normalizedIp)) return
 
@@ -104,7 +104,7 @@ export class IpAccessRepository {
    * Query access statistics for a specific IP.
    */
   getIpAccess(ip: string): IpAccessLogRow | null {
-    if (!ip) return null
+    if (!isDatabaseActive() || !ip) return null
     try {
       const stmt = prepareStatement(`
         SELECT ip, total_hits, today_hits, last_date, first_seen, last_seen
@@ -124,6 +124,9 @@ export class IpAccessRepository {
    * Query global site traffic aggregate metrics.
    */
   getGlobalTraffic(): { totalIps: number; totalHits: number; todayHits: number } {
+    if (!isDatabaseActive()) {
+      return { totalIps: 0, totalHits: 0, todayHits: 0 }
+    }
     try {
       const today = getLocalTodayDateStr()
       const db = getDatabase()

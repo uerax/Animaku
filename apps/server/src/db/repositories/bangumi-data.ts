@@ -1,4 +1,4 @@
-import { prepareStatement, getDatabase } from '../connection'
+import { prepareStatement, getDatabase, isDatabaseActive } from '../connection'
 
 export interface AnimeBangumiMapping {
   bangumiId: number
@@ -20,6 +20,7 @@ export class BangumiDataRepository {
    * Get count of stored mapping records.
    */
   count(): number {
+    if (!isDatabaseActive()) return 0
     try {
       const stmt = prepareStatement('SELECT COUNT(*) as c FROM bangumi_data_mapping;')
       const row = stmt.get() as { c: number } | undefined
@@ -33,6 +34,7 @@ export class BangumiDataRepository {
    * Get single mapping by Bangumi ID.
    */
   get(bangumiId: number): AnimeBangumiMapping | null {
+    if (!isDatabaseActive()) return null
     try {
       const stmt = prepareStatement(
         'SELECT bangumi_id, title, sites FROM bangumi_data_mapping WHERE bangumi_id = ? LIMIT 1;'
@@ -55,6 +57,7 @@ export class BangumiDataRepository {
    * Get all stored mapping records (used on startup to populate memory map).
    */
   getAll(): AnimeBangumiMapping[] {
+    if (!isDatabaseActive()) return []
     try {
       const stmt = prepareStatement(
         'SELECT bangumi_id, title, sites FROM bangumi_data_mapping;'
@@ -79,7 +82,7 @@ export class BangumiDataRepository {
    * Batch upsert records inside a single transaction for maximum speed.
    */
   batchUpsert(items: AnimeBangumiMapping[]): void {
-    if (!items || items.length === 0) return
+    if (!isDatabaseActive() || !items || items.length === 0) return
     const db = getDatabase()
     const now = Date.now()
 

@@ -1,4 +1,11 @@
-import { getDatabase, closeDatabase, prepareStatement, transaction } from './connection'
+import { config } from '../config'
+import {
+  getDatabase,
+  closeDatabase,
+  prepareStatement,
+  transaction,
+  isDatabaseActive,
+} from './connection'
 import { initSchema } from './schema'
 import { pluginSearchCache, PluginSearchCacheRepository } from './repositories/plugin-search-cache'
 import { pluginChaptersCache, PluginChaptersCacheRepository } from './repositories/plugin-chapters-cache'
@@ -18,6 +25,13 @@ let cleanupTimer: NodeJS.Timeout | null = null
  */
 export function initDatabase(): void {
   if (initialized) return
+
+  if (!config.dbEnabled) {
+    console.log('[db] 数据库持久化未启用 (DB_ENABLED=false)，服务以纯无状态内存模式运行。')
+    initialized = true
+    return
+  }
+
   const db = getDatabase()
   initSchema(db)
   initialized = true
@@ -54,6 +68,7 @@ export {
   closeDatabase,
   prepareStatement,
   transaction,
+  isDatabaseActive,
   initSchema,
   pluginSearchCache,
   PluginSearchCacheRepository,

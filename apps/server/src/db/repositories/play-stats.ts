@@ -1,7 +1,10 @@
 import type { AnimePlayStats } from '@animaku/shared'
-import { prepareStatement } from '../connection'
+import { prepareStatement, isDatabaseActive } from '../connection'
 
 export class PlayStatsRepository {
+  /** 内存降级播放计数（当数据库未启用时在内存中记录） */
+  private memoryPlayCounts = new Map<number, number>()
+
   /**
    * Record a valid play view for a specific anime and increment the total anime play count.
    * Directly operates on anime_play_counts with atomic single-row upsert.
@@ -14,6 +17,13 @@ export class PlayStatsRepository {
     if (!Number.isFinite(bangumiId) || bangumiId <= 0) {
       return { episodePlayCount: 0, totalPlayCount: 0 }
     }
+
+    if (!isDatabaseActive()) {
+      const current = (this.memoryPlayCounts.get(bangumiId) || 0) + 1
+      this.memoryPlayCounts.set(bangumiId, current)
+      return { episodePlayCount: current, totalPlayCount: current }
+    }
+
     const now = Date.now()
 
     try {
@@ -50,6 +60,14 @@ export class PlayStatsRepository {
       return fallback
     }
 
+    if (!isDatabaseActive()) {
+      return {
+        bangumiId,
+        totalPlayCount: this.memoryPlayCounts.get(bangumiId) || 0,
+        episodePlayCounts: {},
+      }
+    }
+
     try {
       const stmt = prepareStatement(`
         SELECT play_count
@@ -74,6 +92,13 @@ export class PlayStatsRepository {
    * Retrieve top played anime bangumi IDs for rankings.
    */
   getTopPlayed(limit = 20): Array<{ bangumiId: number; totalPlayCount: number }> {
+    if (!isDatabaseActive()) {
+      const sorted = Array.from(this.memoryPlayCounts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, Math.max(1, limit))
+      return sorted.map(([bangumiId, totalPlayCount]) => ({ bangumiId, totalPlayCount }))
+    }
+
     try {
       const stmt = prepareStatement(`
         SELECT bangumi_id, play_count

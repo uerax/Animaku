@@ -1,14 +1,20 @@
-# Animaku SQLite 数据库与数据运维指南 (Database Maintenance)
+# Animaku 数据库与数据运维指南 (Database Maintenance)
 
-> 本文档汇总了 Animaku 服务端内置 SQLite 数据库的**表结构字典、免安装查询方案、Docker Compose 容器内查询命令与运维排错**。
+> 本文档汇总了 Animaku 服务端数据库的**配置策略、表结构字典、免安装查询方案、Docker Compose 容器内查询命令与运维排错**。
 
 ---
 
 ## 1. 数据库基础与架构设计
 
-Animaku 服务端采用 Node.js (>=22) 内置原生模块 `node:sqlite`（`DatabaseSync`），开箱即用，无需额外安装系统级 SQLite 动态链接库或 CLI 工具。
+Animaku 采用**无状态自用优先**与**轻量可选持久化**的设计哲学：
+- **自用模式（默认，`DB_ENABLED=false`）**：
+  - 用户的个人追番、播放历史、设置、换源偏好**全部保存在浏览器客户端 `localStorage`**。
+  - 服务端默认运行在纯无状态（Stateless）内存模式，**零数据库文件生成、零磁盘 I/O 写入**，极为适合个人自用、低内存小机器（如 700M 内存 VPS）、NAS 硬盘休眠或只读容器部署。
+- **持久化模式（可选，`DB_ENABLED=true`）**：
+  - 适合公网建站或团队共用场景，开启全站播放量统计、访客 PV 分析、跨平台 ID 映射入库与两级长效搜索缓存。
+  - 采用 Node.js (>=22) 内置原生模块 `node:sqlite`（`DatabaseSync`），开箱即用，无需额外安装系统级动态链接库；同时预留未来切换其它驱动引擎的能力（`DB_DRIVER=sqlite`）。
 
-- **默认存储路径**：
+- **默认存储路径（启用持久化时）**：
   - 宿主机：`data/animaku.db`（可通过环境变量 `SQLITE_PATH` 或 `DATA_DIR` 配置）
   - Docker 容器内：`/app/data/animaku.db`（映射宿主机 `./data`）
 - **性能机制**：

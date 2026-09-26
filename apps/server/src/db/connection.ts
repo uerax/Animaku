@@ -14,12 +14,25 @@ export interface DatabaseOptions {
 }
 
 /**
+ * 检查当前 SQLite 数据库是否处于激活状态（配置开启或当前已有打开的连接实例）
+ */
+export function isDatabaseActive(): boolean {
+  return config.dbEnabled || (dbInstance !== null && dbInstance.isOpen)
+}
+
+/**
  * Open and initialize the singleton SQLite database connection.
  * Configures WAL mode, busy timeout, and memory pragmas for high concurrency.
  */
 export function getDatabase(options?: DatabaseOptions): DatabaseSync {
   if (dbInstance && dbInstance.isOpen) {
     return dbInstance
+  }
+
+  if (!options?.path && !config.dbEnabled) {
+    throw new Error(
+      '[db] 持久化数据库未在配置中启用。如需开启数据持久化，请在 .env 中设置 DB_ENABLED=true',
+    )
   }
 
   const targetPath = options?.path ?? config.sqlitePath

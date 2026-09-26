@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { bangumiDataRepo, kvCache, type AnimeBangumiMapping } from '../db'
+import { bangumiDataRepo, kvCache, isDatabaseActive, type AnimeBangumiMapping } from '../db'
 import { fetchPublic } from './private-host'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -143,7 +143,11 @@ export function initBangumiDataMapping(): void {
           for (const item of items) {
             memoryMap.set(item.bangumiId, item)
           }
-          console.log(`[bangumi-data] 首次从初始快照载入 ${memoryMap.size} 条跨站映射`)
+          if (isDatabaseActive()) {
+            console.log(`[bangumi-data] 首次从初始快照载入 ${memoryMap.size} 条跨站映射并写入数据库`)
+          } else {
+            console.log(`[bangumi-data] 无状态内存模式：已从快照载入 ${memoryMap.size} 条跨站映射`)
+          }
         } catch (e) {
           console.error('[bangumi-data] 读取初始快照失败:', e)
         }

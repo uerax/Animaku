@@ -1,5 +1,5 @@
 import type { PluginChapterResult } from '@animaku/shared'
-import { getDatabase, prepareStatement } from '../connection'
+import { getDatabase, prepareStatement, isDatabaseActive } from '../connection'
 
 export interface PluginChaptersCacheRow {
   key: string
@@ -19,6 +19,7 @@ export class PluginChaptersCacheRepository {
    * Returns null if missing or expired.
    */
   get(key: string): PluginChapterResult | null {
+    if (!isDatabaseActive()) return null
     try {
       const now = Date.now()
       const stmt = prepareStatement(`
@@ -60,7 +61,7 @@ export class PluginChaptersCacheRepository {
     data: PluginChapterResult,
     ttlMs: number,
   ): void {
-    if (ttlMs <= 0) return
+    if (ttlMs <= 0 || !isDatabaseActive()) return
     try {
       const now = Date.now()
       const expiresAt = now + ttlMs
@@ -89,6 +90,7 @@ export class PluginChaptersCacheRepository {
    * Invalidate / delete specific chapters cache by key.
    */
   delete(key: string): void {
+    if (!isDatabaseActive()) return
     try {
       const stmt = prepareStatement(`DELETE FROM plugin_chapters_cache WHERE key = ?;`)
       stmt.run(key)
@@ -101,6 +103,7 @@ export class PluginChaptersCacheRepository {
    * Invalidate chapters cache for a given plugin name, optionally filtered by sourceUrl.
    */
   deleteByPlugin(pluginName: string, sourceUrl?: string): number {
+    if (!isDatabaseActive()) return 0
     try {
       if (sourceUrl) {
         const stmt = prepareStatement(`
@@ -126,6 +129,7 @@ export class PluginChaptersCacheRepository {
    * Prune expired cache records to keep database size compact.
    */
   clearExpired(): number {
+    if (!isDatabaseActive()) return 0
     try {
       const now = Date.now()
       const stmt = prepareStatement(`DELETE FROM plugin_chapters_cache WHERE expires_at <= ?;`)
@@ -141,6 +145,7 @@ export class PluginChaptersCacheRepository {
    * Get chapters cache operational metrics.
    */
   getStats(): { totalEntries: number; validEntries: number; totalHits: number } {
+    if (!isDatabaseActive()) return { totalEntries: 0, validEntries: 0, totalHits: 0 }
     try {
       const now = Date.now()
       const db = getDatabase()

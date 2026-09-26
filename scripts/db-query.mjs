@@ -894,7 +894,7 @@ ${color.red}❌ 未找到 Animaku SQLite 数据库文件！${color.reset}
 
 ${color.yellow}解决方案:${color.reset}
   1. 可通过 --db 参数指定数据库路径: node scripts/db-query.mjs --db /path/to/animaku.db
-  2. 启动过服务端服务后会自动在 data/ 目录下生成 animaku.db 数据库文件。
+  2. 若服务端运行在纯无状态模式 (默认 DB_ENABLED=false)，则不会生成数据库文件；如需持久化与数据分析，请在 .env 中设置 DB_ENABLED=true 并启动服务。
 `)
     process.exit(1)
   }

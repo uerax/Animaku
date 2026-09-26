@@ -201,6 +201,20 @@ export const config = {
   version: appVersion,
   /** Directory for persistent state (SQLite db, cache, etc.) */
   dataDir,
+  /**
+   * 是否启用持久化数据库（默认: false，无状态轻量模式；线上服务需持久化时设为 true/1）
+   * 环境变量支持: DB_ENABLED / DATABASE_ENABLED (兼容历史 SQLITE_ENABLED)
+   */
+  dbEnabled: envBool(
+    process.env.DB_ENABLED ||
+      process.env.DATABASE_ENABLED ||
+      process.env.SQLITE_ENABLED,
+    false,
+  ),
+  /**
+   * 数据库驱动引擎类型（默认: 'sqlite'，预留未来扩展 postgres/mysql 等）
+   */
+  dbDriver: (process.env.DB_DRIVER || 'sqlite').trim().toLowerCase(),
   /** Full path to primary SQLite database file */
   sqlitePath: process.env.SQLITE_PATH?.trim()
     ? resolve(process.env.SQLITE_PATH.trim())
