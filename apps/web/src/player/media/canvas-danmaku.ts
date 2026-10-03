@@ -196,7 +196,6 @@ export class CanvasDanmaku {
       (!isSafari &&
         canvas.getContext('2d', {
           alpha: true,
-          desynchronized: true,
         } as CanvasRenderingContext2DSettings)) ||
       canvas.getContext('2d', { alpha: true })
     if (!ctx) throw new Error('CanvasDanmaku: 2d context unavailable')
