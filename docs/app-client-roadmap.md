@@ -116,3 +116,10 @@
   直接将 `build/windows/x64/runner/Release/` 文件夹打压缩包，解压即运行。
 * **全自动云端打包（推荐）**：
   在客户端独立仓库配置 GitHub Actions，推送 Git Tag 时，由云端自动化打包各端二进制并发布到 GitHub Releases。
+
+---
+
+## 五、 相关参考与接入规范
+* **全链路接入协议与 API 手册**：详细的接口契约（受控源与规则引擎）、媒体直连 Headers 注入、统一字幕包与字体挂载、全生态弹幕（弹弹play / B站 / 弹幕盒子）接入、Bangumi 元数据与收藏管理，请查阅完整规范文档：
+  👉 [`docs/app-integration-guide.md`](./app-integration-guide.md)
+
