@@ -310,6 +310,10 @@ export const config = {
    */
   logFormat: (process.env.LOG_FORMAT || 'pretty').trim().toLowerCase() === 'json' ? ('json' as const) : ('pretty' as const),
   /**
+   * 是否在访问日志中输出静态资源（如 /assets/*、图标、字体等）成功请求日志（默认: false，过滤正常静态资源日志避免刷屏）
+   */
+  logStaticAssets: envBool(process.env.LOG_STATIC_ASSETS, false),
+  /**
    * Timezone for server logs and timestamp formatting (e.g. 'Asia/Shanghai', 'UTC').
    * Configured via TZ, TIMEZONE, or LOG_TIMEZONE. Defaults to 'Asia/Shanghai'.
    */

@@ -566,6 +566,22 @@ export function formatJsonLog(record: StructuredLogRecord): string {
 // 6. Access Logger Middleware
 // ==========================================
 
+export function isStaticAssetPath(path: string): boolean {
+  if (path.startsWith('/api/')) return false
+  if (path.startsWith('/assets/')) return true
+  if (
+    path === '/favicon.ico' ||
+    path === '/site.webmanifest' ||
+    path.startsWith('/favicon-') ||
+    path.startsWith('/android-chrome-') ||
+    path === '/apple-touch-icon.png' ||
+    path === '/logo.png'
+  ) {
+    return true
+  }
+  return /\.(?:png|jpe?g|gif|webp|svg|ico|woff2?|ttf|eot|css|js|map)$/i.test(path)
+}
+
 export function accessLogger(): MiddlewareHandler {
   return async (c, next) => {
     const start = Date.now()
@@ -574,6 +590,7 @@ export function accessLogger(): MiddlewareHandler {
     const ip = getClientIp(c.req)
     const isMediaProxy = path.startsWith('/api/media/proxy')
     const isHealthCheck = path === '/api/health' || path === '/api/health/'
+    const isStaticAsset = isStaticAssetPath(path)
 
     const ua = c.req.header('user-agent')
     const platformVer = c.req.header('sec-ch-ua-platform-version')
@@ -612,6 +629,14 @@ export function accessLogger(): MiddlewareHandler {
 
       // Silent media proxy segment traffic on success (< 400)
       if (isMediaProxy && status < 400) {
+        return
+      }
+
+      // Silent static assets on success (< 400) when LOG_STATIC_ASSETS is not enabled.
+      // Vite builds produce dozens of code-split chunks under /assets/*. Logging all 200/304 chunk requests
+      // drowns out critical business API logs in production while adding zero diagnostic value.
+      // Errors (>= 400, such as 404 missing chunks) are still logged for troubleshooting.
+      if (isStaticAsset && !config.logStaticAssets && status < 400) {
         return
       }
 
