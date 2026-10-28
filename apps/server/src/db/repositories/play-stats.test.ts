@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { getDatabase } from '../connection'
+import { getDatabase, closeDatabase } from '../connection'
 import { initSchema } from '../schema'
 import { playStatsRepo } from './play-stats'
 
@@ -63,4 +63,6 @@ test('PlayStatsRepository on anime_play_counts', async (t) => {
     assert.equal(top[2].bangumiId, 50001)
     assert.equal(top[2].totalPlayCount, 2)
   })
+
+  closeDatabase()
 })

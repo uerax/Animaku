@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import type Hls from 'hls.js'
 import { STATS_VALID_PLAY_THRESHOLD_SEC } from '@animaku/shared'
-import { statsApi } from '../../lib/api'
 import { useWatchedStore } from '../../stores/watched'
 
 export interface UsePlaybackStatsOptions {
@@ -109,7 +108,6 @@ export function usePlaybackStats({
         if (playSecAccumulatedRef.current >= STATS_VALID_PLAY_THRESHOLD_SEC) {
           playViewReportedRef.current = true
           const epNum = typeof episodeNumber === 'number' ? episodeNumber : 0
-          void statsApi.recordPlayView(bangumiId, epNum).catch(() => {})
           useWatchedStore.getState().markWatched(bangumiId, epNum)
           lastSaveRef.current = now
           onProgressRef.current?.(t, d)

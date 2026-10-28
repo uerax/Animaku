@@ -121,5 +121,27 @@ export function setDanmuBoxCdnHeaders(c: HeaderSetter, bypass: boolean): void {
   c.header('Cloudflare-CDN-Cache-Control', `max-age=${edge}`)
 }
 
+/** Edge TTL for playback rankings GET success responses (5 minutes). */
+export const RANKINGS_CDN_S_MAXAGE_SEC = 5 * 60
+export const RANKINGS_BROWSER_MAXAGE_SEC = 60
+
+/**
+ * CDN cache headers for anime playback rankings.
+ * Edge caches 5m; browsers cache 60s. Supports bypass via ?refresh=1 or Cache-Control: no-cache.
+ */
+export function setRankingsCdnHeaders(c: HeaderSetter, bypass = false): void {
+  if (bypass) {
+    c.header('Cache-Control', 'private, no-store')
+    c.header('CDN-Cache-Control', 'no-store')
+    c.header('Cloudflare-CDN-Cache-Control', 'no-store')
+    return
+  }
+  const edge = RANKINGS_CDN_S_MAXAGE_SEC
+  const browser = RANKINGS_BROWSER_MAXAGE_SEC
+  c.header('Cache-Control', `public, max-age=${browser}, s-maxage=${edge}`)
+  c.header('CDN-Cache-Control', `max-age=${edge}`)
+  c.header('Cloudflare-CDN-Cache-Control', `max-age=${edge}`)
+}
+
 
 

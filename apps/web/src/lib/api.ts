@@ -1,6 +1,7 @@
 import type { RecordPlayViewResponse, AnimePlayStats } from '@animaku/shared'
 import { useSettingsStore } from '../stores/settings'
 import { getCachedBrowserFingerprint } from './fingerprint'
+import { getDeviceId } from './client-identity'
 
 export class ApiError extends Error {
   status: number
@@ -47,6 +48,16 @@ export async function api<T>(
   }
   if (init.token) {
     headers.set('Authorization', `Bearer ${init.token}`)
+  }
+
+  // Non-blocking persistent device identifier injection
+  try {
+    const devId = getDeviceId()
+    if (devId && !headers.has('X-Device-ID')) {
+      headers.set('X-Device-ID', devId)
+    }
+  } catch {
+    /* ignore storage access error */
   }
 
   // Non-blocking browser fingerprint injection if ready (0ms overhead)
@@ -106,9 +117,17 @@ export const statsApi = {
   recordPlayView: (bangumiId: number, episode?: number) =>
     api<RecordPlayViewResponse>('/api/stats/view', {
       method: 'POST',
-      body: JSON.stringify({ bangumiId, episode: episode ?? 0 }),
+      body: JSON.stringify({
+        bangumiId,
+        episode: episode ?? 0,
+        deviceId: getDeviceId(),
+      }),
     }),
   getSubjectStats: (bangumiId: number) =>
     api<{ data: AnimePlayStats }>(`/api/stats/subject/${bangumiId}`),
+  getRankings: (type: 'today' | 'week' | 'month' | 'total' = 'total', limit = 20) =>
+    api<{ data: Array<{ bangumiId: number; totalPlayCount: number }>; type: string }>(
+      `/api/stats/rank?type=${type}&limit=${limit}`,
+    ),
 }
 

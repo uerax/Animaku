@@ -135,6 +135,70 @@ const MIGRATIONS: Migration[] = [
       `)
     },
   },
+  {
+    version: 7,
+    name: 'device_and_daily_views_metrics',
+    up: (db) => {
+      // 1. Devices table for hardware / client identification and telemetry
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS devices (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          device_id TEXT NOT NULL UNIQUE,
+          fingerprint TEXT,
+          first_seen_at INTEGER NOT NULL,
+          last_seen_at INTEGER NOT NULL,
+          last_ip TEXT,
+          total_plays INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS idx_devices_did ON devices(device_id);
+        CREATE INDEX IF NOT EXISTS idx_devices_last_seen ON devices(last_seen_at);
+      `)
+
+      // 2. Daily active devices (DAU) & overall view metrics table
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS daily_active_stats (
+          date TEXT PRIMARY KEY,
+          dau INTEGER NOT NULL DEFAULT 0,
+          new_devices INTEGER NOT NULL DEFAULT 0,
+          total_views INTEGER NOT NULL DEFAULT 0,
+          updated_at INTEGER NOT NULL
+        );
+      `)
+
+      // 3. Anime total views table (migrating existing anime_play_counts data if present)
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS anime_total_views (
+          bangumi_id INTEGER PRIMARY KEY,
+          total_views INTEGER NOT NULL DEFAULT 0,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_anime_total_views_desc ON anime_total_views(total_views DESC);
+      `)
+
+      // Seamlessly backfill historical counts from anime_play_counts into anime_total_views
+      try {
+        db.exec(`
+          INSERT OR IGNORE INTO anime_total_views (bangumi_id, total_views, updated_at)
+          SELECT bangumi_id, play_count, updated_at FROM anime_play_counts;
+        `)
+      } catch {
+        // Safe ignore if anime_play_counts table doesn't exist yet
+      }
+
+      // 4. Anime daily views table (partitioned by date for instant 1d/7d/30d aggregations)
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS anime_daily_views (
+          bangumi_id INTEGER NOT NULL,
+          date TEXT NOT NULL,
+          views INTEGER NOT NULL DEFAULT 0,
+          updated_at INTEGER NOT NULL,
+          PRIMARY KEY (bangumi_id, date)
+        );
+        CREATE INDEX IF NOT EXISTS idx_daily_views_date_count ON anime_daily_views(date, views DESC);
+        CREATE INDEX IF NOT EXISTS idx_daily_views_bgm ON anime_daily_views(bangumi_id);
+      `)
+    },
+  },
 ]
 
 /**

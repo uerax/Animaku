@@ -1,16 +1,26 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { config } from '../config'
+import { closeDatabase } from './connection'
 import {
   isDatabaseActive,
   pluginSearchCache,
   pluginChaptersCache,
   kvCache,
   playStatsRepo,
+  watchStatsRepo,
   ipAccessRepo,
   bangumiDataRepo,
 } from './index'
 
 test('Stateless in-memory fallback mode (when DB is inactive)', async (t) => {
+  const originalDbEnabled = config.dbEnabled
+  closeDatabase()
+  config.dbEnabled = false
+
+  t.after(() => {
+    config.dbEnabled = originalDbEnabled
+  })
   await t.test('isDatabaseActive returns boolean reflecting database state', () => {
     // Under default test environment without explicit DB_ENABLED=true or active DB instance
     assert.equal(typeof isDatabaseActive(), 'boolean')
@@ -72,6 +82,28 @@ test('Stateless in-memory fallback mode (when DB is inactive)', async (t) => {
     assert.ok(Array.isArray(top))
     const found = top.find((item) => item.bangumiId === 99001)
     assert.ok(found)
+  })
+
+  await t.test('watchStatsRepo safely no-ops without memory overhead in stateless mode', () => {
+    const r1 = watchStatsRepo.recordPlayView({
+      deviceId: 'dev_stateless_1',
+      bangumiId: 99002,
+      episode: 1,
+      clientIp: '127.0.0.1',
+    })
+    assert.equal(r1.success, true)
+    assert.equal(r1.deduped, false)
+    assert.equal(r1.totalPlayCount, 0)
+
+    // Flush in stateless mode safely no-ops without attempting SQLite connection
+    watchStatsRepo.flushSync()
+
+    const stats = watchStatsRepo.getPlayStats(99002)
+    assert.equal(stats.bangumiId, 99002)
+    assert.equal(stats.totalPlayCount, 0)
+
+    const top = watchStatsRepo.getTopRankings('total', 10)
+    assert.deepEqual(top, [])
   })
 
   await t.test('ipAccessRepo safe no-op in stateless mode', () => {

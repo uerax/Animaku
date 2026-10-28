@@ -29,7 +29,7 @@ export interface UseMediaEngineOptions {
   onMediaLoadFailed?: (info: { position: number; reason: string }) => void
   withIntentGuard: (durationMs: number, action: () => void) => void
   shouldSuppressPause: (v: HTMLVideoElement) => boolean
-  onTimeUpdateExtra?: (t: number, d: number) => void
+  onTimeUpdateExtra?: (t: number, d: number, isSeeking?: boolean) => void
   onPauseExtra?: (t: number, d: number) => void
   onEndedExtra?: () => void
   onFragLoadedExtra?: (hls: Hls, data: any) => void
@@ -972,7 +972,7 @@ export function useMediaEngine({
         if (Number.isFinite(d) && d > 0) setDuration(d)
       }
 
-      onTimeUpdateExtraRef.current?.(t, d)
+      onTimeUpdateExtraRef.current?.(t, d, isSeekingRef.current)
     }
 
     const onPause = () => {

@@ -6,7 +6,7 @@ import { useWatchSession } from '../lib/use-watch-session'
 import { bangumiApi } from '../lib/bangumi'
 import { useSettingsStore } from '../stores/settings'
 import { usePluginStore } from '../stores/plugins'
-import { ApiError } from '../lib/api'
+import { ApiError, statsApi } from '../lib/api'
 import { NotFoundPage } from './NotFoundPage'
 import {
   VideoPlayerSuspense,
@@ -62,6 +62,17 @@ export function WatchPage() {
       perfMetrics.markWatchMounted(bangumiId)
     }
   }, [bangumiId])
+
+  // 页面打开与切集时直接触发播放量上报（与播放器历史进度解耦，只要打开播放页面即触发上报）
+  const lastReportedViewRef = useRef<string>('')
+  useEffect(() => {
+    if (!Number.isFinite(bangumiId) || bangumiId <= 0) return
+    const epNum = w.episode?.episode ?? 1
+    const reportKey = `${bangumiId}::${epNum}`
+    if (lastReportedViewRef.current === reportKey) return
+    lastReportedViewRef.current = reportKey
+    void statsApi.recordPlayView(bangumiId, epNum).catch(() => {})
+  }, [bangumiId, w.episode?.episode])
 
   /** Last selection key we auto-focused (collapse sources / mobile scroll) */
   const focusedSelectionKey = useRef<string | null>(null)

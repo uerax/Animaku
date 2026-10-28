@@ -11,6 +11,7 @@ import { pluginSearchCache, PluginSearchCacheRepository } from './repositories/p
 import { pluginChaptersCache, PluginChaptersCacheRepository } from './repositories/plugin-chapters-cache'
 import { kvCache, KvCacheRepository } from './repositories/kv-cache'
 import { playStatsRepo, PlayStatsRepository } from './repositories/play-stats'
+import { watchStatsRepo, WatchStatsRepository } from './repositories/watch-stats'
 import { ipAccessRepo, IpAccessRepository } from './repositories/ip-access'
 import { BangumiDataRepository, type AnimeBangumiMapping } from './repositories/bangumi-data'
 
@@ -78,6 +79,8 @@ export {
   KvCacheRepository,
   playStatsRepo,
   PlayStatsRepository,
+  watchStatsRepo,
+  WatchStatsRepository,
   ipAccessRepo,
   IpAccessRepository,
   bangumiDataRepo,

@@ -389,6 +389,10 @@ function showOverview(db, dbPath) {
  * 播放量排行
  */
 function showTopAnime(db, limit = 15) {
+  const hasTotalTable = db
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'anime_total_views';")
+    .get()
+
   const hasCountsTable = db
     .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'anime_play_counts';")
     .get()
@@ -403,7 +407,30 @@ function showTopAnime(db, limit = 15) {
 
   let rows = []
 
-  if (hasCountsTable) {
+  if (hasTotalTable) {
+    const joinSql = hasMapping
+      ? `
+        SELECT
+          c.bangumi_id AS ID,
+          COALESCE(m.title, '${color.dim}[未映射]${color.reset}') AS 番剧标题,
+          c.total_views AS 播放次数,
+          c.updated_at AS 最近播放时间
+        FROM anime_total_views c
+        LEFT JOIN bangumi_data_mapping m ON m.bangumi_id = c.bangumi_id
+        ORDER BY c.total_views DESC
+        LIMIT ?;
+      `
+      : `
+        SELECT
+          bangumi_id AS ID,
+          total_views AS 播放次数,
+          updated_at AS 最近播放时间
+        FROM anime_total_views
+        ORDER BY total_views DESC
+        LIMIT ?;
+      `
+    rows = db.prepare(joinSql).all(limit)
+  } else if (hasCountsTable) {
     const joinSql = hasMapping
       ? `
         SELECT

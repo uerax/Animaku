@@ -473,9 +473,12 @@ export function VideoPlayer({
     showBarRef,
     onNoteDanmakuReady: noteDanmakuMediaReady,
     tryApplyInitialResume,
-    onTimeUpdateExtra: (t, d) => {
+    onTimeUpdateExtra: (t, d, isSeeking) => {
+      const seekingActive = Boolean(isSeeking)
+      isSeekingRefHolder.current = seekingActive
+
       // 1. Stats & History progress
-      handleTimeUpdateStats(t, d, isSeekingRefHolder.current)
+      handleTimeUpdateStats(t, d, seekingActive)
 
       // 2. OP/ED skip check
       if (!Number.isFinite(d) || d <= 0) {
@@ -486,14 +489,14 @@ export function VideoPlayer({
       const prevT = lastSkipTRef.current
       lastSkipTRef.current = t
 
-      if (isSeekingRefHolder.current || skipBusyRef.current || t >= d - 3) return
+      if (seekingActive || skipBusyRef.current || t >= d - 3) return
 
       const decision = determineOpedAction({
         currentTime: t,
         prevTime: prevT,
         duration: d,
         expectedDurationSeconds,
-        isSeeking: isSeekingRefHolder.current,
+        isSeeking: seekingActive,
         isSkipBusy: skipBusyRef.current,
         episodeIndex,
         episodeNumber,
