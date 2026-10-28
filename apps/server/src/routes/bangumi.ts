@@ -6,6 +6,7 @@ import {
   fromBangumiCollectionType,
   toBangumiCollectionType,
   resolveCountryTag,
+  BANGUMI_API_URL_BANGUMI,
   type BangumiItem,
   type BangumiEpisode,
   type BangumiCollectionEntry,
@@ -45,7 +46,8 @@ async function getUsernameForToken(token: string): Promise<string | null> {
   const cached = cacheGet<string>(cacheKey)
   if (cached) return cached
 
-  const meRes = await bangumiFetch(`${apiUrl}/v0/me`, { token })
+  // 用户鉴权操作直连 Bangumi 官方接口，第三方公开只读镜像通常不转发私密 Authorization 请求头
+  const meRes = await bangumiFetch(`${BANGUMI_API_URL_BANGUMI}/v0/me`, { token })
   if (!meRes.ok) return null
   const me = (await meRes.json()) as { username?: string; id?: number }
   const username = me.username || (me.id ? String(me.id) : null)
@@ -502,7 +504,8 @@ bangumiRoutes.get('/subjects/:id/episodes', async (c) => {
 bangumiRoutes.get('/me', async (c) => {
   const token = tokenFrom(c)
   if (!token) return c.json({ error: 'unauthorized', message: '缺少 Access Token' }, 401)
-  const res = await bangumiFetch(`${apiUrl}/v0/me`, { token })
+  // 用户鉴权操作直连 Bangumi 官方接口
+  const res = await bangumiFetch(`${BANGUMI_API_URL_BANGUMI}/v0/me`, { token })
   if (!res.ok) {
     return c.json(
       { error: 'upstream', message: await res.text() },
@@ -531,7 +534,7 @@ bangumiRoutes.get('/collections', async (c) => {
   const offset = Math.max(Number(c.req.query('offset')) || 0, 0)
   const type = c.req.query('type') // bangumi collection type filter optional
   const url = new URL(
-    `${apiUrl}/v0/users/${encodeURIComponent(username)}/collections`,
+    `${BANGUMI_API_URL_BANGUMI}/v0/users/${encodeURIComponent(username)}/collections`,
   )
   url.searchParams.set('subject_type', '2')
   url.searchParams.set('limit', String(limit))
@@ -568,7 +571,7 @@ bangumiRoutes.put('/collections/:subjectId', async (c) => {
     return c.json({ error: 'bad_request', message: '无效收藏类型' }, 400)
   }
   const res = await bangumiFetch(
-    `${apiUrl}/v0/users/-/collections/${subjectId}`,
+    `${BANGUMI_API_URL_BANGUMI}/v0/users/-/collections/${subjectId}`,
     {
       method: 'POST',
       token,
@@ -580,7 +583,7 @@ bangumiRoutes.put('/collections/:subjectId', async (c) => {
   if (!res.ok && res.status !== 204) {
     // try PATCH for update
     const res2 = await bangumiFetch(
-      `${apiUrl}/v0/users/-/collections/${subjectId}`,
+      `${BANGUMI_API_URL_BANGUMI}/v0/users/-/collections/${subjectId}`,
       {
         method: 'PATCH',
         token,
@@ -607,7 +610,7 @@ bangumiRoutes.get('/collections/:subjectId', async (c) => {
     return c.json({ error: 'unauthorized', message: '无法获取用户信息或 Access Token 无效' }, 401)
   }
   const res = await bangumiFetch(
-    `${apiUrl}/v0/users/${encodeURIComponent(username)}/collections/${subjectId}`,
+    `${BANGUMI_API_URL_BANGUMI}/v0/users/${encodeURIComponent(username)}/collections/${subjectId}`,
     { token },
   )
   if (res.status === 404) {
