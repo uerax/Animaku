@@ -87,9 +87,9 @@ interface Props {
 
 const TABS = [
   ['search', '弹弹搜索'],
-  ['danmubox', '弹幕盒子'],
   ['import', '导入/屏蔽'],
   ['settings', '弹幕设置'],
+  ['danmubox', '弹幕盒子'],
 ] as const
 
 export function DanmakuPanel(props: Props) {
@@ -131,7 +131,7 @@ function DesktopCard(props: Props) {
 
   return (
     <div
-      className="kz-danmaku-panel kz-danmaku-panel--desktop absolute z-[85] flex w-[min(24.5rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)]/95 text-[var(--kz-fg)] shadow-2xl backdrop-blur-2xl"
+      className="kz-danmaku-panel kz-danmaku-panel--desktop absolute z-[85] flex w-[min(25rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)]/95 text-[var(--kz-fg)] shadow-2xl backdrop-blur-2xl"
       style={{
         maxHeight: 'min(27rem, calc(100dvh - 6rem))',
       }}
@@ -143,24 +143,29 @@ function DesktopCard(props: Props) {
       data-player-chrome
     >
       {/* Header Tabs */}
-      <div className="flex shrink-0 items-center justify-between border-b border-[var(--kz-border)] px-2 sm:px-3 py-2 bg-[var(--kz-bg-soft)]/60">
-        <div className="flex gap-0.5 sm:gap-1 bg-[var(--kz-bg)]/80 p-0.5 rounded-xl border border-[var(--kz-border)]/60 min-w-0">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-[var(--kz-border)] px-2 sm:px-3 py-2 bg-[var(--kz-bg-soft)]/60">
+        <div
+          className="flex-1 min-w-0 grid grid-cols-4 gap-1 bg-[var(--kz-bg)]/80 p-0.5 rounded-xl border border-[var(--kz-border)]/60"
+          role="tablist"
+        >
           {TABS.map(([id, label]) => (
             <button
               key={id}
               type="button"
+              role="tab"
+              aria-selected={tab === id}
               data-active={tab === id}
-              className="rounded-lg px-2 sm:px-2.5 py-1 text-[11px] sm:text-xs font-semibold whitespace-nowrap transition-all duration-150 data-[active=true]:bg-[var(--kz-accent)] data-[active=true]:text-white data-[active=true]:shadow-xs data-[active=false]:text-[var(--kz-fg-muted)] data-[active=false]:hover:bg-[var(--kz-bg-soft)] data-[active=false]:hover:text-[var(--kz-fg)] border-0 bg-transparent cursor-pointer select-none"
+              className="w-full h-7 rounded-lg px-0.5 text-[11px] sm:text-[11.5px] font-semibold tracking-tight whitespace-nowrap transition-all duration-150 flex items-center justify-center data-[active=true]:bg-[var(--kz-accent)] data-[active=true]:text-white data-[active=true]:shadow-xs data-[active=false]:text-[var(--kz-fg-muted)] data-[active=false]:hover:bg-[var(--kz-bg-soft)] data-[active=false]:hover:text-[var(--kz-fg)] border-0 bg-transparent cursor-pointer select-none"
               onClick={() => onTabChange(id)}
             >
-              {label}
+              <span className="truncate">{label}</span>
             </button>
           ))}
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="w-6 h-6 flex items-center justify-center rounded-lg text-xs text-[var(--kz-fg-muted)] hover:bg-[var(--kz-bg-soft)] hover:text-[var(--kz-fg)] transition-colors border-0 bg-transparent cursor-pointer shrink-0"
+          className="w-7 h-7 flex items-center justify-center rounded-lg text-xs text-[var(--kz-fg-muted)] hover:bg-[var(--kz-bg-soft)] hover:text-[var(--kz-fg)] transition-colors border-0 bg-transparent cursor-pointer shrink-0"
           aria-label="关闭弹幕面板"
         >
           ✕
@@ -181,7 +186,6 @@ function DesktopCard(props: Props) {
       <div className="kz-danmaku-panel-body flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="kz-danmaku-panel-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 text-sm text-[var(--kz-fg)] space-y-3">
           {tab === 'search' && <SearchTab {...props} compact={false} />}
-          {tab === 'danmubox' && <DanmuBoxTab {...props} compact={false} />}
           {tab === 'import' && <ImportTab {...props} compact={false} />}
           {tab === 'settings' && (
             <SettingsTab
@@ -191,6 +195,7 @@ function DesktopCard(props: Props) {
               compact={false}
             />
           )}
+          {tab === 'danmubox' && <DanmuBoxTab {...props} compact={false} />}
         </div>
       </div>
 
@@ -244,7 +249,7 @@ function MobileSheet(props: Props) {
   return (
     <div
       ref={modalRef}
-      className="fixed inset-0 z-[99999] m-auto flex flex-col w-[92%] max-w-[24.5rem] h-[68dvh] max-h-[28rem] bg-[var(--kz-bg-elevated)]/95 text-[var(--kz-fg)] backdrop-blur-2xl border border-[var(--kz-border)] rounded-2xl shadow-2xl overflow-hidden pointer-events-auto animate-in zoom-in-95 duration-150"
+      className="fixed inset-0 z-[99999] m-auto flex flex-col w-[92%] max-w-[25rem] h-[68dvh] max-h-[28rem] bg-[var(--kz-bg-elevated)]/95 text-[var(--kz-fg)] backdrop-blur-2xl border border-[var(--kz-border)] rounded-2xl shadow-2xl overflow-hidden pointer-events-auto animate-in zoom-in-95 duration-150"
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
@@ -253,8 +258,8 @@ function MobileSheet(props: Props) {
       data-player-chrome
     >
       {/* Header Tabs */}
-      <div className="flex items-center justify-between gap-1.5 px-2 sm:px-3 py-2 shrink-0 border-b border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/60">
-        <div className="flex-1 flex gap-0.5 sm:gap-1 p-0.5 rounded-xl bg-[var(--kz-bg)] border border-[var(--kz-border)]/60 min-w-0" role="tablist">
+      <div className="flex items-center justify-between gap-2 px-2 sm:px-3 py-2 shrink-0 border-b border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/60">
+        <div className="flex-1 min-w-0 grid grid-cols-4 gap-1 p-0.5 rounded-xl bg-[var(--kz-bg)] border border-[var(--kz-border)]/60" role="tablist">
           {TABS.map(([id, label]) => (
             <button
               key={id}
@@ -264,11 +269,11 @@ function MobileSheet(props: Props) {
               onClick={() => onTabChange(id)}
               className={
                 tab === id
-                  ? 'flex-1 h-7 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap bg-[var(--kz-accent)] text-white shadow-xs transition-all border-0 cursor-pointer px-1'
-                  : 'flex-1 h-7 rounded-lg text-[11px] sm:text-xs font-semibold whitespace-nowrap text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] transition-all border-0 bg-transparent cursor-pointer px-1'
+                  ? 'w-full h-7 rounded-lg text-[11px] sm:text-[11.5px] font-semibold tracking-tight whitespace-nowrap bg-[var(--kz-accent)] text-white shadow-xs transition-all border-0 cursor-pointer px-0.5 flex items-center justify-center'
+                  : 'w-full h-7 rounded-lg text-[11px] sm:text-[11.5px] font-semibold tracking-tight whitespace-nowrap text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] transition-all border-0 bg-transparent cursor-pointer px-0.5 flex items-center justify-center'
               }
             >
-              {label}
+              <span className="truncate">{label}</span>
             </button>
           ))}
         </div>
@@ -295,7 +300,6 @@ function MobileSheet(props: Props) {
       {/* Content Body */}
       <div className="flex-1 min-h-0 h-full overflow-y-auto overscroll-contain p-3.5 space-y-3 text-sm text-[var(--kz-fg)]">
         {tab === 'search' && <SearchTab {...props} compact />}
-        {tab === 'danmubox' && <DanmuBoxTab {...props} compact />}
         {tab === 'import' && <ImportTab {...props} compact />}
         {tab === 'settings' && (
           <SettingsTab
@@ -305,6 +309,7 @@ function MobileSheet(props: Props) {
             compact
           />
         )}
+        {tab === 'danmubox' && <DanmuBoxTab {...props} compact />}
       </div>
 
       {/* Sources Footer */}
