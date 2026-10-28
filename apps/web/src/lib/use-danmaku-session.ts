@@ -32,6 +32,7 @@ import {
   togglePool,
   writePool,
   setPoolOffset as updatePoolOffset,
+  DANMAKU_POOL_LABEL,
   DANMAKU_POOL_ORDER,
   type DanmakuPoolId,
   type DanmakuPools,
@@ -75,6 +76,7 @@ export type DanmakuSession = {
   visibleCount: number
   chips: DanmakuSourceChip[]
   toggleSource: (id: DanmakuPoolId) => void
+  removeSource: (id: DanmakuPoolId) => void
   setPoolOffset: (id: DanmakuPoolId, offset: number) => void
   resetPools: () => void
   /** Props bag for VideoPlayer `danmakuPanel` */
@@ -798,8 +800,8 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
       const res = await danmakuApi.bilibili(bvInput.trim(), effectivePage)
       const part = res.meta.part ? ` · ${res.meta.part}` : ''
       const meta = `${res.meta.title || displayId}${part}`
-      setPools((p) => writePool(p, 'bilibili_manual', res.data, 'append', meta, true))
-      setStatus(`已追加 bilibili · ${meta} · +${res.count} 条（默认叠加显示）`)
+      setPools((p) => writePool(p, 'bilibili_manual', res.data, 'replace', meta, true))
+      setStatus(`已载入 bilibili · ${meta} · ${res.count} 条`)
     } catch (e) {
       setStatus(e instanceof Error ? e.message : 'B 站弹幕拉取失败')
     } finally {
@@ -885,6 +887,17 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
     setStatus('弹幕盒子 · 已移除')
   }, [])
 
+  const handleRemoveSource = useCallback((id: DanmakuPoolId) => {
+    if (id === 'bilibili_manual' || id === 'upload' || id === 'danmubox') {
+      if (id === 'danmubox') {
+        activeDanmuBoxRef.current = null
+        setActiveDanmuBox(null)
+      }
+      setPools((p) => writePool(p, id, [], 'replace', undefined, false, 0))
+      setStatus(`已移除「${DANMAKU_POOL_LABEL[id]}」弹幕`)
+    }
+  }, [])
+
   const panel: DanmakuPanelState = useMemo(
     () => ({
       status: status || poolsStatusLine(pools),
@@ -909,6 +922,7 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
       onLoadXmlFile: (f: File) => void handleLoadXmlFile(f),
       sources: chips,
       onToggleSource: toggleSource,
+      onRemoveSource: handleRemoveSource,
       poolOffsets,
       onSetPoolOffset: setPoolOffset,
       globalTimeOffset,
@@ -942,6 +956,7 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
       handleLoadBilibili,
       handleLoadXmlFile,
       toggleSource,
+      handleRemoveSource,
       poolOffsets,
       setPoolOffset,
       globalTimeOffset,
@@ -966,6 +981,7 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
     visibleCount,
     chips,
     toggleSource,
+    removeSource: handleRemoveSource,
     setPoolOffset,
     resetPools,
     panel,

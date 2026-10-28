@@ -53,6 +53,7 @@ interface Props {
   /** Multi-source chips under panel content */
   sources?: DanmakuSourceChip[]
   onToggleSource?: (id: DanmakuPoolId) => void
+  onRemoveSource?: (id: DanmakuPoolId) => void
   /** Per-pool time offsets map */
   poolOffsets?: Record<DanmakuPoolId, number>
   /** Callback to set per-pool time offset */
@@ -124,6 +125,7 @@ function DesktopCard(props: Props) {
     onDanmakuChange,
     sources,
     onToggleSource,
+    onRemoveSource,
   } = props
 
   const shown =
@@ -200,7 +202,7 @@ function DesktopCard(props: Props) {
       </div>
 
       {/* Sources Footer */}
-      <SourcesFooter sources={sources} onToggleSource={onToggleSource} compact={false} />
+      <SourcesFooter sources={sources} onToggleSource={onToggleSource} onRemoveSource={onRemoveSource} compact={false} />
     </div>
   )
 }
@@ -219,6 +221,7 @@ function MobileSheet(props: Props) {
     onDanmakuChange,
     sources,
     onToggleSource,
+    onRemoveSource,
   } = props
 
   const shown =
@@ -313,7 +316,7 @@ function MobileSheet(props: Props) {
       </div>
 
       {/* Sources Footer */}
-      <SourcesFooter sources={sources} onToggleSource={onToggleSource} compact />
+      <SourcesFooter sources={sources} onToggleSource={onToggleSource} onRemoveSource={onRemoveSource} compact />
     </div>
   )
 }
@@ -323,10 +326,12 @@ function MobileSheet(props: Props) {
 function SourcesFooter({
   sources,
   onToggleSource,
+  onRemoveSource,
   compact,
 }: {
   sources?: DanmakuSourceChip[]
   onToggleSource?: (id: DanmakuPoolId) => void
+  onRemoveSource?: (id: DanmakuPoolId) => void
   compact: boolean
 }) {
   if (!sources?.some((s) => s.loaded) || !onToggleSource) return null
@@ -368,33 +373,57 @@ function SourcesFooter({
             badgeActive = 'bg-sky-500 text-white font-bold'
           }
 
+          const isRemovable =
+            Boolean(onRemoveSource) &&
+            (s.id === 'bilibili_manual' || s.id === 'upload' || s.id === 'danmubox')
+
           return (
-            <button
+            <div
               key={s.id}
-              type="button"
-              onClick={() => onToggleSource(s.id)}
-              title={
-                s.enabled
-                  ? `点击关闭「${s.label}」${s.meta ? ` · ${s.meta}` : ''}`
-                  : `点击显示「${s.label}」${s.meta ? ` · ${s.meta}` : ''}`
-              }
-              className={`group inline-flex shrink-0 items-center gap-1.5 rounded-full border pl-2 pr-1 py-0.5 text-[10.5px] leading-tight transition-all duration-150 cursor-pointer select-none ${
+              className={`group inline-flex shrink-0 items-center rounded-full border text-[10.5px] leading-tight transition-all duration-150 select-none ${
+                isRemovable ? 'pl-2 pr-1 py-0.5 gap-1' : 'pl-2 pr-1 py-0.5 gap-1.5'
+              } ${
                 s.enabled
                   ? `${activeClass} shadow-xs`
                   : 'border-[var(--kz-border)] bg-[var(--kz-bg-soft)] text-[var(--kz-fg-muted)] opacity-60 hover:opacity-100 hover:border-[var(--kz-border-hover)]'
               }`}
             >
-              <span>{s.label}</span>
-              <span
-                className={`rounded-full px-1.5 py-0.5 text-[9px] font-mono leading-none tracking-tight shadow-2xs ${
+              <button
+                type="button"
+                onClick={() => onToggleSource(s.id)}
+                title={
                   s.enabled
-                    ? badgeActive
-                    : 'bg-black/15 dark:bg-white/15 text-[var(--kz-fg-muted)] font-medium'
-                }`}
+                    ? `点击关闭「${s.label}」${s.meta ? ` · ${s.meta}` : ''}`
+                    : `点击显示「${s.label}」${s.meta ? ` · ${s.meta}` : ''}`
+                }
+                className="inline-flex items-center gap-1.5 border-0 bg-transparent p-0 text-inherit font-inherit cursor-pointer"
               >
-                {s.count}
-              </span>
-            </button>
+                <span>{s.label}</span>
+                <span
+                  className={`rounded-full px-1.5 py-0.5 text-[9px] font-mono leading-none tracking-tight shadow-2xs ${
+                    s.enabled
+                      ? badgeActive
+                      : 'bg-black/15 dark:bg-white/15 text-[var(--kz-fg-muted)] font-medium'
+                  }`}
+                >
+                  {s.count}
+                </span>
+              </button>
+              {isRemovable && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onRemoveSource?.(s.id)
+                  }}
+                  title={`移除「${s.label}」弹幕`}
+                  aria-label={`移除「${s.label}」弹幕`}
+                  className="flex h-3.5 w-3.5 items-center justify-center rounded-full text-[9px] font-bold text-[var(--kz-fg-muted)] hover:bg-red-500/20 hover:text-red-500 border-0 bg-transparent cursor-pointer transition-colors p-0"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           )
         })}
       </div>

@@ -991,6 +991,7 @@ export function VideoPlayer({
         }
         sources={danmakuPanel.sources}
         onToggleSource={danmakuPanel.onToggleSource}
+        onRemoveSource={danmakuPanel.onRemoveSource}
         poolOffsets={danmakuPanel.poolOffsets}
         onSetPoolOffset={danmakuPanel.onSetPoolOffset}
         globalTimeOffset={danmakuPanel.globalTimeOffset}

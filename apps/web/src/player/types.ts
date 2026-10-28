@@ -35,6 +35,7 @@ export interface DanmakuPanelState {
   onLoadXmlFile: (file: File) => void
   sources?: DanmakuSourceChip[]
   onToggleSource?: (id: DanmakuPoolId) => void
+  onRemoveSource?: (id: DanmakuPoolId) => void
   poolOffsets?: Record<DanmakuPoolId, number>
   onSetPoolOffset?: (id: DanmakuPoolId, offset: number) => void
   globalTimeOffset?: number
