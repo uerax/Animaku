@@ -7,6 +7,10 @@ import {
   ErrorState,
 } from '../components/ui'
 import { HeroCoverFlow, HeroCoverFlowSkeleton } from '../components/HeroCoverFlow'
+import {
+  HomeDesktopSplitHero,
+  HomeDesktopSplitHeroSkeleton,
+} from '../components/home/HomeDesktopSplitHero'
 import { useHistoryStore } from '../stores/history'
 import { useSettingsStore } from '../stores/settings'
 import { Link } from 'react-router-dom'
@@ -194,14 +198,26 @@ export function HomePage() {
         {productName} - {tagline || '在线高清动画多源聚合弹幕平台'}
       </h1>
 
-      {/* 顶部 3D Cover Flow 焦点舞台 */}
+      {/* 顶部焦点舞台：移动端保留 3D Cover Flow，桌面端使用分栏黄金排版 */}
       {trending.isLoading ? (
         <section aria-label="热门聚焦加载中">
-          <HeroCoverFlowSkeleton />
+          <div className="block lg:hidden">
+            <HeroCoverFlowSkeleton />
+          </div>
+          <div className="hidden lg:block">
+            <HomeDesktopSplitHeroSkeleton />
+          </div>
         </section>
       ) : heroItems.length >= 3 ? (
         <section aria-label="热门聚焦">
-          <HeroCoverFlow items={heroItems} limit={10} />
+          {/* 移动端 (< 1024px)：100% 保持原有 3D Cover Flow 体验 */}
+          <div className="block lg:hidden">
+            <HeroCoverFlow items={heroItems} limit={10} />
+          </div>
+          {/* 桌面端 (≥ 1024px)：左侧轮播 Banner + 右侧每日更新 6 宫格矩阵 */}
+          <div className="hidden lg:block">
+            <HomeDesktopSplitHero items={heroItems} />
+          </div>
         </section>
       ) : null}
 
