@@ -6,6 +6,7 @@ import {
   PLAYER_SPEEDS,
   type DanmakuSettings,
   type PlayerSettings,
+  type SiteDefaultSettings,
   setBangumiImageHost as setBangumiImageHostShared,
 } from '@animaku/shared'
 import { createDebouncedStorage } from '../lib/debounced-storage'
@@ -61,6 +62,97 @@ export const defaultNavSettings: NavSettings = {
   openInNewTab: envBool(import.meta.env.VITE_NAV_OPEN_IN_NEW_TAB, true),
 }
 
+export interface CustomizedFlags {
+  theme?: boolean
+  bangumiImageHost?: boolean
+  danmaku?: boolean
+  player?: boolean
+  nav?: boolean
+}
+
+export function getSiteDefaults(): SiteDefaultSettings | null {
+  if (typeof localStorage === 'undefined') return null
+  try {
+    const raw = localStorage.getItem('animaku-site-config-cache')
+    if (raw) {
+      const parsed = JSON.parse(raw) as { defaultSettings?: SiteDefaultSettings }
+      return parsed.defaultSettings || null
+    }
+  } catch {}
+  return null
+}
+
+export function getEffectiveDefaultPlayerSettings(defaults?: SiteDefaultSettings | null): PlayerSettings {
+  const d = defaults ?? getSiteDefaults()
+  const dp = d?.player
+  if (!dp) return { ...defaultPlayerSettings }
+  return {
+    ...defaultPlayerSettings,
+    ...(dp.speed !== undefined ? { speed: clampPlayerSpeed(dp.speed) } : {}),
+    ...(dp.autoplay !== undefined ? { autoplay: Boolean(dp.autoplay) } : {}),
+    ...(dp.autoNext !== undefined ? { autoNext: Boolean(dp.autoNext) } : {}),
+    ...(dp.continuePlay !== undefined ? { continuePlay: Boolean(dp.continuePlay) } : {}),
+    ...(dp.customSeekTime !== undefined ? { customSeekTime: dp.customSeekTime } : {}),
+    ...(dp.superResolution !== undefined ? { superResolution: dp.superResolution } : {}),
+    ...(dp.preferBangumiOped !== undefined ? { preferBangumiOped: Boolean(dp.preferBangumiOped) } : {}),
+    ...(dp.firstEpisodeProtect !== undefined ? { firstEpisodeProtect: Boolean(dp.firstEpisodeProtect) } : {}),
+    skipOp: {
+      ...defaultPlayerSettings.skipOp,
+      ...(dp.skipOp || {}),
+    },
+    skipEd: {
+      ...defaultPlayerSettings.skipEd,
+      ...(dp.skipEd || {}),
+    },
+  }
+}
+
+export function getEffectiveDefaultDanmakuSettings(defaults?: SiteDefaultSettings | null): DanmakuSettings {
+  const d = defaults ?? getSiteDefaults()
+  const dd = d?.danmaku
+  if (!dd) return { ...defaultDanmakuSettings }
+  return {
+    ...defaultDanmakuSettings,
+    ...(dd.enabled !== undefined ? { enabled: Boolean(dd.enabled) } : {}),
+    ...(dd.opacity !== undefined ? { opacity: dd.opacity } : {}),
+    ...(dd.fontSize !== undefined ? { fontSize: dd.fontSize } : {}),
+    ...(dd.speed !== undefined ? { speed: dd.speed } : {}),
+    ...(dd.area !== undefined ? { area: dd.area } : {}),
+    ...(dd.showTop !== undefined ? { showTop: Boolean(dd.showTop) } : {}),
+    ...(dd.showBottom !== undefined ? { showBottom: Boolean(dd.showBottom) } : {}),
+    ...(dd.showScroll !== undefined ? { showScroll: Boolean(dd.showScroll) } : {}),
+    ...(dd.showColor !== undefined ? { showColor: Boolean(dd.showColor) } : {}),
+    ...(dd.simplify !== undefined ? { simplify: Boolean(dd.simplify) } : {}),
+    ...(Array.isArray(dd.filters) ? { filters: dd.filters } : {}),
+  }
+}
+
+export function getEffectiveDefaultNavSettings(defaults?: SiteDefaultSettings | null): NavSettings {
+  const d = defaults ?? getSiteDefaults()
+  const dn = d?.nav
+  if (!dn) return { ...defaultNavSettings }
+  return {
+    ...defaultNavSettings,
+    ...(dn.showUserMenu !== undefined ? { showUserMenu: Boolean(dn.showUserMenu) } : {}),
+    ...(dn.showHistory !== undefined ? { showHistory: Boolean(dn.showHistory) } : {}),
+    ...(dn.showThemeToggle !== undefined ? { showThemeToggle: Boolean(dn.showThemeToggle) } : {}),
+    ...(dn.showGitHub !== undefined ? { showGitHub: Boolean(dn.showGitHub) } : {}),
+    ...(dn.openInNewTab !== undefined ? { openInNewTab: Boolean(dn.openInNewTab) } : {}),
+  }
+}
+
+export function getEffectiveDefaultTheme(defaults?: SiteDefaultSettings | null): AppTheme {
+  const d = defaults ?? getSiteDefaults()
+  if (d?.theme === 'light' || d?.theme === 'dark') return d.theme
+  return DEFAULT_APP_THEME
+}
+
+export function getEffectiveDefaultBangumiImageHost(defaults?: SiteDefaultSettings | null): string {
+  const d = defaults ?? getSiteDefaults()
+  if (d?.bangumiImageHost) return resolveBangumiImageHost(d.bangumiImageHost)
+  return DEFAULT_BANGUMI_IMAGE_HOST
+}
+
 interface SettingsState {
   bangumiToken: string
   theme: AppTheme
@@ -69,6 +161,7 @@ interface SettingsState {
   danmaku: DanmakuSettings
   player: PlayerSettings
   nav: NavSettings
+  customized?: CustomizedFlags
   setBangumiToken: (token: string) => void
   setBangumiImageHost: (host: string) => void
   setTheme: (theme: AppTheme) => void
@@ -133,42 +226,74 @@ function mergePlayer(partial?: Partial<PlayerSettings>): PlayerSettings {
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
-    (set) => ({
-      bangumiToken: '',
-      theme: DEFAULT_APP_THEME,
-      bangumiImageHost: DEFAULT_BANGUMI_IMAGE_HOST,
-      danmaku: { ...defaultDanmakuSettings },
-      player: { ...defaultPlayerSettings },
-      nav: { ...defaultNavSettings },
-      setBangumiToken: (bangumiToken) => set({ bangumiToken }),
-      setBangumiImageHost: (raw) => {
-        const bangumiImageHost = resolveBangumiImageHost(raw)
-        // shared 状态先更新，再 set 触发重渲染 → 新 URL 立即生效
-        setBangumiImageHostShared(bangumiImageHost)
-        set({ bangumiImageHost })
-      },
-      setTheme: (theme) => {
-        applyDocumentTheme(theme)
-        set({ theme })
-      },
-      toggleTheme: () =>
-        set((s) => {
-          const theme: AppTheme = s.theme === 'light' ? 'dark' : 'light'
+    (set) => {
+      const initialSiteDefaults = getSiteDefaults()
+      return {
+        bangumiToken: '',
+        theme: getEffectiveDefaultTheme(initialSiteDefaults),
+        bangumiImageHost: getEffectiveDefaultBangumiImageHost(initialSiteDefaults),
+        danmaku: getEffectiveDefaultDanmakuSettings(initialSiteDefaults),
+        player: getEffectiveDefaultPlayerSettings(initialSiteDefaults),
+        nav: getEffectiveDefaultNavSettings(initialSiteDefaults),
+        customized: {},
+        setBangumiToken: (bangumiToken) => set({ bangumiToken }),
+        setBangumiImageHost: (raw) => {
+          const bangumiImageHost = resolveBangumiImageHost(raw)
+          // shared 状态先更新，再 set 触发重渲染 → 新 URL 立即生效
+          setBangumiImageHostShared(bangumiImageHost)
+          set((s) => ({
+            bangumiImageHost,
+            customized: { ...s.customized, bangumiImageHost: true },
+          }))
+        },
+        setTheme: (theme) => {
           applyDocumentTheme(theme)
-          return { theme }
-        }),
-      setDanmaku: (partial) =>
-        set((s) => ({ danmaku: { ...s.danmaku, ...partial } })),
-      resetDanmaku: () => set({ danmaku: { ...defaultDanmakuSettings } }),
-      setPlayer: (partial) =>
-        set((s) => ({
-          player: mergePlayer({ ...s.player, ...partial }),
-        })),
-      resetPlayer: () => set({ player: { ...defaultPlayerSettings } }),
-      setNav: (partial) =>
-        set((s) => ({ nav: { ...s.nav, ...partial } })),
-      resetNav: () => set({ nav: { ...defaultNavSettings } }),
-    }),
+          set((s) => ({
+            theme,
+            customized: { ...s.customized, theme: true },
+          }))
+        },
+        toggleTheme: () =>
+          set((s) => {
+            const theme: AppTheme = s.theme === 'light' ? 'dark' : 'light'
+            applyDocumentTheme(theme)
+            return {
+              theme,
+              customized: { ...s.customized, theme: true },
+            }
+          }),
+        setDanmaku: (partial) =>
+          set((s) => ({
+            danmaku: { ...s.danmaku, ...partial },
+            customized: { ...s.customized, danmaku: true },
+          })),
+        resetDanmaku: () =>
+          set((s) => ({
+            danmaku: getEffectiveDefaultDanmakuSettings(),
+            customized: { ...s.customized, danmaku: false },
+          })),
+        setPlayer: (partial) =>
+          set((s) => ({
+            player: mergePlayer({ ...s.player, ...partial }),
+            customized: { ...s.customized, player: true },
+          })),
+        resetPlayer: () =>
+          set((s) => ({
+            player: getEffectiveDefaultPlayerSettings(),
+            customized: { ...s.customized, player: false },
+          })),
+        setNav: (partial) =>
+          set((s) => ({
+            nav: { ...s.nav, ...partial },
+            customized: { ...s.customized, nav: true },
+          })),
+        resetNav: () =>
+          set((s) => ({
+            nav: getEffectiveDefaultNavSettings(),
+            customized: { ...s.customized, nav: false },
+          })),
+      }
+    },
     {
       name: 'animaku-settings',
       version: 3,
@@ -214,49 +339,61 @@ export const useSettingsStore = create<SettingsState>()(
         danmaku: s.danmaku,
         player: s.player,
         nav: s.nav,
+        customized: s.customized,
       }),
       merge: (persisted, current) => {
         const p = (persisted || {}) as Partial<SettingsState>
+        const siteDefaults = getSiteDefaults()
+        const customized = p.customized || {}
+
+        // Theme: if user customized, use saved. Otherwise use site default.
+        const effectiveTheme =
+          customized.theme && (p.theme === 'light' || p.theme === 'dark')
+            ? p.theme
+            : getEffectiveDefaultTheme(siteDefaults)
+
+        // Image Host: if user customized, use saved. Otherwise use site default.
+        const effectiveImageHost =
+          customized.bangumiImageHost && p.bangumiImageHost
+            ? resolveBangumiImageHost(p.bangumiImageHost)
+            : getEffectiveDefaultBangumiImageHost(siteDefaults)
+
+        // Danmaku: if user customized, merge user's danmaku. Otherwise use site default danmaku.
+        const effectiveDanmaku =
+          customized.danmaku && p.danmaku && typeof p.danmaku === 'object'
+            ? {
+                ...getEffectiveDefaultDanmakuSettings(siteDefaults),
+                ...p.danmaku,
+              }
+            : getEffectiveDefaultDanmakuSettings(siteDefaults)
+
+        // Player: if user customized, merge user's player. Otherwise use site default player.
+        const effectivePlayer =
+          customized.player && p.player && typeof p.player === 'object'
+            ? mergePlayer(p.player)
+            : getEffectiveDefaultPlayerSettings(siteDefaults)
+
+        // Nav: if user customized, merge user's nav. Otherwise use site default nav.
+        const effectiveNav =
+          customized.nav && p.nav && typeof p.nav === 'object'
+            ? {
+                ...getEffectiveDefaultNavSettings(siteDefaults),
+                ...p.nav,
+              }
+            : getEffectiveDefaultNavSettings(siteDefaults)
+
         return {
           ...current,
           bangumiToken:
             typeof p.bangumiToken === 'string'
               ? p.bangumiToken
               : current.bangumiToken,
-          theme:
-            p.theme === 'light' || p.theme === 'dark' ? p.theme : DEFAULT_APP_THEME,
-          bangumiImageHost: resolveBangumiImageHost(p.bangumiImageHost),
-          danmaku: {
-            ...defaultDanmakuSettings,
-            ...(p.danmaku && typeof p.danmaku === 'object' ? p.danmaku : {}),
-          },
-          player: mergePlayer(
-            p.player && typeof p.player === 'object' ? p.player : undefined,
-          ),
-          nav: {
-            ...defaultNavSettings,
-            ...(p.nav && typeof p.nav === 'object' ? p.nav : {}),
-            showUserMenu:
-              p.nav && typeof p.nav.showUserMenu === 'boolean'
-                ? p.nav.showUserMenu
-                : defaultNavSettings.showUserMenu,
-            showHistory:
-              p.nav && typeof p.nav.showHistory === 'boolean'
-                ? p.nav.showHistory
-                : defaultNavSettings.showHistory,
-            showThemeToggle:
-              p.nav && typeof p.nav.showThemeToggle === 'boolean'
-                ? p.nav.showThemeToggle
-                : defaultNavSettings.showThemeToggle,
-            showGitHub:
-              p.nav && typeof p.nav.showGitHub === 'boolean'
-                ? p.nav.showGitHub
-                : defaultNavSettings.showGitHub,
-            openInNewTab:
-              p.nav && typeof p.nav.openInNewTab === 'boolean'
-                ? p.nav.openInNewTab
-                : defaultNavSettings.openInNewTab,
-          },
+          theme: effectiveTheme,
+          bangumiImageHost: effectiveImageHost,
+          danmaku: effectiveDanmaku,
+          player: effectivePlayer,
+          nav: effectiveNav,
+          customized,
         }
       },
       onRehydrateStorage: () => (state) => {
@@ -267,6 +404,35 @@ export const useSettingsStore = create<SettingsState>()(
     },
   ),
 )
+
+export function applySiteDefaultsIfUncustomized(defaults: SiteDefaultSettings) {
+  const state = useSettingsStore.getState()
+  const customized = state.customized || {}
+  const updates: Partial<SettingsState> = {}
+
+  if (!customized.theme && defaults.theme) {
+    updates.theme = defaults.theme
+    applyDocumentTheme(defaults.theme)
+  }
+  if (!customized.bangumiImageHost && defaults.bangumiImageHost) {
+    const host = resolveBangumiImageHost(defaults.bangumiImageHost)
+    setBangumiImageHostShared(host)
+    updates.bangumiImageHost = host
+  }
+  if (!customized.player && defaults.player) {
+    updates.player = getEffectiveDefaultPlayerSettings(defaults)
+  }
+  if (!customized.danmaku && defaults.danmaku) {
+    updates.danmaku = getEffectiveDefaultDanmakuSettings(defaults)
+  }
+  if (!customized.nav && defaults.nav) {
+    updates.nav = getEffectiveDefaultNavSettings(defaults)
+  }
+
+  if (Object.keys(updates).length > 0) {
+    useSettingsStore.setState(updates)
+  }
+}
 
 // Only seed default if index.html early script didn't already set data-theme.
 if (

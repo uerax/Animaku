@@ -59,7 +59,7 @@ async function handleRecordView(c: Context) {
     }
 
     const clientIp = resolveIp(c)
-    const deviceId = extractDeviceId(c, body as Record<string, unknown>)
+    const deviceId = extractDeviceId(c, body as unknown as Record<string, unknown>)
     const fingerprint = c.req.header('x-browser-fingerprint') || (typeof body.fingerprint === 'string' ? body.fingerprint : undefined)
 
     // Record view in memory buffer (instant microsecond response, 0 DB locking)

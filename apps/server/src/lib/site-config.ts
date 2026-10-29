@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import sharp from 'sharp'
+import type { SiteDefaultSettings } from '@animaku/shared'
 import { config } from '../config'
 
 export interface AnnouncementItem {
@@ -27,6 +28,7 @@ export interface SiteConfig {
   announcementEnabled?: boolean
   announcement?: AnnouncementItem | null
   announcementHistory?: AnnouncementItem[]
+  defaultSettings?: SiteDefaultSettings
 }
 
 const MAX_ICON_SIZE = 2 * 1024 * 1024 // 2MB
@@ -261,6 +263,9 @@ export function saveSiteConfig(updates: Partial<SiteConfig>): SiteConfig {
   }
   if (updates.announcementHistory !== undefined) {
     next.announcementHistory = updates.announcementHistory.slice(0, 30)
+  }
+  if (updates.defaultSettings !== undefined) {
+    next.defaultSettings = updates.defaultSettings
   }
 
   try {
@@ -621,6 +626,7 @@ export function resetAllSiteConfig(): SiteConfig {
     announcementEnabled: false,
     announcement: null,
     announcementHistory: [],
+    defaultSettings: undefined,
   }
   return memoryCache
 }

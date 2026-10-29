@@ -17,6 +17,8 @@ export const routeImports = {
     import('../pages/HistoryPage').then((m) => ({ default: m.HistoryPage })),
   settings: () =>
     import('../pages/SettingsPage').then((m) => ({ default: m.SettingsPage })),
+  admin: () =>
+    import('../pages/AdminPage').then((m) => ({ default: m.AdminPage })),
   search: () =>
     import('../pages/SearchPage').then((m) => ({ default: m.SearchPage })),
   subject: () =>
@@ -35,7 +37,7 @@ function normalizeRoutePath(path: string): RouteKey | null {
   if (clean === '/collect' || clean.startsWith('/collect/')) return 'collect'
   if (clean === '/history' || clean.startsWith('/history/')) return 'history'
   if (clean === '/settings' || clean.startsWith('/settings/')) return 'settings'
-  if (clean === '/admin' || clean.startsWith('/admin/')) return 'settings'
+  if (clean === '/admin' || clean.startsWith('/admin/')) return 'admin'
   if (clean === '/search' || clean.startsWith('/search/')) return 'search'
   if (clean.startsWith('/subject/')) return 'subject'
   if (clean.startsWith('/play/')) return 'play'

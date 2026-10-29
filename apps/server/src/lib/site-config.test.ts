@@ -151,6 +151,45 @@ test('site-config: resetAllSiteConfig clears all custom settings and favicon', (
   assert.equal(cfg.iconUrl, undefined)
 })
 
+test('site-config: defaultSettings saving, fetching and resetting', async () => {
+  const secret = 'test-secret'
+  config.adminSecret = secret
+  try {
+    const res = await adminSiteRoutes.request('/site/default-settings', {
+      method: 'POST',
+      headers: {
+        'X-Admin-Secret': secret,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        theme: 'dark',
+        bangumiImageHost: 'https://img.example.com',
+        player: { speed: 1.25, autoplay: true },
+        nav: { openInNewTab: false },
+      }),
+    })
+    assert.equal(res.status, 200)
+    const json = (await res.json()) as { ok: boolean; data: any }
+    assert.equal(json.ok, true)
+    assert.equal(json.data.theme, 'dark')
+    assert.equal(json.data.bangumiImageHost, 'https://img.example.com')
+    assert.equal(json.data.player.speed, 1.25)
+
+    const cfg = getSiteConfig()
+    assert.equal(cfg.defaultSettings?.theme, 'dark')
+
+    const getRes = await siteRoutes.request('/config')
+    const getJson = (await getRes.json()) as { ok: boolean; defaultSettings: any }
+    assert.equal(getJson.ok, true)
+    assert.equal(getJson.defaultSettings?.theme, 'dark')
+
+    // Clean up
+    saveSiteConfig({ defaultSettings: undefined })
+  } finally {
+    config.adminSecret = ''
+  }
+})
+
 test('site-config: generateIconSuite and saveCustomFavicon creates unified multi-size icon suite', async () => {
   // Use a small valid 1x1 transparent PNG buffer to test the pipeline
   const testPng = Buffer.from(

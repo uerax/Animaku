@@ -15,6 +15,7 @@ const SearchPage = lazy(routeImports.search)
 const CollectPage = lazy(routeImports.collect)
 const HistoryPage = lazy(routeImports.history)
 const SettingsPage = lazy(routeImports.settings)
+const AdminPage = lazy(routeImports.admin)
 const SubjectPage = lazy(routeImports.subject)
 const PlayPage = lazy(routeImports.play)
 
@@ -83,7 +84,7 @@ export default function App() {
           path="admin"
           element={
             <Suspense fallback={<PageFallback />}>
-              <SettingsPage />
+              <AdminPage />
             </Suspense>
           }
         />

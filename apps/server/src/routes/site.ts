@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { Hono } from 'hono'
+import type { SiteDefaultSettings } from '@animaku/shared'
 import { isAuthorizedAdmin } from '../lib/indexnow'
 import {
   getSiteConfig,
@@ -44,6 +45,7 @@ siteRoutes.get('/config', (c) => {
     iconUpdatedAt: cfg.iconUpdatedAt || 0,
     announcementEnabled: Boolean(cfg.announcementEnabled),
     announcement: cfg.announcement || null,
+    defaultSettings: cfg.defaultSettings || null,
   })
 })
 
@@ -190,6 +192,24 @@ adminSiteRoutes.post('/site/config', async (c) => {
 })
 
 /**
+ * 更新站点全局默认配置（图片源、规则排序与开关、播放器、弹幕、导航栏等）
+ */
+adminSiteRoutes.post('/site/default-settings', async (c) => {
+  const body = (await c.req.json<SiteDefaultSettings>().catch(() => ({}))) as SiteDefaultSettings
+  try {
+    const saved = saveSiteConfig({ defaultSettings: body })
+    return c.json({
+      ok: true,
+      data: saved.defaultSettings || null,
+      message: '全局默认配置已更新',
+    })
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : '保存全局默认配置失败'
+    return c.json({ ok: false, error: errMsg, message: errMsg }, 500)
+  }
+})
+
+/**
  * 在线上传站点图标文件（≤2MB，格式嗅探 ICO/PNG/JPEG/WEBP，固定保存为 favicon.ico）
  */
 adminSiteRoutes.post('/site/upload-icon', async (c) => {
@@ -282,6 +302,7 @@ adminSiteRoutes.post('/site/reset-all', (c) => {
         iconMode: cfg.iconMode || 'default',
         iconUrl: cfg.iconUrl || '',
         iconUpdatedAt: cfg.iconUpdatedAt || 0,
+        defaultSettings: null,
       },
     })
   } catch (err) {

@@ -1,5 +1,7 @@
 import { create } from 'zustand'
+import type { SiteDefaultSettings } from '@animaku/shared'
 import { api } from '../lib/api'
+import { applySiteDefaultsIfUncustomized } from './settings'
 
 export interface AnnouncementItem {
   id: string
@@ -29,6 +31,9 @@ export interface SiteConfigState {
   announcement: AnnouncementItem | null
   announcementHistory: AnnouncementItem[]
 
+  // 全局默认配置（解耦于用户侧，作为新访客/未定制时的站点默认项）
+  defaultSettings: SiteDefaultSettings | null
+
   // 管理模式会话状态（仅当前会话有效）
   adminSecret: string
   isAdminUnlocked: boolean
@@ -42,6 +47,7 @@ export interface SiteConfigState {
     iconMode: 'default' | 'upload' | 'url'
     iconUrl: string
   }) => Promise<void>
+  saveDefaultSettings: (data: SiteDefaultSettings) => Promise<{ ok: boolean; message?: string }>
   uploadIcon: (file: File) => Promise<void>
   resetIcon: () => Promise<void>
   resetAllConfig: () => Promise<void>
@@ -77,6 +83,7 @@ interface CachedSiteConfig {
   iconUpdatedAt: number
   announcementEnabled?: boolean
   announcement?: AnnouncementItem | null
+  defaultSettings?: SiteDefaultSettings | null
 }
 
 function getInitialSiteConfig(): CachedSiteConfig {
@@ -89,6 +96,7 @@ function getInitialSiteConfig(): CachedSiteConfig {
       iconUpdatedAt: 0,
       announcementEnabled: false,
       announcement: null,
+      defaultSettings: null,
     }
   }
 
@@ -111,6 +119,10 @@ function getInitialSiteConfig(): CachedSiteConfig {
             parsed.announcement && typeof parsed.announcement === 'object'
               ? parsed.announcement
               : null,
+          defaultSettings:
+            parsed.defaultSettings && typeof parsed.defaultSettings === 'object'
+              ? parsed.defaultSettings
+              : null,
         }
       }
     }
@@ -127,6 +139,7 @@ function getInitialSiteConfig(): CachedSiteConfig {
       iconUpdatedAt: 0,
       announcementEnabled: false,
       announcement: null,
+      defaultSettings: null,
     }
   }
 
@@ -138,6 +151,7 @@ function getInitialSiteConfig(): CachedSiteConfig {
     iconUpdatedAt: 0,
     announcementEnabled: false,
     announcement: null,
+    defaultSettings: null,
   }
 }
 
@@ -228,6 +242,7 @@ export const useSiteConfigStore = create<SiteConfigState>((set, get) => ({
   announcementEnabled: initialConfig.announcementEnabled ?? false,
   announcement: initialConfig.announcement ?? null,
   announcementHistory: [],
+  defaultSettings: initialConfig.defaultSettings ?? null,
   isLoaded: false,
 
   adminSecret: initialSecret,
@@ -244,6 +259,7 @@ export const useSiteConfigStore = create<SiteConfigState>((set, get) => ({
         iconUpdatedAt: number
         announcementEnabled: boolean
         announcement: AnnouncementItem | null
+        defaultSettings?: SiteDefaultSettings | null
       }>('/api/site/config')
 
       if (res && res.ok) {
@@ -255,6 +271,7 @@ export const useSiteConfigStore = create<SiteConfigState>((set, get) => ({
           iconUpdatedAt: res.iconUpdatedAt || 0,
           announcementEnabled: Boolean(res.announcementEnabled),
           announcement: res.announcement || null,
+          defaultSettings: res.defaultSettings || null,
         }
 
         set({
@@ -264,6 +281,10 @@ export const useSiteConfigStore = create<SiteConfigState>((set, get) => ({
 
         saveSiteConfigToCache(nextConfig)
         updateDocumentFavicon(nextConfig.iconMode, nextConfig.iconUrl, nextConfig.iconUpdatedAt)
+
+        if (nextConfig.defaultSettings) {
+          applySiteDefaultsIfUncustomized(nextConfig.defaultSettings)
+        }
       }
     } catch (err) {
       console.warn('[site-config] 加载站点配置失败:', err)
@@ -335,6 +356,39 @@ export const useSiteConfigStore = create<SiteConfigState>((set, get) => ({
       set(nextConfig)
       saveSiteConfigToCache(nextConfig)
       updateDocumentFavicon(res.data.iconMode, res.data.iconUrl, res.data.iconUpdatedAt)
+    }
+  },
+
+  saveDefaultSettings: async (defaults) => {
+    const { adminSecret } = get()
+    try {
+      const res = await api<{
+        ok: boolean
+        data?: SiteDefaultSettings
+        message?: string
+        error?: string
+      }>('/api/admin/site/default-settings', {
+        method: 'POST',
+        headers: {
+          'X-Admin-Secret': adminSecret,
+        },
+        body: JSON.stringify(defaults),
+      })
+
+      if (res && res.ok) {
+        const newDefaults = res.data || defaults
+        set({ defaultSettings: newDefaults })
+        const currentCached = getInitialSiteConfig()
+        saveSiteConfigToCache({
+          ...currentCached,
+          defaultSettings: newDefaults,
+        })
+        return { ok: true, message: res.message || '全局默认配置已更新' }
+      }
+      return { ok: false, message: res?.error || res?.message || '保存失败' }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      return { ok: false, message: msg }
     }
   },
 
@@ -433,6 +487,7 @@ export const useSiteConfigStore = create<SiteConfigState>((set, get) => ({
         announcementEnabled: false,
         announcement: null,
         announcementHistory: [],
+        defaultSettings: null,
       })
       updateDocumentFavicon('default')
     }

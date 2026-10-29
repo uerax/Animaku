@@ -59,6 +59,7 @@ export type RouteName =
   | 'collect'
   | 'history'
   | 'settings'
+  | 'admin'
 
 const ROUTE_CHUNK_PREFIXES: Record<RouteName, string[]> = {
   subject: ['PlayPage-', 'bangumi-oped-', 'watched-', 'server-capabilities-'],
@@ -68,6 +69,7 @@ const ROUTE_CHUNK_PREFIXES: Record<RouteName, string[]> = {
   collect: ['CollectPage-'],
   history: ['HistoryPage-'],
   settings: ['SettingsPage-'],
+  admin: ['AdminPage-'],
 }
 
 export function matchRouteName(pathname: string): RouteName | null {
@@ -79,7 +81,7 @@ export function matchRouteName(pathname: string): RouteName | null {
   if (clean === '/collect' || clean.startsWith('/collect/')) return 'collect'
   if (clean === '/history' || clean.startsWith('/history/')) return 'history'
   if (clean === '/settings' || clean.startsWith('/settings/')) return 'settings'
-  if (clean === '/admin' || clean.startsWith('/admin/')) return 'settings'
+  if (clean === '/admin' || clean.startsWith('/admin/')) return 'admin'
   return null
 }
 
@@ -135,6 +137,7 @@ function buildAllRoutePreloadTags(webRoot: string): Record<RouteName, string> {
     collect: findRouteModulePreloadTags(webRoot, 'collect'),
     history: findRouteModulePreloadTags(webRoot, 'history'),
     settings: findRouteModulePreloadTags(webRoot, 'settings'),
+    admin: findRouteModulePreloadTags(webRoot, 'admin'),
   }
 }
 

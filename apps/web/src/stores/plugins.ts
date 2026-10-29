@@ -183,12 +183,38 @@ function sortByOrder(plugins: PluginMeta[], order: string[]): PluginMeta[] {
   return withFallback.map((w) => w.p)
 }
 
+function getSiteDefaultPluginsConfig(): { pluginOrder?: string[]; disabledPlugins?: string[] } | null {
+  if (typeof localStorage === 'undefined') return null
+  try {
+    const raw = localStorage.getItem('animaku-site-config-cache')
+    if (raw) {
+      const parsed = JSON.parse(raw) as { defaultSettings?: { pluginOrder?: string[]; disabledPlugins?: string[] } }
+      return parsed.defaultSettings || null
+    }
+  } catch {}
+  return null
+}
+
+export function seedFromDefaultsWithSiteOverrides(): { plugins: PluginMeta[]; pluginOrder: string[] } {
+  let plugins = seedFromDefaults()
+  const d = getSiteDefaultPluginsConfig()
+  if (d?.disabledPlugins && Array.isArray(d.disabledPlugins)) {
+    const disabledSet = new Set(d.disabledPlugins.map((n) => n.toLowerCase()))
+    plugins = plugins.map((p) => ({
+      ...p,
+      enabled: !disabledSet.has(p.name.toLowerCase()),
+    }))
+  }
+  const pluginOrder = d?.pluginOrder && Array.isArray(d.pluginOrder) ? d.pluginOrder : []
+  return { plugins, pluginOrder }
+}
+
 export const usePluginStore = create<PluginState>()(
   persist(
     (set, get) => ({
-      plugins: seedFromDefaults(),
+      plugins: seedFromDefaultsWithSiteOverrides().plugins,
       defaultsVersion: PLUGIN_DEFAULTS_VERSION,
-      pluginOrder: [],
+      pluginOrder: seedFromDefaultsWithSiteOverrides().pluginOrder,
       importRule: (raw, opts) => {
         const rule = parsePluginRule(raw)
         const meta = toMeta(
@@ -282,9 +308,11 @@ export const usePluginStore = create<PluginState>()(
         // Empty → seed; version bump → re-seed only if still purely old built-ins
         // or empty. User-imported/catalog rules are kept.
         if (plugins.length === 0) {
+          const seeded = seedFromDefaultsWithSiteOverrides()
           set({
-            plugins: seedFromDefaults(),
+            plugins: seeded.plugins,
             defaultsVersion: PLUGIN_DEFAULTS_VERSION,
+            pluginOrder: seeded.pluginOrder,
           })
           return
         }
@@ -373,10 +401,11 @@ export const usePluginStore = create<PluginState>()(
             legacyBuiltinNames.has(p.name.toLowerCase()),
         )
         if (onlyLegacyBuiltins) {
+          const seeded = seedFromDefaultsWithSiteOverrides()
           set({
-            plugins: seedFromDefaults(),
+            plugins: seeded.plugins,
             defaultsVersion: PLUGIN_DEFAULTS_VERSION,
-            pluginOrder: [],
+            pluginOrder: seeded.pluginOrder,
           })
           return
         }
@@ -422,10 +451,11 @@ export const usePluginStore = create<PluginState>()(
         })
       },
       resetToDefaults: () => {
+        const seeded = seedFromDefaultsWithSiteOverrides()
         set({
-          plugins: seedFromDefaults(),
+          plugins: seeded.plugins,
           defaultsVersion: PLUGIN_DEFAULTS_VERSION,
-          pluginOrder: [],
+          pluginOrder: seeded.pluginOrder,
         })
       },
     }),

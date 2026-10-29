@@ -73,8 +73,8 @@ export const STATIC_ROUTE_SEO: Record<
     robots: 'noindex,nofollow',
   },
   '/admin': {
-    title: '设置',
-    description: '规则、播放器、弹幕与账号相关设置。',
+    title: '站点运维与管理',
+    description: '站点运维与全局配置管理，需管理员鉴权。',
     robots: 'noindex,nofollow',
   },
   '/404': {
