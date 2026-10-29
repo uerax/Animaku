@@ -279,10 +279,6 @@ function AdminDashboard() {
     return []
   })
 
-  // 提示状态
-  const [globalSaveMsg, setGlobalSaveMsg] = useState('')
-  const [globalSaving, setGlobalSaving] = useState(false)
-
   // 当服务端 defaultSettings 更新时同步表单本地副本
   useEffect(() => {
     if (defaultSettings) {
@@ -310,68 +306,187 @@ function AdminDashboard() {
     }
   }, [defaultSettings])
 
-  // 保存全局默认配置
-  const handleSaveGlobalDefaults = async () => {
-    setGlobalSaving(true)
-    setGlobalSaveMsg('')
+  // 封面图片源保存与恢复
+  const [imgSaving, setImgSaving] = useState(false)
+  const [imgMsg, setImgMsg] = useState('')
+
+  const handleSaveImageHost = async () => {
+    setImgSaving(true)
+    setImgMsg('')
     try {
-      const payload: SiteDefaultSettings = {
-        bangumiImageHost: defImageHost,
-        theme: defTheme,
-        nav: defNav,
-        player: defPlayer,
-        danmaku: defDanmaku,
-        pluginOrder: defPluginOrder,
-        disabledPlugins: defDisabledPlugins,
-      }
-      const res = await saveDefaultSettings(payload)
+      const res = await saveDefaultSettings({ bangumiImageHost: defImageHost })
       if (res.ok) {
-        setGlobalSaveMsg('✅ 全局默认配置已成功保存！新用户及恢复默认将自动采用此配置。')
+        setImgMsg('✅ 默认封面图片源已保存')
       } else {
-        setGlobalSaveMsg(`❌ 保存失败: ${res.message || '未知错误'}`)
+        setImgMsg(`❌ 保存失败: ${res.message || '未知错误'}`)
       }
     } catch (err) {
-      setGlobalSaveMsg(`❌ 保存异常: ${err instanceof Error ? err.message : String(err)}`)
+      setImgMsg(`❌ 保存异常: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
-      setGlobalSaving(false)
-      setTimeout(() => setGlobalSaveMsg(''), 4000)
+      setImgSaving(false)
+      setTimeout(() => setImgMsg(''), 3000)
     }
   }
 
-  // 直接将全部设置改回出厂默认
-  const handleRestoreAllDefaults = async () => {
-    if (!confirm('确定要将所有全局设置改回出厂默认吗？')) return
+  const handleResetImageHost = async () => {
     setDefImageHost(DEFAULT_BANGUMI_IMAGE_HOST)
+    setImgSaving(true)
+    setImgMsg('')
+    try {
+      await saveDefaultSettings({ bangumiImageHost: DEFAULT_BANGUMI_IMAGE_HOST })
+      setImgMsg('✅ 已恢复官方默认图片源并保存')
+    } finally {
+      setImgSaving(false)
+      setTimeout(() => setImgMsg(''), 3000)
+    }
+  }
+
+  // 视频源规则排序保存与恢复
+  const [pluginsSaving, setPluginsSaving] = useState(false)
+  const [pluginsMsg, setPluginsMsg] = useState('')
+
+  const handleSavePlugins = async () => {
+    setPluginsSaving(true)
+    setPluginsMsg('')
+    try {
+      const res = await saveDefaultSettings({
+        pluginOrder: defPluginOrder,
+        disabledPlugins: defDisabledPlugins,
+      })
+      if (res.ok) {
+        setPluginsMsg('✅ 默认视频源排序与状态已保存')
+      } else {
+        setPluginsMsg(`❌ 保存失败: ${res.message || '未知错误'}`)
+      }
+    } catch (err) {
+      setPluginsMsg(`❌ 保存异常: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setPluginsSaving(false)
+      setTimeout(() => setPluginsMsg(''), 3000)
+    }
+  }
+
+  const handleResetPlugins = async () => {
+    const defaultNames = allPlugins.map((p) => p.name)
+    setDefPluginOrder(defaultNames)
+    setDefDisabledPlugins([])
+    setPluginsSaving(true)
+    setPluginsMsg('')
+    try {
+      await saveDefaultSettings({
+        pluginOrder: defaultNames,
+        disabledPlugins: [],
+      })
+      setPluginsMsg('✅ 已恢复官方默认源排序与状态并保存')
+    } finally {
+      setPluginsSaving(false)
+      setTimeout(() => setPluginsMsg(''), 3000)
+    }
+  }
+
+  // 播放器偏好保存与恢复
+  const [playerSaving, setPlayerSaving] = useState(false)
+  const [playerMsg, setPlayerMsg] = useState('')
+
+  const handleSavePlayer = async () => {
+    setPlayerSaving(true)
+    setPlayerMsg('')
+    try {
+      const res = await saveDefaultSettings({ player: defPlayer })
+      if (res.ok) {
+        setPlayerMsg('✅ 默认播放器偏好已保存')
+      } else {
+        setPlayerMsg(`❌ 保存失败: ${res.message || '未知错误'}`)
+      }
+    } catch (err) {
+      setPlayerMsg(`❌ 保存异常: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setPlayerSaving(false)
+      setTimeout(() => setPlayerMsg(''), 3000)
+    }
+  }
+
+  const handleResetPlayer = async () => {
+    setDefPlayer({ ...defaultPlayerSettings })
+    setPlayerSaving(true)
+    setPlayerMsg('')
+    try {
+      await saveDefaultSettings({ player: { ...defaultPlayerSettings } })
+      setPlayerMsg('✅ 已恢复官方默认播放器配置并保存')
+    } finally {
+      setPlayerSaving(false)
+      setTimeout(() => setPlayerMsg(''), 3000)
+    }
+  }
+
+  // 弹幕偏好保存与恢复
+  const [danmakuSaving, setDanmakuSaving] = useState(false)
+  const [danmakuMsg, setDanmakuMsg] = useState('')
+
+  const handleSaveDanmaku = async () => {
+    setDanmakuSaving(true)
+    setDanmakuMsg('')
+    try {
+      const res = await saveDefaultSettings({ danmaku: defDanmaku })
+      if (res.ok) {
+        setDanmakuMsg('✅ 默认弹幕偏好已保存')
+      } else {
+        setDanmakuMsg(`❌ 保存失败: ${res.message || '未知错误'}`)
+      }
+    } catch (err) {
+      setDanmakuMsg(`❌ 保存异常: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setDanmakuSaving(false)
+      setTimeout(() => setDanmakuMsg(''), 3000)
+    }
+  }
+
+  const handleResetDanmaku = async () => {
+    setDefDanmaku({ ...defaultDanmakuSettings })
+    setDanmakuSaving(true)
+    setDanmakuMsg('')
+    try {
+      await saveDefaultSettings({ danmaku: { ...defaultDanmakuSettings } })
+      setDanmakuMsg('✅ 已恢复官方默认弹幕配置并保存')
+    } finally {
+      setDanmakuSaving(false)
+      setTimeout(() => setDanmakuMsg(''), 3000)
+    }
+  }
+
+  // 导航与外观保存与恢复
+  const [navSaving, setNavSaving] = useState(false)
+  const [navMsg, setNavMsg] = useState('')
+
+  const handleSaveNav = async () => {
+    setNavSaving(true)
+    setNavMsg('')
+    try {
+      const res = await saveDefaultSettings({ nav: defNav, theme: defTheme })
+      if (res.ok) {
+        setNavMsg('✅ 默认导航与外观偏好已保存')
+      } else {
+        setNavMsg(`❌ 保存失败: ${res.message || '未知错误'}`)
+      }
+    } catch (err) {
+      setNavMsg(`❌ 保存异常: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setNavSaving(false)
+      setTimeout(() => setNavMsg(''), 3000)
+    }
+  }
+
+  const handleResetNav = async () => {
     setDefTheme(DEFAULT_APP_THEME)
     setDefNav({ ...defaultNavSettings })
-    setDefPlayer({ ...defaultPlayerSettings })
-    setDefDanmaku({ ...defaultDanmakuSettings })
-    setDefPluginOrder(allPlugins.map((p) => p.name))
-    setDefDisabledPlugins([])
-
-    setGlobalSaving(true)
-    setGlobalSaveMsg('')
+    setNavSaving(true)
+    setNavMsg('')
     try {
-      const payload: SiteDefaultSettings = {
-        bangumiImageHost: DEFAULT_BANGUMI_IMAGE_HOST,
-        theme: DEFAULT_APP_THEME,
-        nav: { ...defaultNavSettings },
-        player: { ...defaultPlayerSettings },
-        danmaku: { ...defaultDanmakuSettings },
-        pluginOrder: allPlugins.map((p) => p.name),
-        disabledPlugins: [],
-      }
-      const res = await saveDefaultSettings(payload)
-      if (res.ok) {
-        setGlobalSaveMsg('✅ 已恢复全部默认设置并保存生效')
-      } else {
-        setGlobalSaveMsg('⚠️ 已重置表单为默认值，请点击保存提交')
-      }
-    } catch {
-      setGlobalSaveMsg('⚠️ 已重置表单为默认值')
+      await saveDefaultSettings({ nav: { ...defaultNavSettings }, theme: DEFAULT_APP_THEME })
+      setNavMsg('✅ 已恢复官方默认导航栏配置并保存')
     } finally {
-      setGlobalSaving(false)
-      setTimeout(() => setGlobalSaveMsg(''), 3000)
+      setNavSaving(false)
+      setTimeout(() => setNavMsg(''), 3000)
     }
   }
 
@@ -682,56 +797,21 @@ function AdminDashboard() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 pb-16">
-      {/* 顶部标题栏与全局操作 */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-[var(--kz-border)] pb-4">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[var(--kz-fg)]">
-              站点运维与全局配置
-            </h1>
-            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-400">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              已授权 (Admin)
-            </span>
-          </div>
-          <p className="mt-1 text-xs text-[var(--kz-fg-muted)] leading-relaxed">
-            在此配置站点基础品牌、全站公告，并设定全站新用户的全局默认偏好（与当前浏览器的本地定制解耦）。
-          </p>
+      {/* 顶部标题栏 */}
+      <div className="flex flex-col gap-1 border-b border-[var(--kz-border)] pb-4">
+        <div className="flex items-center gap-2.5">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[var(--kz-fg)]">
+            站点运维与全局配置
+          </h1>
+          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-400">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            已授权 (Admin)
+          </span>
         </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleRestoreAllDefaults}
-            disabled={globalSaving}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3.5 py-2 text-xs font-medium text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] active:scale-95 transition-all cursor-pointer"
-            title="将全部设置改回出厂默认"
-          >
-            ↺ 恢复默认
-          </button>
-          <button
-            type="button"
-            onClick={handleSaveGlobalDefaults}
-            disabled={globalSaving}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--kz-accent)] px-4 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[var(--kz-accent-hover)] active:scale-95 disabled:opacity-50 cursor-pointer"
-          >
-            {globalSaving ? '保存中…' : '保存'}
-          </button>
-        </div>
+        <p className="mt-1 text-xs text-[var(--kz-fg-muted)] leading-relaxed">
+          在此配置站点基础品牌、全站公告，并设定全站新用户的全局默认偏好（各模块内部独立保存生效，与用户本地定制解耦）。
+        </p>
       </div>
-
-      {globalSaveMsg && (
-        <div className="rounded-xl border border-[var(--kz-accent)]/30 bg-[var(--kz-accent)]/10 px-4 py-2.5 text-xs text-[var(--kz-fg)] animate-fade-in flex items-center justify-between">
-          <span>{globalSaveMsg}</span>
-          <button
-            type="button"
-            onClick={() => setGlobalSaveMsg('')}
-            className="text-[var(--kz-fg-dim)] hover:text-[var(--kz-fg)] ml-2"
-          >
-            ✕
-          </button>
-        </div>
-      )}
 
       {/* 1. 服务健康与运行状态 */}
       <AdminCard
@@ -1087,6 +1167,27 @@ function AdminDashboard() {
               dropdownWidth="w-full"
             />
           </div>
+
+          {imgMsg && <div className="text-xs text-[var(--kz-accent)] pt-1">{imgMsg}</div>}
+
+          <div className="flex items-center justify-between pt-2 border-t border-[var(--kz-border)]/40">
+            <button
+              type="button"
+              onClick={handleResetImageHost}
+              disabled={imgSaving}
+              className="text-xs text-[var(--kz-fg-dim)] hover:text-[var(--kz-fg)] underline cursor-pointer"
+            >
+              恢复默认
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveImageHost}
+              disabled={imgSaving}
+              className="rounded-xl bg-[var(--kz-accent)] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[var(--kz-accent-hover)] active:scale-95 disabled:opacity-50 cursor-pointer"
+            >
+              {imgSaving ? '保存中…' : '保存'}
+            </button>
+          </div>
         </div>
       </AdminCard>
 
@@ -1184,16 +1285,24 @@ function AdminDashboard() {
             })}
           </div>
 
-          <div className="flex justify-end pt-1">
+          {pluginsMsg && <div className="text-xs text-[var(--kz-accent)] pt-1">{pluginsMsg}</div>}
+
+          <div className="flex items-center justify-between pt-2 border-t border-[var(--kz-border)]/40">
             <button
               type="button"
-              onClick={() => {
-                setDefPluginOrder(allPlugins.map((p) => p.name))
-                setDefDisabledPlugins([])
-              }}
+              onClick={handleResetPlugins}
+              disabled={pluginsSaving}
               className="text-xs text-[var(--kz-fg-dim)] hover:text-[var(--kz-fg)] underline cursor-pointer"
             >
-              恢复官方默认源排序与状态
+              恢复默认
+            </button>
+            <button
+              type="button"
+              onClick={handleSavePlugins}
+              disabled={pluginsSaving}
+              className="rounded-xl bg-[var(--kz-accent)] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[var(--kz-accent-hover)] active:scale-95 disabled:opacity-50 cursor-pointer"
+            >
+              {pluginsSaving ? '保存中…' : '保存'}
             </button>
           </div>
         </div>
@@ -1269,13 +1378,24 @@ function AdminDashboard() {
             />
           </div>
 
-          <div className="flex justify-end pt-1">
+          {playerMsg && <div className="text-xs text-[var(--kz-accent)] pt-1">{playerMsg}</div>}
+
+          <div className="flex items-center justify-between pt-2 border-t border-[var(--kz-border)]/40">
             <button
               type="button"
-              onClick={() => setDefPlayer({ ...defaultPlayerSettings })}
+              onClick={handleResetPlayer}
+              disabled={playerSaving}
               className="text-xs text-[var(--kz-fg-dim)] hover:text-[var(--kz-fg)] underline cursor-pointer"
             >
-              恢复官方默认播放器配置
+              恢复默认
+            </button>
+            <button
+              type="button"
+              onClick={handleSavePlayer}
+              disabled={playerSaving}
+              className="rounded-xl bg-[var(--kz-accent)] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[var(--kz-accent-hover)] active:scale-95 disabled:opacity-50 cursor-pointer"
+            >
+              {playerSaving ? '保存中…' : '保存'}
             </button>
           </div>
         </div>
@@ -1362,13 +1482,24 @@ function AdminDashboard() {
             />
           </div>
 
-          <div className="flex justify-end pt-1">
+          {danmakuMsg && <div className="text-xs text-[var(--kz-accent)] pt-1">{danmakuMsg}</div>}
+
+          <div className="flex items-center justify-between pt-2 border-t border-[var(--kz-border)]/40">
             <button
               type="button"
-              onClick={() => setDefDanmaku({ ...defaultDanmakuSettings })}
+              onClick={handleResetDanmaku}
+              disabled={danmakuSaving}
               className="text-xs text-[var(--kz-fg-dim)] hover:text-[var(--kz-fg)] underline cursor-pointer"
             >
-              恢复官方默认弹幕配置
+              恢复默认
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveDanmaku}
+              disabled={danmakuSaving}
+              className="rounded-xl bg-[var(--kz-accent)] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[var(--kz-accent-hover)] active:scale-95 disabled:opacity-50 cursor-pointer"
+            >
+              {danmakuSaving ? '保存中…' : '保存'}
             </button>
           </div>
         </div>
@@ -1430,16 +1561,24 @@ function AdminDashboard() {
             />
           </div>
 
-          <div className="flex justify-end pt-1">
+          {navMsg && <div className="text-xs text-[var(--kz-accent)] pt-1">{navMsg}</div>}
+
+          <div className="flex items-center justify-between pt-2 border-t border-[var(--kz-border)]/40">
             <button
               type="button"
-              onClick={() => {
-                setDefTheme(DEFAULT_APP_THEME)
-                setDefNav({ ...defaultNavSettings })
-              }}
+              onClick={handleResetNav}
+              disabled={navSaving}
               className="text-xs text-[var(--kz-fg-dim)] hover:text-[var(--kz-fg)] underline cursor-pointer"
             >
-              恢复官方默认导航栏配置
+              恢复默认
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveNav}
+              disabled={navSaving}
+              className="rounded-xl bg-[var(--kz-accent)] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[var(--kz-accent-hover)] active:scale-95 disabled:opacity-50 cursor-pointer"
+            >
+              {navSaving ? '保存中…' : '保存'}
             </button>
           </div>
         </div>

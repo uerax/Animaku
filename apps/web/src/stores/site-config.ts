@@ -47,7 +47,7 @@ export interface SiteConfigState {
     iconMode: 'default' | 'upload' | 'url'
     iconUrl: string
   }) => Promise<void>
-  saveDefaultSettings: (data: SiteDefaultSettings) => Promise<{ ok: boolean; message?: string }>
+  saveDefaultSettings: (data: Partial<SiteDefaultSettings>) => Promise<{ ok: boolean; message?: string }>
   uploadIcon: (file: File) => Promise<void>
   resetIcon: () => Promise<void>
   resetAllConfig: () => Promise<void>
@@ -376,14 +376,18 @@ export const useSiteConfigStore = create<SiteConfigState>((set, get) => ({
       })
 
       if (res && res.ok) {
-        const newDefaults = res.data || defaults
+        const currentSettings = get().defaultSettings || {}
+        const newDefaults = res.data || {
+          ...currentSettings,
+          ...defaults,
+        }
         set({ defaultSettings: newDefaults })
         const currentCached = getInitialSiteConfig()
         saveSiteConfigToCache({
           ...currentCached,
           defaultSettings: newDefaults,
         })
-        return { ok: true, message: res.message || '全局默认配置已更新' }
+        return { ok: true, message: res.message || '配置已更新' }
       }
       return { ok: false, message: res?.error || res?.message || '保存失败' }
     } catch (err) {

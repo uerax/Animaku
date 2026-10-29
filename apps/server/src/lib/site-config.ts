@@ -265,7 +265,24 @@ export function saveSiteConfig(updates: Partial<SiteConfig>): SiteConfig {
     next.announcementHistory = updates.announcementHistory.slice(0, 30)
   }
   if (updates.defaultSettings !== undefined) {
-    next.defaultSettings = updates.defaultSettings
+    if (updates.defaultSettings === null) {
+      next.defaultSettings = undefined
+    } else {
+      const prev = current.defaultSettings || {}
+      next.defaultSettings = {
+        ...prev,
+        ...updates.defaultSettings,
+        nav: updates.defaultSettings.nav !== undefined
+          ? { ...(prev.nav || {}), ...updates.defaultSettings.nav }
+          : prev.nav,
+        player: updates.defaultSettings.player !== undefined
+          ? { ...(prev.player || {}), ...updates.defaultSettings.player }
+          : prev.player,
+        danmaku: updates.defaultSettings.danmaku !== undefined
+          ? { ...(prev.danmaku || {}), ...updates.defaultSettings.danmaku }
+          : prev.danmaku,
+      }
+    }
   }
 
   try {
