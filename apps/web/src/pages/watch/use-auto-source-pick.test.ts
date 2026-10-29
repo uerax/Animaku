@@ -182,4 +182,29 @@ describe('use-auto-source-pick: Adaptive Grace & Priority Inversion Protection',
     const decision = resolveAutoSourceDecision(sources, [], pluginOrder)
     assert.strictEqual(decision.action, 'none')
   })
+
+  it('boosted source (+20 weight) wins when rank ties between unlisted fallback sources', () => {
+    // 两个未在用户明确顺序里的源：sourceA (基础权重 50), sourceB (基础权重 55)
+    // 正常情况下 sourceB 胜出；但若 sourceA 命中了当前番剧专属加权 (+20)，权重变为 70，胜出！
+    const sources: Record<string, AggregatedSourceState> = {
+      sourceA: {
+        plugin: createMockPlugin('sourceA', 50),
+        status: 'ready',
+        items: [createMockItem('番剧 X', '/play/a')],
+        matchedItem: createMockItem('番剧 X', '/play/a'),
+        searched: true,
+      },
+      sourceB: {
+        plugin: createMockPlugin('sourceB', 55),
+        status: 'ready',
+        items: [createMockItem('番剧 X', '/play/b')],
+        matchedItem: createMockItem('番剧 X', '/play/b'),
+        searched: true,
+      },
+    }
+    const boostedPluginNames = new Set(['sourcea'])
+    const decision = resolveAutoSourceDecision(sources, [], [], boostedPluginNames)
+    assert.strictEqual(decision.action, 'immediate')
+    assert.strictEqual(decision.candidate?.plugin.name, 'sourceA')
+  })
 })

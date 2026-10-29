@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import type { PluginMeta, SearchItem } from '@animaku/shared'
+import {
+  type PluginMeta,
+  type SearchItem,
+  getPluginEffectiveWeight,
+} from '@animaku/shared'
 import type { AggregatedSourceState } from '../../lib/use-source-aggregator'
 
 export interface AutoSourcePickDecision {
@@ -27,6 +31,7 @@ export function resolveAutoSourceDecision(
   sources: Record<string, AggregatedSourceState>,
   inFlightPlugins: string[],
   pluginOrder: string[],
+  boostedPluginNames?: Set<string>,
 ): AutoSourcePickDecision {
   const readyCandidates = Object.values(sources).filter(
     (s) => s.status === 'ready' && s.matchedItem && s.plugin,
@@ -41,7 +46,9 @@ export function resolveAutoSourceDecision(
     const rankA = getPluginRank(a.plugin.name, pluginOrder)
     const rankB = getPluginRank(b.plugin.name, pluginOrder)
     if (rankA !== rankB) return rankA - rankB
-    return (b.plugin.weight || 0) - (a.plugin.weight || 0)
+    const wa = getPluginEffectiveWeight(a.plugin, false, boostedPluginNames)
+    const wb = getPluginEffectiveWeight(b.plugin, false, boostedPluginNames)
+    return wb - wa
   })
 
   const bestCandidate = readyCandidates[0]
@@ -73,6 +80,7 @@ export interface UseAutoSourcePickOptions {
   sources: Record<string, AggregatedSourceState>
   pluginOrder: string[]
   inFlightPlugins: string[]
+  boostedPluginNames?: Set<string>
   allFallbacksExhausted?: boolean
   onSwitchSource: (
     plugin: PluginMeta,
@@ -89,6 +97,7 @@ export function useAutoSourcePick({
   sources,
   pluginOrder,
   inFlightPlugins,
+  boostedPluginNames,
   allFallbacksExhausted = false,
   onSwitchSource,
   onAllFallbacksFailed,
@@ -142,7 +151,7 @@ export function useAutoSourcePick({
       return
     }
 
-    const decision = resolveAutoSourceDecision(sources, inFlightPlugins, pluginOrder)
+    const decision = resolveAutoSourceDecision(sources, inFlightPlugins, pluginOrder, boostedPluginNames)
 
     if (decision.action === 'none') {
       clearGraceTimer()

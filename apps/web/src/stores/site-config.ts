@@ -38,7 +38,7 @@ export interface SiteConfigState {
   adminSecret: string
   isAdminUnlocked: boolean
 
-  fetchConfig: () => Promise<void>
+  fetchConfig: (force?: boolean) => Promise<void>
   unlockAdmin: (secret: string) => Promise<boolean>
   lockAdmin: () => void
   saveConfig: (data: {
@@ -74,6 +74,8 @@ export interface SiteConfigState {
 
 const ADMIN_STORAGE_KEY = 'animaku-admin-secret'
 const SITE_CONFIG_CACHE_KEY = 'animaku-site-config-cache'
+/** 客户端本地缓存 TTL：5 分钟（在此时间内整页刷新不重复发网络请求） */
+export const SITE_CONFIG_TTL_MS = 5 * 60 * 1000
 
 interface CachedSiteConfig {
   siteName: string
@@ -84,6 +86,7 @@ interface CachedSiteConfig {
   announcementEnabled?: boolean
   announcement?: AnnouncementItem | null
   defaultSettings?: SiteDefaultSettings | null
+  cachedAt?: number
 }
 
 function getInitialSiteConfig(): CachedSiteConfig {
@@ -97,6 +100,7 @@ function getInitialSiteConfig(): CachedSiteConfig {
       announcementEnabled: false,
       announcement: null,
       defaultSettings: null,
+      cachedAt: 0,
     }
   }
 
@@ -123,6 +127,7 @@ function getInitialSiteConfig(): CachedSiteConfig {
             parsed.defaultSettings && typeof parsed.defaultSettings === 'object'
               ? parsed.defaultSettings
               : null,
+          cachedAt: typeof parsed.cachedAt === 'number' ? parsed.cachedAt : 0,
         }
       }
     }
@@ -140,6 +145,7 @@ function getInitialSiteConfig(): CachedSiteConfig {
       announcementEnabled: false,
       announcement: null,
       defaultSettings: null,
+      cachedAt: 0,
     }
   }
 
@@ -152,12 +158,17 @@ function getInitialSiteConfig(): CachedSiteConfig {
     announcementEnabled: false,
     announcement: null,
     defaultSettings: null,
+    cachedAt: 0,
   }
 }
 
 function saveSiteConfigToCache(data: CachedSiteConfig) {
   try {
-    localStorage.setItem(SITE_CONFIG_CACHE_KEY, JSON.stringify(data))
+    const toSave: CachedSiteConfig = {
+      ...data,
+      cachedAt: data.cachedAt || Date.now(),
+    }
+    localStorage.setItem(SITE_CONFIG_CACHE_KEY, JSON.stringify(toSave))
   } catch {}
 }
 
@@ -248,7 +259,13 @@ export const useSiteConfigStore = create<SiteConfigState>((set, get) => ({
   adminSecret: initialSecret,
   isAdminUnlocked: Boolean(initialSecret),
 
-  fetchConfig: async () => {
+  fetchConfig: async (force = false) => {
+    // 5 分钟本地缓存拦截：若在 TTL 时间窗口内且已有缓存数据，则直接标记加载完成，不发网络请求
+    if (!force && initialConfig.cachedAt && Date.now() - initialConfig.cachedAt < SITE_CONFIG_TTL_MS) {
+      set({ isLoaded: true })
+      return
+    }
+
     try {
       const res = await api<{
         ok: boolean
@@ -272,6 +289,7 @@ export const useSiteConfigStore = create<SiteConfigState>((set, get) => ({
           announcementEnabled: Boolean(res.announcementEnabled),
           announcement: res.announcement || null,
           defaultSettings: res.defaultSettings || null,
+          cachedAt: Date.now(),
         }
 
         set({

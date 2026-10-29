@@ -278,6 +278,16 @@ function AdminDashboard() {
     }
     return []
   })
+  const [defSourceBangumiIds, setDefSourceBangumiIds] = useState<Record<string, number[]>>(() => {
+    if (defaultSettings?.sourceBangumiIds && typeof defaultSettings.sourceBangumiIds === 'object') {
+      return defaultSettings.sourceBangumiIds
+    }
+    return {}
+  })
+
+  // 视频源加权番剧展开状态与输入框状态
+  const [expandedPluginWeights, setExpandedPluginWeights] = useState<Record<string, boolean>>({})
+  const [pluginIdInputs, setPluginIdInputs] = useState<Record<string, string>>({})
 
   // 当服务端 defaultSettings 更新时同步表单本地副本
   useEffect(() => {
@@ -303,20 +313,24 @@ function AdminDashboard() {
       if (Array.isArray(defaultSettings.disabledPlugins)) {
         setDefDisabledPlugins(defaultSettings.disabledPlugins)
       }
+      if (defaultSettings.sourceBangumiIds && typeof defaultSettings.sourceBangumiIds === 'object') {
+        setDefSourceBangumiIds(defaultSettings.sourceBangumiIds)
+      }
     }
   }, [defaultSettings])
 
-  // 封面图片源保存与恢复
+  // 封面图片源保存与恢复（修改即自动保存）
   const [imgSaving, setImgSaving] = useState(false)
   const [imgMsg, setImgMsg] = useState('')
 
-  const handleSaveImageHost = async () => {
+  const handleUpdateImageHost = async (host: string) => {
+    setDefImageHost(host)
     setImgSaving(true)
     setImgMsg('')
     try {
-      const res = await saveDefaultSettings({ bangumiImageHost: defImageHost })
+      const res = await saveDefaultSettings({ bangumiImageHost: host })
       if (res.ok) {
-        setImgMsg('✅ 默认封面图片源已保存')
+        setImgMsg('✅ 已自动保存')
       } else {
         setImgMsg(`❌ 保存失败: ${res.message || '未知错误'}`)
       }
@@ -324,7 +338,7 @@ function AdminDashboard() {
       setImgMsg(`❌ 保存异常: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setImgSaving(false)
-      setTimeout(() => setImgMsg(''), 3000)
+      setTimeout(() => setImgMsg(''), 2500)
     }
   }
 
@@ -334,27 +348,32 @@ function AdminDashboard() {
     setImgMsg('')
     try {
       await saveDefaultSettings({ bangumiImageHost: DEFAULT_BANGUMI_IMAGE_HOST })
-      setImgMsg('✅ 已恢复官方默认图片源并保存')
+      setImgMsg('✅ 已恢复官方默认并自动保存')
     } finally {
       setImgSaving(false)
-      setTimeout(() => setImgMsg(''), 3000)
+      setTimeout(() => setImgMsg(''), 2500)
     }
   }
 
-  // 视频源规则排序保存与恢复
+  // 视频源规则排序保存与恢复（修改即自动保存）
   const [pluginsSaving, setPluginsSaving] = useState(false)
   const [pluginsMsg, setPluginsMsg] = useState('')
 
-  const handleSavePlugins = async () => {
+  const persistPluginsConfig = async (
+    order: string[],
+    disabled: string[],
+    boosted: Record<string, number[]>,
+  ) => {
     setPluginsSaving(true)
     setPluginsMsg('')
     try {
       const res = await saveDefaultSettings({
-        pluginOrder: defPluginOrder,
-        disabledPlugins: defDisabledPlugins,
+        pluginOrder: order,
+        disabledPlugins: disabled,
+        sourceBangumiIds: boosted,
       })
       if (res.ok) {
-        setPluginsMsg('✅ 默认视频源排序与状态已保存')
+        setPluginsMsg('✅ 已自动保存')
       } else {
         setPluginsMsg(`❌ 保存失败: ${res.message || '未知错误'}`)
       }
@@ -362,39 +381,75 @@ function AdminDashboard() {
       setPluginsMsg(`❌ 保存异常: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setPluginsSaving(false)
-      setTimeout(() => setPluginsMsg(''), 3000)
+      setTimeout(() => setPluginsMsg(''), 2500)
     }
+  }
+
+  const handleAddBangumiIds = (pluginName: string) => {
+    const key = pluginName.toLowerCase()
+    const input = (pluginIdInputs[pluginName] || '').trim()
+    if (!input) return
+    const ids = input
+      .split(/[\s,，;；\n]+/)
+      .map((s) => parseInt(s, 10))
+      .filter((n) => Number.isFinite(n) && n > 0)
+    if (ids.length === 0) return
+
+    const existing = defSourceBangumiIds[key] || []
+    const merged = Array.from(new Set([...existing, ...ids]))
+    const nextBoosted = { ...defSourceBangumiIds, [key]: merged }
+    setDefSourceBangumiIds(nextBoosted)
+    setPluginIdInputs((prev) => ({ ...prev, [pluginName]: '' }))
+    void persistPluginsConfig(defPluginOrder, defDisabledPlugins, nextBoosted)
+  }
+
+  const handleRemoveBangumiId = (pluginName: string, idToRemove: number) => {
+    const key = pluginName.toLowerCase()
+    const existing = defSourceBangumiIds[key] || []
+    const next = existing.filter((id) => id !== idToRemove)
+    const nextBoosted = { ...defSourceBangumiIds }
+    if (next.length === 0) {
+      delete nextBoosted[key]
+    } else {
+      nextBoosted[key] = next
+    }
+    setDefSourceBangumiIds(nextBoosted)
+    void persistPluginsConfig(defPluginOrder, defDisabledPlugins, nextBoosted)
   }
 
   const handleResetPlugins = async () => {
     const defaultNames = allPlugins.map((p) => p.name)
     setDefPluginOrder(defaultNames)
     setDefDisabledPlugins([])
+    setDefSourceBangumiIds({})
     setPluginsSaving(true)
     setPluginsMsg('')
     try {
       await saveDefaultSettings({
         pluginOrder: defaultNames,
         disabledPlugins: [],
+        sourceBangumiIds: {},
       })
-      setPluginsMsg('✅ 已恢复官方默认源排序与状态并保存')
+      setPluginsMsg('✅ 已恢复官方默认并自动保存')
     } finally {
       setPluginsSaving(false)
-      setTimeout(() => setPluginsMsg(''), 3000)
+      setTimeout(() => setPluginsMsg(''), 2500)
     }
   }
 
-  // 播放器偏好保存与恢复
+  // 播放器偏好保存与恢复（修改即自动保存）
   const [playerSaving, setPlayerSaving] = useState(false)
   const [playerMsg, setPlayerMsg] = useState('')
 
-  const handleSavePlayer = async () => {
+  const updatePlayerPref = async (updates: Partial<SitePlayerDefaults>) => {
+    const next = { ...defPlayer, ...updates }
+    setDefPlayer(next)
     setPlayerSaving(true)
     setPlayerMsg('')
     try {
-      const res = await saveDefaultSettings({ player: defPlayer })
+      const res = await saveDefaultSettings({ player: next })
       if (res.ok) {
-        setPlayerMsg('✅ 默认播放器偏好已保存')
+        setPlayerMsg('✅ 已自动保存')
       } else {
         setPlayerMsg(`❌ 保存失败: ${res.message || '未知错误'}`)
       }
@@ -402,7 +457,7 @@ function AdminDashboard() {
       setPlayerMsg(`❌ 保存异常: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setPlayerSaving(false)
-      setTimeout(() => setPlayerMsg(''), 3000)
+      setTimeout(() => setPlayerMsg(''), 2500)
     }
   }
 
@@ -412,10 +467,10 @@ function AdminDashboard() {
     setPlayerMsg('')
     try {
       await saveDefaultSettings({ player: { ...defaultPlayerSettings } })
-      setPlayerMsg('✅ 已恢复官方默认播放器配置并保存')
+      setPlayerMsg('✅ 已恢复官方默认播放器配置并自动保存')
     } finally {
       setPlayerSaving(false)
-      setTimeout(() => setPlayerMsg(''), 3000)
+      setTimeout(() => setPlayerMsg(''), 2500)
     }
   }
 
@@ -454,17 +509,19 @@ function AdminDashboard() {
     }
   }
 
-  // 导航与外观保存与恢复
+  // 导航与外观保存与恢复（修改即自动保存）
   const [navSaving, setNavSaving] = useState(false)
   const [navMsg, setNavMsg] = useState('')
 
-  const handleSaveNav = async () => {
+  const updateNavPref = async (newTheme = defTheme, newNav = defNav) => {
+    setDefTheme(newTheme)
+    setDefNav(newNav)
     setNavSaving(true)
     setNavMsg('')
     try {
-      const res = await saveDefaultSettings({ nav: defNav, theme: defTheme })
+      const res = await saveDefaultSettings({ nav: newNav, theme: newTheme })
       if (res.ok) {
-        setNavMsg('✅ 默认导航与外观偏好已保存')
+        setNavMsg('✅ 已自动保存')
       } else {
         setNavMsg(`❌ 保存失败: ${res.message || '未知错误'}`)
       }
@@ -472,7 +529,7 @@ function AdminDashboard() {
       setNavMsg(`❌ 保存异常: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setNavSaving(false)
-      setTimeout(() => setNavMsg(''), 3000)
+      setTimeout(() => setNavMsg(''), 2500)
     }
   }
 
@@ -483,10 +540,10 @@ function AdminDashboard() {
     setNavMsg('')
     try {
       await saveDefaultSettings({ nav: { ...defaultNavSettings }, theme: DEFAULT_APP_THEME })
-      setNavMsg('✅ 已恢复官方默认导航栏配置并保存')
+      setNavMsg('✅ 已恢复官方默认导航栏配置并自动保存')
     } finally {
       setNavSaving(false)
-      setTimeout(() => setNavMsg(''), 3000)
+      setTimeout(() => setNavMsg(''), 2500)
     }
   }
 
@@ -693,7 +750,7 @@ function AdminDashboard() {
         imageZoom: annZoomInput,
       })
       if (res.ok) {
-        setAnnMsg('✅ 公告已保存并即时生效')
+        setAnnMsg(annEnabledInput ? '✅ 公告配置已保存并即时生效' : '✅ 公告配置已保存（当前为停用状态）')
       } else {
         setAnnMsg(`❌ 保存失败: ${res.message || '未知错误'}`)
       }
@@ -774,17 +831,16 @@ function AdminDashboard() {
     if (target < 0 || target >= names.length) return
     ;[names[idx], names[target]] = [names[target], names[idx]]
     setDefPluginOrder(names)
+    void persistPluginsConfig(names, defDisabledPlugins, defSourceBangumiIds)
   }
 
   const togglePluginDisabledState = (name: string) => {
     const key = name.toLowerCase()
-    setDefDisabledPlugins((prev) => {
-      if (prev.some((n) => n.toLowerCase() === key)) {
-        return prev.filter((n) => n.toLowerCase() !== key)
-      } else {
-        return [...prev, name]
-      }
-    })
+    const nextDisabled = defDisabledPlugins.some((n) => n.toLowerCase() === key)
+      ? defDisabledPlugins.filter((n) => n.toLowerCase() !== key)
+      : [...defDisabledPlugins, name]
+    setDefDisabledPlugins(nextDisabled)
+    void persistPluginsConfig(defPluginOrder, nextDisabled, defSourceBangumiIds)
   }
 
   const previewCurrentIconUrl =
@@ -961,17 +1017,25 @@ function AdminDashboard() {
       >
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-3">
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={annEnabledInput}
-                onChange={(e) => setAnnEnabledInput(e.target.checked)}
-                className="rounded border-[var(--kz-border)] text-[var(--kz-accent)]"
-              />
+            <div className="flex items-center gap-2">
               <span className="text-xs sm:text-sm font-semibold text-[var(--kz-fg)]">
-                启用全站公告弹窗
+                公告编辑区
               </span>
-            </label>
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold transition-colors ${
+                  annEnabledInput
+                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-[var(--kz-bg-soft)] text-[var(--kz-fg-dim)] border border-[var(--kz-border)]'
+                }`}
+              >
+                <span
+                  className={`inline-block h-1.5 w-1.5 rounded-full ${
+                    annEnabledInput ? 'bg-emerald-400 animate-pulse' : 'bg-[var(--kz-fg-dim)]'
+                  }`}
+                />
+                {annEnabledInput ? '弹窗已开启' : '弹窗已停用'}
+              </span>
+            </div>
             <button
               type="button"
               onClick={() => {
@@ -1071,18 +1135,50 @@ function AdminDashboard() {
 
           {annMsg && <div className="text-xs text-[var(--kz-accent)]">{annMsg}</div>}
 
-          <div className="flex justify-between items-center pt-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-[var(--kz-border)]/40">
             <div className="text-[11px] text-[var(--kz-fg-dim)]">
-              保存后全站访客首次打开或公告更新后将自动弹窗。
+              {annEnabledInput
+                ? '🟢 公告处于启用状态，保存后全站访客访问时将弹出此公告。'
+                : '⚪ 公告处于停用状态，保存后全站不会弹出任何公告。'}
             </div>
-            <button
-              type="button"
-              onClick={handleSaveAnnouncement}
-              disabled={annSaving}
-              className="rounded-xl bg-[var(--kz-accent)] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[var(--kz-accent-hover)] active:scale-95 disabled:opacity-50 cursor-pointer"
-            >
-              {annSaving ? '发布中…' : '保存并发布公告'}
-            </button>
+
+            <div className="flex items-center gap-3 self-end sm:self-auto shrink-0">
+              {/* 方案 B：高质感滑动开关 + 醒目状态 Badge */}
+              <label
+                className="relative inline-flex items-center gap-2 cursor-pointer select-none group"
+                title={annEnabledInput ? '点击切换为停用公告' : '点击切换为开启公告'}
+              >
+                <span className="text-xs font-semibold text-[var(--kz-fg)]">
+                  全站弹窗
+                </span>
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={annEnabledInput}
+                  onChange={(e) => setAnnEnabledInput(e.target.checked)}
+                />
+                <div className="relative w-11 h-6 rounded-full border transition-all duration-200 bg-[var(--kz-bg-soft)] border-[var(--kz-border)] peer-checked:bg-emerald-500 peer-checked:border-emerald-500 peer-focus-visible:ring-2 peer-focus-visible:ring-emerald-500/50 after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-4.5 after:w-4.5 after:transition-all after:shadow-sm peer-checked:after:translate-x-5" />
+                <span
+                  className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold transition-colors ${
+                    annEnabledInput
+                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                      : 'bg-[var(--kz-bg-soft)] text-[var(--kz-fg-dim)] border border-[var(--kz-border)]'
+                  }`}
+                >
+                  {annEnabledInput ? '已开启' : '已停用'}
+                </span>
+              </label>
+
+              {/* 保存按钮 */}
+              <button
+                type="button"
+                onClick={handleSaveAnnouncement}
+                disabled={annSaving}
+                className="rounded-xl bg-[var(--kz-accent)] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[var(--kz-accent-hover)] active:scale-95 disabled:opacity-50 cursor-pointer shadow-sm"
+              >
+                {annSaving ? '保存中…' : '保存'}
+              </button>
+            </div>
           </div>
 
           {announcementHistory.length > 0 && (
@@ -1158,7 +1254,7 @@ function AdminDashboard() {
             </div>
             <AdminSelect
               value={defImageHost}
-              onChange={(v) => setDefImageHost(v)}
+              onChange={(v) => handleUpdateImageHost(v)}
               options={BANGUMI_IMAGE_HOST_OPTIONS.map((o) => ({
                 value: o.host,
                 label: `${o.label}${o.host === DEFAULT_BANGUMI_IMAGE_HOST ? ' · 默认' : ''}`,
@@ -1167,8 +1263,6 @@ function AdminDashboard() {
               dropdownWidth="w-full"
             />
           </div>
-
-          {imgMsg && <div className="text-xs text-[var(--kz-accent)] pt-1">{imgMsg}</div>}
 
           <div className="flex items-center justify-between pt-2 border-t border-[var(--kz-border)]/40">
             <button
@@ -1179,14 +1273,10 @@ function AdminDashboard() {
             >
               恢复默认
             </button>
-            <button
-              type="button"
-              onClick={handleSaveImageHost}
-              disabled={imgSaving}
-              className="rounded-xl bg-[var(--kz-accent)] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[var(--kz-accent-hover)] active:scale-95 disabled:opacity-50 cursor-pointer"
-            >
-              {imgSaving ? '保存中…' : '保存'}
-            </button>
+            <div className="text-xs">
+              {imgSaving && <span className="text-[var(--kz-fg-muted)]">保存中…</span>}
+              {imgMsg && <span className="text-[var(--kz-accent)]">{imgMsg}</span>}
+            </div>
           </div>
         </div>
       </AdminCard>
@@ -1204,88 +1294,170 @@ function AdminDashboard() {
           <p className="text-xs text-[var(--kz-fg-muted)] leading-relaxed">
             设定全站新访客加载的默认视频源排序与启用状态。排在第 1 位的源将作为新访客打开播放页时的
             <strong className="text-[var(--kz-accent)]"> 全局默认视频源</strong>。
+            同时支持为每个视频源添加专属加权的番剧（Bangumi ID），播放对应番剧时权重自动 <strong className="text-amber-400">+20</strong>。
           </p>
 
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {sortedDefaultPlugins.map((plugin, index) => {
               const isDisabled = defDisabledPlugins.some(
                 (n) => n.toLowerCase() === plugin.name.toLowerCase(),
               )
               const isDefaultTop = index === 0
+              const pluginKey = plugin.name.toLowerCase()
+              const boostedIds = defSourceBangumiIds[pluginKey] || []
+              const isExpanded = Boolean(expandedPluginWeights[plugin.name])
 
               return (
                 <div
                   key={plugin.name}
-                  className={`flex items-center justify-between gap-2.5 rounded-xl border p-2.5 sm:px-3.5 sm:py-2 transition-all ${
+                  className={`flex flex-col gap-2 rounded-xl border p-2.5 sm:px-3.5 sm:py-2.5 transition-all ${
                     isDefaultTop
                       ? 'border-[var(--kz-accent)]/50 bg-[var(--kz-accent)]/5'
                       : 'border-[var(--kz-border)] bg-[var(--kz-bg)]'
                   }`}
                 >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span
-                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-                        isDefaultTop
-                          ? 'bg-[var(--kz-accent)] text-white shadow-sm'
-                          : 'bg-[var(--kz-bg-soft)] text-[var(--kz-fg-muted)]'
-                      }`}
-                    >
-                      {index + 1}
-                    </span>
-                    <span
-                      className={`truncate text-xs sm:text-sm font-semibold ${
-                        isDisabled ? 'line-through text-[var(--kz-fg-dim)]' : 'text-[var(--kz-fg)]'
-                      }`}
-                    >
-                      {plugin.name}
-                    </span>
-                    {renderPluginBadge(plugin)}
-                    {isDefaultTop && (
-                      <span className="rounded bg-[var(--kz-accent)]/20 px-1.5 py-0.5 text-[9px] font-bold text-[var(--kz-accent)]">
-                        默认首选源
+                  <div className="flex items-center justify-between gap-2.5">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                          isDefaultTop
+                            ? 'bg-[var(--kz-accent)] text-white shadow-sm'
+                            : 'bg-[var(--kz-bg-soft)] text-[var(--kz-fg-muted)]'
+                        }`}
+                      >
+                        {index + 1}
                       </span>
-                    )}
+                      <span
+                        className={`truncate text-xs sm:text-sm font-semibold ${
+                          isDisabled ? 'line-through text-[var(--kz-fg-dim)]' : 'text-[var(--kz-fg)]'
+                        }`}
+                      >
+                        {plugin.name}
+                      </span>
+                      {renderPluginBadge(plugin)}
+                      {isDefaultTop && (
+                        <span className="rounded bg-[var(--kz-accent)]/20 px-1.5 py-0.5 text-[9px] font-bold text-[var(--kz-accent)]">
+                          默认首选源
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedPluginWeights((prev) => ({
+                            ...prev,
+                            [plugin.name]: !prev[plugin.name],
+                          }))
+                        }
+                        className={`rounded-lg px-2 py-1 text-[11px] font-medium border transition-colors cursor-pointer ${
+                          boostedIds.length > 0
+                            ? 'border-amber-500/30 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
+                            : 'border-[var(--kz-border)] bg-[var(--kz-bg-soft)] text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)]'
+                        }`}
+                        title="配置播放特定番剧时该源增加权重 20"
+                      >
+                        🎯 番剧加权{boostedIds.length > 0 ? ` (${boostedIds.length})` : ''}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => togglePluginDisabledState(plugin.name)}
+                        className={`rounded-lg px-2 py-1 text-[11px] font-medium transition-colors cursor-pointer ${
+                          isDisabled
+                            ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                            : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                        }`}
+                        title={isDisabled ? '已全局禁用，点击启用' : '正常启用，点击禁用'}
+                      >
+                        {isDisabled ? '已禁用' : '已启用'}
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={index === 0}
+                        onClick={() => movePluginOrder(plugin.name, -1)}
+                        className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] p-1 text-xs text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] disabled:opacity-30 cursor-pointer"
+                        title="上移"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        type="button"
+                        disabled={index === sortedDefaultPlugins.length - 1}
+                        onClick={() => movePluginOrder(plugin.name, 1)}
+                        className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] p-1 text-xs text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] disabled:opacity-30 cursor-pointer"
+                        title="下移"
+                      >
+                        ▼
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => togglePluginDisabledState(plugin.name)}
-                      className={`rounded-lg px-2 py-1 text-[11px] font-medium transition-colors cursor-pointer ${
-                        isDisabled
-                          ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                          : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                      }`}
-                      title={isDisabled ? '已全局禁用，点击启用' : '正常启用，点击禁用'}
-                    >
-                      {isDisabled ? '已禁用' : '已启用'}
-                    </button>
+                  {isExpanded && (
+                    <div className="mt-1 pt-2 border-t border-[var(--kz-border)]/50 space-y-2">
+                      <div className="flex items-center justify-between text-[11px] text-[var(--kz-fg-muted)]">
+                        <span>
+                          添加专属加权的 Bangumi ID（播放这些番剧时权重 <strong className="text-amber-400">+20</strong>）：
+                        </span>
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={pluginIdInputs[plugin.name] || ''}
+                          onChange={(e) =>
+                            setPluginIdInputs((prev) => ({
+                              ...prev,
+                              [plugin.name]: e.target.value,
+                            }))
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              handleAddBangumiIds(plugin.name)
+                            }
+                          }}
+                          placeholder="输入 Bangumi ID，如 253，多个用逗号隔开"
+                          className="flex-1 rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-2.5 py-1 text-xs text-[var(--kz-fg)] outline-none focus:border-[var(--kz-accent)]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleAddBangumiIds(plugin.name)}
+                          className="shrink-0 rounded-lg bg-[var(--kz-accent)] px-3 py-1 text-xs font-semibold text-white hover:bg-[var(--kz-accent-hover)] cursor-pointer"
+                        >
+                          添加
+                        </button>
+                      </div>
 
-                    <button
-                      type="button"
-                      disabled={index === 0}
-                      onClick={() => movePluginOrder(plugin.name, -1)}
-                      className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] p-1 text-xs text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] disabled:opacity-30 cursor-pointer"
-                      title="上移"
-                    >
-                      ▲
-                    </button>
-                    <button
-                      type="button"
-                      disabled={index === sortedDefaultPlugins.length - 1}
-                      onClick={() => movePluginOrder(plugin.name, 1)}
-                      className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] p-1 text-xs text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] disabled:opacity-30 cursor-pointer"
-                      title="下移"
-                    >
-                      ▼
-                    </button>
-                  </div>
+                      {boostedIds.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5 pt-0.5">
+                          {boostedIds.map((bgmId) => (
+                            <span
+                              key={bgmId}
+                              className="inline-flex items-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-mono text-amber-400"
+                            >
+                              ID: {bgmId}
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveBangumiId(plugin.name, bgmId)}
+                                className="hover:text-rose-400 cursor-pointer ml-0.5"
+                                title="移除此 ID"
+                              >
+                                ✕
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-[var(--kz-fg-dim)]">暂未添加任何专属番剧 ID</p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )
             })}
           </div>
-
-          {pluginsMsg && <div className="text-xs text-[var(--kz-accent)] pt-1">{pluginsMsg}</div>}
 
           <div className="flex items-center justify-between pt-2 border-t border-[var(--kz-border)]/40">
             <button
@@ -1296,14 +1468,10 @@ function AdminDashboard() {
             >
               恢复默认
             </button>
-            <button
-              type="button"
-              onClick={handleSavePlugins}
-              disabled={pluginsSaving}
-              className="rounded-xl bg-[var(--kz-accent)] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[var(--kz-accent-hover)] active:scale-95 disabled:opacity-50 cursor-pointer"
-            >
-              {pluginsSaving ? '保存中…' : '保存'}
-            </button>
+            <div className="text-xs">
+              {pluginsSaving && <span className="text-[var(--kz-fg-muted)]">保存中…</span>}
+              {pluginsMsg && <span className="text-[var(--kz-accent)]">{pluginsMsg}</span>}
+            </div>
           </div>
         </div>
       </AdminCard>
@@ -1326,7 +1494,7 @@ function AdminDashboard() {
             <span className="font-medium text-[var(--kz-fg)]">默认播放倍速</span>
             <AdminSelect<number>
               value={defPlayer.speed ?? 1}
-              onChange={(v) => setDefPlayer((p) => ({ ...p, speed: v }))}
+              onChange={(v) => updatePlayerPref({ speed: v })}
               options={PLAYER_SPEEDS.map((s) => ({ value: s, label: `${s}x` }))}
               className="w-28 shrink-0"
               dropdownWidth="w-28"
@@ -1338,7 +1506,7 @@ function AdminDashboard() {
             <AdminSelect
               value={defPlayer.superResolution || 'off'}
               onChange={(v) =>
-                setDefPlayer((p) => ({ ...p, superResolution: v as SuperResolutionMode }))
+                updatePlayerPref({ superResolution: v as SuperResolutionMode })
               }
               options={[
                 { value: 'off', label: '关闭 (无开销)' },
@@ -1354,31 +1522,29 @@ function AdminDashboard() {
             <AdminToggle
               label="默认自动起播"
               checked={Boolean(defPlayer.autoplay)}
-              onChange={(v) => setDefPlayer((p) => ({ ...p, autoplay: v }))}
+              onChange={(v) => updatePlayerPref({ autoplay: v })}
             />
             <AdminToggle
               label="默认连播下一集"
               checked={Boolean(defPlayer.autoNext)}
-              onChange={(v) => setDefPlayer((p) => ({ ...p, autoNext: v }))}
+              onChange={(v) => updatePlayerPref({ autoNext: v })}
             />
             <AdminToggle
               label="默认记忆续播"
               checked={Boolean(defPlayer.continuePlay)}
-              onChange={(v) => setDefPlayer((p) => ({ ...p, continuePlay: v }))}
+              onChange={(v) => updatePlayerPref({ continuePlay: v })}
             />
             <AdminToggle
               label="默认优先从 bangumi-oped 获取精准跳过时间戳"
               checked={Boolean(defPlayer.preferBangumiOped)}
-              onChange={(v) => setDefPlayer((p) => ({ ...p, preferBangumiOped: v }))}
+              onChange={(v) => updatePlayerPref({ preferBangumiOped: v })}
             />
             <AdminToggle
               label="默认第一集防跳过保护（首集不自动跳过 OP/ED，仅悬浮提示）"
               checked={Boolean(defPlayer.firstEpisodeProtect)}
-              onChange={(v) => setDefPlayer((p) => ({ ...p, firstEpisodeProtect: v }))}
+              onChange={(v) => updatePlayerPref({ firstEpisodeProtect: v })}
             />
           </div>
-
-          {playerMsg && <div className="text-xs text-[var(--kz-accent)] pt-1">{playerMsg}</div>}
 
           <div className="flex items-center justify-between pt-2 border-t border-[var(--kz-border)]/40">
             <button
@@ -1389,14 +1555,10 @@ function AdminDashboard() {
             >
               恢复默认
             </button>
-            <button
-              type="button"
-              onClick={handleSavePlayer}
-              disabled={playerSaving}
-              className="rounded-xl bg-[var(--kz-accent)] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[var(--kz-accent-hover)] active:scale-95 disabled:opacity-50 cursor-pointer"
-            >
-              {playerSaving ? '保存中…' : '保存'}
-            </button>
+            <div className="text-xs">
+              {playerSaving && <span className="text-[var(--kz-fg-muted)]">保存中…</span>}
+              {playerMsg && <span className="text-[var(--kz-accent)]">{playerMsg}</span>}
+            </div>
           </div>
         </div>
       </AdminCard>
@@ -1523,7 +1685,7 @@ function AdminDashboard() {
             <span className="font-medium text-[var(--kz-fg)]">界面主题</span>
             <AdminSelect
               value={defTheme}
-              onChange={(v) => setDefTheme(v as AppTheme)}
+              onChange={(v) => updateNavPref(v as AppTheme, defNav)}
               options={[
                 { value: 'light', label: '☀️ 浅色主题 (Light)' },
                 { value: 'dark', label: '🌙 深色主题 (Dark)' },
@@ -1537,31 +1699,29 @@ function AdminDashboard() {
             <AdminToggle
               label="在新标签页打开番剧卡片（保留列表淘番进度）"
               checked={Boolean(defNav.openInNewTab)}
-              onChange={(v) => setDefNav((n) => ({ ...n, openInNewTab: v }))}
+              onChange={(v) => updateNavPref(defTheme, { ...defNav, openInNewTab: v })}
             />
             <AdminToggle
               label="展示导航栏「用户中心」按钮"
               checked={Boolean(defNav.showUserMenu)}
-              onChange={(v) => setDefNav((n) => ({ ...n, showUserMenu: v }))}
+              onChange={(v) => updateNavPref(defTheme, { ...defNav, showUserMenu: v })}
             />
             <AdminToggle
               label="展示导航栏「观看历史」按钮"
               checked={Boolean(defNav.showHistory)}
-              onChange={(v) => setDefNav((n) => ({ ...n, showHistory: v }))}
+              onChange={(v) => updateNavPref(defTheme, { ...defNav, showHistory: v })}
             />
             <AdminToggle
               label="展示导航栏「深浅色切换」按钮"
               checked={Boolean(defNav.showThemeToggle)}
-              onChange={(v) => setDefNav((n) => ({ ...n, showThemeToggle: v }))}
+              onChange={(v) => updateNavPref(defTheme, { ...defNav, showThemeToggle: v })}
             />
             <AdminToggle
               label="展示导航栏「GitHub 源码」按钮"
               checked={Boolean(defNav.showGitHub)}
-              onChange={(v) => setDefNav((n) => ({ ...n, showGitHub: v }))}
+              onChange={(v) => updateNavPref(defTheme, { ...defNav, showGitHub: v })}
             />
           </div>
-
-          {navMsg && <div className="text-xs text-[var(--kz-accent)] pt-1">{navMsg}</div>}
 
           <div className="flex items-center justify-between pt-2 border-t border-[var(--kz-border)]/40">
             <button
@@ -1572,14 +1732,10 @@ function AdminDashboard() {
             >
               恢复默认
             </button>
-            <button
-              type="button"
-              onClick={handleSaveNav}
-              disabled={navSaving}
-              className="rounded-xl bg-[var(--kz-accent)] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[var(--kz-accent-hover)] active:scale-95 disabled:opacity-50 cursor-pointer"
-            >
-              {navSaving ? '保存中…' : '保存'}
-            </button>
+            <div className="text-xs">
+              {navSaving && <span className="text-[var(--kz-fg-muted)]">保存中…</span>}
+              {navMsg && <span className="text-[var(--kz-accent)]">{navMsg}</span>}
+            </div>
           </div>
         </div>
       </AdminCard>

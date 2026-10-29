@@ -13,7 +13,9 @@ import {
 /** `.env` 里的默认源；缺省用镜像。 */
 export const DEFAULT_BANGUMI_IMAGE_HOST =
   resolveBangumiImagePreset(
-    import.meta.env.VITE_BANGUMI_IMAGE_HOST as string | undefined,
+    typeof import.meta !== 'undefined' && import.meta.env
+      ? (import.meta.env.VITE_BANGUMI_IMAGE_HOST as string | undefined)
+      : undefined,
   ) || BANGUMI_IMAGE_HOST_MIRROR
 
 export const BANGUMI_IMAGE_HOST_OPTIONS: { host: string; label: string }[] = [

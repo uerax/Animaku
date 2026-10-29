@@ -2,18 +2,25 @@ import {
   useState,
   useEffect,
   useRef,
+  useMemo,
   type FormEvent,
   startTransition,
 } from 'react'
 import { Link } from 'react-router-dom'
 import clsx from 'clsx'
-import type { BangumiItem, PluginMeta, SearchItem } from '@animaku/shared'
+import {
+  type BangumiItem,
+  type PluginMeta,
+  type SearchItem,
+  resolveBoostedPluginNames,
+} from '@animaku/shared'
 import {
   useSourceAggregator,
   type AggregatedSourceState,
 } from '../../lib/use-source-aggregator'
 import type { SourceSelection, SearchRow } from '../../lib/use-watch-session'
 import { useAutoSourcePick } from './use-auto-source-pick'
+import { useSiteConfigStore } from '../../stores/site-config'
 
 export interface SourceBoardProps {
   bangumiId: number
@@ -108,12 +115,19 @@ export function SourceBoard({
     onAutoProbingChange?.(isAutoProbing)
   }, [isAutoProbing, onAutoProbingChange])
 
+  const sourceBangumiIds = useSiteConfigStore((s) => s.defaultSettings?.sourceBangumiIds)
+  const boostedPluginNames = useMemo(
+    () => resolveBoostedPluginNames(bangumiId, sourceBangumiIds),
+    [bangumiId, sourceBangumiIds],
+  )
+
   const { onUserAction, pendingCandidateName } = useAutoSourcePick({
     bangumiId,
     enabled: Boolean(defaultSearchEmpty && !selection),
     sources,
     pluginOrder,
     inFlightPlugins,
+    boostedPluginNames,
     allFallbacksExhausted,
     onSwitchSource,
     onAllFallbacksFailed,

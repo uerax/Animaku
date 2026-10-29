@@ -233,30 +233,72 @@ export function catalogItemStatus(
 }
 
 /**
+ * 根据当前番剧 bangumiId 和全局 sourceBangumiIds 配置，提取所有获得 +20 加权的源名称集合（全小写）
+ */
+export function resolveBoostedPluginNames(
+  bangumiId: number | undefined | null,
+  sourceBangumiIds?: Record<string, number[]> | null,
+): Set<string> {
+  const result = new Set<string>()
+  if (!bangumiId || !sourceBangumiIds || typeof sourceBangumiIds !== 'object') {
+    return result
+  }
+  for (const [pluginName, ids] of Object.entries(sourceBangumiIds)) {
+    if (Array.isArray(ids) && ids.includes(bangumiId)) {
+      result.add(pluginName.toLowerCase())
+    }
+  }
+  return result
+}
+
+/**
+ * 计算插件在当前上下文下的有效权重：
+ * 1. 基础权重：显式 weight 或内置源默认 50，第三方源默认 0。
+ * 2. 老番加权：若 isOldAnime 为 true 且启用了 oldAnimePriority，额外 +12 权重。
+ * 3. 番剧专属加权：若当前插件名称命中 boostedPluginNames，额外 +20 权重。
+ */
+export function getPluginEffectiveWeight(
+  p: { name?: string; weight?: number; source?: string; oldAnimePriority?: boolean },
+  isOldAnime = false,
+  boostedPluginNames?: Set<string> | string[],
+): number {
+  let base = 0
+  if (typeof p.weight === 'number' && Number.isFinite(p.weight)) {
+    base = p.weight
+  } else {
+    base = p.source === 'builtin' ? 50 : 0
+  }
+  if (isOldAnime && p.oldAnimePriority) {
+    base += 12
+  }
+  if (boostedPluginNames) {
+    const key = (p.name || '').toLowerCase()
+    const hit =
+      boostedPluginNames instanceof Set
+        ? boostedPluginNames.has(key)
+        : boostedPluginNames.some((n) => n.toLowerCase() === key)
+    if (hit) {
+      base += 20
+    }
+  }
+  return base
+}
+
+/**
  * Compare two plugins for display ordering:
  * 1. Higher weight first (built-in sources default to 50; third-party/imported sources default to 0).
  *    When isOldAnime is true, plugins with oldAnimePriority receive +12 weight bonus.
+ *    When boostedPluginNames contains the plugin, it receives +20 weight bonus.
  * 2. Equal weights tie-break alphabetically by plugin name (case-insensitive, stable).
  */
 export function comparePluginOrder(
   a: { name?: string; weight?: number; source?: string; oldAnimePriority?: boolean },
   b: { name?: string; weight?: number; source?: string; oldAnimePriority?: boolean },
   isOldAnime = false,
+  boostedPluginNames?: Set<string> | string[],
 ): number {
-  const getWeight = (p: { weight?: number; source?: string; oldAnimePriority?: boolean }) => {
-    let base = 0
-    if (typeof p.weight === 'number' && Number.isFinite(p.weight)) {
-      base = p.weight
-    } else {
-      base = p.source === 'builtin' ? 50 : 0
-    }
-    if (isOldAnime && p.oldAnimePriority) {
-      base += 12
-    }
-    return base
-  }
-  const wa = getWeight(a)
-  const wb = getWeight(b)
+  const wa = getPluginEffectiveWeight(a, isOldAnime, boostedPluginNames)
+  const wb = getPluginEffectiveWeight(b, isOldAnime, boostedPluginNames)
   if (wa !== wb) {
     return wb - wa
   }
@@ -271,11 +313,13 @@ export function comparePluginOrder(
  * First enabled plugin based on user order, falling back to weight > alphabetical name order.
  * This is the default source auto-searched on first visit.
  * When isOldAnime is true, plugins with oldAnimePriority receive +12 weight bonus.
+ * When boostedPluginNames contains the plugin, it receives +20 weight bonus in weight fallback.
  */
 export function findDefaultSourcePlugin(
   list: PluginMeta[],
   order: string[],
   isOldAnime = false,
+  boostedPluginNames?: Set<string> | string[],
 ): PluginMeta | undefined {
   if (!list.length) return undefined
   if (order.length) {
@@ -288,7 +332,7 @@ export function findDefaultSourcePlugin(
     }
   }
   // Fallback: weight descending > alphabetical name order.
-  return [...list].sort((a, b) => comparePluginOrder(a, b, isOldAnime))[0]
+  return [...list].sort((a, b) => comparePluginOrder(a, b, isOldAnime, boostedPluginNames))[0]
 }
 
 /**
@@ -303,6 +347,7 @@ export function resolveTargetSourcePlugin(
   pluginOrder: string[],
   isOldAnime = false,
   getFallbackPlugin?: (name: string) => PluginMeta | undefined,
+  boostedPluginNames?: Set<string> | string[],
 ): PluginMeta | undefined {
   const normQ = (qPlugin || '').trim()
   if (normQ) {
@@ -311,7 +356,7 @@ export function resolveTargetSourcePlugin(
       getFallbackPlugin?.(normQ)
     if (hit) return hit
   }
-  return findDefaultSourcePlugin(plugins, pluginOrder, isOldAnime)
+  return findDefaultSourcePlugin(plugins, pluginOrder, isOldAnime, boostedPluginNames)
 }
 
 export interface SearchItem {

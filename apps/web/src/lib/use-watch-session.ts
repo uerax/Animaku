@@ -30,6 +30,7 @@ import {
   buildPlayableSlots,
   findDefaultSourcePlugin,
   resolveTargetSourcePlugin,
+  resolveBoostedPluginNames,
   type PlayableSlot,
   type BangumiItem,
   type BangumiSeed,
@@ -58,6 +59,7 @@ import { usePluginStore } from '../stores/plugins'
 import { useHistoryStore } from '../stores/history'
 import { useSettingsStore } from '../stores/settings'
 import { useSourceBindingStore } from '../stores/source-bindings'
+import { useSiteConfigStore } from '../stores/site-config'
 import { EMPTY_ARRAY, FALLBACK_DANMAKU, FALLBACK_PLAYER } from './stable'
 import { useBangumiOpedData, useResolvedOpedSkip, useBangumiEpisodesDuration } from './bangumi-oped'
 import { useCustomOpedStore } from './custom-oped-store'
@@ -179,9 +181,10 @@ function orderSearchRows(
   rows: SearchRow[],
   order: string[],
   isOldAnime = false,
+  boostedPluginNames?: Set<string>,
 ): SearchRow[] {
   if (!order.length) {
-    return [...rows].sort((a, b) => comparePluginOrder(a.plugin, b.plugin, isOldAnime))
+    return [...rows].sort((a, b) => comparePluginOrder(a.plugin, b.plugin, isOldAnime, boostedPluginNames))
   }
   const rank = new Map<string, number>()
   for (let i = 0; i < order.length; i++) {
@@ -191,7 +194,7 @@ function orderSearchRows(
     const ra = rank.get(a.plugin.name.toLowerCase()) ?? order.length
     const rb = rank.get(b.plugin.name.toLowerCase()) ?? order.length
     if (ra !== rb) return ra - rb
-    return comparePluginOrder(a.plugin, b.plugin, isOldAnime)
+    return comparePluginOrder(a.plugin, b.plugin, isOldAnime, boostedPluginNames)
   })
 }
 
@@ -517,6 +520,12 @@ export function useWatchSession(bangumiId: number): WatchSession {
   const roadLoadingRef = useRef(roadLoading)
   roadLoadingRef.current = roadLoading
 
+  const sourceBangumiIds = useSiteConfigStore((s) => s.defaultSettings?.sourceBangumiIds)
+  const boostedPluginNames = useMemo(
+    () => resolveBoostedPluginNames(bangumiId, sourceBangumiIds),
+    [bangumiId, sourceBangumiIds],
+  )
+
   const titleRefs = useMemo(() => {
     if (!resolvedItem) return []
     return [resolvedItem.nameCn, resolvedItem.name, ...(resolvedItem.alias || [])].filter(Boolean) as string[]
@@ -525,7 +534,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
   const activeTargetPlugin =
     keywordTargetPlugin ||
     selection?.plugin ||
-    findDefaultSourcePlugin(plugins, pluginOrder, isOld)
+    findDefaultSourcePlugin(plugins, pluginOrder, isOld, boostedPluginNames)
   const preferOriginal = activeTargetPlugin?.titlePreference === 'original'
 
   const keywordCandidates = useMemo(() => {
@@ -647,16 +656,16 @@ export function useWatchSession(bangumiId: number): WatchSession {
           searched: false,
         }
       })
-      return orderSearchRows(rows, pluginOrder, isOld)
+      return orderSearchRows(rows, pluginOrder, isOld, boostedPluginNames)
     })
-  }, [plugins, bangumiId, pluginOrder, isOld])
+  }, [plugins, bangumiId, pluginOrder, isOld, boostedPluginNames])
 
   // Keep default keyword in state for UI once subject loads
   useEffect(() => {
     const target =
       keywordTargetPlugin ||
       selection?.plugin ||
-      findDefaultSourcePlugin(plugins, pluginOrder, isOld)
+      findDefaultSourcePlugin(plugins, pluginOrder, isOld, boostedPluginNames)
     if (!target) return
     const kw = getPluginKeyword(target)
     if (kw && !searchKeyword) {
@@ -668,6 +677,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     plugins,
     pluginOrder,
     isOld,
+    boostedPluginNames,
     getPluginKeyword,
     searchKeyword,
   ])
@@ -1097,7 +1107,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
       // Auto-select first ranked hit only when title is close enough.
       // Prevents MacCMS “first card” wrong-show on weak keyword matches.
       const isDefault =
-        plugin.name.toLowerCase() === (findDefaultSourcePlugin(plugins, pluginOrder, isOld)?.name || '').toLowerCase()
+        plugin.name.toLowerCase() === (findDefaultSourcePlugin(plugins, pluginOrder, isOld, boostedPluginNames)?.name || '').toLowerCase()
       const shouldAutoPick =
         !opts?.background &&
         Boolean(items[0]) &&
@@ -2188,12 +2198,13 @@ export function useWatchSession(bangumiId: number): WatchSession {
           })),
           pluginOrder,
           isOld,
+          boostedPluginNames,
         )
       : searchResults,
     searchKeyword,
     defaultKeyword,
     defaultSearchEmpty: isSubjectTransition ? false : defaultSearchEmpty,
-    defaultSourceName: findDefaultSourcePlugin(plugins, pluginOrder, isOld)?.name || plugins[0]?.name || '',
+    defaultSourceName: findDefaultSourcePlugin(plugins, pluginOrder, isOld, boostedPluginNames)?.name || plugins[0]?.name || '',
     selection: isSubjectTransition ? null : selection,
     episode: isSubjectTransition ? null : episode,
     slots: isSubjectTransition ? EMPTY_ARRAY : slots,
