@@ -77,13 +77,18 @@ export const CONTINUE_PLAY_END_THRESHOLD_SEC = 15
  */
 export const CONTINUE_PLAY_END_RATIO_THRESHOLD = 0.95
 
+/**
+ * Default player volume (50%).
+ */
+export const DEFAULT_PLAYER_VOLUME = 0.5
+
 export const defaultPlayerSettings: PlayerSettings = {
   speed: 1,
   autoplay: true,
   autoNext: false,
   continuePlay: true,
   customSeekTime: 85,
-  volume: 1,
+  volume: DEFAULT_PLAYER_VOLUME,
   skipOp: { enabled: false, start: 0, duration: 90 },
   skipEd: { enabled: false, start: 0, duration: 90 },
   superResolution: 'off',

@@ -8,6 +8,7 @@ import {
   type SyntheticEvent,
 } from 'react'
 import {
+  DEFAULT_PLAYER_VOLUME,
   DURATION_MISMATCH_THRESHOLD_S,
   type DanmakuComment,
   type SuperResolutionMode,
@@ -245,7 +246,7 @@ export function MobileControls(props: PlayerControlsProps) {
     settingsMenuOpen ||
     opedDrawerOpen
 
-  const vol = player.volume ?? 0.7
+  const vol = player.volume ?? DEFAULT_PLAYER_VOLUME
   const volPct = Math.round(Math.min(1, Math.max(0, vol)) * 100)
 
   const releaseSliderFocus = (e: PointerEvent<HTMLInputElement>) => {

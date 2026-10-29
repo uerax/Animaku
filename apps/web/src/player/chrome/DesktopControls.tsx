@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import {
+  DEFAULT_PLAYER_VOLUME,
   DURATION_MISMATCH_THRESHOLD_S,
   type DanmakuComment,
   type SuperResolutionMode,
@@ -232,7 +233,7 @@ export function DesktopControls(props: PlayerControlsProps) {
     speedMenuOpen ||
     settingsMenuOpen ||
     opedDrawerOpen
-  const vol = player.volume ?? 0.7
+  const vol = player.volume ?? DEFAULT_PLAYER_VOLUME
   const isMuted = vol <= 0.001
 
   const releaseSliderFocus = (e: PointerEvent<HTMLInputElement>) => {

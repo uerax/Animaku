@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import './plyr-overrides.css'
 import {
+  DEFAULT_PLAYER_VOLUME,
   determineOpedAction,
   PLAYER_SPEEDS,
   type SuperResolutionMode,
@@ -867,7 +868,7 @@ export function VideoPlayer({
       totalFrames,
       aspectRatio,
       speed: player.speed || 1,
-      volume: player.volume ?? 0.7,
+      volume: player.volume ?? DEFAULT_PLAYER_VOLUME,
       audioBoost: !audioBoostSupported
         ? '不支持 (直链受限)'
         : audioBoost > 1
@@ -916,7 +917,7 @@ export function VideoPlayer({
     bufferAhead: videoRef.current ? (videoRef.current.buffered.length > 0 ? videoRef.current.buffered.end(videoRef.current.buffered.length - 1) - videoRef.current.currentTime : 0) : 0,
     duration,
     currentTime: Math.floor(videoRef.current?.currentTime || timeStore.getSnapshot().current || 0),
-    volume: player.volume ?? 0.7,
+    volume: player.volume ?? DEFAULT_PLAYER_VOLUME,
     speed: player.speed || 1,
     videoCodec,
     audioCodec,

@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import type Hls from 'hls.js'
-import { filterM3u8AdsIfApplicable, type AdBlockerMode, type PlayerSettings } from '@animaku/shared'
+import {
+  DEFAULT_PLAYER_VOLUME,
+  filterM3u8AdsIfApplicable,
+  type AdBlockerMode,
+  type PlayerSettings,
+} from '@animaku/shared'
 import {
   bufferedAhead,
   formatTime,
@@ -77,7 +82,7 @@ export function useMediaEngine({
   const lastUiProgressRef = useRef(0)
   const ignoreVolumePersistRef = useRef(false)
   const lastAudibleVolumeRef = useRef(
-    playerSettings.volume && playerSettings.volume > 0 ? playerSettings.volume : 0.7,
+    playerSettings.volume && playerSettings.volume > 0 ? playerSettings.volume : DEFAULT_PLAYER_VOLUME,
   )
 
   const authAttemptingRef = useRef(false)
@@ -276,7 +281,7 @@ export function useMediaEngine({
     const cur = playerSettingsRef.current.volume ?? 0
     const muted = cur <= 0.001 || Boolean(v?.muted)
     if (muted) {
-      const restore = lastAudibleVolumeRef.current || 0.7
+      const restore = lastAudibleVolumeRef.current || DEFAULT_PLAYER_VOLUME
       if (v) {
         v.muted = false
         v.volume = restore
@@ -346,8 +351,8 @@ export function useMediaEngine({
         /* some engines reject while HAVE_NOTHING */
       }
     }
-    video.volume = cfg.volume ?? 0.7
-    video.muted = (cfg.volume ?? 0.7) <= 0
+    video.volume = cfg.volume ?? DEFAULT_PLAYER_VOLUME
+    video.muted = (cfg.volume ?? DEFAULT_PLAYER_VOLUME) <= 0
     applyPlaybackRate(cfg.speed || 1)
     video.playsInline = true
     try {
@@ -400,7 +405,7 @@ export function useMediaEngine({
           .play()
           .then(() => {
             if (!alive()) return
-            const wantVol = playerSettingsRef.current.volume ?? 0.7
+            const wantVol = playerSettingsRef.current.volume ?? DEFAULT_PLAYER_VOLUME
             video.muted = wantVol <= 0
             video.volume = wantVol
             applyPlaybackRate(playerSettingsRef.current.speed || 1)
@@ -411,7 +416,7 @@ export function useMediaEngine({
           })
           .catch(() => {
             if (!alive()) return
-            const wantVol = playerSettingsRef.current.volume ?? 0.7
+            const wantVol = playerSettingsRef.current.volume ?? DEFAULT_PLAYER_VOLUME
             video.muted = wantVol <= 0
             video.volume = wantVol
             applyPlaybackRate(playerSettingsRef.current.speed || 1)
