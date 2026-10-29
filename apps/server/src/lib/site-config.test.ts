@@ -83,6 +83,9 @@ test('site-config: saves and reloads config', () => {
     siteTagline: '测试标语',
     iconMode: 'url',
     iconUrl: 'https://example.com/logo.png',
+    defaultSettings: {
+      sourceBangumiIds: { cycani: [253, 1024] },
+    },
   })
 
   const updated = getSiteConfig()
@@ -90,6 +93,7 @@ test('site-config: saves and reloads config', () => {
   assert.equal(updated.siteTagline, '测试标语')
   assert.equal(updated.iconMode, 'url')
   assert.equal(updated.iconUrl, 'https://example.com/logo.png')
+  assert.deepEqual(updated.defaultSettings?.sourceBangumiIds, { cycani: [253, 1024] })
 
   // Clean up
   saveSiteConfig({
@@ -97,6 +101,7 @@ test('site-config: saves and reloads config', () => {
     siteTagline: original.siteTagline,
     iconMode: original.iconMode,
     iconUrl: original.iconUrl,
+    defaultSettings: original.defaultSettings,
   })
 })
 

@@ -224,6 +224,10 @@ export function getSiteConfig(): SiteConfig {
           announcementEnabled: Boolean(parsed.announcementEnabled),
           announcement,
           announcementHistory,
+          defaultSettings:
+            parsed.defaultSettings && typeof parsed.defaultSettings === 'object'
+              ? parsed.defaultSettings
+              : undefined,
         }
         return memoryCache
       }

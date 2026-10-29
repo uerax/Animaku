@@ -322,6 +322,30 @@ export function findDefaultSourcePlugin(
   boostedPluginNames?: Set<string> | string[],
 ): PluginMeta | undefined {
   if (!list.length) return undefined
+
+  // 1. 命中当前番剧专属加权的源具备优先首选权（多源加权时保留其相对顺序）
+  if (boostedPluginNames) {
+    const isBoosted = (p: PluginMeta) => {
+      const key = (p.name || '').toLowerCase()
+      return boostedPluginNames instanceof Set
+        ? boostedPluginNames.has(key)
+        : boostedPluginNames.some((n) => n.toLowerCase() === key)
+    }
+    const boostedList = list.filter(isBoosted)
+    if (boostedList.length > 0) {
+      if (order.length) {
+        for (const name of order) {
+          const hit = boostedList.find(
+            (p) => p.name.toLowerCase() === name.toLowerCase(),
+          )
+          if (hit) return hit
+        }
+      }
+      return [...boostedList].sort((a, b) => comparePluginOrder(a, b, isOldAnime, boostedPluginNames))[0]
+    }
+  }
+
+  // 2. 无加权命中时，按用户/系统自定义顺序或基础权重排序
   if (order.length) {
     // Find first plugin whose name appears in the user's order
     for (const name of order) {

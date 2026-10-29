@@ -207,4 +207,29 @@ describe('use-auto-source-pick: Adaptive Grace & Priority Inversion Protection',
     assert.strictEqual(decision.action, 'immediate')
     assert.strictEqual(decision.candidate?.plugin.name, 'sourceA')
   })
+
+  it('boosted source prioritizes over other ready sources even when later in pluginOrder', () => {
+    // pluginOrder = ['cycani', 'xifan', 'tvtfun', 'lzizy', 'moonci']
+    // lzizy (rank 3) 命中专属加权，xifan (rank 1) 没有命中加权
+    const sources: Record<string, AggregatedSourceState> = {
+      xifan: {
+        plugin: createMockPlugin('xifan', 66),
+        status: 'ready',
+        items: [createMockItem('番剧 X', '/play/xifan')],
+        matchedItem: createMockItem('番剧 X', '/play/xifan'),
+        searched: true,
+      },
+      lzizy: {
+        plugin: createMockPlugin('lzizy', 59),
+        status: 'ready',
+        items: [createMockItem('番剧 X', '/play/lzizy')],
+        matchedItem: createMockItem('番剧 X', '/play/lzizy'),
+        searched: true,
+      },
+    }
+    const boosted = new Set(['lzizy'])
+    const decision = resolveAutoSourceDecision(sources, [], pluginOrder, boosted)
+    assert.strictEqual(decision.action, 'immediate')
+    assert.strictEqual(decision.candidate?.plugin.name, 'lzizy')
+  })
 })

@@ -249,17 +249,31 @@ test('findDefaultSourcePlugin: 用户无自定义顺序时，命中番剧专属�
   assert.strictEqual(targetBoosted?.name, 'cycani')
 })
 
-test('findDefaultSourcePlugin: 命中番剧专属加权时，用户自定义源顺序依然拥有最高优先级', () => {
+test('findDefaultSourcePlugin: 命中番剧专属加权时，专属加权源优先成为首选源', () => {
   const mockPlugins: PluginMeta[] = [
     { name: 'xifan-next', version: '1.0.0', weight: 61, enabled: true },
     { name: 'cycani', version: '1.0.0', weight: 59, enabled: true },
   ]
-  // 用户明确在本地把 xifan-next 排在第一位
+  // 即便原全局顺序 xifan-next 在前
   const userOrder = ['xifan-next', 'cycani']
   const boosted = new Set(['cycani'])
-  // 即使 cycani 有专属加权，但权重依然低于用户明确指定的自定义顺序
+  // cycani 命中该番剧专属加权，成为该番剧的首选源
   const target = findDefaultSourcePlugin(mockPlugins, userOrder, false, boosted)
-  assert.strictEqual(target?.name, 'xifan-next')
+  assert.strictEqual(target?.name, 'cycani')
+})
+
+test('findDefaultSourcePlugin: 多个源命中番剧加权时，保留加权源在原顺序中的相对优先级', () => {
+  const mockPlugins: PluginMeta[] = [
+    { name: 'xifan-next', version: '1.0.0', weight: 61, enabled: true },
+    { name: 'cycani', version: '1.0.0', weight: 59, enabled: true },
+    { name: 'tvtfun', version: '1.0.0', weight: 50, enabled: true },
+  ]
+  const userOrder = ['tvtfun', 'cycani', 'xifan-next']
+  // cycani 和 xifan-next 都命中加权，但 tvtfun 没加权
+  const boosted = new Set(['cycani', 'xifan-next'])
+  const target = findDefaultSourcePlugin(mockPlugins, userOrder, false, boosted)
+  // 加权源中，cycani 在 order 里比 xifan-next 更靠前，因此当选
+  assert.strictEqual(target?.name, 'cycani')
 })
 
 test('resolveTargetSourcePlugin: 普通入口（无 qPlugin）严格返回全局默认源，绝不受历史记录影响', () => {

@@ -412,22 +412,35 @@ export function useWatchSession(bangumiId: number): WatchSession {
     [bgmEpisodesQuery.data?.data],
   )
 
+  const sourceBangumiIds = useSiteConfigStore((s) => s.defaultSettings?.sourceBangumiIds)
+  const boostedPluginNames = useMemo(
+    () => resolveBoostedPluginNames(bangumiId, sourceBangumiIds),
+    [bangumiId, sourceBangumiIds],
+  )
+
   const plugins = useMemo(() => {
     const list = allPlugins.filter((p) => Boolean(p && p.enabled !== false))
     if (!pluginOrder.length) {
-      return [...list].sort((a, b) => comparePluginOrder(a, b, isOld))
+      return [...list].sort((a, b) => comparePluginOrder(a, b, isOld, boostedPluginNames))
+    }
+    const isBoosted = (name: string) => {
+      const key = (name || '').toLowerCase()
+      return boostedPluginNames.has(key)
     }
     const rank = new Map<string, number>()
     for (let i = 0; i < pluginOrder.length; i++) {
       rank.set(pluginOrder[i].toLowerCase(), i)
     }
     return [...list].sort((a, b) => {
+      const hitA = isBoosted(a.name) ? 1 : 0
+      const hitB = isBoosted(b.name) ? 1 : 0
+      if (hitA !== hitB) return hitB - hitA
       const ra = rank.get(a.name.toLowerCase()) ?? pluginOrder.length
       const rb = rank.get(b.name.toLowerCase()) ?? pluginOrder.length
       if (ra !== rb) return ra - rb
-      return comparePluginOrder(a, b, isOld)
+      return comparePluginOrder(a, b, isOld, boostedPluginNames)
     })
-  }, [allPlugins, pluginOrder, isOld])
+  }, [allPlugins, pluginOrder, isOld, boostedPluginNames])
   const queryClient = useQueryClient()
   const upsertHistory = useHistoryStore((s) => s.upsert)
   const danmakuSettings = useSettingsStore((s) => s.danmaku ?? FALLBACK_DANMAKU)
@@ -519,12 +532,6 @@ export function useWatchSession(bangumiId: number): WatchSession {
   paramsRef.current = params
   const roadLoadingRef = useRef(roadLoading)
   roadLoadingRef.current = roadLoading
-
-  const sourceBangumiIds = useSiteConfigStore((s) => s.defaultSettings?.sourceBangumiIds)
-  const boostedPluginNames = useMemo(
-    () => resolveBoostedPluginNames(bangumiId, sourceBangumiIds),
-    [bangumiId, sourceBangumiIds],
-  )
 
   const titleRefs = useMemo(() => {
     if (!resolvedItem) return []
@@ -692,11 +699,12 @@ export function useWatchSession(bangumiId: number): WatchSession {
       pluginOrder,
       isOld,
       (name) => usePluginStore.getState().getByName(name),
+      boostedPluginNames,
     )
     if (target && target.name.toLowerCase() !== keywordTargetPlugin?.name.toLowerCase()) {
       setKeywordTargetPlugin(target)
     }
-  }, [plugins, pluginOrder, isOld, keywordTargetPlugin, selection, qPlugin])
+  }, [plugins, pluginOrder, isOld, boostedPluginNames, keywordTargetPlugin, selection, qPlugin])
 
   const titleRefsStable = titleRefs
   const keywordCandidatesStable = keywordCandidates
@@ -1179,6 +1187,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
       plugins,
       pluginOrder,
       isOld,
+      boostedPluginNames,
     ],
   )
 
@@ -1290,6 +1299,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
       pluginOrder,
       isOld,
       (name) => usePluginStore.getState().getByName(name),
+      boostedPluginNames,
     )
     if (!preferred) return
 
@@ -1364,6 +1374,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     plugins,
     pluginOrder,
     isOld,
+    boostedPluginNames,
     resolvedItem,
     defaultKeyword,
     openPluginSearch,

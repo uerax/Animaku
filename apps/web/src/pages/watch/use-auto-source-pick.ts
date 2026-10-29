@@ -41,8 +41,19 @@ export function resolveAutoSourceDecision(
     return { action: 'none' }
   }
 
-  // 按用户配置优先级从高到低排序，排名第 1 的为当前就绪最优源
+  const isBoosted = (name: string) => {
+    if (!boostedPluginNames) return false
+    const key = (name || '').toLowerCase()
+    return boostedPluginNames instanceof Set
+      ? boostedPluginNames.has(key)
+      : (boostedPluginNames as string[]).some((n) => n.toLowerCase() === key)
+  }
+
+  // 命中专属加权的源排在第一梯队；梯队内部按配置优先级与有效权重从高到低排序
   readyCandidates.sort((a, b) => {
+    const hitA = isBoosted(a.plugin.name) ? 1 : 0
+    const hitB = isBoosted(b.plugin.name) ? 1 : 0
+    if (hitA !== hitB) return hitB - hitA
     const rankA = getPluginRank(a.plugin.name, pluginOrder)
     const rankB = getPluginRank(b.plugin.name, pluginOrder)
     if (rankA !== rankB) return rankA - rankB
@@ -53,10 +64,14 @@ export function resolveAutoSourceDecision(
 
   const bestCandidate = readyCandidates[0]
   const bestRank = getPluginRank(bestCandidate.plugin.name, pluginOrder)
+  const bestIsBoosted = isBoosted(bestCandidate.plugin.name)
 
   // 检查在 flight 中是否有优先级高于 bestCandidate 的源
   const higherPriorityInFlight = inFlightPlugins.filter((name) => {
     if (name.toLowerCase() === bestCandidate.plugin.name.toLowerCase()) return false
+    const inFlightBoosted = isBoosted(name)
+    if (inFlightBoosted && !bestIsBoosted) return true
+    if (!inFlightBoosted && bestIsBoosted) return false
     return getPluginRank(name, pluginOrder) < bestRank
   })
 
