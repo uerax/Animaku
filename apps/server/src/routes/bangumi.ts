@@ -1347,17 +1347,17 @@ bangumiRoutes.get('/subjects/:id/comments', async (c) => {
     return c.json(emptyPayload, 200, cacheHeaders(true))
   }
 
-  // 🛡️ 自动化脚本与爬虫秒级拦截：检测到已知 Bot / 脚本 UA 时直接秒回空数据，0 上游网络开销
+  // 🛡️ 自动化脚本与爬虫秒级拦截：检测到已知 Bot / 脚本 / 缺失 UA 时直接拒绝访问 (403 Forbidden)
   const ua = c.req.header('user-agent')
   const device = parseClientDevice(ua)
-  if (device.type === 'bot' || device.type === 'script') {
-    const emptyPayload: CommentPagePayload = {
-      data: [],
-      total: 0,
-      page,
-      pageSize,
-    }
-    return c.json(emptyPayload, 200, cacheHeaders(true))
+  if (!ua || !ua.trim() || device.type === 'bot' || device.type === 'script') {
+    return c.json(
+      {
+        error: 'forbidden',
+        message: '禁止自动化脚本和爬虫访问评论接口 (Automated access forbidden)',
+      },
+      403,
+    )
   }
 
   const targetOffset = (page - 1) * pageSize
