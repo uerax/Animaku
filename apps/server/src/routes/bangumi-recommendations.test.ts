@@ -52,82 +52,21 @@ test('buildAdaptiveSamplePlan: handles small and large pools correctly', () => {
   }
 })
 
-test('GET /subjects/:id/recommendations: returns cached recommendations with CDN headers', async () => {
+test('recommendations endpoints: decommissioned and unmapped on server to protect against crawler traversal', async () => {
   const app = new Hono()
   app.route('/api/bangumi', bangumiRoutes)
 
   const subjectId = 999999
-  const key = `bangumi:${config.bangumiApiHost}:rec:${subjectId}`
-  const mockPayload = {
-    items: [
-      {
-        id: 10001,
-        name: '测试推荐动画',
-        nameCn: '测试推荐动画',
-        cover: 'https://lain.bgm.tv/pic/cover/l/test.jpg',
-        score: 8.5,
-        year: '2024',
-        epsLabel: '全12话',
-      },
-    ],
-    matchedTags: ['日本', '奇幻', '冒险'],
-  }
+  const resGetSubject = await app.request(`/api/bangumi/subjects/${subjectId}/recommendations`)
+  assert.equal(resGetSubject.status, 404)
 
-  cacheSet(key, mockPayload, BANGUMI_CACHE_TTL.recommendations)
+  const resGetAlias = await app.request(`/api/bangumi/recommendations?subjectId=${subjectId}`)
+  assert.equal(resGetAlias.status, 404)
 
-  const res = await app.request(`/api/bangumi/subjects/${subjectId}/recommendations`)
-  assert.equal(res.status, 200)
-
-  // Verify CDN headers are present on GET
-  assert.equal(res.headers.get('Cache-Control'), 'public, max-age=0, s-maxage=86400')
-  assert.equal(res.headers.get('CDN-Cache-Control'), 'max-age=86400')
-  assert.equal(res.headers.get('Cloudflare-CDN-Cache-Control'), 'max-age=86400')
-  assert.equal(res.headers.get('X-Cache'), 'HIT')
-
-  const json = (await res.json()) as { data: typeof mockPayload }
-  assert.equal(json.data.items[0].id, 10001)
-  assert.equal(json.data.items[0].name, '测试推荐动画')
-})
-
-test('GET /recommendations?subjectId=...: alias endpoint works with CDN headers', async () => {
-  const app = new Hono()
-  app.route('/api/bangumi', bangumiRoutes)
-
-  const subjectId = 999998
-  const key = `bangumi:${config.bangumiApiHost}:rec:${subjectId}`
-  const mockPayload = {
-    items: [],
-    matchedTags: ['日本'],
-  }
-
-  cacheSet(key, mockPayload, BANGUMI_CACHE_TTL.recommendations)
-
-  const res = await app.request(`/api/bangumi/recommendations?subjectId=${subjectId}`)
-  assert.equal(res.status, 200)
-  assert.equal(res.headers.get('CDN-Cache-Control'), 'max-age=86400')
-  assert.equal(res.headers.get('X-Cache'), 'HIT')
-})
-
-test('POST /recommendations: maintains backward compatibility', async () => {
-  const app = new Hono()
-  app.route('/api/bangumi', bangumiRoutes)
-
-  const subjectId = 999997
-  const key = `bangumi:${config.bangumiApiHost}:rec:${subjectId}`
-  const mockPayload = {
-    items: [],
-    matchedTags: ['日本'],
-  }
-
-  cacheSet(key, mockPayload, BANGUMI_CACHE_TTL.recommendations)
-
-  const res = await app.request('/api/bangumi/recommendations', {
+  const resPost = await app.request('/api/bangumi/recommendations', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ subjectId }),
   })
-  assert.equal(res.status, 200)
-  assert.equal(res.headers.get('X-Cache'), 'HIT')
-  // POST should NOT emit edge cache headers
-  assert.equal(res.headers.get('CDN-Cache-Control'), null)
+  assert.equal(resPost.status, 404)
 })

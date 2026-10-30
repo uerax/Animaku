@@ -21,6 +21,7 @@ import {
 } from '@animaku/shared'
 import { config } from '../config'
 import { bangumiFetch, getBearerToken } from '../lib/http'
+import { parseClientDevice } from '../lib/logger'
 import {
   setCommentsCdnHeaders,
   setBangumiListCdnHeaders,
@@ -75,6 +76,14 @@ function cacheHeaders(hit: boolean): Record<string, string> {
 const apiUrl = config.bangumiApi
 const apiHost = config.bangumiApiHost
 
+// =========================================================================
+// 🛡️ 架构重构说明 (防爬虫/脚本高频遍历压垮服务 & 客户端零代理直连)：
+// calendar (每日放送) 与 trending (热门榜单) 接口已全面改造为 Web 客户端浏览器 100% 直连 Bangumi / 镜像源。
+// 官方 api.bgm.tv 与国内镜像 bgmapi.anibt.net 原生支持 CORS (Access-Control-Allow-Origin: *)。
+// 此处仅取消服务端路由映射，保留功能代码供未来快速复原与兜底。
+// =========================================================================
+
+/*
 bangumiRoutes.get('/calendar', async (c) => {
   const key = `bangumi:${apiHost}:calendar`
   const bypass = wantsCacheBypass(c)
@@ -147,7 +156,7 @@ bangumiRoutes.get('/calendar', async (c) => {
               : subjectRaw
           items.push(slimItem(parseBangumiItem(subject)))
         } catch {
-          /* skip */
+          // skip
         }
       }
       days.push(items)
@@ -172,7 +181,7 @@ bangumiRoutes.get('/calendar', async (c) => {
               : subjectRaw
           items.push(slimItem(parseBangumiItem(subject)))
         } catch {
-          /* skip */
+          // skip
         }
       }
       days.push(items)
@@ -184,6 +193,7 @@ bangumiRoutes.get('/calendar', async (c) => {
   setBangumiListCdnHeaders(c, bypass)
   return c.json(payload, 200, cacheHeaders(false))
 })
+*/
 
 function getCurrentSeasonAirDate(): string {
   const now = new Date()
@@ -194,6 +204,7 @@ function getCurrentSeasonAirDate(): string {
   return `${year}-${padMonth}-01`
 }
 
+/*
 bangumiRoutes.get('/trending', async (c) => {
   const limit = c.req.query('limit') || '24'
   const offset = c.req.query('offset') || '0'
@@ -211,8 +222,6 @@ bangumiRoutes.get('/trending', async (c) => {
 
   let items: BangumiItem[] = []
 
-  // 特殊处理说明：直接使用用户设置的 Bangumi API (apiUrl) 官方 v0 检索接口按当前季度+热度排序，
-  // 杜绝外部第三方 next.bgm.tv 带来的握手超时与不稳定，严格尊重用户配置的 mirror / 代理
   try {
     const seasonStart = getCurrentSeasonAirDate()
     const searchUrl = `${apiUrl}/v0/search/subjects?limit=${limit}&offset=${offset}`
@@ -220,7 +229,6 @@ bangumiRoutes.get('/trending', async (c) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        // 特殊处理说明：Bangumi v0 检索接口规定 keyword 为必填项，纯过滤查询必须传递 '*' 通配符
         keyword: '*',
         sort: 'heat',
         filter: {
@@ -236,7 +244,7 @@ bangumiRoutes.get('/trending', async (c) => {
         try {
           items.push(slimItem(parseBangumiItem(entry as Record<string, unknown>)))
         } catch {
-          /* skip */
+          // skip
         }
       }
     } else {
@@ -252,6 +260,7 @@ bangumiRoutes.get('/trending', async (c) => {
   setBangumiListCdnHeaders(c, bypass)
   return c.json(payload, 200, cacheHeaders(false))
 })
+*/
 
 /** Bangumi /v0/search/subjects sort values we expose. */
 const SEARCH_SORTS = new Set(['match', 'heat', 'rank', 'score'])
@@ -291,6 +300,15 @@ function browseCacheKey(parts: {
   return `bangumi:${parts.apiHost}:browse:${parts.keyword}\0${parts.sort}\0${tags}\0${types}\0${air}\0${parts.limit}\0${parts.offset}`
 }
 
+// =========================================================================
+// 🛡️ 架构重构说明 (防爬虫/脚本高频遍历压垮服务 & 客户端零代理直连)：
+// search (番剧搜索/分类索引)、subjects/:id (番剧详情)、subjects/:id/episodes (分集)
+// 已全面改造为 Web 客户端浏览器 100% 直连 Bangumi / 镜像源。
+// 官方 api.bgm.tv 与国内镜像 bgmapi.anibt.net 原生支持 CORS (Access-Control-Allow-Origin: *)。
+// 此处仅取消服务端路由映射，保留功能代码供未来快速复原与兜底。
+// =========================================================================
+
+/*
 bangumiRoutes.post('/search', async (c) => {
   const body = await c.req.json<{
     keyword?: string
@@ -298,11 +316,8 @@ bangumiRoutes.post('/search', async (c) => {
     offset?: number
     sort?: string
     tags?: string[]
-    /** Subject type filter (e.g. 2 for anime, 6 for real/tv/movie). Defaults to [2, 6] */
     type?: number[] | number
-    /** Calendar year, e.g. 2024 — maps to air_date [>=Y-01-01, <Y+1-01-01] */
     year?: number | null
-    /** Explicit air_date filter expressions, e.g. [">=2020-01-01", "<2021-01-01"] */
     airDate?: string[]
   }>()
   const limit = Math.min(Math.max(Number(body.limit) || 20, 1), 50)
@@ -366,21 +381,16 @@ bangumiRoutes.post('/search', async (c) => {
 
   const filter: Record<string, unknown> = {
     type: finalTypes,
-    // Always exclude NSFW — not client-configurable
     nsfw: false,
   }
   if (tags.length) filter.tag = tags
   if (airDate.length) filter.air_date = airDate
-  // rank sort needs ranked subjects; score sort also benefits from ranked set
   if (upstreamSort === 'rank' || upstreamSort === 'score') {
     filter.rank = ['>0', '<=99999']
   } else {
     filter.rank = ['>=0', '<=99999']
   }
 
-  // 特殊处理说明：
-  // 遵循 Bangumi v0 检索接口规范，POST /v0/search/subjects 的 keyword 为必填字段。
-  // 对于无关键词的纯标签/分类泛查询（如剧场版/OVA/按年份筛选），必须传递 '*' 通配符以保证检索兼容性。
   const upstreamKeyword = keyword.length > 0 ? keyword : '*'
 
   const params = {
@@ -403,7 +413,7 @@ bangumiRoutes.post('/search', async (c) => {
     try {
       items.push(slimItem(parseBangumiItem(entry as Record<string, unknown>)))
     } catch {
-      /* skip */
+      // skip
     }
   }
   if (sortByDate) {
@@ -411,7 +421,6 @@ bangumiRoutes.post('/search', async (c) => {
       const da = a.airDate || ''
       const db = b.airDate || ''
       if (da === db) return 0
-      // empty dates last
       if (!da) return 1
       if (!db) return -1
       return db.localeCompare(da)
@@ -446,7 +455,6 @@ bangumiRoutes.get('/subjects/:id', async (c) => {
     )
   }
   const json = (await res.json()) as Record<string, unknown>
-  // Full item (not slimItem): watch needs summary / alias / tags for keywords
   const payload = { data: parseBangumiItem(json) }
   cacheSet(key, payload, BANGUMI_CACHE_TTL.subject)
   return c.json(payload, 200, cacheHeaders(false))
@@ -500,6 +508,7 @@ bangumiRoutes.get('/subjects/:id/episodes', async (c) => {
   setBangumiListCdnHeaders(c, bypass)
   return c.json(payload, 200, cacheHeaders(false))
 })
+*/
 
 bangumiRoutes.get('/me', async (c) => {
   const token = tokenFrom(c)
@@ -1152,6 +1161,15 @@ async function handleRecommendationsRoute(
   return c.json({ data: value }, 200, cacheHeaders(hit))
 }
 
+// =========================================================================
+// 🛡️ 架构重构说明 (防爬虫/脚本高频遍历压垮服务 & 客户端零代理直连)：
+// recommendations 接口已全面改造为 Web 客户端浏览器 100% 直连 Bangumi / 镜像源计算。
+// 官方 api.bgm.tv 与国内镜像 bgmapi.anibt.net 原生支持 CORS (Access-Control-Allow-Origin: *)。
+// 为杜绝外部扫描爬虫遍历 recommendations 接口导致服务端并发向上游放大，
+// 此处取消服务端路由映射。实现功能代码予以保留加注释，避免破坏现有逻辑结构。
+// =========================================================================
+
+/*
 bangumiRoutes.get('/subjects/:id/recommendations', async (c) => {
   const subjectId = Number(c.req.param('id'))
   const tagsQuery = c.req.query('tags')
@@ -1216,6 +1234,7 @@ bangumiRoutes.post('/recommendations', async (c) => {
     false,
   )
 })
+*/
 
 interface CommentChunkData {
   items: CommentItem[]
@@ -1319,6 +1338,19 @@ bangumiRoutes.get('/subjects/:id/comments', async (c) => {
 
   // 🛡️ 最大安全页码拦截：超大页码秒回空数据，0 上游网络请求，防爬虫击穿
   if (page > COMMENTS_MAX_SAFE_PAGE) {
+    const emptyPayload: CommentPagePayload = {
+      data: [],
+      total: 0,
+      page,
+      pageSize,
+    }
+    return c.json(emptyPayload, 200, cacheHeaders(true))
+  }
+
+  // 🛡️ 自动化脚本与爬虫秒级拦截：检测到已知 Bot / 脚本 UA 时直接秒回空数据，0 上游网络开销
+  const ua = c.req.header('user-agent')
+  const device = parseClientDevice(ua)
+  if (device.type === 'bot' || device.type === 'script') {
     const emptyPayload: CommentPagePayload = {
       data: [],
       total: 0,

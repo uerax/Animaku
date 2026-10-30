@@ -1,12 +1,18 @@
 import { api } from './api'
-import type {
-  BangumiItem,
-  BangumiEpisode,
-  BangumiUser,
-  BangumiCollectionEntry,
-  BangumiRecommendationsPayload,
-  CommentPagePayload,
-  CollectType,
+import {
+  type BangumiItem,
+  type BangumiEpisode,
+  type BangumiUser,
+  type BangumiCollectionEntry,
+  type BangumiRecommendationsPayload,
+  type CommentPagePayload,
+  type CollectType,
+  computeBangumiRecommendations,
+  fetchClientCalendar,
+  fetchClientTrending,
+  fetchClientSearch,
+  fetchClientSubject,
+  fetchClientEpisodes,
 } from '@animaku/shared'
 import { useSettingsStore } from '../stores/settings'
 
@@ -14,19 +20,28 @@ function token() {
   return useSettingsStore.getState().bangumiToken || null
 }
 
+function currentImageHost() {
+  return useSettingsStore.getState().bangumiImageHost
+}
+
 type SignalOpt = { signal?: AbortSignal }
 
 export const bangumiApi = {
-  calendar: (opts?: SignalOpt) =>
-    api<{ data: BangumiItem[][] }>('/api/bangumi/calendar', {
+  calendar: async (opts?: SignalOpt) => {
+    const data = await fetchClientCalendar({
+      imageHost: currentImageHost(),
       signal: opts?.signal,
-    }),
-  trending: (limit = 24, offset = 0, opts?: SignalOpt) =>
-    api<{ data: BangumiItem[] }>(
-      `/api/bangumi/trending?limit=${limit}&offset=${offset}`,
-      { signal: opts?.signal },
-    ),
-  search: (
+    })
+    return { data }
+  },
+  trending: async (limit = 24, offset = 0, opts?: SignalOpt) => {
+    const data = await fetchClientTrending(limit, offset, 2, {
+      imageHost: currentImageHost(),
+      signal: opts?.signal,
+    })
+    return { data }
+  },
+  search: async (
     keyword: string,
     opts?: {
       limit?: number
@@ -39,33 +54,39 @@ export const bangumiApi = {
       airDate?: string[]
       signal?: AbortSignal
     },
-  ) =>
-    api<{ data: BangumiItem[]; total?: number; limit?: number; offset?: number }>(
-      '/api/bangumi/search',
+  ) => {
+    return fetchClientSearch(
       {
-        method: 'POST',
-        body: JSON.stringify({
-          keyword,
-          limit: opts?.limit ?? 20,
-          offset: opts?.offset ?? 0,
-          sort: opts?.sort,
-          tags: opts?.tags,
-          type: opts?.type,
-          year: opts?.year ?? undefined,
-          airDate: opts?.airDate,
-        }),
+        keyword,
+        limit: opts?.limit,
+        offset: opts?.offset,
+        sort: opts?.sort,
+        tags: opts?.tags,
+        type: opts?.type,
+        year: opts?.year,
+        airDate: opts?.airDate,
+      },
+      {
+        imageHost: currentImageHost(),
         signal: opts?.signal,
       },
-    ),
-  subject: (id: number | string, opts?: SignalOpt) =>
-    api<{ data: BangumiItem }>(`/api/bangumi/subjects/${id}`, {
+    )
+  },
+  subject: async (id: number | string, opts?: SignalOpt) => {
+    const data = await fetchClientSubject(id, {
+      imageHost: currentImageHost(),
       signal: opts?.signal,
-    }),
-  episodes: (id: number | string, opts?: SignalOpt) =>
-    api<{ data: BangumiEpisode[] }>(`/api/bangumi/subjects/${id}/episodes`, {
+    })
+    return { data }
+  },
+  episodes: async (id: number | string, opts?: SignalOpt) => {
+    const data = await fetchClientEpisodes(id, {
+      imageHost: currentImageHost(),
       signal: opts?.signal,
-    }),
-  recommendations: (
+    })
+    return { data }
+  },
+  recommendations: async (
     subjectId: number | string,
     opts?: {
       tags?: string[]
@@ -73,23 +94,23 @@ export const bangumiApi = {
       isMovie?: boolean
       imageHost?: string
       signal?: AbortSignal
+      refresh?: boolean
     },
   ) => {
-    const params = new URLSearchParams()
-    if (opts?.tags && opts.tags.length > 0) {
-      params.set('tags', opts.tags.join(','))
+    const id = Number(subjectId)
+    if (!Number.isFinite(id) || id <= 0) {
+      return { data: { items: [], matchedTags: [] } }
     }
-    if (opts?.country) {
-      params.set('country', opts.country)
-    }
-    if (opts?.isMovie !== undefined) {
-      params.set('isMovie', String(opts.isMovie))
-    }
-    const qs = params.toString()
-    const url = `/api/bangumi/subjects/${subjectId}/recommendations${qs ? `?${qs}` : ''}`
-    return api<{ data: BangumiRecommendationsPayload }>(url, {
+    // 纯客户端浏览器 100% 直连 Bangumi / 国内镜像源计算，且受 24h 本地持久化缓存保护
+    const payload = await computeBangumiRecommendations(id, {
+      tags: opts?.tags,
+      country: opts?.country,
+      isMovie: opts?.isMovie,
+      imageHost: opts?.imageHost || useSettingsStore.getState().bangumiImageHost,
       signal: opts?.signal,
+      bypassCache: opts?.refresh,
     })
+    return { data: payload }
   },
   comments: (
     subjectId: number | string,

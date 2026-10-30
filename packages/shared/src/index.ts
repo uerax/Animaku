@@ -18,4 +18,6 @@ export * from './user'
 export * from './seo'
 export * from './html'
 export * from './site-config'
+export * from './bangumi-recommendations'
+export * from './bangumi-client'
 

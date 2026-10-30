@@ -110,6 +110,19 @@ export function toBangumiWebUrl(hostOrUrl?: string | null): string {
   return host ? `https://${host}` : BANGUMI_WEB_URL_BANGUMI
 }
 
+/**
+ * 根据图片源 host 动态推导对应的 API Base URL（支持官方与国内镜像无缝联动）：
+ * - 当图片源为官方 lain.bgm.tv / bgm.tv 时，匹配官方 API https://api.bgm.tv
+ * - 当图片源为国内镜像 bgmimg.anibt.net 或默认配置时，匹配国内镜像 https://bgmapi.anibt.net
+ */
+export function resolveBangumiApiUrlFromImageHost(imageHost?: string | null): string {
+  const norm = normalizeBangumiImageHost(imageHost)
+  if (norm === BANGUMI_IMAGE_HOST_BANGUMI || norm.includes('bgm.tv') || norm.includes('lain')) {
+    return BANGUMI_API_URL_BANGUMI
+  }
+  return BANGUMI_API_URL_MIRROR
+}
+
 let currentImageHost: string = BANGUMI_IMAGE_HOST_MIRROR
 let currentApiHost: string = BANGUMI_API_HOST_MIRROR
 
