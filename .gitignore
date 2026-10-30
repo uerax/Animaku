@@ -11,7 +11,7 @@ apps/server/dist
 apps/server/public
 .vite
 .tmp*
-.claude/settings.local.json
+.claude/
 CLAUDE.local.md
 data/*
 !data/.gitkeep
