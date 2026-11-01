@@ -21,6 +21,14 @@ interface UseAssEngineOptions {
  */
 export function selectBestAssTrack(subtitles?: SubtitleTrack[]): SubtitleTrack | null {
   if (!subtitles || !subtitles.length) return null
+
+  // 特殊处理说明：
+  // 若字幕列表中有明确标记为 default 的 VTT 文本轨（如 Netflix 官方流），
+  // 说明当前默认首选为原生 WebVTT（浏览器原生字体渲染，避免西文字体包缺字炸成豆腐块），
+  // JASSUB 不应强行抢占挂载，直接回退原生 VTT 渲染通道。
+  const hasDefaultVtt = subtitles.some((s) => s.default && s.format === 'vtt')
+  if (hasDefaultVtt) return null
+
   const assTracks = subtitles.filter((s) => s.format === 'ass' && Boolean(s.url))
   if (!assTracks.length) return null
 

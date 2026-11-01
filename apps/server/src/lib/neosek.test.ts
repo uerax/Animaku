@@ -84,3 +84,31 @@ test('neosek: search, chapters, and HLS resolve integration', async () => {
   assert.ok(rawResolve.mediaUrl.startsWith('https://'))
   assert.ok(rawResolve.mediaUrl.includes('.m3u8'))
 })
+
+test('neosek: subtitle resolution with ASS/VTT prioritization and Chinese label fallback', async () => {
+  // 1. 测试 39228/94412：Netflix 原生流带有 [NF]，优先交付原生 VTT 避免 Web 端缺字，ASS 作为备用
+  const resolvedAss = await resolveNeosek(NEOSEK_RULE, 'https://neosek.ai/anime/39228/94412')
+  assert.ok(resolvedAss.playUrl.startsWith('https://'))
+  assert.ok(resolvedAss.subtitles && resolvedAss.subtitles.length >= 4)
+  assert.ok(resolvedAss.fonts && resolvedAss.fonts.length >= 4)
+  assert.ok(resolvedAss.subtitle?.subtitles && resolvedAss.subtitle.subtitles.length >= 4)
+
+  const hasAss = resolvedAss.subtitles!.some((s) => s.format === 'ass')
+  const hasVtt = resolvedAss.subtitles!.some((s) => s.format === 'vtt')
+  assert.equal(hasAss, true)
+  assert.equal(hasVtt, true)
+
+  // 针对 [NF] 官方流，首选默认轨必须为 VTT，防止 Web 端 Trebuchet 缺字形炸成豆腐块
+  const defaultSub = resolvedAss.subtitles!.find((s) => s.default)
+  assert.ok(defaultSub)
+  assert.equal(defaultSub.format, 'vtt')
+  assert.ok(defaultSub.label.includes('Chinese(Simplified)'))
+
+  // 2. 测试 17024/44611：纯 VTT 字幕、原站标为“中文”，无 ASS
+  const resolvedVtt = await resolveNeosek(NEOSEK_RULE, 'https://neosek.ai/anime/17024/44611')
+  assert.ok(resolvedVtt.playUrl.startsWith('https://'))
+  assert.ok(resolvedVtt.subtitles && resolvedVtt.subtitles.length >= 2)
+  assert.equal(resolvedVtt.subtitles!.every((s) => s.format === 'vtt'), true)
+  assert.equal(resolvedVtt.subtitles![0].label, '中文')
+  assert.equal(resolvedVtt.subtitles![0].default, true)
+})

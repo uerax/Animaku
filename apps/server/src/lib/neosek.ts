@@ -308,26 +308,86 @@ export async function resolveNeosek(
 
   const isHls = playUrl.includes('.m3u8')
 
-  // 提取字幕与字体包资源（优先保留 ASS 特效字幕）
+  // 特殊处理说明：
+  // 提取外挂字幕与字体包资源（优先保留 ASS 特效字幕与中文字幕规范化）：
+  // 1. Netflix 原生流识别：若标签带有 [NF] 或 _NF，表明为 Netflix 官方流。
+  //    该类流原生格式为 WebVTT，转存的 ASS 会强行指定 Trebuchet MS 纯英文字体导致 Web 端缺字炸成豆腐块。
+  //    因此对 [NF] 流优先将原生 VTT 置为默认轨，ASS 作为备用；常规字幕组番剧则保持 ASS 优先高保真渲染；
+  // 2. 当源站 label 为空但 language 字段明确为 zh 时，自动兜底为“中文”，配合播放器自动化精准匹配；
+  // 3. 字体包提取供底层 libass / JASSUB 引擎高保真渲染。
   const subtitles: SubtitleTrack[] = []
-  if (Array.isArray(videoItem?.video?.subtitles)) {
-    for (const sub of videoItem.video.subtitles) {
-      const assUrl = sub.ass?.url
-      const vttUrl = sub.vtt?.url
-      if (assUrl) {
+  const rawSubtitles = videoItem?.video?.subtitles || (videoItem as any)?.subtitles
+  if (Array.isArray(rawSubtitles)) {
+    const seenUrls = new Set<string>()
+    for (const sub of rawSubtitles) {
+      const rawLabel = (sub.label || '').trim()
+      const rawLang = (sub.language || '').toLowerCase().trim()
+      const label = rawLabel || (rawLang.includes('zh') ? '中文' : (rawLang || '外挂字幕'))
+      const baseId = sub.id || `sub-${subtitles.length}`
+
+      const assUrl = sub.ass?.url?.trim()
+      const vttUrl = sub.vtt?.url?.trim()
+      const flatUrl = (sub.url || (sub as any).file?.url)?.trim()
+
+      const isNetflix = /\[nf\]|_nf/i.test(rawLabel)
+
+      if (isNetflix) {
+        // Netflix 官方流：优先交付原生 VTT 文本字幕并置为 default，避免 Web 端无中文字体跌入豆腐块
+        if (vttUrl && !seenUrls.has(vttUrl)) {
+          seenUrls.add(vttUrl)
+          const isFirstSub = subtitles.length === 0
+          subtitles.push({
+            id: `${baseId}-vtt`,
+            label,
+            url: vttUrl,
+            format: 'vtt',
+            default: Boolean(sub.default) || isFirstSub,
+          })
+        }
+        if (assUrl && !seenUrls.has(assUrl)) {
+          seenUrls.add(assUrl)
+          subtitles.push({
+            id: `${baseId}-ass`,
+            label: `${label} (ASS)`,
+            url: assUrl,
+            format: 'ass',
+            default: false,
+          })
+        }
+      } else {
+        // 常规字幕组番剧：优先保留 ASS 特效字幕与字体包渲染
+        if (assUrl && !seenUrls.has(assUrl)) {
+          seenUrls.add(assUrl)
+          subtitles.push({
+            id: `${baseId}-ass`,
+            label,
+            url: assUrl,
+            format: 'ass',
+            default: Boolean(sub.default),
+          })
+        }
+
+        if (vttUrl && !seenUrls.has(vttUrl)) {
+          seenUrls.add(vttUrl)
+          const hasAss = Boolean(assUrl)
+          subtitles.push({
+            id: `${baseId}-vtt`,
+            label: hasAss ? `${label} (VTT)` : label,
+            url: vttUrl,
+            format: 'vtt',
+            default: hasAss ? false : Boolean(sub.default),
+          })
+        }
+      }
+
+      if (!assUrl && !vttUrl && flatUrl && !seenUrls.has(flatUrl)) {
+        seenUrls.add(flatUrl)
+        const format = ((sub as any).format || (flatUrl.endsWith('.ass') ? 'ass' : 'vtt')).toLowerCase()
         subtitles.push({
-          id: sub.id || `sub-${subtitles.length}`,
-          label: sub.label || 'ASS Subtitle',
-          url: assUrl,
-          format: 'ass',
-          default: Boolean(sub.default),
-        })
-      } else if (vttUrl) {
-        subtitles.push({
-          id: sub.id || `sub-${subtitles.length}`,
-          label: sub.label || 'VTT Subtitle',
-          url: vttUrl,
-          format: 'vtt',
+          id: baseId,
+          label,
+          url: flatUrl,
+          format: format as 'ass' | 'vtt',
           default: Boolean(sub.default),
         })
       }
@@ -335,10 +395,14 @@ export async function resolveNeosek(
   }
 
   const fonts: string[] = []
-  if (Array.isArray(videoItem?.video?.fonts)) {
-    for (const f of videoItem.video.fonts) {
-      if (f.file?.url) {
-        fonts.push(f.file.url)
+  const rawFonts = videoItem?.video?.fonts || (videoItem as any)?.fonts
+  if (Array.isArray(rawFonts)) {
+    const seenFonts = new Set<string>()
+    for (const f of rawFonts) {
+      const fontUrl = f?.file?.url?.trim() || (f as any)?.url?.trim()
+      if (fontUrl && !seenFonts.has(fontUrl)) {
+        seenFonts.add(fontUrl)
+        fonts.push(fontUrl)
       }
     }
   }
