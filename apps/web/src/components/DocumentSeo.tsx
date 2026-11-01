@@ -52,19 +52,16 @@ export function DocumentSeo() {
   const seo: PageSeo = useMemo(() => {
     if (onSubject) {
       const item = subject.data?.data
+      const fallbackName = `番剧 ${subjectId}`
       const name = item
-        ? item.nameCn || item.name || `番剧 ${subjectId}`
-        : subject.isError
-          ? `番剧 ${subjectId}`
-          : '加载中…'
+        ? item.nameCn || item.name || fallbackName
+        : fallbackName
       const alt =
         item && item.nameCn && item.name && item.nameCn !== item.name
           ? item.name
           : undefined
       const summary = item?.summary?.trim()
-      const title = item || subject.isError
-        ? formatSubjectTitle(name, alt, siteName?.trim() || undefined)
-        : '加载中…'
+      const title = formatSubjectTitle(name, alt, siteName?.trim() || undefined)
       const description = formatSubjectDescription(
         name,
         summary,
@@ -78,8 +75,10 @@ export function DocumentSeo() {
 
       // Always canonicalize to /subject/:id (even when user is on /play/:id)
       const path = `/subject/${subjectId}`
-      const indexable =
-        !isPlayAlias && Boolean(item || subject.isError)
+      // /subject/:id 为公开正规单页（受服务端 SSR 预渲染保护），无论客户端初次挂载是否处于 loading 态，
+      // 都必须保持 index,follow，禁止向 DOM 动态注入 noindex 导致搜索引擎被动删除索引；
+      // 仅 /play/:id 别名路由声明 noindex 引导规范化至 /subject/:id。
+      const indexable = !isPlayAlias
       return {
         title,
         description,
@@ -181,8 +180,13 @@ export function DocumentSeo() {
   ])
 
   useEffect(() => {
+    // 番剧详情页还在首屏加载中时跳过应用，保护服务端 SSR 已注入的高质量标题与 JSON-LD 结构化数据，
+    // 避免客户端在数据尚未返回时清空结构化数据或引发无意义的标题闪烁。
+    if (onSubject && !subject.data && !subject.isError) {
+      return
+    }
     applyPageSeo(seo)
-  }, [seo])
+  }, [seo, onSubject, subject.data, subject.isError])
 
   return null
 }

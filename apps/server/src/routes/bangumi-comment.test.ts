@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { Hono } from 'hono'
-import { CollectType } from '@animaku/shared'
+import { CollectType, type CommentPagePayload } from '@animaku/shared'
 import { parseBangumiCommentRow, bangumiRoutes } from './bangumi'
 
 test('parseBangumiCommentRow: parses complete row with valid fields', () => {
@@ -79,21 +79,22 @@ test('parseBangumiCommentRow: preserves empty comment string without throwing', 
   assert.equal(result.rate, 8)
 })
 
-test('GET /subjects/:id/comments: blocks bots, scripts and empty UA with 403', async () => {
+test('GET /subjects/:id/comments: returns 200 empty data for search bots, blocks scripts and empty UA with 403', async () => {
   const app = new Hono()
   app.route('/api/bangumi', bangumiRoutes)
 
-  // 1. Googlebot / ByteSpider / WebBot
+  // 1. Googlebot / ByteSpider / WebBot (搜索引擎合法爬虫：200 空数据，不拉响 403 爬取报警)
   const resBot = await app.request('/api/bangumi/subjects/165589/comments', {
     headers: {
       'user-agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
     },
   })
-  assert.equal(resBot.status, 403)
-  const jsonBot = (await resBot.json()) as { error: string }
-  assert.equal(jsonBot.error, 'forbidden')
+  assert.equal(resBot.status, 200)
+  const jsonBot = (await resBot.json()) as CommentPagePayload
+  assert.deepEqual(jsonBot.data, [])
+  assert.equal(jsonBot.total, 0)
 
-  // 2. Python / cURL / Axios
+  // 2. Python / cURL / Axios (脚本工具：403 Forbidden 严格拦截)
   const resScript = await app.request('/api/bangumi/subjects/165589/comments', {
     headers: {
       'user-agent': 'python-requests/2.31.0',
@@ -101,7 +102,7 @@ test('GET /subjects/:id/comments: blocks bots, scripts and empty UA with 403', a
   })
   assert.equal(resScript.status, 403)
 
-  // 3. Empty User-Agent
+  // 3. Empty User-Agent (缺失 UA：403 Forbidden 严格拦截)
   const resEmptyUa = await app.request('/api/bangumi/subjects/165589/comments', {
     headers: {
       'user-agent': '',

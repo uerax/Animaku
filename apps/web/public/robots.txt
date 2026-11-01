@@ -14,7 +14,6 @@ Allow: /
 Allow: /anime
 Allow: /timeline
 Allow: /subject/
-Allow: /api/bangumi/
 Allow: /llms.txt
 Disallow: /api/
 Disallow: /settings
@@ -29,9 +28,6 @@ Allow: /
 Allow: /anime
 Allow: /timeline
 Allow: /subject/
-
-# Public API endpoints required for client-side rendering (SPA)
-Allow: /api/bangumi/
 Allow: /llms.txt
 
 # API and private client state

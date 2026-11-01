@@ -76,7 +76,6 @@ Allow: /
 Allow: /anime
 Allow: /timeline
 Allow: /subject/
-Allow: /api/bangumi/
 Allow: /llms.txt
 Disallow: /api/
 Disallow: /settings
@@ -91,9 +90,6 @@ Allow: /
 Allow: /anime
 Allow: /timeline
 Allow: /subject/
-
-# Allow public metadata API for client-side rendering (SPA)
-Allow: /api/bangumi/
 Allow: /llms.txt
 
 Disallow: /api/
