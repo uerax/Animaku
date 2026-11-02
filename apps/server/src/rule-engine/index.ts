@@ -928,6 +928,22 @@ export async function searchWithRule(
     }
   }
 
+  // bimi — dedicated adapter (Bimi MacCMS Suggest + AES-256-GCM Direct MP4 Resolver)
+  {
+    const { isBimiRule, searchBimi } = await import('../lib/bimi')
+    if (isBimiRule(rule)) {
+      try {
+        return await searchBimi(rule, keyword)
+      } catch (e) {
+        return {
+          pluginName: rule.name,
+          items: [],
+          diagnostics: [e instanceof Error ? e.message : String(e)],
+        }
+      }
+    }
+  }
+
   // moonci — dedicated adapter (Ajax Suggest JSON API + Web Search Fallback)
   {
     const { isMoonciRule, searchMoonci } = await import('../lib/moonci')
@@ -1308,6 +1324,22 @@ export async function chaptersWithRule(
     if (isNeosekRule(rule)) {
       try {
         return await chaptersNeosek(rule, source)
+      } catch (e) {
+        return {
+          pluginName: rule.name,
+          roads: [],
+          diagnostics: [e instanceof Error ? e.message : String(e)],
+        }
+      }
+    }
+  }
+
+  // bimi — dedicated adapter (Multi-road Tabs & Panels Filtering out APP-only)
+  {
+    const { isBimiRule, chaptersBimi } = await import('../lib/bimi')
+    if (isBimiRule(rule)) {
+      try {
+        return await chaptersBimi(rule, source)
       } catch (e) {
         return {
           pluginName: rule.name,
@@ -1966,6 +1998,14 @@ export async function resolvePlay(
     const { isAnimoeRule, resolveAnimoe } = await import('../lib/animoe')
     if (isAnimoeRule(rule)) {
       return wrapResolveWithTicket(rule, await resolveAnimoe(rule, pageUrl))
+    }
+  }
+
+  // bimi: dedicated adapter (Session-bound token + AES-256-GCM MP4 Direct Resolver)
+  {
+    const { isBimiRule, resolveBimiPlayUrl } = await import('../lib/bimi')
+    if (isBimiRule(rule)) {
+      return wrapResolveWithTicket(rule, await resolveBimiPlayUrl(rule, pageUrl))
     }
   }
 

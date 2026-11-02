@@ -7,6 +7,7 @@ import mifun from './mifun.json'
 import girigiri from './girigiri.json'
 import lzizy from './lzizy.json'
 import xifanNext from './xifan-next.json'
+import bimi from './bimi.json'
 import anime1 from './anime1.json'
 import neosek from './neosek.json'
 import sorani from './sorani.json'
@@ -16,7 +17,8 @@ import omofun from './omofun.json'
 /**
  * Built-in rules — keep lean & 100% CDN direct-stream (Zero server bandwidth).
  * Sorted by weight descending > alphabetical (external/third-party rules default to weight 0):
- * - xifan-next: 稀饭 next.xifanacg.com — Supabase RPC search + REST chapters + issue-web-playback (weight: 66, titlePreference: original)
+ * - xifan-next: 稀饭 next.xifanacg.com — Supabase RPC search + REST chapters + issue-web-playback (weight: 61, titlePreference: original)
+ * - bimi: 哔咪动漫 bimiacg14.net — MacCMS suggest API + 多线路解析 + TikTok/快手 CDN 1080P MP4 (weight: 61, titlePreference: chinese)
  * - moonci: 月之祠 moonci.com — MacCMS JSON suggest API + multi-road extraction + 1080P MP4 (weight: 65, titlePreference: chinese)
  * - sorani: 青空次元 sorani.net — RESTful JSON API + 1080P HLS (weight: 65, titlePreference: chinese, platforms: ['app'])
  * - cycani: 次元城 cycani.org — RESTful JSON API + multiple player lines + CF 1080P MP4 (weight: 61, titlePreference: chinese, oldAnimePriority: true)
@@ -33,6 +35,7 @@ import omofun from './omofun.json'
  */
 export const ALL_BUILTIN_PLUGIN_RULES: PluginRule[] = [
   xifanNext as PluginRule,
+  bimi as PluginRule,
   moonci as PluginRule,
   sorani as PluginRule,
   cycani as PluginRule,

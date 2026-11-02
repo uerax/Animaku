@@ -1,0 +1,23 @@
+{
+  "api": "1",
+  "type": "anime",
+  "id": "bimi",
+  "name": "bimi",
+  "version": "1.0",
+  "weight": 61,
+  "titlePreference": "chinese",
+  "muliSources": true,
+  "useWebview": false,
+  "useNativePlayer": true,
+  "usePost": false,
+  "useLegacyParser": false,
+  "baseURL": "https://www.bimiacg14.net/",
+  "searchURL": "https://www.bimiacg14.net/index.php/ajax/suggest?mid=1&wd=@keyword",
+  "searchList": "//a",
+  "searchName": ".",
+  "searchResult": ".",
+  "chapterRoads": "//div",
+  "chapterResult": ".//a",
+  "referer": "https://www.bimiacg14.net/",
+  "adBlockerMode": "none"
+}
