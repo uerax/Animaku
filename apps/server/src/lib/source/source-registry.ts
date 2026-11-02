@@ -16,6 +16,7 @@ import { anime1Adapter } from './adapters/anime1'
 import { animoeAdapter } from './adapters/animoe'
 import { soraniAdapter } from './adapters/sorani'
 import { neosekAdapter } from './adapters/neosek'
+import { bimiAdapter } from './adapters/bimi'
 
 export interface SourceRegistryOptions {
   playback?: PlaybackRegistry
@@ -46,6 +47,7 @@ export class SourceRegistry {
       animoeAdapter,
       soraniAdapter,
       neosekAdapter,
+      bimiAdapter,
     ]
 
     for (const adapter of initialAdapters) {
@@ -121,6 +123,15 @@ export class SourceRegistry {
       normalized === 'neosek.ai'
     ) {
       return this.adapters.get('neosekai') || null
+    }
+    if (
+      normalized === 'bimi' ||
+      normalized === '哔咪' ||
+      normalized === '哔咪动漫' ||
+      normalized === 'bimiacg' ||
+      normalized === 'bimibimi'
+    ) {
+      return this.adapters.get('bimi') || null
     }
     return null
   }
