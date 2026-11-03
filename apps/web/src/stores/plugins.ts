@@ -161,8 +161,43 @@ function normalizePlugins(raw: unknown): PluginMeta[] {
 }
 
 /**
+ * 将不在 order 中的插件按其自身权重 (comparePluginOrder) 智能合并到现有排序列表中。
+ * 避免因历史快照缺少新源而将其盲目丢到最末尾。
+ */
+export function mergeOrderWithNewPlugins(
+  order: string[],
+  allPlugins: PluginMeta[],
+): string[] {
+  if (!order.length) return []
+  const orderSet = new Set(order.map((n) => n.toLowerCase()))
+  const missing = allPlugins.filter(
+    (p) => !orderSet.has(p.name.toLowerCase()) && Boolean(p.name),
+  )
+  if (!missing.length) return order
+
+  const sortedMissing = [...missing].sort(comparePluginOrder)
+  const result = [...order]
+
+  for (const m of sortedMissing) {
+    // 寻找在 result 中首个有效权重低于当前新源的项，插入其前方
+    let insertIdx = result.length
+    for (let i = 0; i < result.length; i++) {
+      const targetPlugin = allPlugins.find(
+        (p) => p.name.toLowerCase() === result[i].toLowerCase(),
+      )
+      if (targetPlugin && comparePluginOrder(m, targetPlugin) < 0) {
+        insertIdx = i
+        break
+      }
+    }
+    result.splice(insertIdx, 0, m.name)
+  }
+  return result
+}
+
+/**
  * Sort plugins by stored order, falling back to weight > alphabetical.
- * Plugins not in the order list appear at the end, sorted by weight > alphabetical.
+ * Plugins not in the order list appear based on their weight rather than being unconditionally demoted.
  */
 function sortByOrder(plugins: PluginMeta[], order: string[]): PluginMeta[] {
   if (!order.length) {
@@ -172,16 +207,19 @@ function sortByOrder(plugins: PluginMeta[], order: string[]): PluginMeta[] {
   for (let i = 0; i < order.length; i++) {
     rank.set(order[i].toLowerCase(), i)
   }
-  const withFallback = plugins.map((p, idx) => ({
-    p,
-    rank: rank.get(p.name.toLowerCase()) ?? order.length,
-    idx,
-  }))
-  withFallback.sort((a, b) => {
-    if (a.rank !== b.rank) return a.rank - b.rank
-    return comparePluginOrder(a.p, b.p)
+  return [...plugins].sort((a, b) => {
+    const inOrderA = rank.has(a.name.toLowerCase())
+    const inOrderB = rank.has(b.name.toLowerCase())
+    if (inOrderA && inOrderB) {
+      return (rank.get(a.name.toLowerCase())!) - (rank.get(b.name.toLowerCase())!)
+    }
+    // 某一方不在排序列表时，有效权重优先，防止新加入的高权重源被沉底
+    const weightDiff = comparePluginOrder(a, b)
+    if (weightDiff !== 0) return weightDiff
+    const ra = rank.get(a.name.toLowerCase()) ?? order.length
+    const rb = rank.get(b.name.toLowerCase()) ?? order.length
+    return ra - rb
   })
-  return withFallback.map((w) => w.p)
 }
 
 function getSiteDefaultPluginsConfig(): { pluginOrder?: string[]; disabledPlugins?: string[] } | null {
@@ -348,11 +386,14 @@ export const usePluginStore = create<PluginState>()(
             return p
           })
           if (missing.length) next = [...next, ...missing]
-          if (changed) {
+          const curOrder = get().pluginOrder || []
+          const mergedOrder = curOrder.length > 0 ? mergeOrderWithNewPlugins(curOrder, next) : curOrder
+          if (changed || mergedOrder.length !== curOrder.length) {
             next = next.sort(comparePluginOrder)
             set({
               plugins: next,
               defaultsVersion: PLUGIN_DEFAULTS_VERSION,
+              pluginOrder: mergedOrder,
             })
           }
           return
@@ -404,10 +445,14 @@ export const usePluginStore = create<PluginState>()(
         )
         if (onlyLegacyBuiltins) {
           const seeded = seedFromDefaultsWithSiteOverrides()
+          const finalOrder =
+            seeded.pluginOrder.length > 0
+              ? mergeOrderWithNewPlugins(seeded.pluginOrder, seeded.plugins)
+              : seeded.pluginOrder
           set({
             plugins: seeded.plugins,
             defaultsVersion: PLUGIN_DEFAULTS_VERSION,
-            pluginOrder: seeded.pluginOrder,
+            pluginOrder: finalOrder,
           })
           return
         }
@@ -446,25 +491,36 @@ export const usePluginStore = create<PluginState>()(
         })
         if (missing.length) next = [...next, ...missing]
         next = next.sort(comparePluginOrder)
+        const curOrder = get().pluginOrder || []
+        const mergedOrder =
+          curOrder.length > 0 ? mergeOrderWithNewPlugins(curOrder, next) : curOrder
         set({
           plugins: next,
           defaultsVersion: PLUGIN_DEFAULTS_VERSION,
-          pluginOrder: [],
+          pluginOrder: mergedOrder,
         })
       },
       resetToDefaults: () => {
         const seeded = seedFromDefaultsWithSiteOverrides()
+        const finalOrder =
+          seeded.pluginOrder.length > 0
+            ? mergeOrderWithNewPlugins(seeded.pluginOrder, seeded.plugins)
+            : seeded.pluginOrder
         set({
           plugins: seeded.plugins,
           defaultsVersion: PLUGIN_DEFAULTS_VERSION,
-          pluginOrder: seeded.pluginOrder,
+          pluginOrder: finalOrder,
         })
       },
     }),
     {
       name: 'animaku-plugins',
       version: 2,
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() =>
+        typeof localStorage !== 'undefined'
+          ? localStorage
+          : { getItem: () => null, setItem: () => {}, removeItem: () => {} },
+      ),
       partialize: (s) => ({
         plugins: s.plugins,
         defaultsVersion: s.defaultsVersion,

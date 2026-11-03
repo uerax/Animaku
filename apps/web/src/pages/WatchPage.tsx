@@ -5,7 +5,8 @@ import { CollectType } from '@animaku/shared'
 import { useWatchSession } from '../lib/use-watch-session'
 import { bangumiApi } from '../lib/bangumi'
 import { useSettingsStore } from '../stores/settings'
-import { usePluginStore } from '../stores/plugins'
+import { usePluginStore, mergeOrderWithNewPlugins } from '../stores/plugins'
+import { useSiteConfigStore } from '../stores/site-config'
 import { ApiError, statsApi } from '../lib/api'
 import { NotFoundPage } from './NotFoundPage'
 import {
@@ -40,6 +41,16 @@ export function WatchPage() {
   const pluginOrder = usePluginStore((s) =>
     Array.isArray(s.pluginOrder) ? s.pluginOrder : [],
   )
+  const siteDefaultOrder = useSiteConfigStore((s) => s.defaultSettings?.pluginOrder)
+  const effectivePluginOrder = useMemo(() => {
+    if (pluginOrder.length > 0) {
+      return mergeOrderWithNewPlugins(pluginOrder, w.enabledPlugins)
+    }
+    if (siteDefaultOrder && Array.isArray(siteDefaultOrder) && siteDefaultOrder.length > 0) {
+      return mergeOrderWithNewPlugins(siteDefaultOrder, w.enabledPlugins)
+    }
+    return []
+  }, [pluginOrder, siteDefaultOrder, w.enabledPlugins])
   const qc = useQueryClient()
   const [summaryOpen, setSummaryOpen] = useState(false)
   /** Mobile: whole meta card collapsed to 2 lines until expanded */
@@ -550,7 +561,7 @@ export function WatchPage() {
       activePluginName={w.pluginName}
       activeEpisodeNumber={w.episode?.episode}
       plugins={w.enabledPlugins}
-      pluginOrder={pluginOrder}
+      pluginOrder={effectivePluginOrder}
       titleRefs={w.titleRefs}
       bangumiItem={w.bangumiItem}
       defaultKeyword={w.defaultKeyword}

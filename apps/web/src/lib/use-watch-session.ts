@@ -44,7 +44,7 @@ import {
   invalidateRoadsCache,
 } from './roads-cache'
 import { useDanmakuSession, type DanmakuSession } from './use-danmaku-session'
-import { usePluginStore } from '../stores/plugins'
+import { usePluginStore, mergeOrderWithNewPlugins } from '../stores/plugins'
 import { useHistoryStore } from '../stores/history'
 import { useSettingsStore } from '../stores/settings'
 import { useSourceBindingStore } from '../stores/source-bindings'
@@ -325,14 +325,25 @@ export function useWatchSession(bangumiId: number): WatchSession {
   )
 
   const sourceBangumiIds = useSiteConfigStore((s) => s.defaultSettings?.sourceBangumiIds)
+  const siteDefaultOrder = useSiteConfigStore((s) => s.defaultSettings?.pluginOrder)
   const boostedPluginNames = useMemo(
     () => resolveBoostedPluginNames(bangumiId, sourceBangumiIds),
     [bangumiId, sourceBangumiIds],
   )
 
+  const effectivePluginOrder = useMemo(() => {
+    if (pluginOrder.length > 0) {
+      return mergeOrderWithNewPlugins(pluginOrder, allPlugins)
+    }
+    if (siteDefaultOrder && Array.isArray(siteDefaultOrder) && siteDefaultOrder.length > 0) {
+      return mergeOrderWithNewPlugins(siteDefaultOrder, allPlugins)
+    }
+    return EMPTY_ARRAY as string[]
+  }, [pluginOrder, siteDefaultOrder, allPlugins])
+
   const plugins = useMemo(() => {
     const list = allPlugins.filter((p) => Boolean(p && p.enabled !== false))
-    if (!pluginOrder.length) {
+    if (!effectivePluginOrder.length) {
       return [...list].sort((a, b) => comparePluginOrder(a, b, isOld, boostedPluginNames))
     }
     const isBoosted = (name: string) => {
@@ -340,19 +351,26 @@ export function useWatchSession(bangumiId: number): WatchSession {
       return boostedPluginNames.has(key)
     }
     const rank = new Map<string, number>()
-    for (let i = 0; i < pluginOrder.length; i++) {
-      rank.set(pluginOrder[i].toLowerCase(), i)
+    for (let i = 0; i < effectivePluginOrder.length; i++) {
+      rank.set(effectivePluginOrder[i].toLowerCase(), i)
     }
     return [...list].sort((a, b) => {
       const hitA = isBoosted(a.name) ? 1 : 0
       const hitB = isBoosted(b.name) ? 1 : 0
       if (hitA !== hitB) return hitB - hitA
-      const ra = rank.get(a.name.toLowerCase()) ?? pluginOrder.length
-      const rb = rank.get(b.name.toLowerCase()) ?? pluginOrder.length
-      if (ra !== rb) return ra - rb
-      return comparePluginOrder(a, b, isOld, boostedPluginNames)
+      const inOrderA = rank.has(a.name.toLowerCase())
+      const inOrderB = rank.has(b.name.toLowerCase())
+      if (inOrderA && inOrderB) {
+        return (rank.get(a.name.toLowerCase())!) - (rank.get(b.name.toLowerCase())!)
+      }
+      // 某一方不在排序列表时，有效权重优先，防止新加入的高权重源被沉底
+      const weightDiff = comparePluginOrder(a, b, isOld, boostedPluginNames)
+      if (weightDiff !== 0) return weightDiff
+      const ra = rank.get(a.name.toLowerCase()) ?? effectivePluginOrder.length
+      const rb = rank.get(b.name.toLowerCase()) ?? effectivePluginOrder.length
+      return ra - rb
     })
-  }, [allPlugins, pluginOrder, isOld, boostedPluginNames])
+  }, [allPlugins, effectivePluginOrder, isOld, boostedPluginNames])
   const queryClient = useQueryClient()
   const upsertHistory = useHistoryStore((s) => s.upsert)
   const danmakuSettings = useSettingsStore((s) => s.danmaku ?? FALLBACK_DANMAKU)
@@ -437,7 +455,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
   const activeTargetPlugin =
     keywordTargetPlugin ||
     selection?.plugin ||
-    findDefaultSourcePlugin(plugins, pluginOrder, isOld, boostedPluginNames)
+    findDefaultSourcePlugin(plugins, effectivePluginOrder, isOld, boostedPluginNames)
   const preferOriginal = activeTargetPlugin?.titlePreference === 'original'
 
   const keywordCandidates = useMemo(
@@ -459,7 +477,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     keywordCandidates,
     defaultKeyword,
     plugins,
-    pluginOrder,
+    pluginOrder: effectivePluginOrder,
     isOld,
     boostedPluginNames,
     keywordTargetPlugin,
@@ -842,7 +860,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     resolvedItem,
     defaultKeyword,
     plugins,
-    pluginOrder,
+    pluginOrder: effectivePluginOrder,
     isOld,
     boostedPluginNames,
     qPlugin,
@@ -1191,7 +1209,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
             pending: false,
             searched: false,
           })),
-          pluginOrder,
+          effectivePluginOrder,
           isOld,
           boostedPluginNames,
         )
@@ -1199,7 +1217,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
     searchKeyword,
     defaultKeyword,
     defaultSearchEmpty: isSubjectTransition ? false : defaultSearchEmpty,
-    defaultSourceName: findDefaultSourcePlugin(plugins, pluginOrder, isOld, boostedPluginNames)?.name || plugins[0]?.name || '',
+    defaultSourceName: findDefaultSourcePlugin(plugins, effectivePluginOrder, isOld, boostedPluginNames)?.name || plugins[0]?.name || '',
     selection: isSubjectTransition ? null : selection,
     episode: isSubjectTransition ? null : episode,
     slots: isSubjectTransition ? EMPTY_ARRAY : slots,

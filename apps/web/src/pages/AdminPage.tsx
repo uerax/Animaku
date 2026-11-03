@@ -589,6 +589,7 @@ function AdminDashboard() {
         sourceBangumiIds: boosted,
       })
       if (res.ok) {
+        usePluginStore.getState().setPluginOrder(order)
         setPluginsMsg('✅ 已自动保存')
       } else {
         setPluginsMsg(`❌ 保存失败: ${res.message || '未知错误'}`)
@@ -646,6 +647,7 @@ function AdminDashboard() {
         disabledPlugins: [],
         sourceBangumiIds: {},
       })
+      usePluginStore.getState().setPluginOrder(defaultNames)
       setPluginsMsg('✅ 已恢复官方默认并自动保存')
     } finally {
       setPluginsSaving(false)
@@ -1041,10 +1043,16 @@ function AdminDashboard() {
       rank.set(defPluginOrder[i].toLowerCase(), i)
     }
     return list.sort((a, b) => {
+      const inOrderA = rank.has(a.name.toLowerCase())
+      const inOrderB = rank.has(b.name.toLowerCase())
+      if (inOrderA && inOrderB) {
+        return (rank.get(a.name.toLowerCase())!) - (rank.get(b.name.toLowerCase())!)
+      }
+      const weightDiff = comparePluginOrder(a, b)
+      if (weightDiff !== 0) return weightDiff
       const ra = rank.get(a.name.toLowerCase()) ?? defPluginOrder.length
       const rb = rank.get(b.name.toLowerCase()) ?? defPluginOrder.length
-      if (ra !== rb) return ra - rb
-      return comparePluginOrder(a, b)
+      return ra - rb
     })
   }, [allPlugins, defPluginOrder])
 
