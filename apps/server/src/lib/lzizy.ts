@@ -203,7 +203,7 @@ export async function searchLzizy(
     const res = await fetchPublic(
       searchUrl,
       { headers: getJsonHeaders(`${webBase}/`) },
-      { timeoutMs: 8_000 },
+      { timeoutMs: 8_000, source: 'lzizy' },
     )
 
     if (!res.ok) {
@@ -389,7 +389,7 @@ export async function chaptersLzizy(
     const res = await fetchPublic(
       detailUrl,
       { headers: getJsonHeaders(`${webBase}/`) },
-      { timeoutMs: 10_000 },
+      { timeoutMs: 10_000, source: 'lzizy' },
     )
 
     if (!res.ok) {

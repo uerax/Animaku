@@ -92,7 +92,7 @@ async function refreshSupabaseCredentials(): Promise<{
         {
           headers: { 'User-Agent': config.defaultUserAgent },
         },
-        { timeoutMs: 5_000 },
+        { timeoutMs: 5_000, source: 'xifan-next' },
       )
       if (!homeRes.ok) return { baseUrl: cachedBaseUrl, key: cachedKey }
       const html = await homeRes.text()
@@ -107,7 +107,7 @@ async function refreshSupabaseCredentials(): Promise<{
           const chunkRes = await fetchPublic(
             `https://next.xifanacg.com${chunkPath}`,
             { headers: { 'User-Agent': config.defaultUserAgent } },
-            { timeoutMs: 4_000 },
+            { timeoutMs: 4_000, source: 'xifan-next' },
           )
           if (!chunkRes.ok) return null
           const chunkText = await chunkRes.text()
@@ -196,7 +196,7 @@ async function fetchSupabaseJson<T>(
       },
       body: options.body ? JSON.stringify(options.body) : undefined,
     },
-    { timeoutMs },
+    { timeoutMs, source: 'xifan-next' },
   )
 
   if (res.status === 401 || res.status === 403) {
@@ -212,7 +212,7 @@ async function fetchSupabaseJson<T>(
         },
         body: options.body ? JSON.stringify(options.body) : undefined,
       },
-      { timeoutMs },
+      { timeoutMs, source: 'xifan-next' },
     )
   }
 
@@ -514,7 +514,7 @@ export async function chaptersXifanNext(
       {
         headers: { 'User-Agent': config.defaultUserAgent },
       },
-      { timeoutMs: 8_000 },
+      { timeoutMs: 8_000, source: 'xifan-next' },
     )
     if (htmlRes.ok) {
       const html = await htmlRes.text()
@@ -663,7 +663,7 @@ async function extractHighestResolutionHls(masterUrl: string): Promise<string> {
           'User-Agent': config.defaultUserAgent,
         },
       },
-      { timeoutMs: 4_500 },
+      { timeoutMs: 4_500, source: 'xifan-next' },
     )
     if (!res.ok) return masterUrl
     const m3u8Text = await res.text()

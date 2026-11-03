@@ -150,7 +150,7 @@ export async function searchTvTFun(
         {
           headers: getBaseHeaders(`${TVTFUN_BASE_URL}/`),
         },
-        { timeoutMs: 10_000 },
+        { timeoutMs: 10_000, source: 'tvtfun' },
       )
 
       if (!res.ok) continue
@@ -249,7 +249,7 @@ export async function chaptersTvTFun(
     {
       headers: getBaseHeaders(`${TVTFUN_BASE_URL}/anime/${identifier}`),
     },
-    { timeoutMs: 10_000 },
+    { timeoutMs: 10_000, source: 'tvtfun' },
   )
 
   if (!res.ok) {
@@ -437,7 +437,7 @@ export async function resolveTvTFun(
       const dRes = await fetchPublic(
         detailUrl,
         { headers: getBaseHeaders(`${TVTFUN_BASE_URL}/anime/${fallbackId}`) },
-        { timeoutMs: 6_000 },
+        { timeoutMs: 6_000, source: 'tvtfun' },
       )
       if (dRes.ok) {
         const dJson = (await dRes.json()) as TvTFunDetailResponse
@@ -474,7 +474,7 @@ export async function resolveTvTFun(
         sourceId,
       }),
     },
-    { timeoutMs: 12_000 },
+    { timeoutMs: 12_000, source: 'tvtfun' },
   )
 
   if (!res.ok) {

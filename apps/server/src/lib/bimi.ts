@@ -120,7 +120,7 @@ export async function searchBimi(
       const res = await fetchPublic(
         suggestUrl,
         { headers: getBaseHeaders(`${baseUrl}/`) },
-        { timeoutMs: 3_000 },
+        { timeoutMs: 3_000, source: 'bimi' },
       )
 
       if (res.ok) {
@@ -180,7 +180,7 @@ export async function chaptersBimi(
   const res = await fetchPublic(
     detailUrl,
     { headers: getBaseHeaders(`${baseUrl}/`) },
-    { timeoutMs: 8_000 },
+    { timeoutMs: 8_000, source: 'bimi' },
   )
 
   if (!res.ok) {
@@ -299,7 +299,7 @@ export async function resolveBimiPlayUrl(
   const pageRes = await fetchPublic(
     playPageUrl,
     { headers: getBaseHeaders(`${baseUrl}/`) },
-    { timeoutMs: 8_000 },
+    { timeoutMs: 8_000, source: 'bimi' },
   )
 
   if (!pageRes.ok) {
@@ -339,7 +339,7 @@ export async function resolveBimiPlayUrl(
       headers: postHeaders,
       body: new URLSearchParams({ token, challenge }).toString(),
     },
-    { timeoutMs: 8_000 },
+    { timeoutMs: 8_000, source: 'bimi' },
   )
 
   if (!postRes.ok) {

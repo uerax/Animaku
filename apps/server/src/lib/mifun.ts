@@ -122,7 +122,7 @@ export async function searchMifun(
       const res = await fetchPublic(
         suggestUrl,
         { headers: getJsonHeaders(`${baseUrl}/`) },
-        { timeoutMs: 3_000 },
+        { timeoutMs: 3_000, source: 'mifun' },
       )
 
       if (res.ok) {
@@ -162,7 +162,7 @@ export async function searchMifun(
       const res = await fetchPublic(
         searchPageUrl,
         { headers: getHtmlHeaders(`${baseUrl}/`) },
-        { timeoutMs: 4_500 },
+        { timeoutMs: 4_500, source: 'mifun' },
       )
 
       if (res.ok) {
@@ -219,7 +219,7 @@ export async function chaptersMifun(
   const res = await fetchPublic(
     detailUrl,
     { headers: getHtmlHeaders(`${baseUrl}/`) },
-    { timeoutMs: 10_000 },
+    { timeoutMs: 10_000, source: 'mifun' },
   )
 
   if (!res.ok) {
@@ -354,7 +354,7 @@ export async function resolveMifun(
   const res = await fetchPublic(
     absPlayUrl,
     { headers: getHtmlHeaders(`${baseUrl}/`) },
-    { timeoutMs: 10_000 },
+    { timeoutMs: 10_000, source: 'mifun' },
   )
 
   if (!res.ok) {
@@ -416,7 +416,7 @@ export async function resolveMifun(
         Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       },
     },
-    { timeoutMs: 8_000 },
+    { timeoutMs: 8_000, source: 'mifun' },
   )
 
   if (!parseRes.ok) {
@@ -445,7 +445,7 @@ export async function resolveMifun(
         Accept: 'application/json, text/javascript, */*; q=0.01',
       },
     },
-    { timeoutMs: 8_000 },
+    { timeoutMs: 8_000, source: 'mifun' },
   )
 
   if (!apiRes.ok) {

@@ -87,7 +87,7 @@ export async function searchMoonci(
     const res = await fetchPublic(
       suggestUrl,
       { headers: getBaseHeaders(`${MOONCI_BASE_URL}/`) },
-      { timeoutMs: 8_000 },
+      { timeoutMs: 8_000, source: 'moonci' },
     )
 
     if (res.ok) {
@@ -127,7 +127,7 @@ export async function searchMoonci(
     const res = await fetchPublic(
       searchPageUrl,
       { headers: getBaseHeaders(`${MOONCI_BASE_URL}/`) },
-      { timeoutMs: 10_000 },
+      { timeoutMs: 10_000, source: 'moonci' },
     )
 
     if (res.ok) {
@@ -190,7 +190,7 @@ export async function chaptersMoonci(
   const res = await fetchPublic(
     detailUrl,
     { headers: getBaseHeaders(`${MOONCI_BASE_URL}/`) },
-    { timeoutMs: 10_000 },
+    { timeoutMs: 10_000, source: 'moonci' },
   )
 
   if (!res.ok) {
@@ -287,7 +287,7 @@ export async function resolveMoonci(
   const res = await fetchPublic(
     absPlayUrl,
     { headers: getBaseHeaders(`${MOONCI_BASE_URL}/`) },
-    { timeoutMs: 10_000 },
+    { timeoutMs: 10_000, source: 'moonci' },
   )
 
   if (!res.ok) {

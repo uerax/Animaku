@@ -121,7 +121,7 @@ export async function searchAnimoe(
       const res = await fetchPublic(
         suggestUrl,
         { headers: getJsonHeaders(`${baseUrl}/`) },
-        { timeoutMs: 8_000 },
+        { timeoutMs: 8_000, source: 'animoe' },
       )
 
       if (res.ok) {
@@ -176,7 +176,7 @@ export async function chaptersAnimoe(
   const res = await fetchPublic(
     detailUrl,
     { headers: getHtmlHeaders(`${baseUrl}/`) },
-    { timeoutMs: 10_000 },
+    { timeoutMs: 10_000, source: 'animoe' },
   )
 
   if (!res.ok) {
@@ -311,7 +311,7 @@ export async function resolveAnimoe(
   const res = await fetchPublic(
     absPlayUrl,
     { headers: getHtmlHeaders(`${baseUrl}/`) },
-    { timeoutMs: 10_000 },
+    { timeoutMs: 10_000, source: 'animoe' },
   )
 
   if (!res.ok) {

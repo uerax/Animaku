@@ -182,7 +182,7 @@ async function fetchWithCookie(
       body: opts.body,
       redirect: 'follow',
     },
-    { timeoutMs: opts.timeoutMs ?? 15_000 },
+    { timeoutMs: opts.timeoutMs ?? 15_000, source: 'omofun' },
   )
   const cookie = mergeSetCookie(opts.cookie || '', getSetCookieList(res))
   const text = await res.text()

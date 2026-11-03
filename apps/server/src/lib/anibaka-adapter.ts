@@ -354,7 +354,7 @@ const OP_HANDLERS: Record<string, OpHandler> = {
           headers,
           body,
         },
-        { timeoutMs: 15_000 },
+        { timeoutMs: 15_000, source: ctx.rule.name },
       )
       if (!res.ok) {
         ctx.value = ''
@@ -1034,7 +1034,7 @@ const OP_HANDLERS: Record<string, OpHandler> = {
         base,
       )
       try {
-        const res = await fetchPublic(url, { headers }, { timeoutMs: 10_000 })
+        const res = await fetchPublic(url, { headers }, { timeoutMs: 10_000, source: ctx.rule.name })
         if (!res.ok) continue
         const text = await res.text()
         const json = asJson(text)
@@ -1073,7 +1073,7 @@ const OP_HANDLERS: Record<string, OpHandler> = {
     if (!keyword) return
     const url = String(step.url ?? 'https://d1zquzjgwo9yb.cloudfront.net/')
     try {
-      const res = await fetchPublic(url, {}, { timeoutMs: 10_000 })
+      const res = await fetchPublic(url, {}, { timeoutMs: 10_000, source: ctx.rule.name })
       if (!res.ok) return
       const text = await res.text()
       const catalog = JSON.parse(text)
@@ -1111,7 +1111,7 @@ const OP_HANDLERS: Record<string, OpHandler> = {
     const firstUrl = `https://anime1.me/?cat=${catId}`
 
     try {
-      const res = await fetchPublic(firstUrl, {}, { timeoutMs: 12_000 })
+      const res = await fetchPublic(firstUrl, {}, { timeoutMs: 12_000, source: ctx.rule.name })
       if (!res.ok) return
       const html = await res.text()
       const $ = cheerio.load(html)
@@ -1155,7 +1155,7 @@ const OP_HANDLERS: Record<string, OpHandler> = {
           },
           body: new URLSearchParams({ d: decodeURIComponent(token) }),
         },
-        { timeoutMs: 10_000 },
+        { timeoutMs: 10_000, source: ctx.rule.name },
       )
       if (!res.ok) {
         ctx.value = ''

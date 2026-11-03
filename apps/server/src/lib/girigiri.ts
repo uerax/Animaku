@@ -223,7 +223,7 @@ export async function searchGirigiri(
       const res = await fetchPublic(
         searchApiUrl,
         { headers: getJsonHeaders(`${baseUrl}/`) },
-        { timeoutMs: 8_000 },
+        { timeoutMs: 8_000, source: 'girigiri' },
       )
 
       if (res.ok) {
@@ -270,7 +270,7 @@ export async function searchGirigiri(
         const res = await fetchPublic(
           suggestUrl,
           { headers: getJsonHeaders(`${baseUrl}/`) },
-          { timeoutMs: 8_000 },
+          { timeoutMs: 8_000, source: 'girigiri' },
         )
 
         if (res.ok) {
@@ -334,7 +334,7 @@ export async function chaptersGirigiri(
   const res = await fetchPublic(
     detailApiUrl,
     { headers: getJsonHeaders(`${baseUrl}/`) },
-    { timeoutMs: 10_000 },
+    { timeoutMs: 10_000, source: 'girigiri' },
   )
 
   if (!res.ok) {

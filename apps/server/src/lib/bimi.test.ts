@@ -1,8 +1,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
+import { ProxyAgent } from 'undici'
 import type { PluginRule } from '@animaku/shared'
 import { isBimiRule } from './bimi'
+import { getDispatcherForSource } from './outbound-proxy'
 
 test('bimi: isBimiRule correctly matches rule variations', () => {
   const rule1: PluginRule = {
@@ -110,5 +112,16 @@ test('bimi: Road object conforms to standard schema with data and identifier arr
   assert.ok(Array.isArray(sampleRoad.data))
   assert.ok(Array.isArray(sampleRoad.identifier))
   assert.equal(sampleRoad.data.length, sampleRoad.identifier.length)
+})
+
+test('bimi: getDispatcherForSource correctly resolves proxy for bimi source id', () => {
+  const mockPool = {
+    proxy_1: 'http://127.0.0.1:7890',
+  }
+  const mockMap = {
+    bimi: 'proxy_1',
+  }
+  const agent = getDispatcherForSource('bimi', mockPool, mockMap)
+  assert.ok(agent instanceof ProxyAgent)
 })
 

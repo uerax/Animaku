@@ -157,3 +157,33 @@ test('end-to-end: fetchPublic forwards request through mapped outbound proxy and
     mockProxy.close()
   }
 })
+
+test('getDispatcherForSource: supports all dedicated source adapter IDs', () => {
+  clearProxyAgentCache()
+  const mockPool = {
+    proxy1: 'http://127.0.0.1:7890',
+  }
+  const dedicatedSourceIds = [
+    'bimi',
+    'tvtfun',
+    'moonci',
+    'xifan-next',
+    'animoe',
+    'mifun',
+    'girigiri',
+    'lzizy',
+    'omofun',
+    'sorani',
+    'cycani',
+    'anime1',
+  ]
+  const mockMap: Record<string, string> = {}
+  for (const id of dedicatedSourceIds) {
+    mockMap[id] = 'proxy1'
+  }
+
+  for (const id of dedicatedSourceIds) {
+    const agent = getDispatcherForSource(id, mockPool, mockMap)
+    assert.ok(agent instanceof ProxyAgent, `Source ${id} should resolve to ProxyAgent`)
+  }
+})
