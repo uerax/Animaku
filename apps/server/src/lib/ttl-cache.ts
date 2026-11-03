@@ -39,6 +39,8 @@ export const BANGUMI_CACHE_TTL = {
 export const PLUGIN_CACHE_TTL = {
   search: 4 * 60 * 60_000,
   chapters: 30 * 60_000,
+  /** Empty / failed chapter resolution — 1 min cooldown to shield upstream while allowing timely retry. */
+  chaptersEmpty: 60_000,
   /** HLS playlists — relatively stable. */
   resolveStable: 30 * 60_000,
   /** Plain progressive mp4 without obvious signing. */

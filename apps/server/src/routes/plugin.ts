@@ -183,8 +183,12 @@ pluginRoutes.post('/chapters', async (c) => {
     // 2. L2 Persistent SQLite cache hit (< 1ms, survives restarts & image updates)
     const dbHit = pluginChaptersCache.get(key)
     if (dbHit) {
+      const ttl =
+        dbHit.roads?.length > 0
+          ? PLUGIN_CACHE_TTL.chapters
+          : PLUGIN_CACHE_TTL.chaptersEmpty
       // Warm L1 memory cache for hot repeat requests
-      cacheSet(key, dbHit, PLUGIN_CACHE_TTL.chapters, PLUGIN_MAX_ENTRIES)
+      cacheSet(key, dbHit, ttl, PLUGIN_MAX_ENTRIES)
       return c.json({ data: dbHit }, 200, cacheHeaders(true))
     }
   }
@@ -193,22 +197,33 @@ pluginRoutes.post('/chapters', async (c) => {
     // 3. Cache MISS: execute upstream chapter extraction with single-flight loader deduplication
     const { value, hit } = await cacheGetOrSet(
       key,
-      PLUGIN_CACHE_TTL.chapters,
+      0,
       async () => {
         const result = await chaptersWithRule(rule, source)
-        // Store in SQLite database for durable persistence
+        const ttl =
+          result.roads?.length > 0
+            ? PLUGIN_CACHE_TTL.chapters
+            : PLUGIN_CACHE_TTL.chaptersEmpty
+        // Store in SQLite database for durable persistence (30m for valid episodes, 1m for empty to prevent spam)
         pluginChaptersCache.set(
           key,
           rule.name,
           source,
           ruleHash,
           result,
-          PLUGIN_CACHE_TTL.chapters,
+          ttl,
         )
         return result
       },
       { bypass, maxEntries: PLUGIN_MAX_ENTRIES },
     )
+    if (!hit) {
+      const ttl =
+        value.roads?.length > 0
+          ? PLUGIN_CACHE_TTL.chapters
+          : PLUGIN_CACHE_TTL.chaptersEmpty
+      cacheSet(key, value, ttl, PLUGIN_MAX_ENTRIES)
+    }
     return c.json({ data: value }, 200, cacheHeaders(hit))
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
