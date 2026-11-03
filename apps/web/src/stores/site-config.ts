@@ -21,6 +21,9 @@ export interface AnnouncementItem {
 export interface SiteConfigState {
   siteName: string
   siteTagline: string
+  githubUrl: string
+  feedbackUrl: string
+  contactUrl: string
   iconMode: 'default' | 'upload' | 'url'
   iconUrl: string
   iconUpdatedAt: number
@@ -47,6 +50,9 @@ export interface SiteConfigState {
   saveConfig: (data: {
     siteName: string
     siteTagline: string
+    githubUrl?: string
+    feedbackUrl?: string
+    contactUrl?: string
     iconMode: 'default' | 'upload' | 'url'
     iconUrl: string
   }) => Promise<void>
@@ -88,6 +94,9 @@ export const SITE_CONFIG_TTL_MS = 5 * 60 * 1000
 interface CachedSiteConfig {
   siteName: string
   siteTagline: string
+  githubUrl?: string
+  feedbackUrl?: string
+  contactUrl?: string
   iconMode: 'default' | 'upload' | 'url'
   iconUrl: string
   iconUpdatedAt: number
@@ -103,6 +112,9 @@ function getInitialSiteConfig(): CachedSiteConfig {
     return {
       siteName: '',
       siteTagline: '',
+      githubUrl: '',
+      feedbackUrl: '',
+      contactUrl: '',
       iconMode: 'default',
       iconUrl: '',
       iconUpdatedAt: 0,
@@ -123,6 +135,9 @@ function getInitialSiteConfig(): CachedSiteConfig {
         return {
           siteName: typeof parsed.siteName === 'string' ? parsed.siteName : '',
           siteTagline: typeof parsed.siteTagline === 'string' ? parsed.siteTagline : '',
+          githubUrl: typeof parsed.githubUrl === 'string' ? parsed.githubUrl : '',
+          feedbackUrl: typeof parsed.feedbackUrl === 'string' ? parsed.feedbackUrl : '',
+          contactUrl: typeof parsed.contactUrl === 'string' ? parsed.contactUrl : '',
           iconMode: ['default', 'upload', 'url'].includes(parsed.iconMode as string)
             ? (parsed.iconMode as 'default' | 'upload' | 'url')
             : 'default',
@@ -150,6 +165,9 @@ function getInitialSiteConfig(): CachedSiteConfig {
     return {
       siteName: metaApp,
       siteTagline: '',
+      githubUrl: '',
+      feedbackUrl: '',
+      contactUrl: '',
       iconMode: 'default',
       iconUrl: '',
       iconUpdatedAt: 0,
@@ -163,6 +181,9 @@ function getInitialSiteConfig(): CachedSiteConfig {
   return {
     siteName: '',
     siteTagline: '',
+    githubUrl: '',
+    feedbackUrl: '',
+    contactUrl: '',
     iconMode: 'default',
     iconUrl: '',
     iconUpdatedAt: 0,
@@ -258,6 +279,9 @@ if (initialConfig.iconMode !== 'default' || initialConfig.iconUpdatedAt > 0) {
 export const useSiteConfigStore = create<SiteConfigState>((set, get) => ({
   siteName: initialConfig.siteName,
   siteTagline: initialConfig.siteTagline,
+  githubUrl: initialConfig.githubUrl || '',
+  feedbackUrl: initialConfig.feedbackUrl || '',
+  contactUrl: initialConfig.contactUrl || '',
   iconMode: initialConfig.iconMode,
   iconUrl: initialConfig.iconUrl,
   iconUpdatedAt: initialConfig.iconUpdatedAt,
@@ -283,6 +307,9 @@ export const useSiteConfigStore = create<SiteConfigState>((set, get) => ({
         ok: boolean
         siteName: string
         siteTagline: string
+        githubUrl?: string
+        feedbackUrl?: string
+        contactUrl?: string
         iconMode: 'default' | 'upload' | 'url'
         iconUrl: string
         iconUpdatedAt: number
@@ -296,6 +323,9 @@ export const useSiteConfigStore = create<SiteConfigState>((set, get) => ({
         const nextConfig: CachedSiteConfig = {
           siteName: res.siteName || '',
           siteTagline: res.siteTagline || '',
+          githubUrl: res.githubUrl || '',
+          feedbackUrl: res.feedbackUrl || '',
+          contactUrl: res.contactUrl || '',
           iconMode: res.iconMode || 'default',
           iconUrl: res.iconUrl || '',
           iconUpdatedAt: res.iconUpdatedAt || 0,
@@ -365,6 +395,9 @@ export const useSiteConfigStore = create<SiteConfigState>((set, get) => ({
       data: {
         siteName: string
         siteTagline: string
+        githubUrl?: string
+        feedbackUrl?: string
+        contactUrl?: string
         iconMode: 'default' | 'upload' | 'url'
         iconUrl: string
         iconUpdatedAt: number
@@ -381,6 +414,9 @@ export const useSiteConfigStore = create<SiteConfigState>((set, get) => ({
       const nextConfig: CachedSiteConfig = {
         siteName: res.data.siteName || '',
         siteTagline: res.data.siteTagline || '',
+        githubUrl: res.data.githubUrl || '',
+        feedbackUrl: res.data.feedbackUrl || '',
+        contactUrl: res.data.contactUrl || '',
         iconMode: res.data.iconMode || 'default',
         iconUrl: res.data.iconUrl || '',
         iconUpdatedAt: res.data.iconUpdatedAt || 0,
@@ -517,6 +553,9 @@ export const useSiteConfigStore = create<SiteConfigState>((set, get) => ({
       set({
         siteName: '',
         siteTagline: '',
+        githubUrl: '',
+        feedbackUrl: '',
+        contactUrl: '',
         iconMode: 'default',
         iconUrl: '',
         iconUpdatedAt: res.data?.iconUpdatedAt || Date.now(),

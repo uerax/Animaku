@@ -201,6 +201,9 @@ function AdminDashboard() {
   const b = getSiteBranding()
   const siteName = useSiteConfigStore((s) => s.siteName)
   const siteTagline = useSiteConfigStore((s) => s.siteTagline)
+  const githubUrl = useSiteConfigStore((s) => s.githubUrl)
+  const feedbackUrl = useSiteConfigStore((s) => s.feedbackUrl)
+  const contactUrl = useSiteConfigStore((s) => s.contactUrl)
   const iconMode = useSiteConfigStore((s) => s.iconMode)
   const iconUrl = useSiteConfigStore((s) => s.iconUrl)
   const iconUpdatedAt = useSiteConfigStore((s) => s.iconUpdatedAt)
@@ -239,7 +242,7 @@ function AdminDashboard() {
     'site-branding': true,
     'site-announcement': false,
     'default-image': false,
-    'default-plugins': true,
+    'default-plugins': false,
     'default-player': false,
     'default-danmaku': false,
     'default-nav': false,
@@ -763,6 +766,9 @@ function AdminDashboard() {
   // 站点信息编辑状态
   const [nameInput, setNameInput] = useState(siteName)
   const [taglineInput, setTaglineInput] = useState(siteTagline)
+  const [githubUrlInput, setGithubUrlInput] = useState(githubUrl)
+  const [feedbackUrlInput, setFeedbackUrlInput] = useState(feedbackUrl)
+  const [contactUrlInput, setContactUrlInput] = useState(contactUrl)
   const [modeInput, setModeInput] = useState<'upload' | 'url'>('upload')
   const [urlInput, setUrlInput] = useState(iconUrl)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -777,9 +783,12 @@ function AdminDashboard() {
   useEffect(() => {
     setNameInput(siteName)
     setTaglineInput(siteTagline)
+    setGithubUrlInput(githubUrl)
+    setFeedbackUrlInput(feedbackUrl)
+    setContactUrlInput(contactUrl)
     setModeInput(iconMode === 'url' ? 'url' : 'upload')
     setUrlInput(iconUrl)
-  }, [siteName, siteTagline, iconMode, iconUrl])
+  }, [siteName, siteTagline, githubUrl, feedbackUrl, contactUrl, iconMode, iconUrl])
 
   useEffect(() => {
     return () => {
@@ -840,6 +849,9 @@ function AdminDashboard() {
       await saveConfig({
         siteName: nameInput,
         siteTagline: taglineInput,
+        githubUrl: githubUrlInput,
+        feedbackUrl: feedbackUrlInput,
+        contactUrl: contactUrlInput,
         iconMode: modeInput,
         iconUrl: urlInput,
       })
@@ -1369,6 +1381,59 @@ function AdminDashboard() {
                 展示在桌面端导航栏标题下方及 SEO 元信息中。
               </p>
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[var(--kz-border)]/40">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-[var(--kz-fg)]">
+                源码链接 (githubUrl)
+              </label>
+              <input
+                type="text"
+                value={githubUrlInput}
+                onChange={(e) => setGithubUrlInput(e.target.value)}
+                placeholder="例如：https://github.com/uerax/Animaku"
+                maxLength={500}
+                className="w-full rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-2 text-xs sm:text-sm text-[var(--kz-fg)] placeholder:text-[var(--kz-fg-dim)] outline-none focus:border-[var(--kz-accent)]"
+              />
+              <p className="text-[11px] text-[var(--kz-fg-dim)]">
+                点击页脚站名「{nameInput || 'Animaku'}」时的跳转目标。留空则默认为官方仓库。
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-[var(--kz-fg)]">
+                反馈链接 (feedbackUrl)
+              </label>
+              <input
+                type="text"
+                value={feedbackUrlInput}
+                onChange={(e) => setFeedbackUrlInput(e.target.value)}
+                placeholder="例如：https://github.com/uerax/Animaku/issues"
+                maxLength={500}
+                className="w-full rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-2 text-xs sm:text-sm text-[var(--kz-fg)] placeholder:text-[var(--kz-fg-dim)] outline-none focus:border-[var(--kz-accent)]"
+              />
+              <p className="text-[11px] text-[var(--kz-fg-dim)]">
+                展示在页脚的「反馈」外链。留空则默认为当前源码仓库的 Issues 页面。
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-[var(--kz-fg)]">
+              联系链接 / 方式 (contactUrl)
+            </label>
+            <input
+              type="text"
+              value={contactUrlInput}
+              onChange={(e) => setContactUrlInput(e.target.value)}
+              placeholder="例如：https://github.com/uerax 或 mailto:contact@example.com"
+              maxLength={500}
+              className="w-full rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-2 text-xs sm:text-sm text-[var(--kz-fg)] placeholder:text-[var(--kz-fg-dim)] outline-none focus:border-[var(--kz-accent)]"
+            />
+            <p className="text-[11px] text-[var(--kz-fg-dim)]">
+              展示在页脚的「联系」外链。支持网页链接、mailto: 邮箱或 Telegram/QQ 等，留空则默认为官方开发者主页「https://github.com/uerax」。
+            </p>
           </div>
 
           <div className="space-y-2 pt-2 border-t border-[var(--kz-border)]/40">

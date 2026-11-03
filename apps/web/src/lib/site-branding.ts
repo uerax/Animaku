@@ -17,12 +17,21 @@ function trimUrl(raw: string | undefined): string {
   return s.replace(/\/+$/, '')
 }
 
+export function formatCustomUrl(raw: string | undefined): string {
+  const s = (raw || '').trim()
+  if (!s) return ''
+  if (/^mailto:[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(s)) return s
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(s)) return `mailto:${s}`
+  return trimUrl(s)
+}
+
 function trimText(raw: string | undefined): string {
   return (raw || '').trim()
 }
 
 /** Default public repo (matches origin remote when unset). */
-const DEFAULT_GITHUB_URL = 'https://github.com/uerax/Animaku'
+export const DEFAULT_GITHUB_URL = 'https://github.com/uerax/Animaku'
+export const DEFAULT_CONTACT_URL = 'https://github.com/uerax'
 
 export type SiteBranding = {
   /** Application version (e.g. v1.1.1) */
@@ -30,6 +39,10 @@ export type SiteBranding = {
   /** Project source — always preferred for “Star / Source” */
   githubUrl: string
   githubLabel: string
+  /** Custom or default feedback URL (defaults to `${githubUrl}/issues`) */
+  feedbackUrl: string
+  /** Custom or default contact URL (defaults to `https://github.com/uerax`) */
+  contactUrl: string
   /** Short product blurb under the name */
   tagline: string
   /** Display name in footer */
@@ -49,11 +62,28 @@ export function getSiteBranding(): SiteBranding {
   const env = import.meta.env
   const dynamic = useSiteConfigStore.getState()
 
+  const githubUrl =
+    formatCustomUrl(dynamic.githubUrl) ||
+    trimUrl(env.VITE_GITHUB_URL as string | undefined) ||
+    DEFAULT_GITHUB_URL
+
+  const feedbackUrl =
+    formatCustomUrl(dynamic.feedbackUrl) ||
+    formatCustomUrl(env.VITE_FEEDBACK_URL as string | undefined) ||
+    `${githubUrl}/issues`
+
+  const contactUrl =
+    formatCustomUrl(dynamic.contactUrl) ||
+    formatCustomUrl(env.VITE_CONTACT_URL as string | undefined) ||
+    (env.VITE_CONTACT_EMAIL ? `mailto:${trimText(env.VITE_CONTACT_EMAIL)}` : '') ||
+    DEFAULT_CONTACT_URL
+
   return {
     version: trimText(env.VITE_APP_VERSION) || DEFAULT_APP_VERSION,
-    githubUrl:
-      trimUrl(env.VITE_GITHUB_URL as string | undefined) || DEFAULT_GITHUB_URL,
+    githubUrl,
     githubLabel: trimText(env.VITE_GITHUB_LABEL as string | undefined) || 'GitHub',
+    feedbackUrl,
+    contactUrl,
     tagline:
       dynamic.siteTagline?.trim() ||
       trimText(env.VITE_SITE_TAGLINE as string | undefined) ||
@@ -73,18 +103,38 @@ export function getSiteBranding(): SiteBranding {
 }
 
 /**
- * 响应式 Hook：当 Admin 动态修改站名或标语时，自动触发组件重渲染
+ * 响应式 Hook：当 Admin 动态修改站名、标语或链接时，自动触发组件重渲染
  */
 export function useSiteBranding(): SiteBranding {
   const dynamicName = useSiteConfigStore((s) => s.siteName)
   const dynamicTagline = useSiteConfigStore((s) => s.siteTagline)
+  const dynamicGithubUrl = useSiteConfigStore((s) => s.githubUrl)
+  const dynamicFeedbackUrl = useSiteConfigStore((s) => s.feedbackUrl)
+  const dynamicContactUrl = useSiteConfigStore((s) => s.contactUrl)
   const env = import.meta.env
+
+  const githubUrl =
+    formatCustomUrl(dynamicGithubUrl) ||
+    trimUrl(env.VITE_GITHUB_URL as string | undefined) ||
+    DEFAULT_GITHUB_URL
+
+  const feedbackUrl =
+    formatCustomUrl(dynamicFeedbackUrl) ||
+    formatCustomUrl(env.VITE_FEEDBACK_URL as string | undefined) ||
+    `${githubUrl}/issues`
+
+  const contactUrl =
+    formatCustomUrl(dynamicContactUrl) ||
+    formatCustomUrl(env.VITE_CONTACT_URL as string | undefined) ||
+    (env.VITE_CONTACT_EMAIL ? `mailto:${trimText(env.VITE_CONTACT_EMAIL)}` : '') ||
+    DEFAULT_CONTACT_URL
 
   return {
     version: trimText(env.VITE_APP_VERSION) || DEFAULT_APP_VERSION,
-    githubUrl:
-      trimUrl(env.VITE_GITHUB_URL as string | undefined) || DEFAULT_GITHUB_URL,
+    githubUrl,
     githubLabel: trimText(env.VITE_GITHUB_LABEL as string | undefined) || 'GitHub',
+    feedbackUrl,
+    contactUrl,
     tagline:
       dynamicTagline?.trim() ||
       trimText(env.VITE_SITE_TAGLINE as string | undefined) ||

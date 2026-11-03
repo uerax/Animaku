@@ -32,6 +32,28 @@ function isValidHttpUrl(urlStr: string): boolean {
   }
 }
 
+function sanitizeWebOrContactUrl(raw: string): string {
+  const trimmed = raw.trim()
+  if (!trimmed) return ''
+  if (/^mailto:[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(trimmed)) {
+    return trimmed
+  }
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(trimmed)) {
+    return `mailto:${trimmed}`
+  }
+  let toTest = trimmed
+  if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(toTest)) {
+    toTest = `https://${trimmed}`
+  }
+  try {
+    const u = new URL(toTest)
+    if (u.protocol === 'http:' || u.protocol === 'https:' || u.protocol === 'mailto:') {
+      return u.toString()
+    }
+  } catch {}
+  return ''
+}
+
 /**
  * 公开接口：获取当前站点品牌与自定义图标配置及站点公告
  */
@@ -41,6 +63,9 @@ siteRoutes.get('/config', (c) => {
     ok: true,
     siteName: cfg.siteName || '',
     siteTagline: cfg.siteTagline || '',
+    githubUrl: cfg.githubUrl || '',
+    feedbackUrl: cfg.feedbackUrl || '',
+    contactUrl: cfg.contactUrl || '',
     iconMode: cfg.iconMode || 'default',
     iconUrl: cfg.iconUrl || '',
     iconUpdatedAt: cfg.iconUpdatedAt || 0,
@@ -163,6 +188,18 @@ adminSiteRoutes.post('/site/config', async (c) => {
 
   if (body.siteTagline !== undefined) {
     updates.siteTagline = typeof body.siteTagline === 'string' ? body.siteTagline.trim().slice(0, 100) : ''
+  }
+
+  if (body.githubUrl !== undefined) {
+    updates.githubUrl = typeof body.githubUrl === 'string' ? sanitizeWebOrContactUrl(body.githubUrl).slice(0, 500) : ''
+  }
+
+  if (body.feedbackUrl !== undefined) {
+    updates.feedbackUrl = typeof body.feedbackUrl === 'string' ? sanitizeWebOrContactUrl(body.feedbackUrl).slice(0, 500) : ''
+  }
+
+  if (body.contactUrl !== undefined) {
+    updates.contactUrl = typeof body.contactUrl === 'string' ? sanitizeWebOrContactUrl(body.contactUrl).slice(0, 500) : ''
   }
 
   if (body.iconMode !== undefined) {

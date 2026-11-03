@@ -81,6 +81,9 @@ test('site-config: saves and reloads config', () => {
   saveSiteConfig({
     siteName: '我的测试站',
     siteTagline: '测试标语',
+    githubUrl: 'https://github.com/custom/animaku',
+    feedbackUrl: 'https://github.com/custom/animaku/issues',
+    contactUrl: 'https://github.com/custom',
     iconMode: 'url',
     iconUrl: 'https://example.com/logo.png',
     defaultSettings: {
@@ -91,6 +94,9 @@ test('site-config: saves and reloads config', () => {
   const updated = getSiteConfig()
   assert.equal(updated.siteName, '我的测试站')
   assert.equal(updated.siteTagline, '测试标语')
+  assert.equal(updated.githubUrl, 'https://github.com/custom/animaku')
+  assert.equal(updated.feedbackUrl, 'https://github.com/custom/animaku/issues')
+  assert.equal(updated.contactUrl, 'https://github.com/custom')
   assert.equal(updated.iconMode, 'url')
   assert.equal(updated.iconUrl, 'https://example.com/logo.png')
   assert.deepEqual(updated.defaultSettings?.sourceBangumiIds, { cycani: [253, 1024] })
@@ -99,6 +105,9 @@ test('site-config: saves and reloads config', () => {
   saveSiteConfig({
     siteName: original.siteName,
     siteTagline: original.siteTagline,
+    githubUrl: original.githubUrl,
+    feedbackUrl: original.feedbackUrl,
+    contactUrl: original.contactUrl,
     iconMode: original.iconMode,
     iconUrl: original.iconUrl,
     defaultSettings: original.defaultSettings,
@@ -190,6 +199,48 @@ test('site-config: defaultSettings saving, fetching and resetting', async () => 
 
     // Clean up
     saveSiteConfig({ defaultSettings: undefined })
+  } finally {
+    config.adminSecret = ''
+  }
+})
+
+test('site-config: custom githubUrl, feedbackUrl and contactUrl via adminSiteRoutes and siteRoutes', async () => {
+  const secret = 'custom-links-secret'
+  config.adminSecret = secret
+  try {
+    const postRes = await adminSiteRoutes.request('/site/config', {
+      method: 'POST',
+      headers: {
+        'X-Admin-Secret': secret,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        githubUrl: 'https://github.com/myorg/custom-animaku',
+        feedbackUrl: 'https://github.com/myorg/custom-animaku/issues',
+        contactUrl: 'contact@myorg.com',
+      }),
+    })
+    assert.equal(postRes.status, 200)
+    const postJson = (await postRes.json()) as { ok: boolean; data: any }
+    assert.equal(postJson.ok, true)
+    assert.equal(postJson.data.githubUrl, 'https://github.com/myorg/custom-animaku')
+    assert.equal(postJson.data.feedbackUrl, 'https://github.com/myorg/custom-animaku/issues')
+    assert.equal(postJson.data.contactUrl, 'mailto:contact@myorg.com')
+
+    const getRes = await siteRoutes.request('/config')
+    assert.equal(getRes.status, 200)
+    const getJson = (await getRes.json()) as { ok: boolean; githubUrl: string; feedbackUrl: string; contactUrl: string }
+    assert.equal(getJson.ok, true)
+    assert.equal(getJson.githubUrl, 'https://github.com/myorg/custom-animaku')
+    assert.equal(getJson.feedbackUrl, 'https://github.com/myorg/custom-animaku/issues')
+    assert.equal(getJson.contactUrl, 'mailto:contact@myorg.com')
+
+    // Clean up
+    saveSiteConfig({
+      githubUrl: undefined,
+      feedbackUrl: undefined,
+      contactUrl: undefined,
+    })
   } finally {
     config.adminSecret = ''
   }

@@ -22,6 +22,9 @@ export interface AnnouncementItem {
 export interface SiteConfig {
   siteName?: string
   siteTagline?: string
+  githubUrl?: string
+  feedbackUrl?: string
+  contactUrl?: string
   iconMode?: 'default' | 'upload' | 'url'
   iconUrl?: string
   iconUpdatedAt?: number
@@ -249,6 +252,9 @@ export function getSiteConfig(): SiteConfig {
         memoryCache = {
           siteName: typeof parsed.siteName === 'string' ? parsed.siteName.trim().slice(0, 50) : undefined,
           siteTagline: typeof parsed.siteTagline === 'string' ? parsed.siteTagline.trim().slice(0, 100) : undefined,
+          githubUrl: typeof parsed.githubUrl === 'string' ? parsed.githubUrl.trim().slice(0, 500) : undefined,
+          feedbackUrl: typeof parsed.feedbackUrl === 'string' ? parsed.feedbackUrl.trim().slice(0, 500) : undefined,
+          contactUrl: typeof parsed.contactUrl === 'string' ? parsed.contactUrl.trim().slice(0, 500) : undefined,
           iconMode: ['default', 'upload', 'url'].includes(parsed.iconMode) ? parsed.iconMode : 'default',
           iconUrl: typeof parsed.iconUrl === 'string' ? parsed.iconUrl.trim().slice(0, 500) : undefined,
           iconUpdatedAt: typeof parsed.iconUpdatedAt === 'number' ? parsed.iconUpdatedAt : undefined,
@@ -291,6 +297,16 @@ export function saveSiteConfig(updates: Partial<SiteConfig>): SiteConfig {
   if (next.siteName) next.siteName = next.siteName.trim().slice(0, 50)
   if (next.siteTagline) next.siteTagline = next.siteTagline.trim().slice(0, 100)
   if (next.iconUrl) next.iconUrl = next.iconUrl.trim().slice(0, 500)
+
+  if (updates.githubUrl !== undefined) {
+    next.githubUrl = typeof updates.githubUrl === 'string' ? updates.githubUrl.trim().slice(0, 500) : undefined
+  }
+  if (updates.feedbackUrl !== undefined) {
+    next.feedbackUrl = typeof updates.feedbackUrl === 'string' ? updates.feedbackUrl.trim().slice(0, 500) : undefined
+  }
+  if (updates.contactUrl !== undefined) {
+    next.contactUrl = typeof updates.contactUrl === 'string' ? updates.contactUrl.trim().slice(0, 500) : undefined
+  }
 
   if (updates.announcementEnabled !== undefined) {
     next.announcementEnabled = Boolean(updates.announcementEnabled)
@@ -677,6 +693,9 @@ export function resetAllSiteConfig(): SiteConfig {
   memoryCache = {
     siteName: undefined,
     siteTagline: undefined,
+    githubUrl: undefined,
+    feedbackUrl: undefined,
+    contactUrl: undefined,
     iconMode: 'default',
     iconUrl: undefined,
     iconUpdatedAt: Date.now(),

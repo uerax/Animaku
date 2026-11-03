@@ -4,7 +4,7 @@ const START_YEAR = 2026
 
 /**
  * Minimalist inline horizontal footer inspired by GitHub.
- * Single row centered flow: Brand · Version · Copyright · Source · Feedback · Disclaimer
+ * Single row centered flow: Brand (links to source) · Version · Copyright · Feedback · Contact · Disclaimer
  */
 export function SiteFooter() {
   const b = useSiteBranding()
@@ -18,14 +18,31 @@ export function SiteFooter() {
       ? hostLabel(b.maintainerUrl)
       : ''
 
-  const githubUrl = b.githubUrl || 'https://github.com/uerax/Animaku'
+  const githubUrl = b.githubUrl
+  const feedbackUrl = b.feedbackUrl
+  const contactUrl = b.contactUrl
+
+  const isFeedbackMailto = /^mailto:/i.test(feedbackUrl)
+  const isContactMailto = /^mailto:/i.test(contactUrl)
 
   return (
     <footer className="border-t border-[var(--kz-border)]">
       <div className="mx-auto flex max-w-[1760px] flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 px-4 py-3.5 text-[12px] text-[var(--kz-fg-muted)] sm:px-5 sm:py-4 lg:px-6">
-        <span className="font-medium tracking-tight text-[var(--kz-fg)]">
-          {b.productName}
-        </span>
+        {githubUrl ? (
+          <a
+            href={githubUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium tracking-tight text-[var(--kz-fg)] transition-colors hover:text-[var(--kz-accent)]"
+            title="查看源码"
+          >
+            {b.productName}
+          </a>
+        ) : (
+          <span className="font-medium tracking-tight text-[var(--kz-fg)]">
+            {b.productName}
+          </span>
+        )}
         {b.version ? (
           <span className="rounded-md border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-1.5 py-0.5 text-[11px] font-mono text-[var(--kz-fg-dim)] leading-none">
             {b.version}
@@ -54,31 +71,39 @@ export function SiteFooter() {
           ) : null}
         </span>
 
-        <span className="text-[var(--kz-border)]" aria-hidden>
-          ·
-        </span>
+        {feedbackUrl ? (
+          <>
+            <span className="text-[var(--kz-border)]" aria-hidden>
+              ·
+            </span>
 
-        <a
-          href={githubUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="transition-colors hover:text-[var(--kz-fg)]"
-        >
-          源码
-        </a>
+            <a
+              href={feedbackUrl}
+              target={isFeedbackMailto ? undefined : '_blank'}
+              rel={isFeedbackMailto ? undefined : 'noopener noreferrer'}
+              className="transition-colors hover:text-[var(--kz-fg)]"
+            >
+              反馈
+            </a>
+          </>
+        ) : null}
 
-        <span className="text-[var(--kz-border)]" aria-hidden>
-          ·
-        </span>
+        {contactUrl ? (
+          <>
+            <span className="text-[var(--kz-border)]" aria-hidden>
+              ·
+            </span>
 
-        <a
-          href={`${githubUrl}/issues`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="transition-colors hover:text-[var(--kz-fg)]"
-        >
-          反馈
-        </a>
+            <a
+              href={contactUrl}
+              target={isContactMailto ? undefined : '_blank'}
+              rel={isContactMailto ? undefined : 'noopener noreferrer'}
+              className="transition-colors hover:text-[var(--kz-fg)]"
+            >
+              联系
+            </a>
+          </>
+        ) : null}
 
         <span className="text-[var(--kz-border)]" aria-hidden>
           ·
