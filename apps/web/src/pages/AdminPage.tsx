@@ -2421,21 +2421,6 @@ function AdminDashboard() {
               onChange={(v) => updateNavPref(defTheme, { ...defNav, openInNewTab: v })}
             />
             <AdminToggle
-              label="展示导航栏「用户中心」按钮"
-              checked={Boolean(defNav.showUserMenu)}
-              onChange={(v) => updateNavPref(defTheme, { ...defNav, showUserMenu: v })}
-            />
-            <AdminToggle
-              label="展示导航栏「观看历史」按钮"
-              checked={Boolean(defNav.showHistory)}
-              onChange={(v) => updateNavPref(defTheme, { ...defNav, showHistory: v })}
-            />
-            <AdminToggle
-              label="展示导航栏「深浅色切换」按钮"
-              checked={Boolean(defNav.showThemeToggle)}
-              onChange={(v) => updateNavPref(defTheme, { ...defNav, showThemeToggle: v })}
-            />
-            <AdminToggle
               label="展示导航栏「GitHub 源码」按钮"
               checked={Boolean(defNav.showGitHub)}
               onChange={(v) => updateNavPref(defTheme, { ...defNav, showGitHub: v })}

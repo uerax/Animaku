@@ -183,10 +183,7 @@ export function SettingsPage() {
     const items = [
       theme === 'light' ? '浅色' : '深色',
       nav.openInNewTab ? '新标签页打开' : '当前页打开',
-      nav.showUserMenu ? '用户中心' : null,
-      nav.showHistory ? '历史' : null,
-      nav.showThemeToggle ? '黑白模式' : null,
-      nav.showGitHub ? 'GitHub' : null,
+      nav.showGitHub ? '展示 GitHub' : '隐藏 GitHub',
     ].filter(Boolean)
     return items.join(' · ')
   }, [theme, nav])
@@ -1331,39 +1328,12 @@ export function SettingsPage() {
             导航栏右侧快捷按钮展示
           </div>
           <Toggle
-            label="展示「用户中心」按钮"
-            checked={nav.showUserMenu}
-            onChange={(showUserMenu) => setNav({ showUserMenu })}
-          />
-          <p className="text-[11px] sm:text-xs text-[var(--kz-fg-dim)]">
-            在顶部导航栏右侧展示用户头像与下拉菜单（包含我的追番、观看历史、设置等）。
-          </p>
-
-          <Toggle
-            label="展示「观看历史」按钮"
-            checked={nav.showHistory}
-            onChange={(showHistory) => setNav({ showHistory })}
-          />
-          <p className="text-[11px] sm:text-xs text-[var(--kz-fg-dim)]">
-            在顶部导航栏右侧展示时钟历史图标，点击快速打开播放历史。
-          </p>
-
-          <Toggle
-            label="展示「黑白模式切换」按钮"
-            checked={nav.showThemeToggle}
-            onChange={(showThemeToggle) => setNav({ showThemeToggle })}
-          />
-          <p className="text-[11px] sm:text-xs text-[var(--kz-fg-dim)]">
-            在顶部导航栏右侧展示深浅色一键切换按钮。
-          </p>
-
-          <Toggle
             label="展示「GitHub」链接"
             checked={nav.showGitHub}
             onChange={(showGitHub) => setNav({ showGitHub })}
           />
           <p className="text-[11px] sm:text-xs text-[var(--kz-fg-dim)]">
-            在顶部导航栏右侧展示 GitHub 项目开源仓库链接。
+            在顶部导航栏右侧展示 GitHub 项目开源仓库链接（用户中心已常驻展示，深浅色切换已内置于用户中心下拉菜单）。
           </p>
         </div>
       </CollapsibleSection>

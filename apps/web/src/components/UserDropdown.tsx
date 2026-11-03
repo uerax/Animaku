@@ -25,6 +25,8 @@ export function UserDropdown() {
 
   const bangumiImageHost = useSettingsStore((s) => s.bangumiImageHost)
   const setBangumiImageHost = useSettingsStore((s) => s.setBangumiImageHost)
+  const theme = useSettingsStore((s) => s.theme)
+  const setTheme = useSettingsStore((s) => s.setTheme)
 
   const [tokenInput, setTokenInput] = useState('')
   const [loginLoading, setLoginLoading] = useState(false)
@@ -274,6 +276,99 @@ export function UserDropdown() {
               </div>
               <span className="text-[10px] text-[var(--kz-fg-dim)]">最近播放</span>
             </Link>
+
+            {/* 主题模式分段切换器 */}
+            <div className="mt-1 rounded-xl bg-[var(--kz-bg-soft)]/60 p-2 border border-[var(--kz-border)]/50">
+              <div className="mb-1.5 flex items-center justify-between px-0.5">
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--kz-fg-muted)]">
+                  {theme === 'light' ? (
+                    <svg
+                      className="h-3.5 w-3.5 text-[var(--kz-fg-muted)]"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden
+                    >
+                      <circle cx="12" cy="12" r="4" />
+                      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+                    </svg>
+                  ) : (
+                    <svg
+                      className="h-3.5 w-3.5 text-[var(--kz-fg-muted)]"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden
+                    >
+                      <path d="M21 14.5A8.5 8.5 0 0 1 9.5 3 7 7 0 1 0 21 14.5z" />
+                    </svg>
+                  )}
+                  <span>界面主题</span>
+                </div>
+                <span className="text-[10px] text-[var(--kz-fg-dim)]">
+                  {theme === 'light' ? '浅色' : '深色'}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-1 rounded-lg bg-[var(--kz-bg)] p-0.5 border border-[var(--kz-border)]">
+                <button
+                  type="button"
+                  onClick={() => setTheme('light')}
+                  className={clsx(
+                    'flex items-center justify-center gap-1.5 rounded-md py-1 px-1.5 text-center text-xs transition-all duration-150 select-none cursor-pointer',
+                    theme === 'light'
+                      ? 'bg-[var(--kz-bg-elevated)] font-semibold text-[var(--kz-accent)] shadow-sm'
+                      : 'font-medium text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)]',
+                  )}
+                  title="切换为浅色主题"
+                >
+                  <svg
+                    className="h-3.5 w-3.5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <circle cx="12" cy="12" r="4" />
+                    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+                  </svg>
+                  <span>浅色</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTheme('dark')}
+                  className={clsx(
+                    'flex items-center justify-center gap-1.5 rounded-md py-1 px-1.5 text-center text-xs transition-all duration-150 select-none cursor-pointer',
+                    theme === 'dark'
+                      ? 'bg-[var(--kz-bg-elevated)] font-semibold text-[var(--kz-accent)] shadow-sm'
+                      : 'font-medium text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)]',
+                  )}
+                  title="切换为深色主题"
+                >
+                  <svg
+                    className="h-3.5 w-3.5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <path d="M21 14.5A8.5 8.5 0 0 1 9.5 3 7 7 0 1 0 21 14.5z" />
+                  </svg>
+                  <span>深色</span>
+                </button>
+              </div>
+            </div>
 
             {/* 封面图片源分段切换器 */}
             <div className="mt-1 rounded-xl bg-[var(--kz-bg-soft)]/60 p-2 border border-[var(--kz-border)]/50">

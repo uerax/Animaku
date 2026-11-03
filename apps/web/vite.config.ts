@@ -254,15 +254,6 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.VITE_BANGUMI_IMAGE_HOST': JSON.stringify(bangumiImageHost),
       'import.meta.env.VITE_SITE_URL': JSON.stringify(siteUrl),
       'import.meta.env.VITE_DEFAULT_THEME': JSON.stringify(defaultTheme),
-      'import.meta.env.VITE_NAV_SHOW_USER_MENU': JSON.stringify(
-        get('VITE_NAV_SHOW_USER_MENU') ?? '',
-      ),
-      'import.meta.env.VITE_NAV_SHOW_HISTORY': JSON.stringify(
-        get('VITE_NAV_SHOW_HISTORY') ?? '',
-      ),
-      'import.meta.env.VITE_NAV_SHOW_THEME_TOGGLE': JSON.stringify(
-        get('VITE_NAV_SHOW_THEME_TOGGLE') ?? '',
-      ),
       'import.meta.env.VITE_NAV_SHOW_GITHUB': JSON.stringify(
         get('VITE_NAV_SHOW_GITHUB') ?? '',
       ),

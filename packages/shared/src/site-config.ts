@@ -1,11 +1,14 @@
 import type { SuperResolutionMode } from './player'
 
 export interface SiteNavDefaults {
-  showUserMenu?: boolean
-  showHistory?: boolean
-  showThemeToggle?: boolean
   showGitHub?: boolean
   openInNewTab?: boolean
+  /** @deprecated 用户中心现已常驻不可关闭 */
+  showUserMenu?: boolean
+  /** @deprecated 历史快捷按钮已从顶部导航右侧移除 */
+  showHistory?: boolean
+  /** @deprecated 主题切换已内置于用户中心下拉菜单 */
+  showThemeToggle?: boolean
 }
 
 export interface CustomNavLink {

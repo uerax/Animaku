@@ -46,18 +46,18 @@ export const DEFAULT_APP_THEME: AppTheme = envTheme(
 )
 
 export interface NavSettings {
-  showUserMenu: boolean
-  showHistory: boolean
-  showThemeToggle: boolean
   showGitHub: boolean
   /** 点击番剧卡片是否在新标签页打开（默认 true，方便淘番保留列表浏览进度） */
   openInNewTab: boolean
+  /** @deprecated 用户中心已常驻不可关闭 */
+  showUserMenu?: boolean
+  /** @deprecated 历史图标已从导航栏快捷按钮移除 */
+  showHistory?: boolean
+  /** @deprecated 主题切换已内置于用户中心下拉菜单 */
+  showThemeToggle?: boolean
 }
 
 export const defaultNavSettings: NavSettings = {
-  showUserMenu: envBool(import.meta.env.VITE_NAV_SHOW_USER_MENU, true),
-  showHistory: envBool(import.meta.env.VITE_NAV_SHOW_HISTORY, true),
-  showThemeToggle: envBool(import.meta.env.VITE_NAV_SHOW_THEME_TOGGLE, true),
   showGitHub: envBool(import.meta.env.VITE_NAV_SHOW_GITHUB, true),
   openInNewTab: envBool(import.meta.env.VITE_NAV_OPEN_IN_NEW_TAB, true),
 }
@@ -133,9 +133,6 @@ export function getEffectiveDefaultNavSettings(defaults?: SiteDefaultSettings | 
   if (!dn) return { ...defaultNavSettings }
   return {
     ...defaultNavSettings,
-    ...(dn.showUserMenu !== undefined ? { showUserMenu: Boolean(dn.showUserMenu) } : {}),
-    ...(dn.showHistory !== undefined ? { showHistory: Boolean(dn.showHistory) } : {}),
-    ...(dn.showThemeToggle !== undefined ? { showThemeToggle: Boolean(dn.showThemeToggle) } : {}),
     ...(dn.showGitHub !== undefined ? { showGitHub: Boolean(dn.showGitHub) } : {}),
     ...(dn.openInNewTab !== undefined ? { openInNewTab: Boolean(dn.openInNewTab) } : {}),
   }
