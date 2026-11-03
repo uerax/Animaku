@@ -21,3 +21,24 @@ export interface AnimePlayStats {
   totalPlayCount: number
   episodePlayCounts?: Record<number, number>
 }
+
+export interface DailyActiveMetric {
+  date: string
+  dau: number
+  newDevices: number
+  totalViews: number
+  updatedAt: number
+}
+
+export interface AdminDailyStatsResponse {
+  ok: boolean
+  date: string
+  isToday: boolean
+  dau: number
+  newDevices: number
+  totalViews: number
+  todayHits: number
+  totalDevices: number
+  updatedAt: number
+  trend: DailyActiveMetric[]
+}

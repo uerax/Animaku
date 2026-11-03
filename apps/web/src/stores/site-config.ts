@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { SiteDefaultSettings } from '@animaku/shared'
+import type { SiteDefaultSettings, CustomNavLink, AdminDailyStatsResponse } from '@animaku/shared'
 import { api } from '../lib/api'
 import { applySiteDefaultsIfUncustomized } from './settings'
 
@@ -34,6 +34,9 @@ export interface SiteConfigState {
   // 全局默认配置（解耦于用户侧，作为新访客/未定制时的站点默认项）
   defaultSettings: SiteDefaultSettings | null
 
+  // 自定义导航栏外链（广告商/赞助商链接）
+  customNavLinks: CustomNavLink[]
+
   // 管理模式会话状态（仅当前会话有效）
   adminSecret: string
   isAdminUnlocked: boolean
@@ -52,6 +55,11 @@ export interface SiteConfigState {
   resetIcon: () => Promise<void>
   resetAllConfig: () => Promise<void>
   triggerIndexNow: () => Promise<{ ok: boolean; submitted?: number; message?: string }>
+
+  // 广告外链管理与日活查询
+  fetchAdminNavLinks: () => Promise<CustomNavLink[]>
+  saveAdminNavLinks: (links: CustomNavLink[]) => Promise<{ ok: boolean; message?: string }>
+  fetchDailyStats: (date?: string) => Promise<AdminDailyStatsResponse | null>
 
   // 公告管理方法
   saveAnnouncement: (data: {
@@ -86,6 +94,7 @@ interface CachedSiteConfig {
   announcementEnabled?: boolean
   announcement?: AnnouncementItem | null
   defaultSettings?: SiteDefaultSettings | null
+  customNavLinks?: CustomNavLink[]
   cachedAt?: number
 }
 
@@ -100,6 +109,7 @@ function getInitialSiteConfig(): CachedSiteConfig {
       announcementEnabled: false,
       announcement: null,
       defaultSettings: null,
+      customNavLinks: [],
       cachedAt: 0,
     }
   }
@@ -127,6 +137,7 @@ function getInitialSiteConfig(): CachedSiteConfig {
             parsed.defaultSettings && typeof parsed.defaultSettings === 'object'
               ? parsed.defaultSettings
               : null,
+          customNavLinks: Array.isArray(parsed.customNavLinks) ? parsed.customNavLinks : [],
           cachedAt: typeof parsed.cachedAt === 'number' ? parsed.cachedAt : 0,
         }
       }
@@ -254,6 +265,7 @@ export const useSiteConfigStore = create<SiteConfigState>((set, get) => ({
   announcement: initialConfig.announcement ?? null,
   announcementHistory: [],
   defaultSettings: initialConfig.defaultSettings ?? null,
+  customNavLinks: initialConfig.customNavLinks || [],
   isLoaded: false,
 
   adminSecret: initialSecret,
@@ -277,6 +289,7 @@ export const useSiteConfigStore = create<SiteConfigState>((set, get) => ({
         announcementEnabled: boolean
         announcement: AnnouncementItem | null
         defaultSettings?: SiteDefaultSettings | null
+        customNavLinks?: CustomNavLink[]
       }>('/api/site/config')
 
       if (res && res.ok) {
@@ -289,6 +302,7 @@ export const useSiteConfigStore = create<SiteConfigState>((set, get) => ({
           announcementEnabled: Boolean(res.announcementEnabled),
           announcement: res.announcement || null,
           defaultSettings: res.defaultSettings || null,
+          customNavLinks: Array.isArray(res.customNavLinks) ? res.customNavLinks : [],
           cachedAt: Date.now(),
         }
 
@@ -510,8 +524,89 @@ export const useSiteConfigStore = create<SiteConfigState>((set, get) => ({
         announcement: null,
         announcementHistory: [],
         defaultSettings: null,
+        customNavLinks: [],
       })
       updateDocumentFavicon('default')
+    }
+  },
+
+  fetchAdminNavLinks: async () => {
+    const { adminSecret } = get()
+    try {
+      const res = await api<{
+        ok: boolean
+        data?: CustomNavLink[]
+      }>('/api/admin/site/nav-links', {
+        headers: {
+          'X-Admin-Secret': adminSecret,
+        },
+      })
+      if (res && res.ok && Array.isArray(res.data)) {
+        return res.data
+      }
+      return []
+    } catch (err) {
+      console.warn('[site-config] 获取导航栏链接失败:', err)
+      return []
+    }
+  },
+
+  saveAdminNavLinks: async (links: CustomNavLink[]) => {
+    const { adminSecret } = get()
+    try {
+      const res = await api<{
+        ok: boolean
+        data?: CustomNavLink[]
+        message?: string
+        error?: string
+      }>('/api/admin/site/nav-links', {
+        method: 'POST',
+        headers: {
+          'X-Admin-Secret': adminSecret,
+        },
+        body: JSON.stringify({ links }),
+      })
+      if (res && res.ok && Array.isArray(res.data)) {
+        const enabledLinks = res.data.filter((l) => l.enabled)
+        set({ customNavLinks: enabledLinks })
+        const current = get()
+        saveSiteConfigToCache({
+          siteName: current.siteName,
+          siteTagline: current.siteTagline,
+          iconMode: current.iconMode,
+          iconUrl: current.iconUrl,
+          iconUpdatedAt: current.iconUpdatedAt,
+          announcementEnabled: current.announcementEnabled,
+          announcement: current.announcement,
+          defaultSettings: current.defaultSettings,
+          customNavLinks: enabledLinks,
+          cachedAt: Date.now(),
+        })
+        return { ok: true, message: res.message || '导航栏外链配置已更新' }
+      }
+      return { ok: false, message: res?.error || res?.message || '保存失败' }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      return { ok: false, message: msg }
+    }
+  },
+
+  fetchDailyStats: async (date?: string) => {
+    const { adminSecret } = get()
+    try {
+      const query = date ? `?date=${encodeURIComponent(date)}` : ''
+      const res = await api<AdminDailyStatsResponse>(`/api/admin/stats/daily${query}`, {
+        headers: {
+          'X-Admin-Secret': adminSecret,
+        },
+      })
+      if (res && res.ok) {
+        return res
+      }
+      return null
+    } catch (err) {
+      console.warn('[site-config] 获取日活数据失败:', err)
+      return null
     }
   },
 

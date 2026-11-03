@@ -328,4 +328,75 @@ test('site-config: announcement save, history archiving, deletion, and public en
   resetAllSiteConfig()
 })
 
+test('site-config: customNavLinks saving, sanitizing, fetching and public exposure', async () => {
+  const originalCfg = { ...getSiteConfig() }
+
+  // 1. Post custom nav links with one safe link and one link without protocol (auto filtered)
+  const postRes = await adminSiteRoutes.request('/site/nav-links', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      links: [
+        {
+          id: 'nav_sponsor_1',
+          title: '手办周边商城',
+          url: 'https://shop.example.com',
+          badge: 'HOT',
+          target: '_blank',
+          highlight: true,
+          enabled: true,
+          order: 1,
+        },
+        {
+          id: 'nav_sponsor_disabled',
+          title: '已下架赞助商',
+          url: 'https://disabled.example.com',
+          badge: 'AD',
+          target: '_blank',
+          enabled: false,
+          order: 2,
+        },
+        {
+          id: 'nav_bad_xss',
+          title: '恶意脚本链接',
+          url: 'javascript:alert(1)',
+          enabled: true,
+        },
+      ],
+    }),
+  })
+  assert.equal(postRes.status, 200)
+  const postJson = (await postRes.json()) as { ok: boolean; data: Array<{ id: string; url: string; enabled: boolean }> }
+  assert.equal(postJson.ok, true)
+  // javascript: link should be sanitized and filtered out
+  assert.equal(postJson.data.length, 2)
+  assert.equal(postJson.data[0].id, 'nav_sponsor_1')
+  assert.equal(postJson.data[1].id, 'nav_sponsor_disabled')
+
+  // 2. Admin endpoint returns both enabled and disabled links
+  const adminGetRes = await adminSiteRoutes.request('/site/nav-links')
+  assert.equal(adminGetRes.status, 200)
+  const adminGetJson = (await adminGetRes.json()) as { ok: boolean; data: Array<{ id: string }> }
+  assert.equal(adminGetJson.data.length, 2)
+
+  // 3. Public endpoint /config returns only enabled customNavLinks
+  const pubRes = await siteRoutes.request('/config')
+  assert.equal(pubRes.status, 200)
+  const pubJson = (await pubRes.json()) as { ok: boolean; customNavLinks: Array<{ id: string }> }
+  assert.equal(pubJson.ok, true)
+  assert.equal(pubJson.customNavLinks.length, 1)
+  assert.equal(pubJson.customNavLinks[0].id, 'nav_sponsor_1')
+
+  // 4. Admin daily stats endpoint /stats/daily
+  const statsRes = await adminSiteRoutes.request('/stats/daily?date=2026-11-02')
+  assert.equal(statsRes.status, 200)
+  const statsJson = (await statsRes.json()) as { ok: boolean; date: string; trend: unknown[] }
+  assert.equal(statsJson.ok, true)
+  assert.equal(statsJson.date, '2026-11-02')
+  assert.ok(Array.isArray(statsJson.trend))
+
+  saveSiteConfig(originalCfg)
+})
+
+
 

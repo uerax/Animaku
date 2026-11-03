@@ -8,6 +8,17 @@ export interface SiteNavDefaults {
   openInNewTab?: boolean
 }
 
+export interface CustomNavLink {
+  id: string
+  title: string
+  url: string
+  badge?: string
+  target?: '_blank' | '_self'
+  highlight?: boolean
+  enabled: boolean
+  order: number
+}
+
 export interface SitePlayerDefaults {
   speed?: number
   autoplay?: boolean

@@ -9,6 +9,8 @@ import type {
   SiteNavDefaults,
   SitePlayerDefaults,
   SuperResolutionMode,
+  CustomNavLink,
+  AdminDailyStatsResponse,
 } from '@animaku/shared'
 import {
   BANGUMI_IMAGE_HOST_BANGUMI,
@@ -218,6 +220,9 @@ function AdminDashboard() {
   const uploadAnnouncementImage = useSiteConfigStore((s) => s.uploadAnnouncementImage)
   const fetchAnnouncementHistory = useSiteConfigStore((s) => s.fetchAnnouncementHistory)
   const deleteAnnouncementHistory = useSiteConfigStore((s) => s.deleteAnnouncementHistory)
+  const fetchDailyStats = useSiteConfigStore((s) => s.fetchDailyStats)
+  const fetchAdminNavLinks = useSiteConfigStore((s) => s.fetchAdminNavLinks)
+  const saveAdminNavLinks = useSiteConfigStore((s) => s.saveAdminNavLinks)
 
   // 服务健康
   const health = useQuery({
@@ -228,6 +233,8 @@ function AdminDashboard() {
 
   // 折叠卡片状态管理
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    'stats-daily': true,
+    'custom-nav-links': true,
     'server-health': false,
     'site-branding': true,
     'site-announcement': false,
@@ -243,6 +250,79 @@ function AdminDashboard() {
   const toggleSection = useCallback((key: string) => {
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }))
   }, [])
+
+  // ── 日活统计与按日期查询 ──────────────────────────────
+  const [statsDate, setStatsDate] = useState(() => {
+    try {
+      return new Date().toLocaleDateString('sv-SE')
+    } catch {
+      return new Date().toISOString().slice(0, 10)
+    }
+  })
+  const [dailyStats, setDailyStats] = useState<AdminDailyStatsResponse | null>(null)
+  const [statsLoading, setStatsLoading] = useState(false)
+  const [statsError, setStatsError] = useState('')
+
+  const loadDailyStats = useCallback(
+    async (targetDate?: string) => {
+      setStatsLoading(true)
+      setStatsError('')
+      const d = targetDate || statsDate
+      const res = await fetchDailyStats(d)
+      setStatsLoading(false)
+      if (res && res.ok) {
+        setDailyStats(res)
+      } else {
+        setStatsError('获取日活数据失败，请确认服务端状态')
+      }
+    },
+    [fetchDailyStats, statsDate],
+  )
+
+  // ── 自定义导航栏外链配置 ──────────────────────────────
+  const storeCustomNavLinks = useSiteConfigStore((s) => s.customNavLinks)
+  const [adminNavLinks, setAdminNavLinks] = useState<CustomNavLink[]>(() => storeCustomNavLinks || [])
+  const [navLinksLoading, setNavLinksLoading] = useState(false)
+  const [navLinksSaving, setNavLinksSaving] = useState(false)
+  const [isAddingNavLink, setIsAddingNavLink] = useState(false)
+  const [editingLinkId, setEditingLinkId] = useState<string | null>(null)
+  const [linkForm, setLinkForm] = useState<{
+    title: string
+    url: string
+    badge: string
+    target: '_blank' | '_self'
+    highlight: boolean
+    enabled: boolean
+  }>({
+    title: '',
+    url: '',
+    badge: '',
+    target: '_blank',
+    highlight: false,
+    enabled: true,
+  })
+
+  const loadAdminNavLinks = useCallback(async () => {
+    setNavLinksLoading(true)
+    const links = await fetchAdminNavLinks()
+    setNavLinksLoading(false)
+    if (links && links.length > 0) {
+      setAdminNavLinks(links)
+    } else {
+      const currentStore = useSiteConfigStore.getState().customNavLinks
+      if (currentStore && currentStore.length > 0) {
+        setAdminNavLinks(currentStore)
+        void saveAdminNavLinks(currentStore)
+      } else {
+        setAdminNavLinks([])
+      }
+    }
+  }, [fetchAdminNavLinks, saveAdminNavLinks])
+
+  useEffect(() => {
+    void loadDailyStats()
+    void loadAdminNavLinks()
+  }, [loadDailyStats, loadAdminNavLinks])
 
   // 全局默认配置表单状态（与本地客户端 useSettingsStore/usePluginStore 彻底解耦！）
   const [defImageHost, setDefImageHost] = useState(
@@ -284,6 +364,139 @@ function AdminDashboard() {
     }
     return {}
   })
+
+  // 快捷日期切换
+  const selectQuickDate = (daysAgo: number) => {
+    const now = Date.now()
+    const targetTime = now - daysAgo * 24 * 60 * 60 * 1000
+    try {
+      const dStr = new Date(targetTime).toLocaleDateString('sv-SE')
+      setStatsDate(dStr)
+      void loadDailyStats(dStr)
+    } catch {
+      const dStr = new Date(targetTime).toISOString().slice(0, 10)
+      setStatsDate(dStr)
+      void loadDailyStats(dStr)
+    }
+  }
+
+  // 导航外链交互处理
+  const handleOpenAddLink = () => {
+    setEditingLinkId(null)
+    setLinkForm({
+      title: '',
+      url: 'https://',
+      badge: '',
+      target: '_blank',
+      highlight: false,
+      enabled: true,
+    })
+    setIsAddingNavLink(true)
+  }
+
+  const handleEditLink = (link: CustomNavLink) => {
+    setEditingLinkId(link.id)
+    setLinkForm({
+      title: link.title,
+      url: link.url,
+      badge: link.badge || '',
+      target: link.target || '_blank',
+      highlight: Boolean(link.highlight),
+      enabled: link.enabled,
+    })
+    setIsAddingNavLink(true)
+  }
+
+  const handleCancelLinkForm = () => {
+    setIsAddingNavLink(false)
+    setEditingLinkId(null)
+  }
+
+  const persistNavLinks = async (links: CustomNavLink[]) => {
+    setNavLinksSaving(true)
+    try {
+      await saveAdminNavLinks(links)
+    } catch (err) {
+      console.error('[AdminPage] 保存外链配置失败:', err)
+    } finally {
+      setNavLinksSaving(false)
+    }
+  }
+
+  const handleSaveLinkForm = async () => {
+    const title = linkForm.title.trim()
+    const url = linkForm.url.trim()
+    if (!title) {
+      alert('请输入链接名称')
+      return
+    }
+    if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) {
+      alert('请输入以 http:// 或 https:// 开头的合法跳转链接')
+      return
+    }
+
+    let nextLinks: CustomNavLink[] = []
+    if (editingLinkId) {
+      nextLinks = adminNavLinks.map((l) =>
+        l.id === editingLinkId
+          ? {
+              ...l,
+              title,
+              url,
+              badge: linkForm.badge.trim() || undefined,
+              target: linkForm.target,
+              highlight: linkForm.highlight,
+              enabled: linkForm.enabled,
+            }
+          : l,
+      )
+    } else {
+      const newLink: CustomNavLink = {
+        id: `nav_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        title,
+        url,
+        badge: linkForm.badge.trim() || undefined,
+        target: linkForm.target,
+        highlight: linkForm.highlight,
+        enabled: linkForm.enabled,
+        order: adminNavLinks.length,
+      }
+      nextLinks = [...adminNavLinks, newLink]
+    }
+    setAdminNavLinks(nextLinks)
+    setIsAddingNavLink(false)
+    setEditingLinkId(null)
+    await persistNavLinks(nextLinks)
+  }
+
+  const handleMoveNavLink = async (index: number, direction: 'up' | 'down') => {
+    const targetIdx = direction === 'up' ? index - 1 : index + 1
+    if (targetIdx < 0 || targetIdx >= adminNavLinks.length) return
+    const next = [...adminNavLinks]
+    const temp = next[index]
+    next[index] = next[targetIdx]
+    next[targetIdx] = temp
+    const reordered = next.map((l, i) => ({ ...l, order: i }))
+    setAdminNavLinks(reordered)
+    await persistNavLinks(reordered)
+  }
+
+  const handleToggleNavLink = async (id: string) => {
+    const next = adminNavLinks.map((l) => (l.id === id ? { ...l, enabled: !l.enabled } : l))
+    setAdminNavLinks(next)
+    await persistNavLinks(next)
+  }
+
+  const handleDeleteNavLink = async (id: string) => {
+    if (!confirm('确定删除该导航链接吗？')) return
+    const next = adminNavLinks.filter((l) => l.id !== id)
+    setAdminNavLinks(next)
+    if (editingLinkId === id) {
+      setIsAddingNavLink(false)
+      setEditingLinkId(null)
+    }
+    await persistNavLinks(next)
+  }
 
   // 视频源加权番剧展开状态与输入框状态
   const [expandedPluginWeights, setExpandedPluginWeights] = useState<Record<string, boolean>>({})
@@ -868,6 +1081,211 @@ function AdminDashboard() {
           在此配置站点基础品牌、全站公告，并设定全站新用户的全局默认偏好（各模块内部独立保存生效，与用户本地定制解耦）。
         </p>
       </div>
+
+      {/* 0. 站点日活与流量监控 (DAU Analytics) */}
+      <AdminCard
+        id="stats-daily"
+        icon="📊"
+        title="站点日活与流量监控"
+        summary={
+          dailyStats
+            ? `${dailyStats.isToday ? '今日实时' : dailyStats.date} · DAU: ${dailyStats.dau.toLocaleString()} · 播放: ${dailyStats.totalViews.toLocaleString()}`
+            : '查看每日活跃与点播走势'
+        }
+        isOpen={openSections['stats-daily']}
+        onToggle={() => toggleSection('stats-daily')}
+      >
+        <div className="space-y-4">
+          {/* 日期选择与快捷按钮 */}
+          <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <label htmlFor="admin-stats-date" className="text-xs font-semibold text-[var(--kz-fg)]">
+                查询日期:
+              </label>
+              <input
+                id="admin-stats-date"
+                type="date"
+                value={statsDate}
+                onChange={(e) => {
+                  const val = e.target.value
+                  setStatsDate(val)
+                  if (val) void loadDailyStats(val)
+                }}
+                className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] px-2.5 py-1 text-xs font-medium text-[var(--kz-fg)] outline-none focus:border-[var(--kz-accent)] transition-all cursor-pointer"
+              />
+              <div className="flex items-center gap-1 pl-1">
+                <button
+                  type="button"
+                  onClick={() => selectQuickDate(0)}
+                  className="rounded-md border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-2 py-1 text-[11px] font-medium text-[var(--kz-fg)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] transition-all cursor-pointer"
+                >
+                  今日(实时)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => selectQuickDate(1)}
+                  className="rounded-md border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-2 py-1 text-[11px] font-medium text-[var(--kz-fg-muted)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-fg)] transition-all cursor-pointer"
+                >
+                  昨日
+                </button>
+                <button
+                  type="button"
+                  onClick={() => selectQuickDate(2)}
+                  className="rounded-md border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-2 py-1 text-[11px] font-medium text-[var(--kz-fg-muted)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-fg)] transition-all cursor-pointer"
+                >
+                  前日
+                </button>
+                <button
+                  type="button"
+                  onClick={() => selectQuickDate(7)}
+                  className="rounded-md border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-2 py-1 text-[11px] font-medium text-[var(--kz-fg-muted)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-fg)] transition-all cursor-pointer"
+                >
+                  7天前
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {dailyStats?.isToday ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-[10px] font-semibold text-sky-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-sky-400 animate-pulse" />
+                  秒级实时聚合
+                </span>
+              ) : (
+                <span className="rounded-full border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--kz-fg-muted)]">
+                  历史快照
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => loadDailyStats(statsDate)}
+                disabled={statsLoading}
+                className="inline-flex items-center gap-1 rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] px-2.5 py-1 text-xs font-semibold text-[var(--kz-fg)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] transition-all active:scale-95 disabled:opacity-50 cursor-pointer shadow-xs"
+              >
+                <span className={statsLoading ? 'animate-spin' : ''}>🔄</span>
+                {statsLoading ? '刷新中…' : '刷新数据'}
+              </button>
+            </div>
+          </div>
+
+          {statsError && (
+            <p className="text-xs font-medium text-rose-500">{statsError}</p>
+          )}
+
+          {/* 4 个核心 KPI 卡片 */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] p-3 shadow-xs">
+              <div className="flex items-center justify-between text-[11px] text-[var(--kz-fg-muted)]">
+                <span>当日日活 (DAU)</span>
+                <span>📱</span>
+              </div>
+              <div className="mt-1 text-xl sm:text-2xl font-bold tracking-tight text-[var(--kz-fg)] font-mono">
+                {dailyStats ? dailyStats.dau.toLocaleString() : '-'}
+              </div>
+              <div className="mt-1 text-[10px] text-[var(--kz-fg-dim)]">独立活跃客户端设备</div>
+            </div>
+
+            <div className="rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] p-3 shadow-xs">
+              <div className="flex items-center justify-between text-[11px] text-[var(--kz-fg-muted)]">
+                <span>当日新增设备</span>
+                <span>🆕</span>
+              </div>
+              <div className="mt-1 text-xl sm:text-2xl font-bold tracking-tight text-emerald-400 font-mono">
+                {dailyStats ? dailyStats.newDevices.toLocaleString() : '-'}
+              </div>
+              <div className="mt-1 text-[10px] text-[var(--kz-fg-dim)]">首次访问站点设备</div>
+            </div>
+
+            <div className="rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] p-3 shadow-xs">
+              <div className="flex items-center justify-between text-[11px] text-[var(--kz-fg-muted)]">
+                <span>当日番剧播放</span>
+                <span>🎬</span>
+              </div>
+              <div className="mt-1 text-xl sm:text-2xl font-bold tracking-tight text-[var(--kz-accent)] font-mono">
+                {dailyStats ? dailyStats.totalViews.toLocaleString() : '-'}
+              </div>
+              <div className="mt-1 text-[10px] text-[var(--kz-fg-dim)]">有效点播总次数</div>
+            </div>
+
+            <div className="rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] p-3 shadow-xs">
+              <div className="flex items-center justify-between text-[11px] text-[var(--kz-fg-muted)]">
+                <span>当日访问 PV</span>
+                <span>🌐</span>
+              </div>
+              <div className="mt-1 text-xl sm:text-2xl font-bold tracking-tight text-amber-400 font-mono">
+                {dailyStats ? dailyStats.todayHits.toLocaleString() : '-'}
+              </div>
+              <div className="mt-1 text-[10px] text-[var(--kz-fg-dim)]">IP 访问总请求数</div>
+            </div>
+          </div>
+
+          {/* 14 天近况柱状走势图 */}
+          {dailyStats && dailyStats.trend && dailyStats.trend.length > 0 && (
+            <div className="rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] p-3.5 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-[var(--kz-fg)]">
+                  📈 近 14 天活跃设备 (DAU) 走势
+                </span>
+                <span className="text-[11px] text-[var(--kz-fg-dim)]">
+                  点击柱子可直接切换查看该日数据 · 累计总设备数:{' '}
+                  <span className="font-bold text-[var(--kz-fg)] font-mono">
+                    {dailyStats.totalDevices.toLocaleString()}
+                  </span>
+                </span>
+              </div>
+
+              {/* 柱状图列表 */}
+              <div className="flex items-end justify-between gap-1 pt-4 pb-1 h-32 overflow-x-auto">
+                {(() => {
+                  const maxVal = Math.max(
+                    ...dailyStats.trend.map((t) => t.dau),
+                    10,
+                  )
+                  return dailyStats.trend.map((item) => {
+                    const isSelected = item.date === statsDate
+                    const heightPercent = Math.max(
+                      Math.round((item.dau / maxVal) * 100),
+                      item.dau > 0 ? 8 : 4,
+                    )
+                    return (
+                      <button
+                        key={item.date}
+                        type="button"
+                        onClick={() => {
+                          setStatsDate(item.date)
+                          void loadDailyStats(item.date)
+                        }}
+                        className="group flex flex-1 flex-col items-center justify-end h-full min-w-[20px] cursor-pointer"
+                        title={`${item.date}\nDAU: ${item.dau.toLocaleString()} 人\n播放: ${item.totalViews.toLocaleString()} 次`}
+                      >
+                        <div className="relative w-full flex justify-center items-end h-full">
+                          <div
+                            style={{ height: `${heightPercent}%` }}
+                            className={`w-full max-w-[26px] rounded-t transition-all ${
+                              isSelected
+                                ? 'bg-[var(--kz-accent)] shadow-[0_0_8px_var(--kz-accent)]'
+                                : 'bg-[var(--kz-bg-soft)] group-hover:bg-[var(--kz-accent)]/60'
+                            }`}
+                          />
+                        </div>
+                        <span
+                          className={`mt-1.5 text-[9px] font-mono leading-none transition-colors ${
+                            isSelected
+                              ? 'text-[var(--kz-accent)] font-bold'
+                              : 'text-[var(--kz-fg-dim)] group-hover:text-[var(--kz-fg)]'
+                          }`}
+                        >
+                          {item.date.slice(5)}
+                        </span>
+                      </button>
+                    )
+                  })
+                })()}
+              </div>
+            </div>
+          )}
+        </div>
+      </AdminCard>
 
       {/* 1. 服务健康与运行状态 */}
       <AdminCard
@@ -1667,7 +2085,308 @@ function AdminDashboard() {
         </div>
       </AdminCard>
 
-      {/* 8. 全局默认导航栏与外观偏好 */}
+      {/* 8. 导航栏外链与广告商配置 */}
+      <AdminCard
+        id="custom-nav-links"
+        icon="🔗"
+        title="导航栏外链与广告商配置"
+        summary={
+          adminNavLinks.length > 0
+            ? `已配置 ${adminNavLinks.length} 条 (${adminNavLinks.filter((l) => l.enabled).length} 条展示中 · 即改即存)`
+            : '配置广告商或合作外链'
+        }
+        isOpen={openSections['custom-nav-links']}
+        onToggle={() => toggleSection('custom-nav-links')}
+      >
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-[var(--kz-fg-muted)] leading-relaxed max-w-xl">
+              在此配置顶部导航栏的广告商外链、合作推荐或社区链接（添加、修改、排序或开关均即改即存生效）。前台将严格采用{' '}
+              <code className="text-[var(--kz-accent)] font-mono">rel="noopener noreferrer sponsored"</code>{' '}
+              新标签页安全跳转，防劫持且符合 SEO 规范。
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleOpenAddLink}
+                className="inline-flex items-center gap-1 rounded-xl bg-[var(--kz-accent)] px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-[var(--kz-accent-hover)] active:scale-95 transition-all cursor-pointer"
+              >
+                <span>➕</span>
+                <span>添加外链广告位</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 新增 / 编辑外链表单抽屉 */}
+          {isAddingNavLink && (
+            <div className="rounded-2xl border border-[var(--kz-accent)]/30 bg-[var(--kz-bg)] p-4 space-y-3 shadow-md animate-in fade-in duration-200">
+              <div className="flex items-center justify-between border-b border-[var(--kz-border)] pb-2 text-xs font-bold text-[var(--kz-fg)]">
+                <span>{editingLinkId ? '✏️ 编辑外链' : '➕ 新增广告外链'}</span>
+                <button
+                  type="button"
+                  onClick={handleCancelLinkForm}
+                  className="text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] cursor-pointer"
+                >
+                  ✕ 关闭
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="space-y-1">
+                  <label className="font-semibold text-[var(--kz-fg)]">
+                    链接名称 <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="如：ACG 周边商城、特惠漫画网"
+                    value={linkForm.title}
+                    onChange={(e) => setLinkForm({ ...linkForm, title: e.target.value })}
+                    className="w-full rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] px-3 py-2 text-xs text-[var(--kz-fg)] outline-none focus:border-[var(--kz-accent)] transition-all"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-semibold text-[var(--kz-fg)]">
+                    跳转目标 URL <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="url"
+                    placeholder="https://example.com"
+                    value={linkForm.url}
+                    onChange={(e) => setLinkForm({ ...linkForm, url: e.target.value })}
+                    className="w-full rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] px-3 py-2 text-xs text-[var(--kz-fg)] font-mono outline-none focus:border-[var(--kz-accent)] transition-all"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="font-semibold text-[var(--kz-fg)]">
+                      角标文本 (选填)
+                    </label>
+                    <div className="flex items-center gap-1 text-[10px]">
+                      {['HOT', 'AD', '福利', '推荐'].map((tag) => (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => setLinkForm({ ...linkForm, badge: tag })}
+                          className="rounded px-1.5 py-0.5 border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] text-[var(--kz-fg-muted)] hover:text-[var(--kz-accent)] hover:border-[var(--kz-accent)] cursor-pointer"
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                      {linkForm.badge && (
+                        <button
+                          type="button"
+                          onClick={() => setLinkForm({ ...linkForm, badge: '' })}
+                          className="text-[var(--kz-fg-dim)] hover:text-rose-400 ml-1 cursor-pointer"
+                        >
+                          清空
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="如：HOT、AD、福利（最多10字）"
+                    value={linkForm.badge}
+                    maxLength={10}
+                    onChange={(e) => setLinkForm({ ...linkForm, badge: e.target.value })}
+                    className="w-full rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] px-3 py-2 text-xs text-[var(--kz-fg)] outline-none focus:border-[var(--kz-accent)] transition-all"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-semibold text-[var(--kz-fg)]">打开方式</label>
+                  <AdminSelect<string>
+                    value={linkForm.target}
+                    onChange={(v) =>
+                      setLinkForm({ ...linkForm, target: v === '_self' ? '_self' : '_blank' })
+                    }
+                    options={[
+                      { value: '_blank', label: '🪟 新标签页打开 (_blank，推荐)' },
+                      { value: '_self', label: '📄 当前标签页打开 (_self)' },
+                    ]}
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[var(--kz-border)]">
+                <div className="flex items-center gap-4 text-xs">
+                  <label className="inline-flex items-center gap-1.5 cursor-pointer text-[var(--kz-fg)]">
+                    <input
+                      type="checkbox"
+                      checked={linkForm.highlight}
+                      onChange={(e) => setLinkForm({ ...linkForm, highlight: e.target.checked })}
+                      className="accent-[var(--kz-accent)] cursor-pointer"
+                    />
+                    <span>视觉高亮强调 (品牌主色微光)</span>
+                  </label>
+                  <label className="inline-flex items-center gap-1.5 cursor-pointer text-[var(--kz-fg)]">
+                    <input
+                      type="checkbox"
+                      checked={linkForm.enabled}
+                      onChange={(e) => setLinkForm({ ...linkForm, enabled: e.target.checked })}
+                      className="accent-[var(--kz-accent)] cursor-pointer"
+                    />
+                    <span>启用此链接</span>
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCancelLinkForm}
+                    className="rounded-xl border border-[var(--kz-border)] px-3 py-1.5 text-xs font-semibold text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] cursor-pointer"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    disabled={navLinksSaving}
+                    onClick={handleSaveLinkForm}
+                    className="rounded-xl bg-[var(--kz-accent)] px-4 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-[var(--kz-accent-hover)] cursor-pointer disabled:opacity-50"
+                  >
+                    {navLinksSaving ? '保存中…' : editingLinkId ? '保存修改' : '添加并保存'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 外链列表 */}
+          {adminNavLinks.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-[var(--kz-border)] p-8 text-center text-xs text-[var(--kz-fg-muted)]">
+              暂未配置任何外链或广告商，点击上方「添加外链广告位」开始添加。
+            </div>
+          ) : (
+            <div className="rounded-xl border border-[var(--kz-border)] overflow-hidden divide-y divide-[var(--kz-border)]">
+              {adminNavLinks.map((link, idx) => (
+                <div
+                  key={link.id}
+                  className={`flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 p-3 transition-colors ${
+                    link.enabled ? 'bg-[var(--kz-bg)]' : 'bg-[var(--kz-bg-soft)] opacity-60'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    {/* 排序按钮 */}
+                    <div className="flex flex-col gap-0.5 shrink-0">
+                      <button
+                        type="button"
+                        disabled={idx === 0}
+                        onClick={() => handleMoveNavLink(idx, 'up')}
+                        className="rounded p-0.5 text-[10px] text-[var(--kz-fg-muted)] hover:bg-[var(--kz-bg-hover)] hover:text-[var(--kz-fg)] disabled:opacity-20 cursor-pointer"
+                        title="上移"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        type="button"
+                        disabled={idx === adminNavLinks.length - 1}
+                        onClick={() => handleMoveNavLink(idx, 'down')}
+                        className="rounded p-0.5 text-[10px] text-[var(--kz-fg-muted)] hover:bg-[var(--kz-bg-hover)] hover:text-[var(--kz-fg)] disabled:opacity-20 cursor-pointer"
+                        title="下移"
+                      >
+                        ▼
+                      </button>
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-xs text-[var(--kz-fg)] truncate">
+                          {link.title}
+                        </span>
+                        {link.badge && (
+                          <span className="rounded bg-[var(--kz-accent)]/15 border border-[var(--kz-accent)]/30 text-[var(--kz-accent)] px-1.5 py-0.2 text-[9px] font-bold">
+                            {link.badge}
+                          </span>
+                        )}
+                        {link.highlight && (
+                          <span className="rounded bg-amber-500/15 text-amber-400 px-1 py-0.2 text-[9px] font-bold">
+                            高亮
+                          </span>
+                        )}
+                        <span className="text-[10px] text-[var(--kz-fg-dim)]">
+                          {link.target === '_self' ? '当前页打开' : '新标签页'}
+                        </span>
+                      </div>
+                      <div className="text-[11px] font-mono text-[var(--kz-fg-dim)] truncate mt-0.5">
+                        {link.url}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleNavLink(link.id)}
+                      className={`rounded-lg px-2 py-1 text-xs font-semibold cursor-pointer transition-all ${
+                        link.enabled
+                          ? 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+                          : 'border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] text-[var(--kz-fg-muted)]'
+                      }`}
+                    >
+                      {link.enabled ? '✓ 已启用' : '⚪ 已停用'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleEditLink(link)}
+                      className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-1.5 text-xs text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] hover:border-[var(--kz-accent)] transition-all cursor-pointer"
+                      title="编辑"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteNavLink(link.id)}
+                      className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-1.5 text-xs text-rose-400 hover:border-rose-400 hover:bg-rose-500/10 transition-all cursor-pointer"
+                      title="删除"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* 实时前台导航模拟预览 */}
+          <div className="rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] p-3 space-y-2">
+            <div className="flex items-center justify-between text-xs font-semibold text-[var(--kz-fg)]">
+              <span>💻 前台导航条实时预览 (Live Preview)</span>
+              <span className="text-[10px] text-[var(--kz-fg-dim)]">仅展示已启用的项</span>
+            </div>
+            <div className="flex items-center gap-2 overflow-x-auto rounded-lg border border-[var(--kz-border)] bg-[var(--kz-header-bg)] px-3 py-2">
+              <span className="font-bold text-xs text-[var(--kz-fg)] pr-2 border-r border-[var(--kz-border)]">
+                Animaku
+              </span>
+              <span className="text-xs text-[var(--kz-fg-muted)]">首页</span>
+              <span className="text-xs text-[var(--kz-fg-muted)]">番剧</span>
+              <span className="text-xs text-[var(--kz-fg-muted)]">时间表</span>
+              {adminNavLinks
+                .filter((l) => l.enabled)
+                .map((l) => (
+                  <span
+                    key={l.id}
+                    className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-bold ${
+                      l.highlight
+                        ? 'text-[var(--kz-accent)] bg-[var(--kz-accent-soft)]'
+                        : 'text-[var(--kz-fg)] bg-[var(--kz-bg-soft)]'
+                    }`}
+                  >
+                    <span>{l.title}</span>
+                    {l.badge && (
+                      <span className="rounded bg-[var(--kz-accent)] text-white px-1 py-0.2 text-[9px] font-extrabold leading-none">
+                        {l.badge}
+                      </span>
+                    )}
+                  </span>
+                ))}
+            </div>
+          </div>
+        </div>
+      </AdminCard>
+
+      {/* 9. 全局默认导航栏与外观偏好 */}
       <AdminCard
         id="default-nav"
         icon="🧭"

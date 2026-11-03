@@ -1,3 +1,4 @@
+import type { AdminDailyStatsResponse, DailyActiveMetric } from '@animaku/shared'
 import { getDatabase, prepareStatement, isDatabaseActive } from '../connection'
 import { getLocalTodayDateStr } from './ip-access'
 import { config } from '../../config'
@@ -480,6 +481,132 @@ export class WatchStatsRepository {
    */
   getTopPlayed(limit = 20): Array<{ bangumiId: number; totalPlayCount: number }> {
     return this.getTopRankings('total', limit)
+  }
+
+  /**
+   * Retrieve DAU and site performance statistics for a specific date (or today).
+   * Also returns a continuous 14-day trend sequence for easy dashboard charts.
+   */
+  getDailyStats(targetDate?: string): AdminDailyStatsResponse {
+    const now = Date.now()
+    const todayStr = getLocalTodayDateStr(now)
+    const safeDate = targetDate && /^\d{4}-\d{2}-\d{2}$/.test(targetDate.trim())
+      ? targetDate.trim()
+      : todayStr
+    const isToday = safeDate === todayStr
+
+    if (!isDatabaseActive()) {
+      return {
+        ok: true,
+        date: safeDate,
+        isToday,
+        dau: 0,
+        newDevices: 0,
+        totalViews: 0,
+        todayHits: 0,
+        totalDevices: 0,
+        updatedAt: now,
+        trend: [],
+      }
+    }
+
+    try {
+      if (isToday) {
+        // 今日查询触发一次即时同步，确保秒级实时准确
+        this.flushSync()
+      }
+
+      const db = getDatabase()
+
+      // 1. 获取目标日期的活跃指标
+      const targetRow = db
+        .prepare('SELECT dau, new_devices, total_views, updated_at FROM daily_active_stats WHERE date = ?;')
+        .get(safeDate) as { dau?: number; new_devices?: number; total_views?: number; updated_at?: number } | undefined
+
+      const dau = Number(targetRow?.dau || 0)
+      const newDevices = Number(targetRow?.new_devices || 0)
+      const totalViews = Number(targetRow?.total_views || 0)
+      const updatedAt = Number(targetRow?.updated_at || now)
+
+      // 2. 目标日期的 IP hits（PV）
+      const hitsRow = db
+        .prepare('SELECT SUM(today_hits) as s FROM ip_access_logs WHERE last_date = ?;')
+        .get(safeDate) as { s?: number } | undefined
+      const todayHits = Number(hitsRow?.s || 0)
+
+      // 3. 累计设备总数
+      const devTotalRow = db.prepare('SELECT COUNT(*) as c FROM devices;').get() as { c?: number } | undefined
+      const totalDevices = Number(devTotalRow?.c || 0)
+
+      // 4. 近 14 天走势列表
+      const startTrendDate = this.getDateDaysAgo(13, now)
+      const trendRows = db
+        .prepare(`
+          SELECT date, dau, new_devices, total_views, updated_at
+          FROM daily_active_stats
+          WHERE date >= ?
+          ORDER BY date ASC;
+        `)
+        .all(startTrendDate) as Array<{
+          date: string
+          dau: number
+          new_devices: number
+          total_views: number
+          updated_at: number
+        }>
+
+      const trendMap = new Map<string, DailyActiveMetric>()
+      for (const row of trendRows) {
+        trendMap.set(row.date, {
+          date: row.date,
+          dau: Number(row.dau || 0),
+          newDevices: Number(row.new_devices || 0),
+          totalViews: Number(row.total_views || 0),
+          updatedAt: Number(row.updated_at || 0),
+        })
+      }
+
+      // 补齐连续 14 天的日期（防止中间有天没有记录导致图表断裂）
+      const trend: DailyActiveMetric[] = []
+      for (let i = 13; i >= 0; i--) {
+        const d = this.getDateDaysAgo(i, now)
+        const item = trendMap.get(d) || {
+          date: d,
+          dau: 0,
+          newDevices: 0,
+          totalViews: 0,
+          updatedAt: now,
+        }
+        trend.push(item)
+      }
+
+      return {
+        ok: true,
+        date: safeDate,
+        isToday,
+        dau,
+        newDevices,
+        totalViews,
+        todayHits,
+        totalDevices,
+        updatedAt,
+        trend,
+      }
+    } catch (err) {
+      console.error('[db:watch-stats] getDailyStats error:', err)
+      return {
+        ok: false,
+        date: safeDate,
+        isToday,
+        dau: 0,
+        newDevices: 0,
+        totalViews: 0,
+        todayHits: 0,
+        totalDevices: 0,
+        updatedAt: now,
+        trend: [],
+      }
+    }
   }
 }
 

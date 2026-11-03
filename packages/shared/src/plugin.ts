@@ -386,6 +386,7 @@ export function resolveTargetSourcePlugin(
 export interface SearchItem {
   name: string
   src: string
+  cover?: string
 }
 
 export interface Road {

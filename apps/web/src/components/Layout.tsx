@@ -428,6 +428,7 @@ export function Layout() {
   const iconMode = useSiteConfigStore((s) => s.iconMode)
   const iconUrl = useSiteConfigStore((s) => s.iconUrl)
   const iconUpdatedAt = useSiteConfigStore((s) => s.iconUpdatedAt)
+  const customNavLinks = useSiteConfigStore((s) => s.customNavLinks)
   const fetchConfig = useSiteConfigStore((s) => s.fetchConfig)
 
   useEffect(() => {
@@ -648,6 +649,37 @@ export function Layout() {
               {moreLinks.map((l) => (
                 <NavItem key={l.to} {...l} />
               ))}
+
+              {/* 自定义广告外链 / 赞助商直达 */}
+              {customNavLinks.map((link) => (
+                <a
+                  key={link.id}
+                  href={link.url}
+                  target={link.target || '_blank'}
+                  rel="noopener noreferrer sponsored"
+                  className={clsx(
+                    'group relative inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1 text-sm font-bold tracking-wide transition-all duration-200 sm:px-3 sm:py-2 sm:text-[15px]',
+                    link.highlight
+                      ? 'text-[var(--kz-accent)] hover:bg-[var(--kz-accent-soft)] hover:shadow-xs'
+                      : 'text-[var(--kz-fg-muted)] hover:bg-[var(--kz-bg-hover)] hover:text-[var(--kz-fg)]',
+                  )}
+                  title={link.title}
+                >
+                  <span>{link.title}</span>
+                  {link.badge && (
+                    <span
+                      className={clsx(
+                        'inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none shadow-xs',
+                        link.highlight
+                          ? 'bg-[var(--kz-accent)] text-white'
+                          : 'bg-[var(--kz-bg-soft)] text-[var(--kz-accent)] border border-[var(--kz-border)]',
+                      )}
+                    >
+                      {link.badge}
+                    </span>
+                  )}
+                </a>
+              ))}
             </div>
 
             {/* Mobile: overflow menu for remaining destinations */}
@@ -701,6 +733,48 @@ export function Layout() {
                       {l.label}
                     </NavLink>
                   ))}
+
+                  {/* 移动端自定义广告外链 / 赞助商直达 */}
+                  {customNavLinks.length > 0 && (
+                    <div className="my-1 border-t border-[var(--kz-border)]/60 pt-1">
+                      <div className="px-4 py-1 text-[11px] font-semibold text-[var(--kz-fg-dim)]">
+                        合作推荐
+                      </div>
+                      {customNavLinks.map((link) => (
+                        <a
+                          key={link.id}
+                          href={link.url}
+                          target={link.target || '_blank'}
+                          rel="noopener noreferrer sponsored"
+                          role="menuitem"
+                          onClick={() => setMenuOpen(false)}
+                          className="flex items-center justify-between px-4 py-2 text-[14px] font-semibold text-[var(--kz-fg)] transition-colors hover:bg-[var(--kz-bg-hover)] hover:text-[var(--kz-accent)]"
+                        >
+                          <span className="flex items-center gap-1.5 truncate">
+                            <span>{link.title}</span>
+                            {link.badge && (
+                              <span className="rounded bg-[var(--kz-accent)]/15 px-1 py-0.5 text-[9px] font-bold text-[var(--kz-accent)]">
+                                {link.badge}
+                              </span>
+                            )}
+                          </span>
+                          <svg
+                            className="h-3 w-3 shrink-0 text-[var(--kz-fg-dim)]"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                            <polyline points="15 3 21 3 21 9" />
+                            <line x1="10" y1="14" x2="21" y2="3" />
+                          </svg>
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

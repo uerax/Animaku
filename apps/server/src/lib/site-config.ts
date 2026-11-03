@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import sharp from 'sharp'
-import type { SiteDefaultSettings } from '@animaku/shared'
+import type { SiteDefaultSettings, CustomNavLink } from '@animaku/shared'
 import { config } from '../config'
 
 export interface AnnouncementItem {
@@ -29,6 +29,7 @@ export interface SiteConfig {
   announcement?: AnnouncementItem | null
   announcementHistory?: AnnouncementItem[]
   defaultSettings?: SiteDefaultSettings
+  customNavLinks?: CustomNavLink[]
 }
 
 const MAX_ICON_SIZE = 2 * 1024 * 1024 // 2MB
@@ -46,6 +47,36 @@ export const CUSTOM_ICON_FILENAMES = [
 ] as const
 
 export type CustomIconFilename = (typeof CUSTOM_ICON_FILENAMES)[number]
+
+export function sanitizeCustomNavLinks(items: unknown): CustomNavLink[] {
+  if (!Array.isArray(items)) return []
+  return items
+    .filter((item: unknown): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
+    .slice(0, 50)
+    .map((item, index) => {
+      const rawUrl = typeof item.url === 'string' ? item.url.trim() : ''
+      let safeUrl = ''
+      try {
+        const u = new URL(rawUrl)
+        if (u.protocol === 'http:' || u.protocol === 'https:') {
+          safeUrl = rawUrl.slice(0, 1000)
+        }
+      } catch {}
+
+      return {
+        id: typeof item.id === 'string' && item.id.trim() ? item.id.trim().slice(0, 64) : `nav_${Date.now()}_${index}`,
+        title: typeof item.title === 'string' ? item.title.trim().slice(0, 30) : `链接${index + 1}`,
+        url: safeUrl,
+        badge: typeof item.badge === 'string' && item.badge.trim() ? item.badge.trim().slice(0, 10) : undefined,
+        target: item.target === '_self' ? ('_self' as const) : ('_blank' as const),
+        highlight: Boolean(item.highlight),
+        enabled: item.enabled !== false,
+        order: typeof item.order === 'number' && Number.isFinite(item.order) ? item.order : index,
+      }
+    })
+    .filter((item) => Boolean(item.url))
+    .sort((a, b) => a.order - b.order)
+}
 
 function getSiteConfigFilePath(): string {
   return resolve(config.dataDir, 'site-config.json')
@@ -228,6 +259,7 @@ export function getSiteConfig(): SiteConfig {
             parsed.defaultSettings && typeof parsed.defaultSettings === 'object'
               ? parsed.defaultSettings
               : undefined,
+          customNavLinks: sanitizeCustomNavLinks(parsed.customNavLinks),
         }
         return memoryCache
       }
@@ -241,6 +273,7 @@ export function getSiteConfig(): SiteConfig {
     announcementEnabled: false,
     announcement: null,
     announcementHistory: [],
+    customNavLinks: [],
   }
   return memoryCache
 }
@@ -267,6 +300,9 @@ export function saveSiteConfig(updates: Partial<SiteConfig>): SiteConfig {
   }
   if (updates.announcementHistory !== undefined) {
     next.announcementHistory = updates.announcementHistory.slice(0, 30)
+  }
+  if (updates.customNavLinks !== undefined) {
+    next.customNavLinks = sanitizeCustomNavLinks(updates.customNavLinks)
   }
   if (updates.defaultSettings !== undefined) {
     if (updates.defaultSettings === null) {
@@ -648,6 +684,7 @@ export function resetAllSiteConfig(): SiteConfig {
     announcement: null,
     announcementHistory: [],
     defaultSettings: undefined,
+    customNavLinks: [],
   }
   return memoryCache
 }

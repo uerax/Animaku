@@ -1,7 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { Hono } from 'hono'
-import type { SiteDefaultSettings } from '@animaku/shared'
+import type { SiteDefaultSettings, CustomNavLink } from '@animaku/shared'
+import { watchStatsRepo } from '../db'
 import { isAuthorizedAdmin } from '../lib/indexnow'
 import {
   getSiteConfig,
@@ -46,6 +47,7 @@ siteRoutes.get('/config', (c) => {
     announcementEnabled: Boolean(cfg.announcementEnabled),
     announcement: cfg.announcement || null,
     defaultSettings: cfg.defaultSettings || null,
+    customNavLinks: (cfg.customNavLinks || []).filter((l) => l.enabled),
   })
 })
 
@@ -515,3 +517,44 @@ adminSiteRoutes.post('/site/upload-announcement-image', async (c) => {
     return c.json({ ok: false, error: errMsg, message: errMsg }, 500)
   }
 })
+
+/**
+ * 获取指定日期的日活统计与近 14 天趋势（需管理员鉴权）
+ */
+adminSiteRoutes.get('/stats/daily', (c) => {
+  const date = c.req.query('date')
+  const stats = watchStatsRepo.getDailyStats(date)
+  return c.json(stats)
+})
+
+/**
+ * 获取全量自定义导航栏链接（包含未启用的外链）
+ */
+adminSiteRoutes.get('/site/nav-links', (c) => {
+  const cfg = getSiteConfig()
+  return c.json({
+    ok: true,
+    data: cfg.customNavLinks || [],
+  })
+})
+
+/**
+ * 更新全量自定义导航栏链接
+ */
+adminSiteRoutes.post('/site/nav-links', async (c) => {
+  const body = (await c.req.json<{ links?: CustomNavLink[] }>().catch(() => ({}))) as {
+    links?: CustomNavLink[]
+  }
+  try {
+    const saved = saveSiteConfig({ customNavLinks: Array.isArray(body.links) ? body.links : [] })
+    return c.json({
+      ok: true,
+      data: saved.customNavLinks || [],
+      message: '导航栏外链配置已更新',
+    })
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : '更新导航栏链接失败'
+    return c.json({ ok: false, error: errMsg, message: errMsg }, 500)
+  }
+})
+
