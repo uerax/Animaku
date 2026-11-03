@@ -13,16 +13,10 @@ import {
 } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  buildSearchKeywords,
-  rankSearchItems,
   bestTitleSimilarity,
   coverOf,
   comparePluginOrder,
-  CONTINUE_PLAY_MIN_THRESHOLD_SEC,
-  CONTINUE_PLAY_END_THRESHOLD_SEC,
-  CONTINUE_PLAY_END_RATIO_THRESHOLD,
   isOldAnime,
-  resolvePluginDefaultKeyword,
   findMatchingEpisodeIndex,
   parseEpisodeNumber,
   alignSourceToOfficial,
@@ -44,13 +38,8 @@ import {
 } from '@animaku/shared'
 import { bangumiApi } from './bangumi'
 import { pluginApi } from './plugin-api'
-import { pickPlaybackSrc, type PlaybackTransit } from './playback-src'
+import type { PlaybackTransit } from './playback-src'
 import {
-  getCachedPluginSearch,
-  setCachedPluginSearch,
-} from './plugin-result-cache'
-import {
-  findRoadsForPlay,
   writeRoadsForSource,
   invalidateRoadsCache,
 } from './roads-cache'
@@ -61,9 +50,30 @@ import { useSettingsStore } from '../stores/settings'
 import { useSourceBindingStore } from '../stores/source-bindings'
 import { useSiteConfigStore } from '../stores/site-config'
 import { EMPTY_ARRAY, FALLBACK_DANMAKU, FALLBACK_PLAYER } from './stable'
-import { useBangumiOpedData, useResolvedOpedSkip, useBangumiEpisodesDuration } from './bangumi-oped'
-import { useCustomOpedStore } from './custom-oped-store'
 import { perfMetrics } from './performance-metrics'
+import { useWatchOpedSettings } from './use-watch-oped-settings'
+import {
+  findCurrentSlotIndex,
+  getAdjacentEpisodeSlot,
+} from './watch-episode-boundaries'
+import {
+  RESUME_MIN_POSITION,
+  formatMinutesSeconds,
+  lookupResumePosition,
+  lookupHistorySourceUrl,
+} from './watch-resume'
+import {
+  deriveTitleRefs,
+  deriveKeywordCandidates,
+  deriveDefaultKeyword,
+  resolveKeywordForPlugin,
+  orderSearchRows,
+} from './watch-keywords'
+import { useWatchHud } from './use-watch-hud'
+import { useWatchNextPrefetch } from './use-watch-next-prefetch'
+import { useWatchStreamResolve } from './use-watch-stream-resolve'
+import { useWatchSourceSearch } from './use-watch-source-search'
+import { useWatchSourceLauncher } from './use-watch-source-launcher'
 
 export type SearchRow = {
   plugin: PluginMeta
@@ -98,105 +108,7 @@ export type EpisodePlay = {
  */
 export const AUTO_PICK_MIN_SIMILARITY = 0.55
 
-/** Minimum history progress in seconds before continue-play seeks. */
-const RESUME_MIN_POSITION = CONTINUE_PLAY_MIN_THRESHOLD_SEC
-
-function formatMinutesSeconds(sec: number): string {
-  const m = Math.floor(sec / 60)
-  const s = Math.floor(sec % 60)
-  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
-}
-
-function lookupResumePosition(
-  bangumiId: number,
-  pluginName: string,
-  episode: number,
-  road: number,
-): number {
-  const items = useHistoryStore.getState().items
-  const list = Array.isArray(items) ? items : []
-  const isFinished = (pos: number, dur: number) => {
-    if (!dur || dur <= 0) return false
-    if (dur > 30) {
-      return (
-        pos >= dur - CONTINUE_PLAY_END_THRESHOLD_SEC ||
-        pos / dur >= CONTINUE_PLAY_END_RATIO_THRESHOLD
-      )
-    }
-    return pos >= dur - 2
-  }
-
-  const exact = list.find(
-    (i) =>
-      i.bangumiId === bangumiId &&
-      i.pluginName === pluginName &&
-      i.episode === episode &&
-      i.road === road,
-  )
-  if (exact) {
-    if (isFinished(exact.position, exact.duration)) return 0
-    return exact.position || 0
-  }
-  const sameEp = list.find(
-    (i) => i.bangumiId === bangumiId && i.episode === episode,
-  )
-  if (sameEp) {
-    if (isFinished(sameEp.position, sameEp.duration)) return 0
-    return sameEp.position || 0
-  }
-  return 0
-}
-
-/** Prefer history sourceUrl; fall back to query `source` when present. */
-function lookupHistorySourceUrl(
-  bangumiId: number,
-  pluginName: string,
-  pageUrl?: string,
-): string {
-  const items = useHistoryStore.getState().items
-  const list = Array.isArray(items) ? items : []
-  const norm = (u: string) => (u || '').replace(/\/+$/, '')
-  const target = norm(pageUrl || '')
-  if (target) {
-    const hit = list.find(
-      (i) =>
-        i.bangumiId === bangumiId &&
-        i.pluginName === pluginName &&
-        (norm(i.pageUrl) === target ||
-          (i.sourceUrl && norm(i.sourceUrl) === target)),
-    )
-    if (hit?.sourceUrl) return hit.sourceUrl.trim()
-  }
-  // Fallback when pageUrl is omitted in URL (e.g. /play/:id?plugin=anime1&ep=1 from history)
-  const hitAny = list.find(
-    (i) => i.bangumiId === bangumiId && i.pluginName === pluginName && Boolean(i.sourceUrl),
-  )
-  return (hitAny?.sourceUrl || '').trim()
-}
-
 export { findDefaultSourcePlugin, resolveTargetSourcePlugin }
-
-/** Sort search rows by stored order (first = top), falling back to weight > alphabetical. */
-function orderSearchRows(
-  rows: SearchRow[],
-  order: string[],
-  isOldAnime = false,
-  boostedPluginNames?: Set<string>,
-): SearchRow[] {
-  if (!order.length) {
-    return [...rows].sort((a, b) => comparePluginOrder(a.plugin, b.plugin, isOldAnime, boostedPluginNames))
-  }
-  const rank = new Map<string, number>()
-  for (let i = 0; i < order.length; i++) {
-    rank.set(order[i].toLowerCase(), i)
-  }
-  return [...rows].sort((a, b) => {
-    const ra = rank.get(a.plugin.name.toLowerCase()) ?? order.length
-    const rb = rank.get(b.plugin.name.toLowerCase()) ?? order.length
-    if (ra !== rb) return ra - rb
-    return comparePluginOrder(a.plugin, b.plugin, isOldAnime, boostedPluginNames)
-  })
-}
 
 export type WatchSession = {
   bangumiId: number
@@ -449,8 +361,6 @@ export function useWatchSession(bangumiId: number): WatchSession {
   const title = resolvedItem ? resolvedItem.nameCn || resolvedItem.name || '' : ''
   const cover = resolvedItem ? coverOf(resolvedItem) : ''
 
-  const [searchResults, setSearchResults] = useState<SearchRow[]>([])
-  const [searchKeyword, setSearchKeyword] = useState('')
   const [roadLoading, setRoadLoading] = useState(false)
   const [roadError, setRoadError] = useState('')
   const [selection, setSelection] = useState<SourceSelection | null>(null)
@@ -467,44 +377,16 @@ export function useWatchSession(bangumiId: number): WatchSession {
     manualTargetPluginRef.current = p !== null
     setKeywordTargetPlugin(p)
   }, [])
-  const [sessionKeywords, setSessionKeywords] = useState<
-    Record<string, string[]>
-  >({})
-  /** Per-source manual keyword overrides when user explicitly types or selects a keyword */
-  const [manualKeywords, setManualKeywords] = useState<Record<string, string>>({})
-  const [playerRemount, setPlayerRemount] = useState(0)
   /** Continue-play seek target — state (not ref) so first media mount sees it. */
   const [resumePosition, setResumePosition] = useState(0)
 
   const resumeDoneFor = useRef<string | null>(null)
   /** Live override after auth/proxy remount (position mid-play). */
   const resumeOverrideRef = useRef<number | null>(null)
-  const pluginSearchGen = useRef<Record<string, number>>({})
-  /** Abort in-flight search fetch when gen bumps / unmount */
-  const pluginSearchAbort = useRef<Record<string, AbortController>>({})
   const chaptersGen = useRef(0)
   const chaptersAbort = useRef<AbortController | null>(null)
-  /** Next resolve queryFn uses refresh=1 once (auth expiry / hard media fail). */
-  const resolveRefreshOnce = useRef(false)
-  const [hudMessage, setHudMessage] = useState<string | null>(null)
-  const [defaultSearchEmpty, setDefaultSearchEmpty] = useState(false)
-  useEffect(() => {
-    if (!hudMessage) return
-    const timer = setTimeout(() => {
-      setHudMessage(null)
-    }, 3500)
-    return () => clearTimeout(timer)
-  }, [hudMessage])
-
-  /** 单个分集最大允许自动重试恢复次数（超出后熔断彻底停止，杜绝死循环重复请求） */
-  const MAX_PLAYBACK_FAIL_RECOVERY_ATTEMPTS = 2
-  const playbackRecoveryTrackerRef = useRef<{
-    key: string
-    attempts: number
-    failed: boolean
-  }>({ key: '', attempts: 0, failed: false })
-
-  const clearHudMessage = useCallback(() => setHudMessage(null), [])
+  const { hudMessage, setHudMessage, clearHudMessage } = useWatchHud()
+  const pickSourceRef = useRef<((plugin: PluginMeta, item: SearchItem) => Promise<void>) | null>(null)
 
   const episodeRef = useRef<EpisodePlay | null>(null)
   episodeRef.current = episode
@@ -533,10 +415,24 @@ export function useWatchSession(bangumiId: number): WatchSession {
   const roadLoadingRef = useRef(roadLoading)
   roadLoadingRef.current = roadLoading
 
-  const titleRefs = useMemo(() => {
-    if (!resolvedItem) return []
-    return [resolvedItem.nameCn, resolvedItem.name, ...(resolvedItem.alias || [])].filter(Boolean) as string[]
-  }, [resolvedItem])
+  const streamResolve = useWatchStreamResolve({
+    bangumiId,
+    title,
+    selection,
+    selectionRef,
+    episode,
+    episodeRef,
+    resumePosition,
+    setResumePosition,
+    resumeOverrideRef,
+    setHudMessage,
+    continuePlay: playerSettings.continuePlay,
+  })
+
+  const titleRefs = useMemo(
+    () => deriveTitleRefs(resolvedItem),
+    [resolvedItem],
+  )
 
   const activeTargetPlugin =
     keywordTargetPlugin ||
@@ -544,61 +440,53 @@ export function useWatchSession(bangumiId: number): WatchSession {
     findDefaultSourcePlugin(plugins, pluginOrder, isOld, boostedPluginNames)
   const preferOriginal = activeTargetPlugin?.titlePreference === 'original'
 
-  const keywordCandidates = useMemo(() => {
-    if (!resolvedItem) return []
-    // Full title first for the dropdown; shorter variants remain as fallbacks.
-    // Honor the active source's title preference (Japanese/original vs Chinese).
-    const pref = activeTargetPlugin?.titlePreference || (preferOriginal ? 'original' : 'chinese')
-    const primary = (
-      pref === 'original'
-        ? resolvedItem.name || resolvedItem.nameCn || ''
-        : pref === 'chinese_compact'
-          ? (resolvedItem.nameCn || resolvedItem.name || '').replace(/\s+(第\s*[一二三四五六七八九十\d]+\s*[季期部])/g, '$1')
-          : resolvedItem.nameCn || resolvedItem.name || ''
-    ).trim()
-    const variants = buildSearchKeywords(resolvedItem.nameCn, resolvedItem.name, resolvedItem.alias)
-    const seen = new Set<string>()
-    const out: string[] = []
-    const titleOrder = preferOriginal
-      ? [primary, resolvedItem.name, resolvedItem.nameCn, ...variants]
-      : [primary, resolvedItem.nameCn, resolvedItem.name, ...variants]
-    for (const k of titleOrder) {
-      const t = (k || '').trim()
-      if (!t || seen.has(t.toLowerCase())) continue
-      seen.add(t.toLowerCase())
-      out.push(t)
-    }
-    return out
-  }, [resolvedItem, preferOriginal, activeTargetPlugin])
+  const keywordCandidates = useMemo(
+    () => deriveKeywordCandidates(resolvedItem, activeTargetPlugin, preferOriginal),
+    [resolvedItem, activeTargetPlugin, preferOriginal],
+  )
 
   /** Default search uses the display title, not the shortest stripped variant. */
-  const defaultKeyword = useMemo(() => {
-    return (
-      resolvedItem?.nameCn ||
-      resolvedItem?.name ||
-      keywordCandidates[0] ||
-      ''
-    ).trim()
-  }, [resolvedItem, keywordCandidates])
-
-  /**
-   * Resolve keyword for a specific plugin:
-   * 1. Per-source manual keyword if user explicitly typed/selected one.
-   * 2. Otherwise calculate default keyword according to plugin's preferOriginalTitle.
-   */
-  const getPluginKeyword = useCallback(
-    (plugin: PluginMeta) => {
-      if (manualKeywords[plugin.name]) {
-        return manualKeywords[plugin.name]
-      }
-      return resolvePluginDefaultKeyword(
-        plugin,
-        resolvedItem,
-        defaultKeyword || '',
-      )
-    },
-    [manualKeywords, resolvedItem, defaultKeyword],
+  const defaultKeyword = useMemo(
+    () => deriveDefaultKeyword(resolvedItem, keywordCandidates),
+    [resolvedItem, keywordCandidates],
   )
+
+  const sourceSearch = useWatchSourceSearch({
+    bangumiId,
+    title,
+    resolvedItem,
+    titleRefs,
+    keywordCandidates,
+    defaultKeyword,
+    plugins,
+    pluginOrder,
+    isOld,
+    boostedPluginNames,
+    keywordTargetPlugin,
+    setKeywordTargetPlugin,
+    keywordTargetPluginRef,
+    selection,
+    selectionRef,
+    setSelection,
+    setEpisode,
+    setRoadError,
+    setHudMessage,
+    pickSourceRef,
+  })
+
+  const {
+    searchResults,
+    searchKeyword,
+    setSearchKeyword,
+    sessionKeywords,
+    defaultSearchEmpty,
+    setDefaultSearchEmpty,
+    getPluginKeyword,
+    searchOnePlugin,
+    openPluginSearch,
+    reSearchCurrentSource,
+    resetSearchState,
+  } = sourceSearch
 
   const dm = useDanmakuSession({
     bangumiId,
@@ -633,61 +521,11 @@ export function useWatchSession(bangumiId: number): WatchSession {
     setRoadLoading(false)
     manualTargetPluginRef.current = false
     setKeywordTargetPlugin(null)
-    setSessionKeywords({})
-    setManualKeywords({})
+    resetSearchState()
     chaptersGen.current += 1
     dmResetPools()
-    pluginSearchGen.current = {}
-    setSearchKeyword('')
-    setDefaultSearchEmpty(false)
-    // Keep searchResults stable across subjects — smoothly updated in the effect below
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only on subject id
   }, [bangumiId])
-
-  const prevBangumiIdRef = useRef(bangumiId)
-  // Seed / refresh idle plugin rows without wiping in-progress selection.
-  // Keep the row order aligned with the user's configured source order.
-  useEffect(() => {
-    const isNewSubject = prevBangumiIdRef.current !== bangumiId
-    prevBangumiIdRef.current = bangumiId
-
-    setSearchResults((prev) => {
-      const byName = isNewSubject ? new Map() : new Map(prev.map((r) => [r.plugin.name, r]))
-      const rows = plugins.map((plugin) => {
-        const old = byName.get(plugin.name)
-        if (old) return { ...old, plugin }
-        return {
-          plugin,
-          items: [],
-          pending: false,
-          searched: false,
-        }
-      })
-      return orderSearchRows(rows, pluginOrder, isOld, boostedPluginNames)
-    })
-  }, [plugins, bangumiId, pluginOrder, isOld, boostedPluginNames])
-
-  // Keep default keyword in state for UI once subject loads
-  useEffect(() => {
-    const target =
-      keywordTargetPlugin ||
-      selection?.plugin ||
-      findDefaultSourcePlugin(plugins, pluginOrder, isOld, boostedPluginNames)
-    if (!target) return
-    const kw = getPluginKeyword(target)
-    if (kw && !searchKeyword) {
-      setSearchKeyword(kw)
-    }
-  }, [
-    keywordTargetPlugin,
-    selection?.plugin,
-    plugins,
-    pluginOrder,
-    isOld,
-    boostedPluginNames,
-    getPluginKeyword,
-    searchKeyword,
-  ])
 
   // Pre-select the target source: query plugin if provided, otherwise first source
   useEffect(() => {
@@ -705,22 +543,6 @@ export function useWatchSession(bangumiId: number): WatchSession {
       setKeywordTargetPlugin(target)
     }
   }, [plugins, pluginOrder, isOld, boostedPluginNames, keywordTargetPlugin, selection, qPlugin])
-
-  const titleRefsStable = titleRefs
-  const keywordCandidatesStable = keywordCandidates
-
-  const rememberSessionKeyword = useCallback(
-    (pluginName: string, keyword: string) => {
-      const kw = keyword.trim()
-      if (!kw) return
-      setSessionKeywords((prev) => {
-        const list = prev[pluginName] || []
-        if (list.includes(kw)) return prev
-        return { ...prev, [pluginName]: [kw, ...list].slice(0, 12) }
-      })
-    },
-    [],
-  )
 
   const pickSource = useCallback(
     async (
@@ -769,7 +591,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
       setEpisode(null)
       setResumePosition(0)
       resumeOverrideRef.current = null
-      playbackRecoveryTrackerRef.current = { key: '', attempts: 0, failed: false }
+      streamResolve.resetRecoveryTracker()
       setVisibleRoad(0)
       setSelection(null)
       setPendingSource({ pluginName: plugin.name, src: searchItem.src })
@@ -803,7 +625,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
             bangumiId,
             plugin.name,
             { sourceUrl: searchItem.src, title: searchItem.name },
-            titleRefsStable,
+            titleRefs,
           )
 
         // Episode alignment & seamless progress inheritance via PlayableSlot
@@ -961,267 +783,10 @@ export function useWatchSession(bangumiId: number): WatchSession {
       resumePosition,
       safeSetParams,
       title,
-      titleRefsStable,
+      titleRefs,
     ],
   )
-
-  const searchOnePlugin = useCallback(
-    async (
-      plugin: PluginMeta,
-      keyword: string,
-      opts?: {
-        clearSelection?: boolean
-        autoPickFirst?: boolean
-        /** Skip client search cache (and ask server refresh when true). */
-        refresh?: boolean
-        /** Explicitly manual keyword override */
-        manualKeyword?: boolean
-        /** Silent background preload: does not mutate active keyword or target plugin in UI */
-        background?: boolean
-      },
-    ) => {
-      const gen = (pluginSearchGen.current[plugin.name] || 0) + 1
-      pluginSearchGen.current[plugin.name] = gen
-      try {
-        pluginSearchAbort.current[plugin.name]?.abort()
-      } catch {
-        /* ignore */
-      }
-      const searchAc = new AbortController()
-      pluginSearchAbort.current[plugin.name] = searchAc
-      if (opts?.manualKeyword) {
-        setManualKeywords((prev) => ({
-          ...prev,
-          [plugin.name]: keyword.trim(),
-        }))
-      }
-      rememberSessionKeyword(plugin.name, keyword)
-      if (!opts?.background) {
-        setSearchKeyword(keyword)
-        setKeywordTargetPlugin(plugin)
-      }
-
-      setSearchResults((prev) => {
-        const exists = prev.some((r) => r.plugin.name === plugin.name)
-        if (!exists) {
-          return orderSearchRows([
-            ...prev,
-            {
-              plugin,
-              items: [],
-              pending: true,
-              searched: true,
-              keyword,
-            },
-          ], pluginOrder)
-        }
-        return prev.map((row) =>
-          row.plugin.name === plugin.name
-            ? {
-                ...row,
-                plugin,
-                items: [],
-                error: undefined,
-                pending: true,
-                searched: true,
-                keyword,
-              }
-            : row,
-        )
-      })
-
-      if (opts?.clearSelection) {
-        setSelection((sel) => {
-          if (sel?.plugin.name === plugin.name) {
-            setEpisode(null)
-            return null
-          }
-          return sel
-        })
-      }
-
-      let items: SearchItem[] = []
-      let error: string | undefined
-      try {
-        const bypassClient = Boolean(opts?.refresh || opts?.clearSelection)
-        const cached = bypassClient
-          ? undefined
-          : getCachedPluginSearch(plugin, keyword)
-        const res = cached
-          ? { data: cached }
-          : await pluginApi.search(plugin, keyword, {
-              signal: searchAc.signal,
-              refresh: Boolean(opts?.refresh),
-              title,
-              bangumiId,
-            })
-        if (!cached) setCachedPluginSearch(plugin, keyword, res.data)
-        if (pluginSearchGen.current[plugin.name] !== gen) return
-
-        const seen = new Set<string>()
-        const raw: SearchItem[] = []
-        for (const it of res.data.items || []) {
-          if (!it?.src || seen.has(it.src)) continue
-          seen.add(it.src)
-          raw.push(it)
-        }
-        items = rankSearchItems(raw, [
-          ...titleRefsStable,
-          keyword,
-          ...keywordCandidatesStable,
-        ])
-        if (!items.length) {
-          if (!opts?.manualKeyword) {
-            useSourceBindingStore.getState().removeBinding(bangumiId, plugin.name)
-          }
-          // Show first non-meta diagnostic (skip "关键词变体" style prefatory lines)
-          // so users see actionable error info: timeout, 403, no results, etc.
-          const diag = (res.data.diagnostics || []).filter(Boolean)
-          const useful = diag.find(
-            (d) =>
-              !d.startsWith('关键词变体') &&
-              !d.startsWith('关键词回退'),
-          )
-          error = useful || diag[0] || '无结果 — 可换关键词'
-        }
-      } catch (e) {
-        if (pluginSearchGen.current[plugin.name] !== gen) return
-        if (searchAc.signal.aborted) return
-        const msg = e instanceof Error ? e.message : '搜索失败'
-        if (/取消|aborted|AbortError/i.test(msg)) return
-        error = /504|timeout|超时|无法访问/i.test(msg)
-          ? '源站超时，请稍后重试'
-          : /502|源站返回/i.test(msg)
-            ? '源站暂时不可用'
-            : msg
-      }
-
-      if (pluginSearchGen.current[plugin.name] !== gen) return
-      setSearchResults((prev) =>
-        prev.map((row) =>
-          row.plugin.name === plugin.name
-            ? {
-                plugin,
-                items,
-                error,
-                pending: false,
-                searched: true,
-                keyword,
-              }
-            : row,
-        ),
-      )
-
-      // Auto-select first ranked hit only when title is close enough.
-      // Prevents MacCMS “first card” wrong-show on weak keyword matches.
-      const isDefault =
-        plugin.name.toLowerCase() === (findDefaultSourcePlugin(plugins, pluginOrder, isOld, boostedPluginNames)?.name || '').toLowerCase()
-      const shouldAutoPick =
-        !opts?.background &&
-        Boolean(items[0]) &&
-        (opts?.autoPickFirst ||
-          ((isDefault || opts?.clearSelection) &&
-            (opts?.clearSelection || !selectionRef.current)))
-
-      if (!items.length) {
-        if (opts?.autoPickFirst && !selectionRef.current) {
-          setDefaultSearchEmpty(true)
-          setRoadError(`${plugin.name} 未搜到该番剧资源，请点击上方「视频源」选择其他播放源`)
-          setHudMessage(`${plugin.name} 未搜到该番剧，请切换视频源`)
-        }
-      } else if (shouldAutoPick && items[0]) {
-        // Guard against background search race conditions:
-        // Do not allow an in-flight background search of plugin A to clobber
-        // when the user has already selected or targeted a different plugin B.
-        if (
-          !opts?.clearSelection &&
-          selectionRef.current &&
-          selectionRef.current.plugin.name.toLowerCase() !== plugin.name.toLowerCase()
-        ) {
-          return
-        }
-        if (
-          !opts?.clearSelection &&
-          keywordTargetPluginRef.current &&
-          keywordTargetPluginRef.current.name.toLowerCase() !== plugin.name.toLowerCase()
-        ) {
-          return
-        }
-        const score = bestTitleSimilarity(items[0].name, [
-          ...titleRefsStable,
-          keyword,
-          ...keywordCandidatesStable,
-        ])
-        if (score >= AUTO_PICK_MIN_SIMILARITY) {
-          try {
-            await pickSource(plugin, items[0])
-          } catch {
-            /* pickSource already set roadError and cleaned state */
-          }
-        } else {
-          if (opts?.autoPickFirst && !selectionRef.current) {
-            setRoadError(`${plugin.name} 搜索结果与当前番剧标题不够相近，请在「视频源」中确认或点选`)
-            setHudMessage(`${plugin.name} 未自动匹配，请在视频源中点选`)
-          }
-          if (!error) {
-            // Keep results visible; surface why we didn't auto-enter episodes
-            setSearchResults((prev) =>
-              prev.map((row) =>
-                row.plugin.name === plugin.name
-                  ? {
-                      ...row,
-                      error: '未自动选择（标题不够相近，请点选一条）',
-                    }
-                  : row,
-              ),
-            )
-          }
-        }
-      }
-    },
-    [
-      titleRefsStable,
-      keywordCandidatesStable,
-      rememberSessionKeyword,
-      pickSource,
-      plugins,
-      pluginOrder,
-      isOld,
-      boostedPluginNames,
-    ],
-  )
-
-  const openPluginSearch = useCallback(
-    async (
-      plugin: PluginMeta,
-      keyword?: string,
-      opts?: {
-        clearSelection?: boolean
-        autoPickFirst?: boolean
-        refresh?: boolean
-        manualKeyword?: boolean
-        background?: boolean
-      },
-    ) => {
-      const isCustomKw = Boolean(keyword?.trim() || opts?.manualKeyword)
-      if (isCustomKw && keyword?.trim()) {
-        setManualKeywords((prev) => ({
-          ...prev,
-          [plugin.name]: keyword.trim(),
-        }))
-      }
-      const kw = (
-        keyword ||
-        getPluginKeyword(plugin) ||
-        searchKeyword ||
-        defaultKeyword ||
-        ''
-      ).trim()
-      if (!kw) return
-      await searchOnePlugin(plugin, kw, { ...opts, manualKeyword: isCustomKw })
-    },
-    [searchOnePlugin, getPluginKeyword, searchKeyword, defaultKeyword],
-  )
+  pickSourceRef.current = pickSource
 
   const switchToPlugin = useCallback(
     async (
@@ -1270,392 +835,41 @@ export function useWatchSession(bangumiId: number): WatchSession {
     [bangumiId, pickSource, openPluginSearch],
   )
 
-  // First visit (not history resume): check persistent binding for target/default source first (0ms),
-  // otherwise search the target/default source and auto-pick the first hit.
-  useEffect(() => {
-    if (!Number.isFinite(bangumiId) || bangumiId <= 0) return
-    if (defaultSearchDoneFor.current === bangumiId) return
-    // If a selection already exists, skip
-    if (selectionRef.current) return
-
-    // If deep-link with specific episode/pageUrl, deep-link resume handler will take care of it
-    if (qPlugin && (qPageUrl || qEp !== undefined)) {
-      defaultSearchDoneFor.current = bangumiId
-      const target =
-        plugins.find((p) => p.name.toLowerCase() === qPlugin.toLowerCase()) ||
-        usePluginStore.getState().getByName(qPlugin)
-      if (target && !keywordTargetPluginRef.current) {
-        setKeywordTargetPlugin(target)
-      }
-      return
-    }
-    if (!plugins.length) return
-
-    // Preferred plugin: use qPlugin if provided and enabled (e.g. from history resume / deep-link),
-    // otherwise strictly fallback to global default source (never leak lastHistory to avoid hijacking default source)
-    const preferred = resolveTargetSourcePlugin(
-      qPlugin,
-      plugins,
-      pluginOrder,
-      isOld,
-      (name) => usePluginStore.getState().getByName(name),
-      boostedPluginNames,
-    )
-    if (!preferred) return
-
-    // 默认选取前 5 个优先级最高的源并发搜索（不足 5 个则全量选取）。
-    // preferred 稳居首位，其余可用源顺次补齐，天然无重复源。
-    const topPlugins = [
-      preferred,
-      ...plugins.filter((p) => p.name.toLowerCase() !== preferred.name.toLowerCase()),
-    ].slice(0, 5)
-
-    // Check persistent binding first!
-    const binding = useSourceBindingStore
-      .getState()
-      .getBinding(bangumiId, preferred.name)
-
-    if (binding?.sourceUrl) {
-      defaultSearchDoneFor.current = bangumiId
-      setKeywordTargetPlugin(preferred)
-      // 并发预热其余前排备选源，使换源面板或容灾降级 0ms 瞬间就绪
-      for (const p of topPlugins.slice(1)) {
-        void openPluginSearch(p, undefined, { autoPickFirst: false, background: true })
-      }
-      void pickSource(preferred, {
-        name: binding.title || preferred.name,
-        src: binding.sourceUrl,
-      }).catch(() => {
-        // Failed binding, remove and fallback to search
-        useSourceBindingStore.getState().removeBinding(bangumiId, preferred.name)
-        const kw = (
-          resolvePluginDefaultKeyword(
-            preferred,
-            resolvedItem,
-            defaultKeyword,
-          ) || ''
-        ).trim()
-        if (kw && !/^番剧\s*\d+$/.test(kw)) {
-          setSearchKeyword(kw)
-          void openPluginSearch(preferred, kw, { autoPickFirst: true })
-        }
-      })
-      return
-    }
-
-    // Prefer full subject title matching the default source's title preference.
-    const kw = (
-      resolvePluginDefaultKeyword(
-        preferred,
-        resolvedItem,
-        defaultKeyword,
-      ) || ''
-    ).trim()
-    if (!kw || /^番剧\s*\d+$/.test(kw)) return
-
-    defaultSearchDoneFor.current = bangumiId
-    setKeywordTargetPlugin(preferred)
-    setSearchKeyword(kw)
-
-    // 并发搜索前 5 个源：默认源主导自动选集开播，其余源后台静默预热
-    topPlugins.forEach((p, idx) => {
-      const isDefault = idx === 0
-      const searchKw = isDefault ? kw : undefined
-      void openPluginSearch(p, searchKw, {
-        autoPickFirst: isDefault,
-        background: !isDefault,
-      })
-    })
-  }, [
+  useWatchSourceLauncher({
     bangumiId,
-    qPlugin,
-    qPageUrl,
-    qEp,
+    title,
+    titleRefs,
+    resolvedItem,
+    defaultKeyword,
     plugins,
     pluginOrder,
     isOld,
     boostedPluginNames,
-    resolvedItem,
-    defaultKeyword,
-    openPluginSearch,
+    qPlugin,
+    qPageUrl,
+    qEp,
+    qRoad,
+    paramsRef,
+    selectionRef,
+    episodeRef,
+    keywordTargetPluginRef,
+    setKeywordTargetPlugin,
+    setSelection,
+    setEpisode,
+    setVisibleRoad,
+    setResumePosition,
+    resumeOverrideRef,
+    setRoadLoading,
+    setRoadError,
+    setHudMessage,
+    setSearchKeyword,
+    bgmEpisodes: bgmEpisodesQuery.data?.data,
+    isWatchPage,
+    safeSetParams,
     pickSource,
-  ])
-
-  // Resume from deep-link query (history / home / shared clean link)
-  useEffect(() => {
-    if (!Number.isFinite(bangumiId) || !qPlugin || (!qPageUrl && qEp === undefined)) return
-    const key = `${bangumiId}|${qPlugin}|${qPageUrl}|${qEp ?? ''}|${qRoad}`
-    if (resumeDoneFor.current === key) return
-
-    // If selection already matches target plugin and has loaded roads, sync state instantly without refetching
-    const currentSel = selectionRef.current
-    if (
-      currentSel &&
-      currentSel.plugin.name.toLowerCase() === qPlugin.toLowerCase() &&
-      currentSel.roads.length > 0
-    ) {
-      resumeDoneFor.current = key
-      setRoadError('')
-      const roadIdx = Math.max(0, Math.min(qRoad, currentSel.roads.length - 1))
-      const targetRoad = currentSel.roads[roadIdx] || currentSel.roads[0]
-      const bgmEps = bgmEpisodesQuery.data?.data
-      const slots = buildPlayableSlots(targetRoad, bgmEps)
-
-      let targetSlot: PlayableSlot | undefined
-      if (qPageUrl) {
-        targetSlot = slots.find(
-          (s) =>
-            s.pageUrl === qPageUrl ||
-            s.pageUrl.replace(/\/$/, '') === qPageUrl.replace(/\/$/, ''),
-        )
-      } else if (qEp !== undefined && qEp >= 0) {
-        targetSlot = slots.find((s) => s.canonicalEp === qEp)
-      }
-
-      if (!targetSlot && slots.length > 0) {
-        const fallbackIdx =
-          qEp !== undefined && qEp >= 0
-            ? Math.max(0, Math.min(qEp === 0 ? 0 : qEp - 1, slots.length - 1))
-            : 0
-        targetSlot = slots[fallbackIdx] || slots[0]
-      }
-
-      if (targetSlot) {
-        const epNum = targetSlot.canonicalEp
-        const targetPageUrl = targetSlot.pageUrl
-        if (
-          episodeRef.current?.episode !== epNum ||
-          episodeRef.current?.road !== roadIdx ||
-          episodeRef.current?.pageUrl !== targetPageUrl
-        ) {
-          const pos = lookupResumePosition(bangumiId, qPlugin, epNum, roadIdx)
-          resumeOverrideRef.current = null
-          setResumePosition(pos)
-          setVisibleRoad(roadIdx)
-          setEpisode({
-            pageUrl: targetPageUrl,
-            episode: epNum,
-            road: roadIdx,
-            sourceIndex: targetSlot.sourceIndex,
-            officialTitle: targetSlot.officialTitle,
-            displayTitle: targetSlot.displayTitle,
-            sourceTitle: targetSlot.sourceTitle,
-            isLayer2: targetSlot.isLayer2,
-          })
-        }
-      }
-      return
-    }
-
-    // Resolve plugin from store so array identity churn doesn't cancel mid-flight
-    const plugin =
-      usePluginStore.getState().getByName(qPlugin) ||
-      plugins.find((p) => p.name === qPlugin)
-    if (!plugin || plugin.enabled === false) return
-
-    let cancelled = false
-    // Do NOT mark done until success — cancel/plugins churn must retry
-
-    ;(async () => {
-      setKeywordTargetPlugin(plugin)
-      setRoadLoading(true)
-      setRoadError('')
-      try {
-        const boundItem = useSourceBindingStore.getState().getBinding(bangumiId, qPlugin)
-        let sourceUrl =
-          boundItem?.sourceUrl ||
-          paramsRef.current.get('source') ||
-          lookupHistorySourceUrl(bangumiId, qPlugin, qPageUrl) ||
-          ''
-        let sourceTitle = boundItem?.title || title || qPlugin
-
-        // If not bound on this device yet (e.g. shared link), auto-search and bind best match
-        if (!sourceUrl) {
-          const kw = (
-            resolvePluginDefaultKeyword(
-              plugin,
-              resolvedItem,
-              defaultKeyword,
-            ) || ''
-          ).trim()
-          // Wait for Bangumi subject metadata if we only have placeholder title
-          if (!kw || /^番剧\s*\d+$/.test(kw)) {
-            setRoadLoading(false)
-            return
-          }
-          const searchRes = await pluginApi.search(plugin, kw, {
-            title,
-            bangumiId,
-          })
-          if (cancelled) return
-          if (searchRes.data?.items?.length) {
-            const ranked = rankSearchItems(searchRes.data.items, titleRefsStable)
-            const matched = ranked[0]
-            if (matched) {
-              sourceUrl = matched.src
-              sourceTitle = matched.name
-            }
-          }
-        }
-
-        let roads = sourceUrl
-          ? findRoadsForPlay({
-              bangumiId,
-              pluginName: qPlugin,
-              pageUrl: qPageUrl,
-              sourceUrl: sourceUrl || undefined,
-            }) || []
-          : []
-
-        if (!roads.length && (sourceUrl || qPageUrl)) {
-          // Chapters need the detail/source URL, not the episode play page.
-          // Try sourceUrl first; only fall back to pageUrl for legacy rows.
-          const chapterSrc = sourceUrl || qPageUrl
-          const res = await pluginApi.chapters(plugin, chapterSrc, {
-            title: sourceTitle || title,
-            bangumiId,
-          })
-          if (cancelled) return
-          roads = res.data.roads || []
-          if (roads.length && (sourceUrl || chapterSrc)) {
-            writeRoadsForSource(
-              bangumiId,
-              qPlugin,
-              sourceUrl || chapterSrc,
-              roads,
-            )
-          }
-        }
-        if (cancelled) return
-
-        if (!roads.length) {
-          if (!cancelled) resumeDoneFor.current = key
-          setRoadError('续播：未解析到分集，请点击视频源重新选')
-          setRoadLoading(false)
-          setHudMessage('分集解析失败，请点击下方视频源重新选源')
-          return
-        }
-
-        const source: SearchItem = {
-          name: sourceTitle,
-          src: sourceUrl || qPageUrl,
-        }
-        let roadIdx = Math.max(0, qRoad)
-        const targetRoad = roads[roadIdx] || roads[0]
-        const bgmEps = bgmEpisodesQuery.data?.data
-        const slots = buildPlayableSlots(targetRoad, bgmEps)
-        let targetSlot: PlayableSlot | undefined
-
-        if (qPageUrl) {
-          targetSlot = slots.find(
-            (s) =>
-              s.pageUrl === qPageUrl ||
-              s.pageUrl.replace(/\/$/, '') === qPageUrl.replace(/\/$/, ''),
-          )
-        } else if (qEp !== undefined && qEp >= 0) {
-          targetSlot = slots.find((s) => s.canonicalEp === qEp)
-        }
-
-        if (!targetSlot && slots.length > 0) {
-          const fallbackIdx =
-            qEp !== undefined && qEp >= 0
-              ? Math.max(0, Math.min(qEp === 0 ? 0 : qEp - 1, slots.length - 1))
-              : 0
-          targetSlot = slots[fallbackIdx] || slots[0]
-        }
-
-        const epNum = targetSlot?.canonicalEp ?? 1
-        const targetPageUrl = targetSlot?.pageUrl || targetRoad?.data[0] || qPageUrl
-
-        // Sync resume before episode/selection commit so first player mount seeks
-        const pos = lookupResumePosition(bangumiId, qPlugin, epNum, roadIdx)
-        resumeOverrideRef.current = null
-        setResumePosition(pos)
-
-        if (!isWatchPage()) return
-        if (cancelled) return
-
-        setSelection({ plugin, source, roads })
-        setVisibleRoad(roadIdx)
-        setRoadError('')
-        setEpisode({
-          pageUrl: targetPageUrl,
-          episode: epNum,
-          road: roadIdx,
-          sourceIndex: targetSlot?.sourceIndex ?? 0,
-          officialTitle: targetSlot?.officialTitle,
-          displayTitle: targetSlot?.displayTitle,
-          sourceTitle: targetSlot?.sourceTitle,
-          isLayer2: targetSlot?.isLayer2,
-        })
-
-        if (source.src) {
-          useSourceBindingStore
-            .getState()
-            .setBinding(
-              bangumiId,
-              qPlugin,
-              { sourceUrl: source.src, title: source.name },
-              titleRefsStable,
-            )
-        }
-        const q = new URLSearchParams(paramsRef.current)
-        if (paramsRef.current.has('plugin')) {
-          q.set('plugin', qPlugin)
-        }
-        q.set('ep', String(epNum))
-        if (roadIdx > 0) q.set('road', String(roadIdx))
-        else q.delete('road')
-        // Clean legacy / bloated URL params from address bar
-        q.delete('pageUrl')
-        q.delete('source')
-        safeSetParams(q, { replace: true })
-        // Only lock after a successful attach
-        if (!cancelled) resumeDoneFor.current = key
-      } catch (e) {
-        if (!cancelled) {
-          resumeDoneFor.current = key
-          const msg = e instanceof Error ? e.message : '续播加载失败'
-          setRoadError(msg)
-          setHudMessage(`视频源分集加载失败：${msg}，建议切换视频源`)
-        }
-      } finally {
-        if (!cancelled) setRoadLoading(false)
-      }
-    })()
-
-    return () => {
-      cancelled = true
-    }
-    // plugins length/names & resolvedItem only — avoid identity thrash from ensureDefaults
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bangumiId, qPlugin, qPageUrl, qEp, qRoad, plugins.length, resolvedItem])
-
-  const resolve = useQuery({
-    queryKey: [
-      'resolve',
-      bangumiId,
-      selection?.plugin.name,
-      selection?.plugin.version,
-      episode?.pageUrl,
-    ],
-    queryFn: ({ signal }) => {
-      if (!selection || !episode) throw new Error('未选择分集')
-      const refresh = resolveRefreshOnce.current
-      resolveRefreshOnce.current = false
-      return pluginApi.resolve(selection.plugin, episode.pageUrl, {
-        signal,
-        refresh,
-        title,
-        episode: episode.episode,
-        bangumiId,
-      })
-    },
-    enabled: Boolean(selection?.plugin && episode?.pageUrl),
-    retry: 1,
-    // Server classifies resolve TTL; client keeps short freshness for UI
-    staleTime: 60_000,
-    gcTime: 10 * 60_000,
+    openPluginSearch,
+    resumeDoneFor,
+    defaultSearchDoneFor,
   })
 
   // Keep resumePosition in sync when selection/episode changes without pickEpisode
@@ -1692,7 +906,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
         roadIndex,
       )
       resumeOverrideRef.current = null
-      playbackRecoveryTrackerRef.current = { key: '', attempts: 0, failed: false }
+      streamResolve.resetRecoveryTracker()
       setResumePosition(pos)
       setEpisode({
         pageUrl: slot.pageUrl,
@@ -1800,29 +1014,10 @@ export function useWatchSession(bangumiId: number): WatchSession {
   }, [selection, episode?.road, bgmEpisodesQuery.data?.data])
 
   // 精准定位当前集在当前线路 slots 中的绝对索引位置
-  const currentSlotIndex = useMemo(() => {
-    if (!episode || !currentEpisodeSlots.length) return -1
-    // 1. 优先按 pageUrl 严格比对
-    const byUrl = currentEpisodeSlots.findIndex((s) => s.pageUrl === episode.pageUrl)
-    if (byUrl >= 0) return byUrl
-    // 2. 备用按 sourceIndex 比对（需保证合法区间）
-    if (
-      episode.sourceIndex !== undefined &&
-      episode.sourceIndex >= 0 &&
-      episode.sourceIndex < currentEpisodeSlots.length
-    ) {
-      const bySourceIdx = currentEpisodeSlots.findIndex(
-        (s) => s.sourceIndex === episode.sourceIndex,
-      )
-      if (bySourceIdx >= 0) return bySourceIdx
-    }
-    // 3. 备用按 canonicalEp（标准集数号）比对
-    const byEp = currentEpisodeSlots.findIndex(
-      (s) => s.canonicalEp === episode.episode,
-    )
-    if (byEp >= 0) return byEp
-    return -1
-  }, [episode, currentEpisodeSlots])
+  const currentSlotIndex = useMemo(
+    () => findCurrentSlotIndex(episode, currentEpisodeSlots),
+    [episode, currentEpisodeSlots],
+  )
 
   const hasPrevEpisode = currentSlotIndex > 0
   const hasNextEpisode =
@@ -1841,67 +1036,33 @@ export function useWatchSession(bangumiId: number): WatchSession {
     const curIdx =
       currentSlotIndex >= 0
         ? currentSlotIndex
-        : slots.findIndex((s) => s.pageUrl === episode.pageUrl)
+        : findCurrentSlotIndex(episode, slots)
     if (curIdx < 0) return
-    const nextIdx = curIdx + delta
-    if (nextIdx < 0 || nextIdx >= slots.length) return
-    const nextSlot = slots[nextIdx]
+    const nextSlot = getAdjacentEpisodeSlot(slots, curIdx, delta)
     if (nextSlot) {
       pickSlot(nextSlot, roadIndex)
     }
   }
 
-  // 单集预取防重缓存键，杜绝 85%~100% 播放期间数十次 onProgress 高频重复触发 prefetchQuery
-  const prefetchedNextEpisodeRef = useRef<string>('')
+  const nextPlayableSlot =
+    hasNextEpisode && currentSlotIndex >= 0
+      ? currentEpisodeSlots[currentSlotIndex + 1]
+      : undefined
 
-  const prefetchNextEpisode = useCallback(() => {
-    if (!selection || !episode || !hasNextEpisode) return
-    const nextSlot = currentEpisodeSlots[currentSlotIndex + 1]
-    if (!nextSlot?.pageUrl) return
-
-    const prefetchKey = `${bangumiId}|${selection.plugin.name}|${selection.plugin.version}|${nextSlot.pageUrl}`
-    if (prefetchedNextEpisodeRef.current === prefetchKey) return
-    prefetchedNextEpisodeRef.current = prefetchKey
-
-    const queryKey = [
-      'resolve',
-      bangumiId,
-      selection.plugin.name,
-      selection.plugin.version,
-      nextSlot.pageUrl,
-    ]
-
-    void queryClient.prefetchQuery({
-      queryKey,
-      queryFn: ({ signal }) =>
-        pluginApi.resolve(selection.plugin, nextSlot.pageUrl, {
-          signal,
-          title,
-          episode: nextSlot.canonicalEp,
-          bangumiId,
-        }),
-      staleTime: 60_000,
-    })
-  }, [
-    selection,
-    episode,
-    hasNextEpisode,
-    currentEpisodeSlots,
-    currentSlotIndex,
+  const { prefetchNextEpisode, maybePrefetchOnProgress } = useWatchNextPrefetch({
     bangumiId,
     title,
-    queryClient,
-  ])
+    plugin: selection?.plugin,
+    hasNextEpisode,
+    nextSlot: nextPlayableSlot,
+  })
 
   const onProgress = useCallback(
     (position: number, duration: number) => {
       currentPlaybackPositionRef.current = position
       if (!selection || !episode) return
 
-      // 预取下一集：仅在确实有下一集、播放进度达到 85% 且时长有效（>60s）时，提前在后台预解析下一集流地址
-      if (hasNextEpisode && duration > 60 && position / duration >= 0.85) {
-        prefetchNextEpisode()
-      }
+      maybePrefetchOnProgress(position, duration)
 
       upsertHistory({
         bangumiId,
@@ -1912,7 +1073,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
         pluginName: selection.plugin.name,
         pageUrl: episode.pageUrl,
         sourceUrl: selection.source.src || undefined,
-        playUrl: resolve.data?.data.playUrl,
+        playUrl: streamResolve.playUrl,
         position,
         duration,
       })
@@ -1920,167 +1081,14 @@ export function useWatchSession(bangumiId: number): WatchSession {
     [
       selection,
       episode,
-      hasNextEpisode,
-      prefetchNextEpisode,
+      maybePrefetchOnProgress,
       upsertHistory,
       bangumiId,
       title,
       cover,
-      resolve.data?.data.playUrl,
+      streamResolve.playUrl,
     ],
   )
-
-  const AUTH_REFRESH_DELAYS = [1000, 2500]
-
-  async function reResolveFresh(maxAttempts = 2): Promise<void> {
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      try {
-        resolveRefreshOnce.current = true
-        const res = await resolve.refetch({ throwOnError: true })
-        if (res.isError || !res.data?.data?.playUrl) {
-          throw res.error || new Error('解析失败')
-        }
-        setPlayerRemount((n) => n + 1)
-        return
-      } catch (err) {
-        if (attempt === maxAttempts - 1) {
-          throw err
-        }
-        const delay = AUTH_REFRESH_DELAYS[attempt] ?? 1500
-        await new Promise((r) => setTimeout(r, delay))
-      }
-    }
-  }
-
-  async function onMediaAuthExpired(position: number) {
-    const currentTrackKey = `${bangumiId}::${selectionRef.current?.plugin.name}::${episodeRef.current?.episode}::${episodeRef.current?.road}`
-    if (playbackRecoveryTrackerRef.current.key !== currentTrackKey) {
-      playbackRecoveryTrackerRef.current = {
-        key: currentTrackKey,
-        attempts: 0,
-        failed: false,
-      }
-    }
-
-    if (
-      playbackRecoveryTrackerRef.current.failed ||
-      playbackRecoveryTrackerRef.current.attempts >= MAX_PLAYBACK_FAIL_RECOVERY_ATTEMPTS
-    ) {
-      playbackRecoveryTrackerRef.current.failed = true
-      setHudMessage('视频源多次播放失败，已停止重试，建议切换其它视频源或线路')
-      return
-    }
-
-    playbackRecoveryTrackerRef.current.attempts++
-    const attempt = playbackRecoveryTrackerRef.current.attempts
-    setHudMessage(`播放连接异常，正在尝试第 ${attempt}/${MAX_PLAYBACK_FAIL_RECOVERY_ATTEMPTS} 次恢复重试…`)
-
-    if (position > 5) {
-      resumeOverrideRef.current = position
-      setResumePosition(position)
-    }
-
-    try {
-      await reResolveFresh(2)
-    } catch {
-      playbackRecoveryTrackerRef.current.failed = true
-      setHudMessage('视频源重试失败，已停止请求，建议切换其它视频源或线路')
-    }
-  }
-
-  const proxyUrl = episode ? resolve.data?.data.proxyUrl : undefined
-  const playUrl = episode ? resolve.data?.data.playUrl : undefined
-  const requiresProxy = episode ? resolve.data?.data.requiresProxy : undefined
-  const playback = useMemo(
-    () =>
-      pickPlaybackSrc({
-        playUrl,
-        proxyUrl,
-        requiresProxy,
-      }),
-    [playUrl, proxyUrl, requiresProxy],
-  )
-  const formatHint = useMemo<'hls' | 'mp4' | undefined>(() => {
-    if (!episode) return undefined
-    const resData = resolve.data?.data as
-      | (ResolvePlayResult & { format?: string })
-      | undefined
-    if (!resData) return undefined
-    const fmt = resData.format?.toLowerCase()
-    if (fmt === 'hls' || fmt === 'm3u8') return 'hls'
-    if (fmt === 'mp4' || fmt === 'progressive') return 'mp4'
-    const ct = resData.contentType?.toLowerCase()
-    if (ct) {
-      if (
-        ct.includes('application/vnd.apple.mpegurl') ||
-        ct.includes('application/x-mpegurl') ||
-        ct.includes('audio/mpegurl')
-      ) {
-        return 'hls'
-      }
-      if (ct.includes('video/mp4') || ct.includes('video/webm')) {
-        return 'mp4'
-      }
-    }
-    return undefined
-  }, [episode, resolve.data?.data])
-
-  useEffect(() => {
-    if (selection && Number.isFinite(bangumiId) && bangumiId > 0) {
-      perfMetrics.markSourceReady(bangumiId)
-    }
-  }, [selection, bangumiId])
-
-  useEffect(() => {
-    if (resolve.data?.data?.playUrl && Number.isFinite(bangumiId) && bangumiId > 0) {
-      perfMetrics.markResolverReady(bangumiId)
-    }
-  }, [resolve.data?.data?.playUrl, bangumiId])
-
-  const mediaSrc = episode ? playback.src : ''
-  const effectiveResume =
-    resumeOverrideRef.current != null
-      ? resumeOverrideRef.current
-      : resumePosition
-  const resumeTime =
-    playerSettings.continuePlay && effectiveResume > RESUME_MIN_POSITION
-      ? effectiveResume
-      : 0
-
-  function onMediaLoadFailed({ position }: { position: number }) {
-    if (position > 5) {
-      resumeOverrideRef.current = position
-      setResumePosition(position)
-    }
-    const currentTrackKey = `${bangumiId}::${selectionRef.current?.plugin.name}::${episodeRef.current?.episode}::${episodeRef.current?.road}`
-    if (playbackRecoveryTrackerRef.current.key !== currentTrackKey) {
-      playbackRecoveryTrackerRef.current = {
-        key: currentTrackKey,
-        attempts: 0,
-        failed: false,
-      }
-    }
-    playbackRecoveryTrackerRef.current.failed = true
-    // Mark next resolve to bypass cache and fetch fresh stream
-    resolveRefreshOnce.current = true
-    // Fast-fail: directly prompt user to switch source without wasteful re-resolves on dead links
-    setHudMessage('视频源连接失败，已停止请求，建议点击右侧或下方切换视频源')
-  }
-
-  async function reSearchCurrentSource(keyword: string) {
-    const plugin = keywordTargetPlugin || selection?.plugin
-    if (!plugin) return
-    const kw = keyword.trim()
-    if (!kw) return
-    // Custom keyword search: keep manual selection, do NOT auto-pick first.
-    // Dropdown keyword select uses searchOnePlugin directly with autoPickFirst.
-    await searchOnePlugin(plugin, kw, {
-      clearSelection: true,
-      autoPickFirst: false,
-      refresh: true,
-      manualKeyword: true,
-    })
-  }
 
   async function refreshChapters() {
     const sel = selectionRef.current
@@ -2146,42 +1154,18 @@ export function useWatchSession(bangumiId: number): WatchSession {
     if (selection?.plugin) setKeywordTargetPlugin(selection.plugin)
   }, [selection?.plugin])
 
-  // ── bangumi-oped: per-show OP/ED timestamps ──────────────────────────
-  const preferBangumiOped = Boolean(playerSettings.preferBangumiOped)
-  const bgmOpedQuery = useBangumiOpedData(bangumiId, preferBangumiOped)
-  const episodeDurationMap = useBangumiEpisodesDuration(bangumiId, preferBangumiOped)
+  // ── bangumi-oped: per-show OP/ED timestamps & player settings ───────
   const activePluginName =
     selection?.plugin.name || qPlugin || activeTargetPlugin?.name || ''
-  const storedOffset = useSourceBindingStore(
-    (s) => (bangumiId && activePluginName ? s.getBinding(bangumiId, activePluginName)?.danmakuOffset ?? 0 : 0),
-  )
   const rawEp = episode?.episode ?? (qEp !== undefined && qEp >= 0 ? qEp : 0)
-  const effectiveOpedEp = Math.max(0, rawEp + storedOffset)
-  const localMark = useCustomOpedStore((s) =>
-    bangumiId > 0 && effectiveOpedEp > 0
-      ? s.subjects[bangumiId]?.episodes[effectiveOpedEp]
-      : undefined,
-  )
-  const episodeDurationSeconds = useMemo(() => {
-    if (!episodeDurationMap || effectiveOpedEp <= 0) return undefined
-    return episodeDurationMap.get(effectiveOpedEp)
-  }, [episodeDurationMap, effectiveOpedEp])
-  const opedSkip = useResolvedOpedSkip(
-    preferBangumiOped ? bgmOpedQuery.data : null,
-    effectiveOpedEp,
-    playerSettings.skipOp,
-    playerSettings.skipEd,
-    episodeDurationSeconds,
-    preferBangumiOped,
-    localMark,
-  )
-  const resolvedPlayerSettings = useMemo(
-    () => ({
-      ...playerSettings,
-      ...opedSkip,
-    }),
-    [playerSettings, opedSkip],
-  )
+
+  const { resolvedPlayerSettings, bgmOpedData, expectedDurationSeconds } =
+    useWatchOpedSettings({
+      bangumiId,
+      activePluginName,
+      episodeNumber: rawEp,
+      playerSettings,
+    })
 
   const activeRoadForSlots = selection?.roads[visibleRoad]
   const slots = useMemo(() => {
@@ -2226,33 +1210,22 @@ export function useWatchSession(bangumiId: number): WatchSession {
     pendingSource,
     keywordTargetPlugin,
     setKeywordTargetPlugin: setManualKeywordTargetPlugin,
-    mediaSrc,
-    formatHint,
-    adBlockerMode: resolve.data?.data?.adBlockerMode ?? selection?.plugin.adBlockerMode ?? 'none',
-    playbackMode: playback.mode,
+    mediaSrc: streamResolve.mediaSrc,
+    formatHint: streamResolve.formatHint,
+    adBlockerMode: streamResolve.adBlockerMode,
+    playbackMode: streamResolve.playbackMode,
     /** direct | playlist-proxy (ad hybrid) | full-proxy — for WatchMeta hint */
-    playbackTransit: playback.transit,
+    playbackTransit: streamResolve.playbackTransit,
     // playerKey uniquely represents physical media stream channel and transit mode;
     // in-place seek handles late resume without destructive player DOM remounts.
-    playerKey: `${mediaSrc}#${playerRemount}#${playback.mode}`,
-    resumeTime,
-    resolveLoading: Boolean(selection && episode && resolve.isLoading),
-    resolveError: resolve.error,
-    diagnostics: resolve.data?.data.diagnostics,
-    subtitle: resolve.data?.data.subtitle ?? (
-      resolve.data?.data.subtitles || resolve.data?.data.fonts
-        ? {
-            subtitles: resolve.data?.data.subtitles,
-            fonts: resolve.data?.data.fonts,
-          }
-        : undefined
-    ),
-    subtitles:
-      resolve.data?.data.subtitle?.subtitles ??
-      resolve.data?.data.subtitles,
-    fonts:
-      resolve.data?.data.subtitle?.fonts ??
-      resolve.data?.data.fonts,
+    playerKey: streamResolve.playerKey,
+    resumeTime: streamResolve.resumeTime,
+    resolveLoading: streamResolve.resolveLoading,
+    resolveError: streamResolve.resolveError,
+    diagnostics: streamResolve.diagnostics,
+    subtitle: streamResolve.subtitle,
+    subtitles: streamResolve.subtitles,
+    fonts: streamResolve.fonts,
     danmakuSettings,
     playerSettings: resolvedPlayerSettings,
     setDanmaku,
@@ -2271,20 +1244,17 @@ export function useWatchSession(bangumiId: number): WatchSession {
     goAdjacentEpisode,
     prefetchNextEpisode,
     onProgress,
-    onMediaAuthExpired,
-    onMediaLoadFailed,
+    onMediaAuthExpired: streamResolve.onMediaAuthExpired,
+    onMediaLoadFailed: streamResolve.onMediaLoadFailed,
     refetchSubject: () => {
       void subject.refetch()
     },
-    refetchResolve: () => {
-      resolveRefreshOnce.current = true
-      void resolve.refetch()
-    },
+    refetchResolve: streamResolve.refetchResolve,
     refreshChapters,
     hudMessage,
     clearHudMessage,
-    bgmOpedData: bgmOpedQuery.data,
-    expectedDurationSeconds: episodeDurationSeconds,
+    bgmOpedData,
+    expectedDurationSeconds,
     pageUrl: episode?.pageUrl || qPageUrl,
     pluginName: isSubjectTransition ? (qPlugin || '') : (selection?.plugin.name || qPlugin),
   }

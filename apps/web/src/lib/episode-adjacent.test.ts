@@ -1,51 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import type { PlayableSlot } from '@animaku/shared'
-
-/**
- * 提取自 use-watch-session 的当前集索引定位与边界判定纯逻辑
- */
-function resolveEpisodeBoundaries(
-  episode: { pageUrl: string; episode: number; sourceIndex?: number } | null | undefined,
-  slots: PlayableSlot[],
-) {
-  if (!episode || !slots.length) {
-    return {
-      currentSlotIndex: -1,
-      hasPrevEpisode: false,
-      hasNextEpisode: false,
-    }
-  }
-
-  // 1. 优先按 pageUrl 严格比对
-  let idx = slots.findIndex((s) => s.pageUrl === episode.pageUrl)
-
-  // 2. 备用按 sourceIndex 比对（合法区间内）
-  if (
-    idx < 0 &&
-    episode.sourceIndex !== undefined &&
-    episode.sourceIndex >= 0 &&
-    episode.sourceIndex < slots.length
-  ) {
-    idx = slots.findIndex((s) => s.sourceIndex === episode.sourceIndex)
-  }
-
-  // 3. 备用按 canonicalEp（标准集数号）比对
-  if (idx < 0) {
-    idx = slots.findIndex((s) => s.canonicalEp === episode.episode)
-  }
-
-  const currentSlotIndex = idx
-  const hasPrevEpisode = currentSlotIndex > 0
-  const hasNextEpisode =
-    currentSlotIndex >= 0 && currentSlotIndex < slots.length - 1
-
-  return {
-    currentSlotIndex,
-    hasPrevEpisode,
-    hasNextEpisode,
-  }
-}
+import {
+  resolveEpisodeBoundaries,
+  findCurrentSlotIndex,
+  getAdjacentEpisodeSlot,
+} from './watch-episode-boundaries.ts'
 
 const mockSlots12: PlayableSlot[] = Array.from({ length: 12 }, (_, i) => ({
   canonicalEp: i + 1,
@@ -128,3 +88,21 @@ test('完全不匹配或空数据：全部返回 false，杜绝误判', () => {
   assert.equal(res.hasPrevEpisode, false)
   assert.equal(res.hasNextEpisode, false)
 })
+
+test('getAdjacentEpisodeSlot: 上一集与下一集正确获取与越界保护', () => {
+  // 第6集 (index 5)
+  const nextSlot = getAdjacentEpisodeSlot(mockSlots12, 5, 1)
+  assert.equal(nextSlot?.canonicalEp, 7)
+
+  const prevSlot = getAdjacentEpisodeSlot(mockSlots12, 5, -1)
+  assert.equal(prevSlot?.canonicalEp, 5)
+
+  // 第一集向前越界返回 null
+  const underflow = getAdjacentEpisodeSlot(mockSlots12, 0, -1)
+  assert.equal(underflow, null)
+
+  // 最后一集向后越界返回 null
+  const overflow = getAdjacentEpisodeSlot(mockSlots12, 11, 1)
+  assert.equal(overflow, null)
+})
+
