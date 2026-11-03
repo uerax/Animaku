@@ -18,11 +18,9 @@ import {
   cacheGetOrSet,
   cacheSet,
   pluginCacheKey,
-  ruleCacheId,
   resolveCacheTtlMs,
   wantsCacheBypass,
 } from '../lib/ttl-cache'
-import { pluginSearchCache, pluginChaptersCache } from '../db'
 import { pluginCircuitBreaker } from '../lib/source/plugin-circuit-breaker'
 
 export const pluginRoutes = new Hono()
@@ -81,29 +79,19 @@ pluginRoutes.post('/search', async (c) => {
   }
   const keyword = body.keyword.trim()
   const key = pluginCacheKey('search', rule, keyword.toLowerCase())
-  const ruleHash = ruleCacheId(rule)
   const bypass = wantsCacheBypass(c)
 
   if (bypass) {
     cacheDelete(key)
-    pluginSearchCache.delete(key)
   } else {
-    // 1. L1 Fast in-memory cache hit (< 0.1ms)
+    // Fast in-memory cache hit (< 0.1ms)
     const memHit = cacheGet<PluginSearchResult>(key)
     if (memHit) {
       return c.json({ data: memHit }, 200, cacheHeaders(true))
     }
-
-    // 2. L2 Persistent SQLite cache hit (< 1ms, survives restarts & image updates)
-    const dbHit = pluginSearchCache.get(key)
-    if (dbHit) {
-      // Warm L1 memory cache for hot repeat requests
-      cacheSet(key, dbHit, PLUGIN_CACHE_TTL.search, PLUGIN_MAX_ENTRIES)
-      return c.json({ data: dbHit }, 200, cacheHeaders(true))
-    }
   }
 
-  // 3. Circuit breaker check before making outbound request on cache miss
+  // Circuit breaker check before making outbound request on cache miss
   const breakerCheck = pluginCircuitBreaker.checkBeforeSearch(rule.name)
   if (!breakerCheck.allowed) {
     return c.json(
@@ -116,22 +104,13 @@ pluginRoutes.post('/search', async (c) => {
   }
 
   try {
-    // 4. Cache MISS: execute upstream search with single-flight loader deduplication
+    // Cache MISS: execute upstream search with single-flight loader deduplication
     const { value, hit } = await cacheGetOrSet(
       key,
       PLUGIN_CACHE_TTL.search,
       async () => {
         const result = await searchWithRule(rule, keyword)
         pluginCircuitBreaker.recordSuccess(rule.name)
-        // Store in SQLite database for durable persistence
-        pluginSearchCache.set(
-          key,
-          rule.name,
-          keyword.toLowerCase(),
-          ruleHash,
-          result,
-          PLUGIN_CACHE_TTL.search,
-        )
         return result
       },
       { bypass, maxEntries: PLUGIN_MAX_ENTRIES },
@@ -167,53 +146,25 @@ pluginRoutes.post('/chapters', async (c) => {
   }
   const source = body.source.trim().replace(/\/+$/, '')
   const key = pluginCacheKey('chapters', rule, source)
-  const ruleHash = ruleCacheId(rule)
   const bypass = wantsCacheBypass(c)
 
   if (bypass) {
     cacheDelete(key)
-    pluginChaptersCache.delete(key)
   } else {
-    // 1. L1 Fast in-memory cache hit (< 0.1ms)
+    // Fast in-memory cache hit (< 0.1ms)
     const memHit = cacheGet<PluginChapterResult>(key)
     if (memHit) {
       return c.json({ data: memHit }, 200, cacheHeaders(true))
     }
-
-    // 2. L2 Persistent SQLite cache hit (< 1ms, survives restarts & image updates)
-    const dbHit = pluginChaptersCache.get(key)
-    if (dbHit) {
-      const ttl =
-        dbHit.roads?.length > 0
-          ? PLUGIN_CACHE_TTL.chapters
-          : PLUGIN_CACHE_TTL.chaptersEmpty
-      // Warm L1 memory cache for hot repeat requests
-      cacheSet(key, dbHit, ttl, PLUGIN_MAX_ENTRIES)
-      return c.json({ data: dbHit }, 200, cacheHeaders(true))
-    }
   }
 
   try {
-    // 3. Cache MISS: execute upstream chapter extraction with single-flight loader deduplication
+    // Cache MISS: execute upstream chapter extraction with single-flight loader deduplication
     const { value, hit } = await cacheGetOrSet(
       key,
       0,
       async () => {
-        const result = await chaptersWithRule(rule, source)
-        const ttl =
-          result.roads?.length > 0
-            ? PLUGIN_CACHE_TTL.chapters
-            : PLUGIN_CACHE_TTL.chaptersEmpty
-        // Store in SQLite database for durable persistence (30m for valid episodes, 1m for empty to prevent spam)
-        pluginChaptersCache.set(
-          key,
-          rule.name,
-          source,
-          ruleHash,
-          result,
-          ttl,
-        )
-        return result
+        return await chaptersWithRule(rule, source)
       },
       { bypass, maxEntries: PLUGIN_MAX_ENTRIES },
     )
