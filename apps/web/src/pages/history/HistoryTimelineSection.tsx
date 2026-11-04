@@ -1,4 +1,5 @@
 import type { HistoryTimeGroup, HistoryTimeGroupKey } from '@animaku/shared'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { HistoryCard } from './HistoryCard'
 
 interface HistoryTimelineSectionProps {
@@ -19,6 +20,8 @@ export function HistoryTimelineSection({
   onClearGroup,
 }: HistoryTimelineSectionProps) {
   const isToday = group.key === 'today'
+
+  const isReducedMotion = useReducedMotion()
 
   return (
     <section className="relative pl-6 sm:pl-8">
@@ -66,18 +69,32 @@ export function HistoryTimelineSection({
         )}
       </div>
 
-      {/* 组内条目列表 */}
+      {/* 组内条目列表：删除时平滑向上合拢 */}
       <div className="space-y-2.5 mb-8">
-        {group.items.map((item) => (
-          <HistoryCard
-            key={item.id}
-            entry={item}
-            isBatchMode={isBatchMode}
-            isSelected={selectedIds.has(item.id)}
-            onToggleSelect={onToggleSelect}
-            onDelete={onDeleteEntry}
-          />
-        ))}
+        <AnimatePresence initial={false}>
+          {group.items.map((item) => (
+            <motion.div
+              key={item.id}
+              layout={isReducedMotion ? false : true}
+              initial={isReducedMotion ? false : { opacity: 0, scale: 0.98 }}
+              animate={isReducedMotion ? undefined : { opacity: 1, scale: 1 }}
+              exit={
+                isReducedMotion
+                  ? undefined
+                  : { opacity: 0, x: -24, height: 0, overflow: 'hidden' }
+              }
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <HistoryCard
+                entry={item}
+                isBatchMode={isBatchMode}
+                isSelected={selectedIds.has(item.id)}
+                onToggleSelect={onToggleSelect}
+                onDelete={onDeleteEntry}
+              />
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
     </section>
   )

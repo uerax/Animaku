@@ -8,6 +8,7 @@ import {
 } from 'react'
 import { Link } from 'react-router-dom'
 import clsx from 'clsx'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import {
   type BangumiItem,
   type PluginMeta,
@@ -72,6 +73,7 @@ export function SourceBoard({
   onAutoProbingChange,
   embedded = false,
 }: SourceBoardProps) {
+  const isReducedMotion = useReducedMotion()
   const [expandedPlugin, setExpandedPlugin] = useState<string | null>(null)
   const [cardKwInputs, setCardKwInputs] = useState<Record<string, string>>({})
   const prevBangumiIdRef = useRef(bangumiId)
@@ -473,8 +475,15 @@ export function SourceBoard({
                   </div>
 
                   {/* Unified Expandable Drawer */}
-                  {isExpanded && (
-                    <div className="border-t border-[var(--kz-border-subtle)] bg-[var(--kz-bg-soft)] p-2.5 space-y-2.5 animate-in fade-in duration-150">
+                  <AnimatePresence>
+                    {isExpanded && (
+                      <motion.div
+                        initial={isReducedMotion ? false : { height: 0, opacity: 0 }}
+                        animate={isReducedMotion ? undefined : { height: 'auto', opacity: 1 }}
+                        exit={isReducedMotion ? undefined : { height: 0, opacity: 0 }}
+                        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                        className="overflow-hidden border-t border-[var(--kz-border-subtle)] bg-[var(--kz-bg-soft)] p-2.5 space-y-2.5"
+                      >
                       {/* Probing State Banner */}
                       {state.status === 'probing' ? (
                         <div className="flex items-center gap-2 rounded-lg bg-[var(--kz-bg-elevated)] border border-[var(--kz-accent)]/30 px-3 py-2 text-[11.5px] text-[var(--kz-accent)]">
@@ -646,8 +655,9 @@ export function SourceBoard({
                           {state.status === 'probing' ? '搜索中…' : '重搜'}
                         </button>
                       </form>
-                    </div>
+                    </motion.div>
                   )}
+                  </AnimatePresence>
                 </div>
               )
             })}

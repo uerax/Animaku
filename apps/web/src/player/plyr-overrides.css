@@ -443,15 +443,15 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   gap: 0.5rem;
   padding: 0.5rem 1.15rem;
   border-radius: 9999px;
-  background: rgba(15, 23, 42, 0.82);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(15, 20, 28, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   color: #f1f5f9;
   font-size: 0.875rem;
   font-weight: 600;
   letter-spacing: 0.02em;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), 0 0 16px rgba(56, 189, 248, 0.2);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.25), 0 16px 40px rgba(0, 0, 0, 0.55), 0 0 16px rgba(56, 189, 248, 0.25);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
   animation: kz-hud-fade 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -605,12 +605,12 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   align-items: center;
   gap: 0.85rem;
   padding: 0.65rem 1rem 0.65rem 0.85rem;
-  border-radius: 1rem;
-  background: rgba(15, 23, 42, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), 0 0 16px rgba(56, 189, 248, 0.25);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-radius: 1.15rem;
+  background: rgba(15, 20, 28, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.22), 0 20px 48px rgba(0, 0, 0, 0.65), 0 0 20px rgba(56, 189, 248, 0.25);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
   color: #ffffff;
 }
 

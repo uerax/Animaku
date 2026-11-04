@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import clsx from 'clsx'
+import { motion, useReducedMotion } from 'framer-motion'
 
 export type WatchPodTab = 'episodes' | 'sources' | 'detail'
 
@@ -55,6 +56,8 @@ export function WatchEpisodeSourcePod({
       ? `${sourcesReadyCount}/${sourcesTotalCount}`
       : null)
 
+  const isReducedMotion = useReducedMotion()
+
   // 选集药丸按钮
   const episodesPill = (
     <button
@@ -63,15 +66,26 @@ export function WatchEpisodeSourcePod({
       aria-selected={activeTab === 'episodes'}
       onClick={() => onTabChange('episodes')}
       className={clsx(
-        'group flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs transition-all duration-200 select-none cursor-pointer',
+        'group relative flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs transition-colors duration-200 select-none cursor-pointer',
         activeTab === 'episodes'
-          ? 'bg-[var(--kz-bg-elevated)] text-[var(--kz-fg)] font-semibold shadow-xs ring-1 ring-black/5 dark:ring-white/10'
-          : 'text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)]/40',
+          ? 'text-[var(--kz-fg)] font-semibold'
+          : 'text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)]',
       )}
     >
+      {activeTab === 'episodes' && (
+        <motion.span
+          layoutId="active-pod-pill"
+          className="absolute inset-0 rounded-full bg-[var(--kz-bg-elevated)] shadow-xs ring-1 ring-black/5 dark:ring-white/10"
+          transition={
+            isReducedMotion
+              ? { duration: 0 }
+              : { type: 'spring', damping: 25, stiffness: 350 }
+          }
+        />
+      )}
       <svg
         className={clsx(
-          'w-3.5 h-3.5 transition-colors',
+          'relative z-10 w-3.5 h-3.5 transition-colors',
           activeTab === 'episodes'
             ? 'text-[var(--kz-accent)]'
             : 'text-[var(--kz-fg-dim)] group-hover:text-[var(--kz-fg-muted)]',
@@ -82,11 +96,11 @@ export function WatchEpisodeSourcePod({
       >
         <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z" />
       </svg>
-      <span>选集</span>
+      <span className="relative z-10">选集</span>
       {epBadge && (
         <span
           className={clsx(
-            'text-[11px] font-normal tracking-tight px-1 py-0.2 rounded',
+            'relative z-10 text-[11px] font-normal tracking-tight px-1 py-0.2 rounded',
             activeTab === 'episodes'
               ? 'text-[var(--kz-fg-muted)]'
               : 'text-[var(--kz-fg-dim)]',
@@ -106,15 +120,26 @@ export function WatchEpisodeSourcePod({
       aria-selected={activeTab === 'sources'}
       onClick={() => onTabChange('sources')}
       className={clsx(
-        'group flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs transition-all duration-200 select-none cursor-pointer',
+        'group relative flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs transition-colors duration-200 select-none cursor-pointer',
         activeTab === 'sources'
-          ? 'bg-[var(--kz-bg-elevated)] text-[var(--kz-fg)] font-semibold shadow-xs ring-1 ring-black/5 dark:ring-white/10'
-          : 'text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)]/40',
+          ? 'text-[var(--kz-fg)] font-semibold'
+          : 'text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)]',
       )}
     >
+      {activeTab === 'sources' && (
+        <motion.span
+          layoutId="active-pod-pill"
+          className="absolute inset-0 rounded-full bg-[var(--kz-bg-elevated)] shadow-xs ring-1 ring-black/5 dark:ring-white/10"
+          transition={
+            isReducedMotion
+              ? { duration: 0 }
+              : { type: 'spring', damping: 25, stiffness: 350 }
+          }
+        />
+      )}
       <svg
         className={clsx(
-          'w-3.5 h-3.5 transition-colors',
+          'relative z-10 w-3.5 h-3.5 transition-colors',
           activeTab === 'sources'
             ? 'text-[var(--kz-accent)]'
             : 'text-[var(--kz-fg-dim)] group-hover:text-[var(--kz-fg-muted)]',
@@ -129,13 +154,13 @@ export function WatchEpisodeSourcePod({
       >
         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
       </svg>
-      <span>视频源</span>
+      <span className="relative z-10">视频源</span>
       {isAutoProbing ? (
-        <span className="inline-block h-2 w-2 animate-spin rounded-full border border-[var(--kz-accent)] border-t-transparent" />
+        <span className="relative z-10 inline-block h-2 w-2 animate-spin rounded-full border border-[var(--kz-accent)] border-t-transparent" />
       ) : sourceBadge ? (
         <span
           className={clsx(
-            'text-[11px] font-normal tracking-tight max-w-[85px] truncate',
+            'relative z-10 text-[11px] font-normal tracking-tight max-w-[85px] truncate',
             activeTab === 'sources'
               ? 'text-[var(--kz-fg-muted)]'
               : 'text-[var(--kz-fg-dim)]',
@@ -156,15 +181,26 @@ export function WatchEpisodeSourcePod({
       aria-selected={activeTab === 'detail'}
       onClick={() => onTabChange('detail')}
       className={clsx(
-        'group flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs transition-all duration-200 select-none cursor-pointer',
+        'group relative flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs transition-colors duration-200 select-none cursor-pointer',
         activeTab === 'detail'
-          ? 'bg-[var(--kz-bg-elevated)] text-[var(--kz-fg)] font-semibold shadow-xs ring-1 ring-black/5 dark:ring-white/10'
-          : 'text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)]/40',
+          ? 'text-[var(--kz-fg)] font-semibold'
+          : 'text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)]',
       )}
     >
+      {activeTab === 'detail' && (
+        <motion.span
+          layoutId="active-pod-pill"
+          className="absolute inset-0 rounded-full bg-[var(--kz-bg-elevated)] shadow-xs ring-1 ring-black/5 dark:ring-white/10"
+          transition={
+            isReducedMotion
+              ? { duration: 0 }
+              : { type: 'spring', damping: 25, stiffness: 350 }
+          }
+        />
+      )}
       <svg
         className={clsx(
-          'w-3.5 h-3.5 transition-colors',
+          'relative z-10 w-3.5 h-3.5 transition-colors',
           activeTab === 'detail'
             ? 'text-[var(--kz-accent)]'
             : 'text-[var(--kz-fg-dim)] group-hover:text-[var(--kz-fg-muted)]',
@@ -181,7 +217,7 @@ export function WatchEpisodeSourcePod({
         <line x1="12" y1="16" x2="12" y2="12" />
         <line x1="12" y1="8" x2="12.01" y2="8" />
       </svg>
-      <span>详情</span>
+      <span className="relative z-10">详情</span>
     </button>
   ) : null
 

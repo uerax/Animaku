@@ -7,6 +7,7 @@ import {
   useLocation,
 } from 'react-router-dom'
 import clsx from 'clsx'
+import { motion, useReducedMotion } from 'framer-motion'
 import { defaultNavSettings, useSettingsStore } from '../stores/settings'
 import { useSearchHistoryStore } from '../stores/search-history'
 import { useSiteConfigStore } from '../stores/site-config'
@@ -28,6 +29,13 @@ const primaryLinks = [
 const moreLinks = [
   { to: '/timeline', label: '时间表' },
 ]
+
+function getActivePrimaryNavTab(pathname: string): string | null {
+  if (pathname === '/') return '/'
+  if (pathname.startsWith('/anime')) return '/anime'
+  if (pathname.startsWith('/timeline')) return '/timeline'
+  return null
+}
 
 function GitHubIconButton() {
   const b = getSiteBranding()
@@ -56,15 +64,18 @@ function NavItem({
   label,
   end,
   onNavigate,
+  sessionId = 0,
 }: {
   to: string
   label: string
   end?: boolean
   onNavigate?: () => void
+  sessionId?: number
 }) {
   const onWarmup = () => {
     if (to !== '/') preloadRoute(to)
   }
+  const isReducedMotion = useReducedMotion()
 
   return (
     <NavLink
@@ -76,7 +87,7 @@ function NavItem({
       onTouchStart={onWarmup}
       className={({ isActive }) =>
         clsx(
-          'relative whitespace-nowrap rounded-lg px-2 py-1 text-sm font-bold tracking-wide transition-all duration-200 sm:px-3.5 sm:py-2 sm:text-[15px]',
+          'relative whitespace-nowrap rounded-lg px-2 py-1 text-sm font-bold tracking-wide transition-colors sm:px-3.5 sm:py-2 sm:text-[15px]',
           isActive
             ? 'text-[var(--kz-fg)]'
             : 'text-[var(--kz-fg-muted)] hover:bg-[var(--kz-bg-hover)] hover:text-[var(--kz-fg)]',
@@ -85,10 +96,18 @@ function NavItem({
     >
       {({ isActive }) => (
         <>
-          {label}
+          <span className="relative z-10">{label}</span>
           {isActive && (
-            <span
-              className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-[var(--kz-accent)] shadow-[0_0_8px_var(--kz-accent)]"
+            <motion.span
+              layoutId={isReducedMotion ? undefined : `navbar-active-${sessionId}`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={
+                isReducedMotion
+                  ? { duration: 0 }
+                  : { type: 'spring', damping: 28, stiffness: 380 }
+              }
+              className="absolute inset-x-2.5 sm:inset-x-3 bottom-0 h-0.5 rounded-full bg-[var(--kz-accent)] shadow-[0_0_8px_var(--kz-accent)]"
               aria-hidden
             />
           )}
@@ -164,6 +183,20 @@ export function Layout() {
 
   const navigate = useNavigate()
   const location = useLocation()
+
+  // Track navbar session: whenever entering primary nav from an outside route (activeNavTab was null),
+  // increment sessionId so Framer Motion creates a fresh, isolated layoutId scope without flying from the sky.
+  const activeNavTab = getActivePrimaryNavTab(location.pathname)
+  const sessionRef = useRef({ prevTab: activeNavTab, id: 0 })
+
+  if (sessionRef.current.prevTab !== activeNavTab) {
+    if (sessionRef.current.prevTab === null && activeNavTab !== null) {
+      sessionRef.current.id += 1
+    }
+    sessionRef.current.prevTab = activeNavTab
+  }
+  const navSessionId = sessionRef.current.id
+
   const [params] = useSearchParams()
   const showGitHub = useSettingsStore(
     (s) => s.nav?.showGitHub ?? defaultNavSettings.showGitHub,
@@ -344,13 +377,13 @@ export function Layout() {
             aria-label="主导航"
           >
             {primaryLinks.map((l) => (
-              <NavItem key={l.to} {...l} />
+              <NavItem key={l.to} {...l} sessionId={navSessionId} />
             ))}
 
             {/* Desktop: rest of links inline */}
             <div className="hidden items-center gap-0.5 md:flex">
               {moreLinks.map((l) => (
-                <NavItem key={l.to} {...l} />
+                <NavItem key={l.to} {...l} sessionId={navSessionId} />
               ))}
 
               {/* 自定义广告外链 / 赞助商直达 */}

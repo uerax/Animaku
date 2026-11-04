@@ -7,6 +7,7 @@ import {
   BangumiGridSkeleton,
   ErrorState,
   PageHeader,
+  KzSelect,
 } from '../components/ui'
 import clsx from 'clsx'
 
@@ -289,31 +290,27 @@ export function AnimePage() {
               label={String(y)}
             />
           ))}
-          <label className="inline-flex items-center gap-1.5">
-            <span className="sr-only">更多年份</span>
-            <select
-              value={
-                !yearAll &&
-                year != null &&
-                !yearOptions.slice(0, 12).includes(year)
-                  ? String(year)
-                  : ''
-              }
-              onChange={(e) => {
-                const v = e.target.value
-                if (!v) return
-                patchParams({ year: v })
-              }}
-              className="box-border h-9 min-w-[4.5rem] rounded-full border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] px-3 text-center text-[13px] font-bold leading-none text-[var(--kz-fg)] outline-none focus:border-[var(--kz-accent)]"
-            >
-              <option value="">更早…</option>
-              {yearOptions.slice(12).map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
-          </label>
+          <KzSelect
+            value={
+              !yearAll &&
+              year != null &&
+              !yearOptions.slice(0, 12).includes(year)
+                ? String(year)
+                : ''
+            }
+            placeholder="更早…"
+            onChange={(v) => {
+              if (v) patchParams({ year: v })
+            }}
+            options={yearOptions.slice(12).map((y) => ({
+              value: String(y),
+              label: `${y} 年`,
+            }))}
+            className="min-w-[5.5rem]"
+            dropdownWidth="w-32"
+            align="left"
+            aria-label="更多年份"
+          />
         </div>
       </section>
 

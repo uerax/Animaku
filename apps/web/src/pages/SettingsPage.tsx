@@ -19,7 +19,7 @@ import {
 } from '../lib/bangumi-image-host'
 import { useSettingsStore } from '../stores/settings'
 import { isBuiltinPlugin, usePluginStore } from '../stores/plugins'
-import { PageHeader } from '../components/ui'
+import { PageHeader, KzSelect, KzSwitch } from '../components/ui'
 import { getSiteBranding } from '../lib/site-branding'
 import { EMPTY_ARRAY, FALLBACK_DANMAKU, FALLBACK_NAV, FALLBACK_PLAYER } from '../lib/stable'
 import {
@@ -445,21 +445,21 @@ export function SettingsPage() {
         isOpen={Boolean(openSections['image-host'])}
         onToggle={() => toggleSection('image-host')}
       >
-        <label className="flex items-center justify-between gap-3 text-xs sm:text-sm text-[var(--kz-fg)]">
+        <div className="flex items-center justify-between gap-3 text-xs sm:text-sm text-[var(--kz-fg)]">
           <span className="font-medium">图片源</span>
-          <select
+          <KzSelect
             value={bangumiImageHost}
-            onChange={(e) => setBangumiImageHost(e.target.value)}
-            className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1.5 text-xs sm:text-sm outline-none focus:border-[var(--kz-accent)] cursor-pointer"
-          >
-            {BANGUMI_IMAGE_HOST_OPTIONS.map((o) => (
-              <option key={o.host} value={o.host}>
-                {o.label}
-                {o.host === DEFAULT_BANGUMI_IMAGE_HOST ? ' · 默认' : ''}
-              </option>
-            ))}
-          </select>
-        </label>
+            onChange={(val) => setBangumiImageHost(val)}
+            options={BANGUMI_IMAGE_HOST_OPTIONS.map((o) => ({
+              value: o.host,
+              label: `${o.label}${o.host === DEFAULT_BANGUMI_IMAGE_HOST ? ' · 默认' : ''}`,
+            }))}
+            className="w-48 sm:w-56 shrink-0"
+            dropdownWidth="w-full"
+            align="right"
+            aria-label="选择封面图片源"
+          />
+        </div>
       </CollapsibleSection>
 
       {/* 3. Bangumi Access Token */}
@@ -1101,39 +1101,43 @@ export function SettingsPage() {
           checked={player.continuePlay}
           onChange={(continuePlay) => setPlayer({ continuePlay })}
         />
-        <label className="flex items-center justify-between gap-3 text-xs sm:text-sm text-[var(--kz-fg)]">
+        <div className="flex items-center justify-between gap-3 text-xs sm:text-sm text-[var(--kz-fg)]">
           <span className="font-medium">默认倍速</span>
-          <select
+          <KzSelect
             value={player.speed}
-            onChange={(e) => setPlayer({ speed: Number(e.target.value) || 1 })}
-            className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2 py-1.5 text-xs sm:text-sm cursor-pointer"
-          >
-            {PLAYER_SPEEDS.map((s) => (
-              <option key={s} value={s}>
-                {s}x
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex items-center justify-between gap-3 text-xs sm:text-sm text-[var(--kz-fg)]">
+            onChange={(speed) => setPlayer({ speed: Number(speed) || 1 })}
+            options={PLAYER_SPEEDS.map((s) => ({
+              value: s,
+              label: `${s}x`,
+            }))}
+            className="w-28 sm:w-32 shrink-0"
+            dropdownWidth="w-full"
+            align="right"
+            aria-label="选择默认倍速"
+          />
+        </div>
+        <div className="flex items-center justify-between gap-3 text-xs sm:text-sm text-[var(--kz-fg)]">
           <span className="font-medium">超分（Anime4K）</span>
-          <select
+          <KzSelect
             value={player.superResolution || 'off'}
-            onChange={(e) =>
+            onChange={(val) =>
               setPlayer({
-                superResolution: (e.target.value === 'efficiency' ||
-                e.target.value === 'quality'
-                  ? e.target.value
+                superResolution: (val === 'efficiency' || val === 'quality'
+                  ? val
                   : 'off') as 'off' | 'efficiency' | 'quality',
               })
             }
-            className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2 py-1.5 text-xs sm:text-sm cursor-pointer"
-          >
-            <option value="off">关闭（默认）</option>
-            <option value="efficiency">效率档</option>
-            <option value="quality">质量档</option>
-          </select>
-        </label>
+            options={[
+              { value: 'off', label: '关闭（默认）' },
+              { value: 'efficiency', label: '效率档' },
+              { value: 'quality', label: '质量档' },
+            ]}
+            className="w-36 sm:w-40 shrink-0"
+            dropdownWidth="w-full"
+            align="right"
+            aria-label="选择超分模式"
+          />
+        </div>
         <p className="text-[11px] sm:text-xs text-[var(--kz-fg-dim)]">
           需要 Chrome / Edge 等支持 WebGPU 的浏览器。iPhone 系统全屏看不到 canvas 超分，请用「网页全屏」。
         </p>
@@ -1449,19 +1453,16 @@ function Toggle({
   disabled?: boolean
 }) {
   return (
-    <label
-      className={`flex items-center justify-between text-sm ${
-        disabled ? 'cursor-not-allowed opacity-60' : ''
-      }`}
-    >
-      <span>{label}</span>
-      <input
-        type="checkbox"
+    <div className="flex items-center justify-between text-sm py-0.5">
+      <span className="text-xs sm:text-sm font-medium text-[var(--kz-fg)]">{label}</span>
+      <KzSwitch
         checked={checked}
+        onChange={onChange}
         disabled={disabled}
-        onChange={(e) => onChange(e.target.checked)}
+        aria-label={label}
+        size="md"
       />
-    </label>
+    </div>
   )
 }
 

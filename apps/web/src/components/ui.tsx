@@ -1,6 +1,6 @@
 import { memo, useState, useRef, useLayoutEffect, useMemo, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { motion, useReducedMotion } from 'framer-motion'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import type { BangumiItem } from '@animaku/shared'
 import {
   airProgressLabel,
@@ -468,5 +468,244 @@ export function PageHeader({
       </div>
       {actions}
     </div>
+  )
+}
+
+/* ──────────────────────────────────────────────────────────
+   KzSelect — 通用现代仿水滴/玻璃拟态流光下拉选择组件
+   支持 framer-motion 弹性进出、高光边框、180°指示翻转与全键盘交互
+   ────────────────────────────────────────────────────────── */
+
+export interface KzSelectOption<T extends string | number> {
+  value: T
+  label: string
+  badge?: string
+}
+
+export interface KzSelectProps<T extends string | number> {
+  id?: string
+  value: T
+  options: readonly KzSelectOption<T>[] | KzSelectOption<T>[]
+  onChange: (val: T) => void
+  placeholder?: string
+  className?: string
+  dropdownWidth?: string
+  align?: 'left' | 'right'
+  size?: 'sm' | 'md'
+  disabled?: boolean
+  'aria-label'?: string
+}
+
+export function KzSelect<T extends string | number>({
+  id,
+  value,
+  options,
+  onChange,
+  placeholder,
+  className = '',
+  dropdownWidth,
+  align = 'left',
+  size = 'md',
+  disabled = false,
+  'aria-label': ariaLabel,
+}: KzSelectProps<T>) {
+  const [open, setOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const isReducedMotion = useReducedMotion()
+
+  const selectedOption = options.find((o) => o.value === value)
+
+  useEffect(() => {
+    if (!open) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (!containerRef.current?.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [open])
+
+  const sizeClasses =
+    size === 'sm'
+      ? 'h-8 px-2.5 text-xs rounded-xl gap-1.5'
+      : 'h-9 px-3 text-xs sm:text-sm rounded-xl gap-2'
+
+  return (
+    <div ref={containerRef} className={`relative inline-block ${className}`}>
+      <button
+        id={id}
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((p) => !p)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={ariaLabel}
+        className={`flex items-center justify-between w-full border border-[var(--kz-border)] bg-[var(--kz-bg)] font-medium text-[var(--kz-fg)] transition-all cursor-pointer select-none text-left shadow-xs hover:border-[var(--kz-accent)] hover:bg-[var(--kz-bg-hover)] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed ${sizeClasses} ${
+          open ? 'border-[var(--kz-accent)] ring-1 ring-[var(--kz-accent)]/50' : ''
+        }`}
+      >
+        <span className="truncate min-w-0">
+          {selectedOption?.label ?? placeholder ?? String(value)}
+        </span>
+        <svg
+          className={`h-3.5 w-3.5 text-[var(--kz-fg-muted)] shrink-0 transition-transform duration-200 ${
+            open ? 'rotate-180 text-[var(--kz-accent)]' : ''
+          }`}
+          viewBox="0 0 20 20"
+          fill="currentColor"
+          aria-hidden="true"
+        >
+          <path
+            fillRule="evenodd"
+            d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+            clipRule="evenodd"
+          />
+        </svg>
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            role="listbox"
+            initial={isReducedMotion ? false : { opacity: 0, scale: 0.95, y: -4 }}
+            animate={isReducedMotion ? undefined : { opacity: 1, scale: 1, y: 0 }}
+            exit={isReducedMotion ? undefined : { opacity: 0, scale: 0.95, y: -4 }}
+            transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+            style={{ transformOrigin: align === 'left' ? 'top left' : 'top right' }}
+            className={`absolute ${
+              align === 'left' ? 'left-0' : 'right-0'
+            } top-[calc(100%+6px)] z-50 max-h-60 overflow-y-auto rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)]/98 p-1 shadow-2xl backdrop-blur-2xl ring-1 ring-black/5 dark:ring-white/10 ${
+              dropdownWidth || 'w-full min-w-[9rem]'
+            }`}
+          >
+            {options.map((opt) => {
+              const isSelected = opt.value === value
+              return (
+                <button
+                  key={String(opt.value)}
+                  type="button"
+                  role="option"
+                  aria-selected={isSelected}
+                  onClick={() => {
+                    onChange(opt.value)
+                    setOpen(false)
+                  }}
+                  className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs sm:text-sm transition-colors cursor-pointer select-none ${
+                    isSelected
+                      ? 'bg-[var(--kz-accent)]/15 font-semibold text-[var(--kz-accent)]'
+                      : 'text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)]'
+                  }`}
+                >
+                  <span className="truncate">{opt.label}</span>
+                  <div className="flex items-center gap-1 shrink-0 ml-1.5">
+                    {opt.badge && (
+                      <span className="rounded bg-[var(--kz-bg-soft)] px-1.5 py-0.5 text-[10px] text-[var(--kz-fg-dim)]">
+                        {opt.badge}
+                      </span>
+                    )}
+                    {isSelected && (
+                      <svg
+                        className="h-3.5 w-3.5 text-[var(--kz-accent)] shrink-0"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    )}
+                  </div>
+                </button>
+              )
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+/* ──────────────────────────────────────────────────────────
+   KzSwitch — 通用物理弹簧质感胶囊开关组件
+   仿 iOS/Material 物理阻尼滚珠滑动，彻底替代原生 HTML Checkbox
+   ────────────────────────────────────────────────────────── */
+
+export interface KzSwitchProps {
+  checked: boolean
+  onChange: (checked: boolean) => void
+  disabled?: boolean
+  label?: string
+  size?: 'sm' | 'md'
+  id?: string
+  'aria-label'?: string
+}
+
+export function KzSwitch({
+  checked,
+  onChange,
+  disabled = false,
+  label,
+  size = 'md',
+  id,
+  'aria-label': ariaLabel,
+}: KzSwitchProps) {
+  const isReducedMotion = useReducedMotion()
+
+  const trackClasses =
+    size === 'sm' ? 'w-9 h-5 p-0.5' : 'w-11 h-6 p-0.5'
+
+  const thumbSize =
+    size === 'sm' ? 'w-4 h-4' : 'w-5 h-5'
+
+  const shiftDistance = size === 'sm' ? 16 : 20
+
+  return (
+    <label
+      htmlFor={id}
+      className={`inline-flex items-center gap-2 select-none ${
+        disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer group'
+      }`}
+    >
+      {label && (
+        <span className="text-xs sm:text-sm font-medium text-[var(--kz-fg)]">
+          {label}
+        </span>
+      )}
+      <button
+        id={id}
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-label={ariaLabel || label}
+        disabled={disabled}
+        onClick={() => onChange(!checked)}
+        className={`relative inline-flex shrink-0 items-center rounded-full border transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--kz-accent)] focus-visible:ring-offset-2 ${trackClasses} ${
+          checked
+            ? 'bg-[var(--kz-accent)] border-[var(--kz-accent)]'
+            : 'bg-[var(--kz-bg-soft)] border-[var(--kz-border)] hover:bg-[var(--kz-bg-hover)]'
+        }`}
+      >
+        <motion.span
+          transition={
+            isReducedMotion
+              ? { duration: 0 }
+              : { type: 'spring', damping: 25, stiffness: 350 }
+          }
+          animate={{ x: checked ? shiftDistance : 0 }}
+          className={`pointer-events-none block rounded-full bg-white shadow-sm ring-0 ${thumbSize}`}
+        />
+      </button>
+    </label>
   )
 }

@@ -68,7 +68,7 @@ export function OpedMarkerDrawer(props: OpedMarkerDrawerProps) {
 function DesktopCard(props: OpedMarkerDrawerProps) {
   return (
     <div
-      className="kz-oped-panel kz-oped-panel--desktop flex w-[min(24rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)]/98 text-[var(--kz-fg)] shadow-2xl backdrop-blur-2xl pointer-events-auto"
+      className="kz-oped-panel kz-oped-panel--desktop flex w-[min(24rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)]/92 text-[var(--kz-fg)] shadow-2xl backdrop-blur-2xl backdrop-saturate-180 ring-1 ring-black/5 dark:ring-white/10 pointer-events-auto"
       style={{ maxHeight: 'min(27rem, calc(100dvh - 6rem))' }}
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
@@ -97,7 +97,7 @@ function MobileSheet(props: OpedMarkerDrawerProps) {
         onPointerDown={(e) => e.stopPropagation()}
       />
       <div
-        className="fixed inset-0 z-[99999] m-auto flex flex-col w-[90%] max-w-[24rem] h-[66dvh] max-h-[30rem] bg-[var(--kz-bg-elevated)]/98 text-[var(--kz-fg)] backdrop-blur-2xl border border-[var(--kz-border)] rounded-2xl shadow-2xl overflow-hidden pointer-events-auto animate-in zoom-in-95 duration-150"
+        className="fixed inset-0 z-[99999] m-auto flex flex-col w-[90%] max-w-[24rem] h-[66dvh] max-h-[30rem] bg-[var(--kz-bg-elevated)]/92 text-[var(--kz-fg)] backdrop-blur-2xl backdrop-saturate-180 border border-[var(--kz-border)] rounded-2xl shadow-2xl ring-1 ring-black/5 dark:ring-white/10 overflow-hidden pointer-events-auto animate-in zoom-in-95 duration-150"
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}

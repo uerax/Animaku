@@ -1,5 +1,6 @@
 import { useMemo, useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { motion, useReducedMotion } from 'framer-motion'
 import { bangumiApi } from '../lib/bangumi'
 import {
   BangumiGrid,
@@ -34,6 +35,8 @@ export function TimelinePage() {
     setDay(i)
   }, [])
 
+  const isReducedMotion = useReducedMotion()
+
   return (
     <div>
       <PageHeader
@@ -51,24 +54,37 @@ export function TimelinePage() {
               onClick={() => onSelectDay(i)}
               className={
                 active
-                  ? 'kz-pill kz-pill-active relative shadow-[0_4px_16px_rgba(29,155,240,0.35)]'
-                  : 'kz-pill kz-pill-idle border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] hover:border-[var(--kz-accent-ring)]'
+                  ? 'group relative kz-pill text-[var(--kz-accent-fg)] font-semibold select-none cursor-pointer'
+                  : 'group relative kz-pill kz-pill-idle border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] hover:border-[var(--kz-accent-ring)] select-none cursor-pointer'
               }
             >
-              {isToday && (
-                <span
-                  className={`mr-1.5 inline-block h-2 w-2 rounded-full ${
-                    active ? 'bg-white shadow-[0_0_8px_#fff]' : 'bg-[var(--kz-accent)] animate-pulse'
-                  }`}
-                  aria-hidden
+              {active && (
+                <motion.span
+                  layoutId="timeline-day-pill"
+                  className="absolute inset-0 rounded-full bg-[var(--kz-accent)] shadow-[0_4px_16px_rgba(29,155,240,0.35)]"
+                  transition={
+                    isReducedMotion
+                      ? { duration: 0 }
+                      : { type: 'spring', damping: 25, stiffness: 350 }
+                  }
                 />
               )}
-              {label}
-              {days?.[i]?.length ? (
-                <span className={`ml-1.5 text-xs font-normal ${active ? 'opacity-85' : 'text-[var(--kz-fg-muted)]'}`}>
-                  ({days[i].length})
-                </span>
-              ) : null}
+              <span className="relative z-10 flex items-center">
+                {isToday && (
+                  <span
+                    className={`mr-1.5 inline-block h-2 w-2 rounded-full ${
+                      active ? 'bg-white shadow-[0_0_8px_#fff]' : 'bg-[var(--kz-accent)] animate-pulse'
+                    }`}
+                    aria-hidden
+                  />
+                )}
+                <span>{label}</span>
+                {days?.[i]?.length ? (
+                  <span className={`ml-1.5 text-xs font-normal ${active ? 'opacity-85' : 'text-[var(--kz-fg-muted)]'}`}>
+                    ({days[i].length})
+                  </span>
+                ) : null}
+              </span>
             </button>
           )
         })}

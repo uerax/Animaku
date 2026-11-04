@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import clsx from 'clsx'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import {
   bangumiOAuthUrl,
   BANGUMI_IMAGE_HOST_BANGUMI,
@@ -31,6 +32,7 @@ export function UserDropdown() {
   const [tokenInput, setTokenInput] = useState('')
   const [loginLoading, setLoginLoading] = useState(false)
   const [loginError, setLoginError] = useState<string | null>(null)
+  const isReducedMotion = useReducedMotion()
 
   // 挂载时尝试初始化一次会话状态（读取现有 Token 缓存）
   useEffect(() => {
@@ -158,11 +160,17 @@ export function UserDropdown() {
       </button>
 
       {/* 下拉列表框架 */}
-      {open && (
-        <div
-          role="menu"
-          className="absolute right-0 top-[calc(100%+8px)] z-50 w-72 origin-top-right overflow-hidden rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-1.5 shadow-2xl backdrop-blur-2xl transition-all duration-150"
-        >
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            role="menu"
+            initial={isReducedMotion ? false : { opacity: 0, scale: 0.94, y: -6 }}
+            animate={isReducedMotion ? undefined : { opacity: 1, scale: 1, y: 0 }}
+            exit={isReducedMotion ? undefined : { opacity: 0, scale: 0.94, y: -6 }}
+            transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+            style={{ transformOrigin: 'top right' }}
+            className="absolute right-0 top-[calc(100%+8px)] z-50 w-72 origin-top-right overflow-hidden rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)]/98 p-1.5 shadow-2xl backdrop-blur-2xl ring-1 ring-black/5 dark:ring-white/10"
+          >
           {/* 用户概览卡片区 */}
           <div className="flex items-center gap-3 rounded-xl bg-[var(--kz-bg-soft)]/70 p-3">
             {authed && user.avatarUrl ? (
@@ -315,57 +323,83 @@ export function UserDropdown() {
                   {theme === 'light' ? '浅色' : '深色'}
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-1 rounded-lg bg-[var(--kz-bg)] p-0.5 border border-[var(--kz-border)]">
+              <div className="relative grid grid-cols-2 gap-1 rounded-lg bg-[var(--kz-bg)] p-0.5 border border-[var(--kz-border)]">
                 <button
                   type="button"
                   onClick={() => setTheme('light')}
                   className={clsx(
-                    'flex items-center justify-center gap-1.5 rounded-md py-1 px-1.5 text-center text-xs transition-all duration-150 select-none cursor-pointer',
+                    'relative flex items-center justify-center gap-1.5 rounded-md py-1 px-1.5 text-center text-xs transition-colors select-none cursor-pointer',
                     theme === 'light'
-                      ? 'bg-[var(--kz-bg-elevated)] font-semibold text-[var(--kz-accent)] shadow-sm'
-                      : 'font-medium text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)]',
+                      ? 'font-semibold text-[var(--kz-accent)]'
+                      : 'font-medium text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)]',
                   )}
                   title="切换为浅色主题"
                 >
-                  <svg
-                    className="h-3.5 w-3.5"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden
-                  >
-                    <circle cx="12" cy="12" r="4" />
-                    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
-                  </svg>
-                  <span>浅色</span>
+                  {theme === 'light' && (
+                    <motion.span
+                      layoutId="user-dropdown-theme-pill"
+                      className="absolute inset-0 rounded-md bg-[var(--kz-bg-elevated)] shadow-sm"
+                      transition={
+                        isReducedMotion
+                          ? { duration: 0 }
+                          : { type: 'spring', damping: 25, stiffness: 350 }
+                      }
+                    />
+                  )}
+                  <span className="relative z-10 flex items-center gap-1.5">
+                    <svg
+                      className="h-3.5 w-3.5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden
+                    >
+                      <circle cx="12" cy="12" r="4" />
+                      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+                    </svg>
+                    <span>浅色</span>
+                  </span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setTheme('dark')}
                   className={clsx(
-                    'flex items-center justify-center gap-1.5 rounded-md py-1 px-1.5 text-center text-xs transition-all duration-150 select-none cursor-pointer',
+                    'relative flex items-center justify-center gap-1.5 rounded-md py-1 px-1.5 text-center text-xs transition-colors select-none cursor-pointer',
                     theme === 'dark'
-                      ? 'bg-[var(--kz-bg-elevated)] font-semibold text-[var(--kz-accent)] shadow-sm'
-                      : 'font-medium text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)]',
+                      ? 'font-semibold text-[var(--kz-accent)]'
+                      : 'font-medium text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)]',
                   )}
                   title="切换为深色主题"
                 >
-                  <svg
-                    className="h-3.5 w-3.5"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden
-                  >
-                    <path d="M21 14.5A8.5 8.5 0 0 1 9.5 3 7 7 0 1 0 21 14.5z" />
-                  </svg>
-                  <span>深色</span>
+                  {theme === 'dark' && (
+                    <motion.span
+                      layoutId="user-dropdown-theme-pill"
+                      className="absolute inset-0 rounded-md bg-[var(--kz-bg-elevated)] shadow-sm"
+                      transition={
+                        isReducedMotion
+                          ? { duration: 0 }
+                          : { type: 'spring', damping: 25, stiffness: 350 }
+                      }
+                    />
+                  )}
+                  <span className="relative z-10 flex items-center gap-1.5">
+                    <svg
+                      className="h-3.5 w-3.5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden
+                    >
+                      <path d="M21 14.5A8.5 8.5 0 0 1 9.5 3 7 7 0 1 0 21 14.5z" />
+                    </svg>
+                    <span>深色</span>
+                  </span>
                 </button>
               </div>
             </div>
@@ -394,7 +428,7 @@ export function UserDropdown() {
                   即时生效
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-1 rounded-lg bg-[var(--kz-bg)] p-0.5 border border-[var(--kz-border)]">
+              <div className="relative grid grid-cols-2 gap-1 rounded-lg bg-[var(--kz-bg)] p-0.5 border border-[var(--kz-border)]">
                 {BANGUMI_IMAGE_HOST_OPTIONS.map((opt) => {
                   const active = bangumiImageHost === opt.host
                   const label =
@@ -409,14 +443,25 @@ export function UserDropdown() {
                       type="button"
                       onClick={() => setBangumiImageHost(opt.host)}
                       className={clsx(
-                        'flex items-center justify-center rounded-md py-1 px-1.5 text-center text-xs transition-all duration-150 select-none cursor-pointer',
+                        'relative flex items-center justify-center rounded-md py-1 px-1.5 text-center text-xs transition-colors select-none cursor-pointer',
                         active
-                          ? 'bg-[var(--kz-bg-elevated)] font-semibold text-[var(--kz-accent)] shadow-sm'
-                          : 'font-medium text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)]',
+                          ? 'font-semibold text-[var(--kz-accent)]'
+                          : 'font-medium text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)]',
                       )}
                       title={`切换封面图片源至：${opt.label}`}
                     >
-                      {label}
+                      {active && (
+                        <motion.span
+                          layoutId="user-dropdown-host-pill"
+                          className="absolute inset-0 rounded-md bg-[var(--kz-bg-elevated)] shadow-sm"
+                          transition={
+                            isReducedMotion
+                              ? { duration: 0 }
+                              : { type: 'spring', damping: 25, stiffness: 350 }
+                          }
+                        />
+                      )}
+                      <span className="relative z-10">{label}</span>
                     </button>
                   )
                 })}
@@ -512,8 +557,9 @@ export function UserDropdown() {
               </form>
             )}
           </div>
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   )
 }

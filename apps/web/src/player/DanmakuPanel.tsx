@@ -133,7 +133,7 @@ function DesktopCard(props: Props) {
 
   return (
     <div
-      className="kz-danmaku-panel kz-danmaku-panel--desktop absolute z-[85] flex w-[min(25rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)]/95 text-[var(--kz-fg)] shadow-2xl backdrop-blur-2xl"
+      className="kz-danmaku-panel kz-danmaku-panel--desktop absolute z-[85] flex w-[min(25rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)]/92 text-[var(--kz-fg)] shadow-2xl backdrop-blur-2xl backdrop-saturate-180 ring-1 ring-black/5 dark:ring-white/10"
       style={{
         maxHeight: 'min(27rem, calc(100dvh - 6rem))',
       }}
@@ -252,7 +252,7 @@ function MobileSheet(props: Props) {
   return (
     <div
       ref={modalRef}
-      className="fixed inset-0 z-[99999] m-auto flex flex-col w-[92%] max-w-[25rem] h-[68dvh] max-h-[28rem] bg-[var(--kz-bg-elevated)]/95 text-[var(--kz-fg)] backdrop-blur-2xl border border-[var(--kz-border)] rounded-2xl shadow-2xl overflow-hidden pointer-events-auto animate-in zoom-in-95 duration-150"
+      className="fixed inset-0 z-[99999] m-auto flex flex-col w-[92%] max-w-[25rem] h-[68dvh] max-h-[28rem] bg-[var(--kz-bg-elevated)]/95 text-[var(--kz-fg)] backdrop-blur-2xl backdrop-saturate-180 border border-[var(--kz-border)] rounded-2xl shadow-2xl ring-1 ring-black/5 dark:ring-white/10 overflow-hidden pointer-events-auto animate-in zoom-in-95 duration-150"
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}

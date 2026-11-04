@@ -168,7 +168,7 @@ export function PlayerContextMenu({
   return (
     <div
       ref={menuRef}
-      className="kz-context-menu absolute z-[90] min-w-[14.5rem] select-none rounded-xl border border-[rgba(255,255,255,0.18)] bg-[rgba(15,23,42,0.94)] p-1.5 text-xs text-white shadow-2xl backdrop-blur-2xl"
+      className="kz-context-menu absolute z-[90] min-w-[14.5rem] select-none rounded-2xl border border-white/20 bg-[rgba(15,20,28,0.85)] p-1.5 text-xs text-slate-100 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_20px_50px_-10px_rgba(0,0,0,0.7)] backdrop-blur-2xl backdrop-saturate-180 ring-1 ring-white/10"
       style={{
         left: `${x}px`,
         top: `${y}px`,
@@ -606,7 +606,7 @@ function SubmenuContainer({
 
   return (
     <div
-      className={`kz-submenu-popover absolute top-0 ${sideClass} min-w-[8.5rem] rounded-xl border border-[rgba(255,255,255,0.18)] bg-[rgba(15,23,42,0.96)] p-1 text-xs text-white shadow-2xl backdrop-blur-2xl ${className}`}
+      className={`kz-submenu-popover absolute top-0 ${sideClass} min-w-[8.5rem] rounded-2xl border border-white/20 bg-[rgba(15,20,28,0.88)] p-1 text-xs text-slate-100 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_20px_50px_-10px_rgba(0,0,0,0.75)] backdrop-blur-2xl backdrop-saturate-180 ring-1 ring-white/10 ${className}`}
       onClick={(e) => e.stopPropagation()}
     >
       <div className="flex flex-col gap-0.5">{children}</div>

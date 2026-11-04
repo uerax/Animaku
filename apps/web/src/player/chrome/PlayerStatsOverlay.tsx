@@ -113,7 +113,7 @@ export function PlayerStatsOverlay({
 
   return (
     <div
-      className="kz-stats-overlay absolute top-3 left-3 z-[80] select-text w-[22.5rem] max-w-[calc(100%-1.5rem)] box-border rounded-xl border border-[rgba(255,255,255,0.18)] bg-[rgba(15,23,42,0.92)] p-3.5 text-xs text-white shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150"
+      className="kz-stats-overlay absolute top-3 left-3 z-[80] select-text w-[22.5rem] max-w-[calc(100%-1.5rem)] box-border rounded-2xl border border-white/20 bg-[rgba(15,20,28,0.85)] p-3.5 text-xs text-slate-100 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_24px_60px_-12px_rgba(0,0,0,0.75)] backdrop-blur-2xl backdrop-saturate-180 ring-1 ring-white/10 animate-in fade-in zoom-in-95 duration-150"
       onClick={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}
       data-player-chrome="true"

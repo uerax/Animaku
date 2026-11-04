@@ -37,7 +37,7 @@ import { useSiteConfigStore, type AnnouncementItem } from '../stores/site-config
 import { fetchServerHealth } from '../lib/server-capabilities'
 import { SiteAnnouncementModal } from '../components/SiteAnnouncementModal'
 import { IconCropModal } from '../components/IconCropModal'
-import { PageHeader } from '../components/ui'
+import { PageHeader, KzSelect, type KzSelectOption, type KzSelectProps } from '../components/ui'
 import { getSiteBranding } from '../lib/site-branding'
 import { AdminHighlightsSection } from './admin/AdminHighlightsSection'
 
@@ -2700,126 +2700,6 @@ function AdminToggle({
   )
 }
 
-export interface AdminSelectOption<T extends string | number> {
-  value: T
-  label: string
-}
-
-export interface AdminSelectProps<T extends string | number> {
-  id?: string
-  value: T
-  options: AdminSelectOption<T>[]
-  onChange: (val: T) => void
-  className?: string
-  dropdownWidth?: string
-  align?: 'left' | 'right'
-}
-
-export function AdminSelect<T extends string | number>({
-  id,
-  value,
-  options,
-  onChange,
-  className = '',
-  dropdownWidth,
-  align = 'right',
-}: AdminSelectProps<T>) {
-  const [open, setOpen] = useState(false)
-  const containerRef = useRef<HTMLDivElement>(null)
-
-  const selectedOption = options.find((o) => o.value === value) || options[0]
-
-  useEffect(() => {
-    if (!open) return
-    const handleClickOutside = (e: MouseEvent) => {
-      if (!containerRef.current?.contains(e.target as Node)) {
-        setOpen(false)
-      }
-    }
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    document.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [open])
-
-  return (
-    <div ref={containerRef} className={`relative inline-block ${className}`}>
-      <button
-        id={id}
-        type="button"
-        onClick={() => setOpen((p) => !p)}
-        className="flex items-center justify-between gap-2 rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-1.5 text-xs sm:text-sm font-medium text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] hover:border-[var(--kz-accent)] transition-all cursor-pointer select-none text-left w-full shadow-xs"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-      >
-        <span className="truncate min-w-0">{selectedOption?.label || String(value)}</span>
-        <svg
-          className={`h-3.5 w-3.5 text-[var(--kz-fg-muted)] shrink-0 transition-transform duration-150 ${
-            open ? 'rotate-180 text-[var(--kz-accent)]' : ''
-          }`}
-          viewBox="0 0 20 20"
-          fill="currentColor"
-          aria-hidden
-        >
-          <path
-            fillRule="evenodd"
-            d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-            clipRule="evenodd"
-          />
-        </svg>
-      </button>
-
-      {open && (
-        <div
-          role="listbox"
-          className={`absolute ${
-            align === 'left' ? 'left-0' : 'right-0'
-          } top-[calc(100%+4px)] z-50 max-h-60 overflow-y-auto rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-1 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100 ${
-            dropdownWidth || 'w-full min-w-[9rem]'
-          }`}
-        >
-          {options.map((opt) => {
-            const isSelected = opt.value === value
-            return (
-              <button
-                key={String(opt.value)}
-                type="button"
-                role="option"
-                aria-selected={isSelected}
-                onClick={() => {
-                  onChange(opt.value)
-                  setOpen(false)
-                }}
-                className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs sm:text-sm transition-colors cursor-pointer select-none ${
-                  isSelected
-                    ? 'bg-[var(--kz-accent)]/15 font-semibold text-[var(--kz-accent)]'
-                    : 'text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)]'
-                }`}
-              >
-                <span className="truncate">{opt.label}</span>
-                {isSelected && (
-                  <svg
-                    className="h-3.5 w-3.5 shrink-0 text-[var(--kz-accent)] ml-1"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                )}
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
+export type AdminSelectOption<T extends string | number> = KzSelectOption<T>
+export type AdminSelectProps<T extends string | number> = KzSelectProps<T>
+export const AdminSelect = KzSelect
