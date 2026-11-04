@@ -107,16 +107,24 @@
 - 自动对公网已知爬虫引擎之外的可疑 Python/cURL/Go 扫描器执行静默挑战。
 
 ### 3.6 管理接口边缘速率限制 (Rate Limiting Rules 防密码爆破)
-针对后台管理与鉴权接口（`/api/admin/*`），建议在 Cloudflare 边缘节点配置速率限制，黑客在尝试字典爆破 `ADMIN_SECRET` 时直接在边缘被封禁，零消耗源站性能。
+针对后台管理员口令鉴权接口（`POST /api/admin/verify`），强烈建议在 Cloudflare 边缘节点配置速率限制。黑客在尝试字典爆破 `ADMIN_SECRET` 时直接在边缘被封禁，零消耗源站性能。
+
+> ⚠️ **避坑提示**：请务必精确匹配口令验证接口 `POST /api/admin/verify`，**切勿**匹配整个 `/api/admin/` 前缀！因为进入后台后，前端会并发请求日活统计（`/api/admin/stats/daily`）、导航外链（`/api/admin/site/nav-links`）及全站展位等数据，若宽泛匹配整条路径会导致正常管理员在进入后台时瞬间超限被误杀封禁。
 
 前往 Cloudflare 控制台 -> **安全性 (Security) -> WAF -> 速率限制规则 (Rate Limiting Rules) -> 创建规则**：
-- **规则名称**：`Rate-Limit-Admin-API`
-- **匹配条件**：`URI 路径 包含 /api/admin/`（或 `starts_with(http.request.uri.path, "/api/admin/")`）
+- **规则名称**：`Rate-Limit-Admin-Verify`
+- **匹配条件**：
+  - **字段**：`URI 路径 (URI Path)` 等于 `/api/admin/verify`
+  - **且 (AND)**：`请求方法 (Request Method)` 等于 `POST`
+  - **表达式预览 (Expression Editor)**：
+    ```text
+    (http.request.method eq "POST" and http.request.uri.path eq "/api/admin/verify")
+    ```
 - **速率定义**：
   - **请求数**：`5`
-  - **周期**：`10 秒`（或 `1 分钟`）
+  - **周期**：`1 分钟`（或 `10 秒`）
 - **处置动作 (Action)**：`阻止 (Block)`（持续时长建议 `10 分钟`）或 `受托质询 (Managed Challenge)`
-- **效果**：正常管理员操作不受影响；高频密码枚举直接在 CDN 边缘被拦截封禁。
+- **效果**：高频密码枚举直接在 CDN 边缘被拦截封禁；管理员在后台查看日活、切换日期与保存配置等正常操作 100% 畅通不受限。
 
 ---
 
