@@ -300,15 +300,77 @@ textarea:focus-visible {
 }
 
 /*
- * Cover card hover — scale image only, not shell.
- * Keep smooth and minimalist: no card shell transform, no border outline, no jank.
+ * Cover card hover & cue reveal (GiriGiri-inspired cinematic micro-interactions)
+ * - 550ms cinematic zoom on poster
+ * - Multi-layer staggered cue reveal with 35ms trailing delay
+ * - Restricted to hover-capable fine pointer devices (zero mobile touch tap delay)
  */
 .bangumi-card .bangumi-card-cover img {
-  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.55s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
-.bangumi-card:hover .bangumi-card-cover img {
-  transform: scale(1.04);
+.poster-cue {
+  color: #fff;
+  opacity: 0;
+  pointer-events: none;
+  background: rgba(17, 19, 33, 0.32);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  transition: opacity 0.18s ease;
+  display: flex;
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+}
+
+.poster-cue-ring {
+  background: rgba(17, 19, 33, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: 50%;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  transition: transform 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+  display: grid;
+  transform: translateY(6px) scale(0.8);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.poster-cue-text {
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  transition: transform 0.26s cubic-bezier(0.22, 1, 0.36, 1) 35ms;
+  transform: translateY(4px);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .bangumi-card:hover .bangumi-card-cover img {
+    transform: scale(1.055);
+  }
+  .bangumi-card:hover .poster-cue {
+    opacity: 1;
+  }
+  .bangumi-card:hover .poster-cue-ring,
+  .bangumi-card:hover .poster-cue-text {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bangumi-card .bangumi-card-cover img,
+  .poster-cue,
+  .poster-cue-ring,
+  .poster-cue-text {
+    transition: none !important;
+    transform: none !important;
+  }
 }
 
 /* Accent pill (filters / active chips) */

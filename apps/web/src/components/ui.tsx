@@ -1,5 +1,6 @@
 import { memo, useState, useRef, useLayoutEffect, useMemo, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { motion, useReducedMotion } from 'framer-motion'
 import type { BangumiItem } from '@animaku/shared'
 import {
   airProgressLabel,
@@ -39,6 +40,9 @@ function airStatusClass(
 /** First-screen grid: eager; index 0 may use high fetch priority (LCP). */
 export type CoverImagePriority = 'lazy' | 'eager' | 'high'
 
+/** Motion-augmented Link for physical hover elevation and tap response */
+const MotionLink = motion.create(Link)
+
 export const BangumiCard = memo(function BangumiCard({
   item,
   imagePriority = 'lazy',
@@ -46,6 +50,8 @@ export const BangumiCard = memo(function BangumiCard({
   item: BangumiItem
   imagePriority?: CoverImagePriority
 }) {
+  const isReducedMotion = useReducedMotion()
+
   // List/grid: prefer common/medium (thumb). large decode cost janks scroll
   // when many cards enter the viewport at once.
   const cover = coverOf(item, 'thumb')
@@ -93,7 +99,7 @@ export const BangumiCard = memo(function BangumiCard({
   }
 
   return (
-    <Link
+    <MotionLink
       to={`/subject/${item.id}`}
       state={seed ? { seed } : undefined}
       target={openInNewTab ? '_blank' : undefined}
@@ -103,7 +109,10 @@ export const BangumiCard = memo(function BangumiCard({
       onFocus={onCardWarmup}
       onTouchStart={onCardWarmup}
       onClick={() => perfMetrics.markNavigation(item.id)}
-      className="bangumi-card group flex flex-col overflow-hidden rounded-2xl bg-transparent transition-transform duration-200 hover:-translate-y-1"
+      whileHover={isReducedMotion ? undefined : { y: -7 }}
+      whileTap={isReducedMotion ? undefined : { scale: 0.98 }}
+      transition={{ duration: 0.22, ease: 'easeOut' }}
+      className="bangumi-card group flex flex-col overflow-hidden rounded-2xl bg-transparent"
     >
       <div className="bangumi-card-cover relative aspect-[3/4] overflow-hidden rounded-2xl bg-[var(--kz-bg-soft)] shadow-[0_10px_28px_rgba(0,0,0,0.18)] dark:shadow-[0_12px_32px_rgba(0,0,0,0.4)] ring-1 ring-[var(--kz-border)] dark:ring-white/10">
         {!isLoaded && !isLcp && (
@@ -135,11 +144,9 @@ export const BangumiCard = memo(function BangumiCard({
             onLoad={() => setLoadedCover(cover)}
             onError={() => setHasError(true)}
             className={`h-full w-full object-cover ${
-              isLcp
+              isLcp || isLoaded
                 ? 'opacity-100'
-                : isLoaded
-                  ? 'opacity-100 transition-opacity duration-300 ease-out'
-                  : 'opacity-0'
+                : 'opacity-0 transition-opacity duration-150'
             }`}
           />
         ) : (
@@ -210,6 +217,19 @@ export const BangumiCard = memo(function BangumiCard({
             {score}
           </span>
         )}
+        {/* GiriGiri 风格悬浮展开 Cue 指引层 (微秒级阶梯弹出与镜头推进) */}
+        <div className="poster-cue" aria-hidden="true">
+          <span className="poster-cue-ring">
+            <svg
+              className="size-5 translate-x-0.5 text-white"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+            >
+              <path d="M8 5v14l11-7z" />
+            </svg>
+          </span>
+          <span className="poster-cue-text">查看番剧</span>
+        </div>
       </div>
       <div className="space-y-0.5 px-0.5 pb-1 pt-3">
         <div className="line-clamp-2 text-[15px] font-medium leading-snug text-[var(--kz-fg)] transition-colors duration-200 group-hover:text-[var(--kz-accent)]">
@@ -221,7 +241,7 @@ export const BangumiCard = memo(function BangumiCard({
           </div>
         )}
       </div>
-    </Link>
+    </MotionLink>
   )
 })
 
@@ -292,6 +312,9 @@ export const BangumiGrid = memo(function BangumiGrid({
 }) {
   const responsiveEager = useResponsiveGridEagerCount()
   const eagerCount = userEagerCount ?? responsiveEager
+  const isReducedMotion = useReducedMotion()
+  // 动态对齐当前响应式视口的实际列数 (移动 2 / 平板 4 / 桌面 6)，杜绝跨行错位倒流
+  const cols = Math.max(1, responsiveEager)
 
   const list = Array.isArray(items) ? items : []
   if (!list.length) {
@@ -306,12 +329,31 @@ export const BangumiGrid = memo(function BangumiGrid({
           // First card is the strongest LCP candidate on home / browse.
           imagePriority = index === 0 ? 'high' : 'eager'
         }
+        const row = Math.floor(index / cols)
+        const col = index % cols
+        // 二维对角线水波纹阶梯：相邻行相位差 80ms + 列步进 35ms，硬上限 0.32s 封顶防长列表滞后
+        const staggerDelay = isReducedMotion
+          ? 0
+          : Math.min(0.32, (row % 2) * 0.08 + col * 0.035)
+
         return (
-          <BangumiCard
+          <motion.div
             key={item.id}
-            item={item}
-            imagePriority={imagePriority}
-          />
+            initial={isReducedMotion ? false : { opacity: 0, y: 18 }}
+            whileInView={isReducedMotion ? undefined : { opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.08 }}
+            transition={{
+              duration: isReducedMotion ? 0 : 0.42,
+              delay: staggerDelay,
+              ease: 'easeOut',
+            }}
+            className="min-w-0 will-change-[transform,opacity]"
+          >
+            <BangumiCard
+              item={item}
+              imagePriority={imagePriority}
+            />
+          </motion.div>
         )
       })}
     </div>
