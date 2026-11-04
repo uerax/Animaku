@@ -19,6 +19,9 @@ export const BANGUMI_LIST_CDN_S_MAXAGE_SEC = 2 * 60 * 60
 /** Edge TTL for Bangumi subject recommendations GET success responses (24 hours). */
 export const RECOMMENDATIONS_CDN_S_MAXAGE_SEC = 24 * 60 * 60
 
+/** Edge & browser TTL for site highlights & placement banners (60s). */
+export const HIGHLIGHTS_CDN_S_MAXAGE_SEC = 60
+
 type HeaderSetter = {
   header: (name: string, value: string) => unknown
 }
@@ -91,6 +94,25 @@ export function setRecommendationsCdnHeaders(c: HeaderSetter, bypass: boolean): 
   }
   const edge = RECOMMENDATIONS_CDN_S_MAXAGE_SEC
   c.header('Cache-Control', `public, max-age=0, s-maxage=${edge}`)
+  c.header('CDN-Cache-Control', `max-age=${edge}`)
+  c.header('Cloudflare-CDN-Cache-Control', `max-age=${edge}`)
+}
+
+/**
+ * CDN cache headers for public site highlights.
+ * Edge and browser caches for 60 seconds (1 minute), ensuring sub-millisecond delivery
+ * while allowing background updates to propagate globally within 1 minute.
+ * @param bypass — `?refresh=1` or Cache-Control: no-cache from client
+ */
+export function setHighlightsCdnHeaders(c: HeaderSetter, bypass = false): void {
+  if (bypass) {
+    c.header('Cache-Control', 'private, no-store')
+    c.header('CDN-Cache-Control', 'no-store')
+    c.header('Cloudflare-CDN-Cache-Control', 'no-store')
+    return
+  }
+  const edge = HIGHLIGHTS_CDN_S_MAXAGE_SEC
+  c.header('Cache-Control', `public, max-age=${edge}, s-maxage=${edge}`)
   c.header('CDN-Cache-Control', `max-age=${edge}`)
   c.header('Cloudflare-CDN-Cache-Control', `max-age=${edge}`)
 }

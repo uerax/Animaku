@@ -1,7 +1,7 @@
 import { memo, useState, useMemo, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import type { BangumiItem } from '@animaku/shared'
+import type { BangumiItem, HighlightItem } from '@animaku/shared'
 import {
   coverOf,
   extractBangumiSeed,
@@ -10,6 +10,7 @@ import {
 } from '@animaku/shared'
 import { bangumiApi } from '../../lib/bangumi'
 import { useSettingsStore } from '../../stores/settings'
+import { usePlacementHighlight } from '../../lib/highlights'
 import { preloadVideoPlayer } from '../../player/lazy'
 import { preloadRoute } from '../../lib/route-preload'
 import { EMPTY_ARRAY } from '../../lib/stable'
@@ -141,10 +142,70 @@ const CompactGridCard = memo(function CompactGridCard({
   )
 })
 
+const CompactHighlightCard = memo(function CompactHighlightCard({
+  item,
+}: {
+  item: HighlightItem
+}) {
+  return (
+    <a
+      href={item.linkUrl}
+      target={item.target || '_blank'}
+      rel="noopener noreferrer sponsored"
+      title={item.title}
+      className="group relative block h-full w-full overflow-hidden rounded-xl border border-[var(--kz-border)]/60 bg-[var(--kz-bg-soft)] transition-all duration-300 hover:border-[var(--kz-accent)]/60 hover:shadow-md"
+    >
+      {/* 满幅图片铺满，与番剧卡片清晰区隔 */}
+      {item.imageUrl ? (
+        <img
+          src={item.imageUrl}
+          alt={item.title || '运营推荐'}
+          loading="lazy"
+          decoding="async"
+          className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-106"
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center bg-[var(--kz-bg-soft)] text-[10px] text-[var(--kz-fg-dim)]">
+          {item.title}
+        </div>
+      )}
+
+      {/* 顶部胶囊角标 (取代原番剧金色星级，可手动删除) */}
+      {item.badge && (
+        <div className="absolute right-1.5 top-1.5 z-10">
+          <span className="inline-flex items-center gap-0.5 rounded-full bg-black/65 px-1.5 py-0.5 text-[10px] font-bold text-white border border-white/15 backdrop-blur-xs shadow-xs">
+            {item.badge}
+          </span>
+        </div>
+      )}
+
+      {/* 底部暗色遮罩与中文标题 (若有标题展示) */}
+      {item.title && (
+        <>
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/85 via-black/40 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 p-1.5 z-10">
+            <p className="truncate text-[11px] font-semibold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+              {item.title}
+            </p>
+          </div>
+        </>
+      )}
+    </a>
+  )
+})
+
+type HeroGridCell =
+  | { kind: 'anime'; item: BangumiItem }
+  | { kind: 'highlight'; item: HighlightItem }
+  | { kind: 'empty' }
+
 export const DailyScheduleHeroCard = memo(function DailyScheduleHeroCard() {
   const host =
     useSettingsStore((s) => s.bangumiImageHost) || DEFAULT_BANGUMI_IMAGE_HOST
   const openInNewTab = useSettingsStore((s) => s.nav.openInNewTab)
+
+  // 今日放送广告位：若已启用则按方案 A（每页第 6 格，不满 6 部排在末尾）
+  const dailyHighlight = usePlacementHighlight('daily_schedule')?.items[0]
 
   // 物理现实的今日周几（0=周一 .. 6=周日）
   const todayWeekdayIndex = useMemo(() => {
@@ -169,9 +230,12 @@ export const DailyScheduleHeroCard = memo(function DailyScheduleHeroCard() {
     return days[todayWeekdayIndex]
   }, [calendarQuery.data, todayWeekdayIndex])
 
+  // 有广告时每页取 5 部番剧留出 1 格给广告；无广告时每页 6 部番剧
+  const animesPerPage = dailyHighlight ? 5 : 6
+
   const totalPages = useMemo(() => {
-    return Math.max(1, Math.ceil(currentDayItems.length / CARDS_PER_PAGE))
-  }, [currentDayItems.length])
+    return Math.max(1, Math.ceil(currentDayItems.length / animesPerPage))
+  }, [currentDayItems.length, animesPerPage])
 
   const handleNextPage = useCallback(() => {
     setPageIndex((prev) => (prev + 1) % totalPages)
@@ -181,10 +245,24 @@ export const DailyScheduleHeroCard = memo(function DailyScheduleHeroCard() {
     setPageIndex((prev) => (prev - 1 + totalPages) % totalPages)
   }, [totalPages])
 
-  const pagedItems = useMemo(() => {
-    const start = pageIndex * CARDS_PER_PAGE
-    return currentDayItems.slice(start, start + CARDS_PER_PAGE)
-  }, [currentDayItems, pageIndex])
+  // 方案 A 矩阵单元构建：
+  // 先放入当前页的番剧，接着紧随放入广告卡片（满 5 部则恰为第 6 格；不足 5 部则排在末尾）；剩余不足 6 格补充 empty 占位
+  const gridCells = useMemo<HeroGridCell[]>(() => {
+    const start = pageIndex * animesPerPage
+    const pageAnimes = currentDayItems.slice(start, start + animesPerPage)
+    const cells: HeroGridCell[] = pageAnimes.map((item) => ({ kind: 'anime', item }))
+
+    if (dailyHighlight) {
+      cells.push({ kind: 'highlight', item: dailyHighlight })
+    }
+
+    // 补齐 6 格占位，防止 CSS Grid 坍塌
+    while (cells.length < CARDS_PER_PAGE) {
+      cells.push({ kind: 'empty' })
+    }
+
+    return cells.slice(0, CARDS_PER_PAGE)
+  }, [currentDayItems, pageIndex, animesPerPage, dailyHighlight])
 
   return (
     <div className="flex h-full w-full flex-col">
@@ -256,16 +334,17 @@ export const DailyScheduleHeroCard = memo(function DailyScheduleHeroCard() {
           </div>
         ) : (
           <div className="grid h-full w-full grid-cols-3 grid-rows-2 gap-2.5">
-            {Array.from({ length: CARDS_PER_PAGE }).map((_, index) => {
-              const item = pagedItems[index]
-              if (!item) {
-                // 最后一页不足 6 部时占位对齐
-                return <div key={`empty-${index}`} className="invisible h-full w-full" />
+            {gridCells.map((cell, index) => {
+              if (cell.kind === 'empty') {
+                return <div key={`empty-${index}`} className="invisible h-full w-full" aria-hidden="true" />
+              }
+              if (cell.kind === 'highlight') {
+                return <CompactHighlightCard key={`highlight-${cell.item.id}`} item={cell.item} />
               }
               return (
                 <CompactGridCard
-                  key={item.id}
-                  item={item}
+                  key={cell.item.id}
+                  item={cell.item}
                   host={host}
                   openInNewTab={openInNewTab}
                 />

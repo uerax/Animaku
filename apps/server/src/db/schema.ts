@@ -199,6 +199,23 @@ const MIGRATIONS: Migration[] = [
       `)
     },
   },
+  {
+    version: 8,
+    name: 'site_highlights',
+    up: (db) => {
+      // Universal site highlights & notice placement banners/cards
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS site_highlights (
+          placement TEXT PRIMARY KEY,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          layout TEXT NOT NULL DEFAULT 'single',
+          items_json TEXT NOT NULL DEFAULT '[]',
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_highlights_enabled ON site_highlights(enabled);
+      `)
+    },
+  },
 ]
 
 /**

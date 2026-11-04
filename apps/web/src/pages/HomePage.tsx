@@ -25,6 +25,7 @@ import {
   isAnnouncementDismissed,
   dismissAnnouncement,
 } from '../components/SiteAnnouncementModal'
+import { SiteHighlightBanner } from '../components/SiteHighlightBanner'
 import { DESKTOP_MEDIA_QUERY } from '../components/hero-cover-flow.constants'
 
 const SECTION_LIMIT = 18
@@ -221,6 +222,9 @@ export function HomePage() {
         </section>
       ) : null}
 
+      {/* 运营展位：历史播放模块上方 (支持单通栏长条或双半屏并排) */}
+      <SiteHighlightBanner placement="home_above_history" />
+
       {recent.length > 0 && (
         <section>
           <div className="mb-4 sm:mb-5 flex items-center justify-between gap-3">
@@ -317,6 +321,9 @@ export function HomePage() {
         )}
       </section>
 
+      {/* 运营展位：剧场版上方 */}
+      <SiteHighlightBanner placement="home_above_movies" />
+
       {/* 剧场版 */}
       <section ref={moviesRef}>
         <div className="mb-4 sm:mb-5 flex items-center justify-between gap-3">
@@ -336,6 +343,9 @@ export function HomePage() {
           <BangumiGridSkeleton count={SECTION_LIMIT} />
         )}
       </section>
+
+      {/* 运营展位：OVA / 特别篇上方 */}
+      <SiteHighlightBanner placement="home_above_ovas" />
 
       {/* OVA / 特别篇 */}
       <section ref={ovasRef}>

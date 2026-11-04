@@ -1,9 +1,10 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { Hono } from 'hono'
-import type { SiteDefaultSettings, CustomNavLink } from '@animaku/shared'
-import { watchStatsRepo } from '../db'
+import type { SiteDefaultSettings, CustomNavLink, HighlightPlacement } from '@animaku/shared'
+import { watchStatsRepo, siteHighlightsRepo } from '../db'
 import { isAuthorizedAdmin } from '../lib/indexnow'
+import { setHighlightsCdnHeaders } from '../lib/cdn-cache-headers'
 import {
   getSiteConfig,
   saveSiteConfig,
@@ -73,6 +74,19 @@ siteRoutes.get('/config', (c) => {
     announcement: cfg.announcement || null,
     defaultSettings: cfg.defaultSettings || null,
     customNavLinks: (cfg.customNavLinks || []).filter((l) => l.enabled),
+  })
+})
+
+/**
+ * 公开接口：获取当前站点激活的运营展位/精选配置 (highlights)
+ * 100% 内存缓存读取，对外输出 60 秒 CDN 缓存，有更新时主动刷新
+ */
+siteRoutes.get('/highlights', (c) => {
+  setHighlightsCdnHeaders(c)
+  const data = siteHighlightsRepo.getPublicHighlights()
+  return c.json({
+    ok: true,
+    data,
   })
 })
 
@@ -594,4 +608,62 @@ adminSiteRoutes.post('/site/nav-links', async (c) => {
     return c.json({ ok: false, error: errMsg, message: errMsg }, 500)
   }
 })
+
+/**
+ * 获取全量展位配置（包含已停用的）
+ */
+adminSiteRoutes.get('/site/highlights', (c) => {
+  const data = siteHighlightsRepo.getAllConfigs()
+  return c.json({
+    ok: true,
+    data,
+  })
+})
+
+/**
+ * 保存单个展位配置（自动持久化至 SQLite 并主动刷新永驻内存缓存）
+ */
+adminSiteRoutes.post('/site/highlights/:placement', async (c) => {
+  const placement = c.req.param('placement') as HighlightPlacement
+  const body = (await c.req.json().catch(() => ({}))) as {
+    enabled?: boolean
+    layout?: 'single' | 'double'
+    items?: unknown[]
+  }
+
+  try {
+    const saved = siteHighlightsRepo.saveConfig({
+      placement,
+      enabled: Boolean(body.enabled),
+      layout: body.layout === 'double' ? 'double' : 'single',
+      items: (Array.isArray(body.items) ? body.items : []) as any,
+    })
+    return c.json({
+      ok: true,
+      data: saved,
+      message: '展位配置已保存并同步刷新内存缓存',
+    })
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : '保存展位配置失败'
+    return c.json({ ok: false, error: errMsg, message: errMsg }, 500)
+  }
+})
+
+/**
+ * 删除 / 清空单个展位配置
+ */
+adminSiteRoutes.delete('/site/highlights/:placement', (c) => {
+  const placement = c.req.param('placement') as HighlightPlacement
+  try {
+    siteHighlightsRepo.deleteConfig(placement)
+    return c.json({
+      ok: true,
+      message: '展位配置已清空',
+    })
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : '删除展位配置失败'
+    return c.json({ ok: false, error: errMsg, message: errMsg }, 500)
+  }
+})
+
 

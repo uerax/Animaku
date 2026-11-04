@@ -24,6 +24,7 @@ import { WatchHudToast } from './watch/WatchHudToast'
 import { WatchRecommendations } from './watch/WatchRecommendations'
 import { WatchComments } from './watch/comments'
 import { ErrorBoundary } from '../components/ErrorBoundary'
+import { SiteHighlightBanner } from '../components/SiteHighlightBanner'
 import { perfMetrics } from '../lib/performance-metrics'
 
 /**
@@ -707,10 +708,14 @@ export function WatchPage() {
     </ErrorBoundary>
   ) : null
 
-  /* Desktop rail: episode-source pod, then recommendations (right column). */
+  /* 运营展位：选集与推荐模块之间 */
+  const watchMidBanner = <SiteHighlightBanner placement="watch_mid_section" />
+
+  /* Desktop rail: episode-source pod, then mid banner, then recommendations (right column). */
   const rail = (
     <>
       {desktopEpisodeSourcePod}
+      {watchMidBanner}
       {recommendationsPanel}
     </>
   )
@@ -726,11 +731,16 @@ export function WatchPage() {
           widescreen={widescreen}
         />
       ) : (
-        // Mobile: player → 融合舱 (详情 | 视频源 | 选集) → 推荐 → 吐槽评论
+        // Mobile: player → 融合舱 (详情 | 视频源 | 选集) → 推荐 (包含展位) → 吐槽评论
         <MobileWatchLayout
           player={playerBlock}
           episodes={mobileEpisodeSourcePod}
-          recommendations={recommendationsPanel}
+          recommendations={
+            <>
+              {watchMidBanner}
+              {recommendationsPanel}
+            </>
+          }
           comments={commentsPanel}
         />
       )}

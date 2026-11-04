@@ -12,6 +12,7 @@ import { useSearchHistoryStore } from '../stores/search-history'
 import { useSiteConfigStore } from '../stores/site-config'
 import { getSiteBranding, useSiteBranding } from '../lib/site-branding'
 import { preloadRoute, preloadCoreNavigationRoutes } from '../lib/route-preload'
+import { useSiteHighlights } from '../lib/highlights'
 import { DocumentSeo } from './DocumentSeo'
 import { SiteFooter } from './SiteFooter'
 import { UserDropdown } from './UserDropdown'
@@ -153,6 +154,9 @@ export function Layout() {
   const iconUpdatedAt = useSiteConfigStore((s) => s.iconUpdatedAt)
   const customNavLinks = useSiteConfigStore((s) => s.customNavLinks)
   const fetchConfig = useSiteConfigStore((s) => s.fetchConfig)
+
+  // 全站首屏静默预热运营展位/公告配置 (对齐 1 分钟 CDN 缓存，所有子页面秒级就绪且 0 布局跳变)
+  useSiteHighlights()
 
   useEffect(() => {
     void fetchConfig()

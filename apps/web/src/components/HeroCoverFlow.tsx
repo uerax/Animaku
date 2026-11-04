@@ -1,6 +1,6 @@
 import { memo, useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import type { BangumiItem } from '@animaku/shared'
+import type { BangumiItem, HighlightItem } from '@animaku/shared'
 import {
   coverOf,
   formatDoingCount,
@@ -11,6 +11,7 @@ import {
   DEFAULT_BANGUMI_IMAGE_HOST,
 } from '@animaku/shared'
 import { useSettingsStore } from '../stores/settings'
+import { usePlacementHighlight } from '../lib/highlights'
 import { preloadVideoPlayer } from '../player/lazy'
 import { preloadRoute } from '../lib/route-preload'
 import {
@@ -161,11 +162,45 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
     typeof window !== 'undefined' ? window.innerWidth >= 768 : false,
   )
 
+  const heroHighlight = usePlacementHighlight('hero_banner')?.items[0]
+
   const displayItems = useMemo(() => {
     // 统一保留 10 项缓冲池（桌面可见 7 项，移动可见 5 项，均具备充裕的两翼与离屏环转缓冲）
     const targetLimit = Math.min(limit, 10)
-    return items.slice(0, targetLimit)
-  }, [items, limit])
+    const raw = items.slice(0, targetLimit)
+    if (!heroHighlight || raw.length === 0) return raw
+
+    const adItem: BangumiItem & { isAdHighlight?: boolean; adData?: HighlightItem } = {
+      id: -999999,
+      name: heroHighlight.title,
+      nameCn: heroHighlight.title,
+      summary: heroHighlight.subtitle || '',
+      images: {
+        large: heroHighlight.imageUrl,
+        common: heroHighlight.imageUrl,
+        medium: heroHighlight.imageUrl,
+        small: heroHighlight.imageUrl,
+        grid: heroHighlight.imageUrl,
+      },
+      airDate: '',
+      airWeekday: 0,
+      tags: [],
+      alias: [],
+      eps: 0,
+      totalEpisodes: 0,
+      ratingScore: 0,
+      votes: 0,
+      rank: 0,
+      type: 2,
+      isAdHighlight: true,
+      adData: heroHighlight,
+    }
+
+    const insertIdx = Math.max(1, Math.floor(Math.random() * raw.length))
+    const copy = [...raw]
+    copy.splice(insertIdx, 0, adItem)
+    return copy
+  }, [items, limit, heroHighlight])
   const count = displayItems.length
 
   const [activeIndex, setActiveIndex] = useState(0)
@@ -685,6 +720,9 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
               : `transform ${animDuration} ${animTimingFn}, opacity ${animDuration} ${animTimingFn}`,
           }
 
+          const isAd = Boolean((item as any).isAdHighlight)
+          const adData = (item as any).adData as HighlightItem | undefined
+
           return (
             <div
               key={item.id}
@@ -701,60 +739,108 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
                   : 'hover:opacity-90'
               }`}
             >
-              <Link
-                to={`/subject/${item.id}`}
-                state={{ seed: extractBangumiSeed(item) }}
-                target={openInNewTab ? '_blank' : undefined}
-                rel={openInNewTab ? 'noopener noreferrer' : undefined}
-                tabIndex={isCenter ? 0 : -1}
-                onClick={(e) => {
-                  if (isDragging.current || isAccelerating) {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    return
-                  }
-                  if (!isCenter) {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    slideTo(index)
-                  }
-                }}
-                onMouseEnter={() => {
-                  preloadRoute('subject')
-                  preloadVideoPlayer()
-                }}
-                onFocus={() => {
-                  preloadRoute('subject')
-                  preloadVideoPlayer()
-                }}
-                onTouchStart={() => {
-                  preloadRoute('subject')
-                  preloadVideoPlayer()
-                }}
-                className="group relative h-full w-full select-none overflow-hidden rounded-[inherit] [isolation:isolate] [transform:translateZ(0)] [mask-image:radial-gradient(white,black)] [-webkit-mask-image:-webkit-radial-gradient(white,black)]"
-              >
-                <HeroCardPoster
-                  cover={cover}
-                  title={title}
-                  offset={offset}
-                  isCenter={isCenter}
-                />
+              {isAd && adData ? (
+                <a
+                  href={adData.linkUrl}
+                  target={adData.target || '_blank'}
+                  rel="noopener noreferrer sponsored"
+                  tabIndex={isCenter ? 0 : -1}
+                  onClick={(e) => {
+                    if (isDragging.current || isAccelerating) {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      return
+                    }
+                    if (!isCenter) {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      slideTo(index)
+                    }
+                  }}
+                  className="group relative h-full w-full select-none overflow-hidden rounded-[inherit] [isolation:isolate] [transform:translateZ(0)]"
+                >
+                  <HeroCardPoster
+                    cover={adData.imageUrl || cover}
+                    title={adData.title}
+                    offset={offset}
+                    isCenter={isCenter}
+                  />
 
-                {/* Hidden semantic text for SEO crawlers and screen readers */}
-                <span className="sr-only">{title}</span>
+                  {/* 满幅暗色遮罩 */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent rounded-[inherit]" />
 
-                {/* Poster dark bottom gradient */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent rounded-[inherit]" />
+                  {/* 右上角/右下角胶囊角标 (取代原番剧评分，可手动删除) */}
+                  {adData.badge && (
+                    <div className="absolute right-3 bottom-3 sm:right-4 sm:bottom-4">
+                      <span className="inline-flex items-center rounded-md border border-white/20 bg-black/60 px-2 py-0.5 text-xs font-bold text-white shadow-xs backdrop-blur-xs">
+                        {adData.badge}
+                      </span>
+                    </div>
+                  )}
 
-                {/* Score (Bottom-right) */}
-                {score && (
-                  <div className="absolute right-3 bottom-2.5 sm:right-4 sm:bottom-3.5">
-                    <span className="font-black italic text-lg tracking-tight text-white tabular-nums drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] sm:text-2xl md:text-3xl">
-                      {score}
-                    </span>
+                  {/* 底部左侧标题 */}
+                  <div className="absolute inset-x-0 bottom-0 p-3 sm:p-4 z-10 pr-16">
+                    <p className="truncate text-sm sm:text-base font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+                      {adData.title}
+                    </p>
                   </div>
-                )}
-              </Link>
+                </a>
+              ) : (
+                <Link
+                  to={`/subject/${item.id}`}
+                  state={{ seed: extractBangumiSeed(item) }}
+                  target={openInNewTab ? '_blank' : undefined}
+                  rel={openInNewTab ? 'noopener noreferrer' : undefined}
+                  tabIndex={isCenter ? 0 : -1}
+                  onClick={(e) => {
+                    if (isDragging.current || isAccelerating) {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      return
+                    }
+                    if (!isCenter) {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      slideTo(index)
+                    }
+                  }}
+                  onMouseEnter={() => {
+                    preloadRoute('subject')
+                    preloadVideoPlayer()
+                  }}
+                  onFocus={() => {
+                    preloadRoute('subject')
+                    preloadVideoPlayer()
+                  }}
+                  onTouchStart={() => {
+                    preloadRoute('subject')
+                    preloadVideoPlayer()
+                  }}
+                  className="group relative h-full w-full select-none overflow-hidden rounded-[inherit] [isolation:isolate] [transform:translateZ(0)] [mask-image:radial-gradient(white,black)] [-webkit-mask-image:-webkit-radial-gradient(white,black)]"
+                >
+                  <HeroCardPoster
+                    cover={cover}
+                    title={title}
+                    offset={offset}
+                    isCenter={isCenter}
+                  />
+
+                  {/* Hidden semantic text for SEO crawlers and screen readers */}
+                  <span className="sr-only">{title}</span>
+
+                  {/* Poster dark bottom gradient */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent rounded-[inherit]" />
+
+                  {/* Score (Bottom-right) */}
+                  {score && (
+                    <div className="absolute right-3 bottom-2.5 sm:right-4 sm:bottom-3.5">
+                      <span className="font-black italic text-lg tracking-tight text-white tabular-nums drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] sm:text-2xl md:text-3xl">
+                        {score}
+                      </span>
+                    </div>
+                  )}
+                </Link>
+              )}
             </div>
           )
         })}

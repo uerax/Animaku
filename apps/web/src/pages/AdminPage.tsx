@@ -39,6 +39,7 @@ import { SiteAnnouncementModal } from '../components/SiteAnnouncementModal'
 import { IconCropModal } from '../components/IconCropModal'
 import { PageHeader } from '../components/ui'
 import { getSiteBranding } from '../lib/site-branding'
+import { AdminHighlightsSection } from './admin/AdminHighlightsSection'
 
 function renderPluginBadge(p: PluginMeta) {
   if (isBuiltinPlugin(p)) {
@@ -238,6 +239,7 @@ function AdminDashboard() {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     'stats-daily': true,
     'custom-nav-links': true,
+    'site-highlights': true,
     'server-health': false,
     'site-branding': true,
     'site-announcement': false,
@@ -2459,6 +2461,18 @@ function AdminDashboard() {
         </div>
       </AdminCard>
 
+      {/* 8.5 全站运营位与公告展位配置 */}
+      <AdminCard
+        id="site-highlights"
+        icon="📢"
+        title="全站运营位与公告展位配置"
+        summary="单一下拉切换各区域，支持横条单/双张与嵌入卡片"
+        isOpen={openSections['site-highlights']}
+        onToggle={() => toggleSection('site-highlights')}
+      >
+        <AdminHighlightsSection />
+      </AdminCard>
+
       {/* 9. 全局默认导航栏与外观偏好 */}
       <AdminCard
         id="default-nav"
@@ -2686,12 +2700,12 @@ function AdminToggle({
   )
 }
 
-interface AdminSelectOption<T extends string | number> {
+export interface AdminSelectOption<T extends string | number> {
   value: T
   label: string
 }
 
-interface AdminSelectProps<T extends string | number> {
+export interface AdminSelectProps<T extends string | number> {
   id?: string
   value: T
   options: AdminSelectOption<T>[]
@@ -2701,7 +2715,7 @@ interface AdminSelectProps<T extends string | number> {
   align?: 'left' | 'right'
 }
 
-function AdminSelect<T extends string | number>({
+export function AdminSelect<T extends string | number>({
   id,
   value,
   options,

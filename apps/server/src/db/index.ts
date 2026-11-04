@@ -14,6 +14,7 @@ import { playStatsRepo, PlayStatsRepository } from './repositories/play-stats'
 import { watchStatsRepo, WatchStatsRepository } from './repositories/watch-stats'
 import { ipAccessRepo, IpAccessRepository } from './repositories/ip-access'
 import { BangumiDataRepository, type AnimeBangumiMapping } from './repositories/bangumi-data'
+import { siteHighlightsRepo, SiteHighlightsRepository } from './repositories/site-highlights'
 
 const bangumiDataRepo = new BangumiDataRepository()
 
@@ -85,5 +86,7 @@ export {
   IpAccessRepository,
   bangumiDataRepo,
   BangumiDataRepository,
+  siteHighlightsRepo,
+  SiteHighlightsRepository,
   type AnimeBangumiMapping,
 }

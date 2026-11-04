@@ -1,6 +1,6 @@
 import { memo, useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import type { BangumiItem } from '@animaku/shared'
+import type { BangumiItem, HighlightItem } from '@animaku/shared'
 import {
   coverOf,
   extractBangumiSeed,
@@ -8,8 +8,13 @@ import {
   DEFAULT_BANGUMI_IMAGE_HOST,
 } from '@animaku/shared'
 import { useSettingsStore } from '../../stores/settings'
+import { usePlacementHighlight } from '../../lib/highlights'
 import { preloadVideoPlayer } from '../../player/lazy'
 import { preloadRoute } from '../../lib/route-preload'
+
+type BannerSlide =
+  | { kind: 'anime'; item: BangumiItem }
+  | { kind: 'highlight'; item: HighlightItem }
 
 interface HomeHeroBannerProps {
   items: BangumiItem[]
@@ -58,8 +63,21 @@ export const HomeHeroBanner = memo(function HomeHeroBanner({
     useSettingsStore((s) => s.bangumiImageHost) || DEFAULT_BANGUMI_IMAGE_HOST
   const openInNewTab = useSettingsStore((s) => s.nav.openInNewTab)
 
-  const bannerItems = useMemo(() => items.slice(0, 6), [items])
-  const count = bannerItems.length
+  // 轮播图广告位配置：若已启用则随机抽取一帧插入（避开首张，保持良好首屏体验）
+  const heroHighlight = usePlacementHighlight('hero_banner')?.items[0]
+
+  const slides: BannerSlide[] = useMemo(() => {
+    const raw: BannerSlide[] = items.slice(0, 6).map((it) => ({ kind: 'anime', item: it }))
+    if (!heroHighlight || raw.length === 0) return raw
+
+    // 随机插入到索引 1 到 raw.length 之间
+    const insertIdx = Math.max(1, Math.floor(Math.random() * raw.length))
+    const copy = [...raw]
+    copy.splice(insertIdx, 0, { kind: 'highlight', item: heroHighlight })
+    return copy
+  }, [items, heroHighlight])
+
+  const count = slides.length
 
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isPaused, setIsPaused] = useState(false)
@@ -98,9 +116,6 @@ export const HomeHeroBanner = memo(function HomeHeroBanner({
 
   if (count === 0) return null
 
-  const activeItem = bannerItems[currentIndex]
-  const activeSeed = extractBangumiSeed(activeItem)
-
   return (
     <div
       className="group relative h-full w-full select-none overflow-hidden rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] shadow-xs"
@@ -108,8 +123,76 @@ export const HomeHeroBanner = memo(function HomeHeroBanner({
       onMouseLeave={() => setIsPaused(false)}
     >
       {/* 轮播卡片集合 */}
-      {bannerItems.map((item, index) => {
+      {slides.map((slide, index) => {
         const isActive = index === currentIndex
+
+        if (slide.kind === 'highlight') {
+          const ad = slide.item
+          return (
+            <div
+              key={`highlight-${ad.id}`}
+              className={`absolute inset-0 transition-opacity duration-700 ease-out ${
+                isActive ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'
+              }`}
+              aria-hidden={!isActive}
+            >
+              <a
+                href={ad.linkUrl}
+                target={ad.target || '_blank'}
+                rel="noopener noreferrer sponsored"
+                tabIndex={isActive ? 0 : -1}
+                className="relative block h-full w-full overflow-hidden"
+              >
+                {/* 满幅图片铺满，彻底与番剧卡片区隔 */}
+                {ad.imageUrl ? (
+                  <img
+                    src={ad.imageUrl}
+                    alt={ad.title}
+                    loading={index === 0 ? 'eager' : 'lazy'}
+                    decoding="async"
+                    className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-103"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center bg-[var(--kz-bg-soft)] text-sm text-[var(--kz-fg-dim)]">
+                    {ad.title}
+                  </div>
+                )}
+
+                {/* 渐变暗色遮罩 */}
+                <div
+                  className={`pointer-events-none absolute inset-0 ${
+                    ad.title || ad.subtitle
+                      ? 'bg-gradient-to-t from-black/85 via-black/30 to-black/10'
+                      : 'bg-black/10'
+                  }`}
+                />
+
+                {/* 角标与标题 */}
+                <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6 flex flex-col gap-2 z-20">
+                  {ad.badge && (
+                    <div className="flex items-center">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-black/60 px-2.5 py-1 text-xs font-bold text-white border border-white/20 backdrop-blur-md shadow-xs">
+                        {ad.badge}
+                      </span>
+                    </div>
+                  )}
+                  {ad.title && (
+                    <h3 className="text-xl sm:text-2xl font-black text-white tracking-wide truncate drop-shadow-[0_2px_4px_rgba(0,0,0,0.85)]">
+                      {ad.title}
+                    </h3>
+                  )}
+                  {ad.subtitle && (
+                    <p className="text-xs sm:text-sm text-white/80 line-clamp-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]">
+                      {ad.subtitle}
+                    </p>
+                  )}
+                </div>
+              </a>
+            </div>
+          )
+        }
+
+        const item = slide.item
         const coverUrl = resolveImageUrl(coverOf(item, 'large'))
         const title = item.nameCn || item.name
         const score =
@@ -209,7 +292,7 @@ export const HomeHeroBanner = memo(function HomeHeroBanner({
       {/* 底部右侧精致胶囊指示条 */}
       {count > 1 && (
         <div className="absolute bottom-5 right-5 z-20 flex items-center gap-1.5">
-          {bannerItems.map((_, idx) => {
+          {slides.map((_, idx) => {
             const isActive = idx === currentIndex
             return (
               <button
@@ -220,11 +303,9 @@ export const HomeHeroBanner = memo(function HomeHeroBanner({
                   e.stopPropagation()
                   setCurrentIndex(idx)
                 }}
-                aria-label={`切换到第 ${idx + 1} 张轮播`}
+                aria-label={`切换到第 ${idx + 1} 张`}
                 className={`h-1.5 rounded-full transition-all duration-300 ${
-                  isActive
-                    ? 'w-6 bg-white shadow-xs'
-                    : 'w-1.5 bg-white/40 hover:bg-white/70'
+                  isActive ? 'w-6 bg-white shadow-sm' : 'w-1.5 bg-white/40 hover:bg-white/70'
                 }`}
               />
             )
