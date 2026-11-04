@@ -1,5 +1,6 @@
 import React from 'react'
 import clsx from 'clsx'
+import { motion, useReducedMotion } from 'framer-motion'
 import { useSearchHistoryStore } from '../stores/search-history'
 
 interface SearchHistoryDropdownProps {
@@ -16,6 +17,7 @@ export function SearchHistoryDropdown({
   className,
   isMobile = false,
 }: SearchHistoryDropdownProps) {
+  const isReducedMotion = useReducedMotion()
   const queries = useSearchHistoryStore((s) => s.queries)
   const removeSearch = useSearchHistoryStore((s) => s.removeSearch)
   const clearAll = useSearchHistoryStore((s) => s.clearAll)
@@ -25,11 +27,30 @@ export function SearchHistoryDropdown({
   }
 
   return (
-    <div
+    <motion.div
+      initial={
+        isReducedMotion
+          ? { opacity: 0 }
+          : { opacity: 0, scale: 0.95, y: -6 }
+      }
+      animate={
+        isReducedMotion
+          ? { opacity: 1 }
+          : { opacity: 1, scale: 1, y: 0 }
+      }
+      exit={
+        isReducedMotion
+          ? { opacity: 0 }
+          : { opacity: 0, scale: 0.95, y: -4 }
+      }
+      transition={{
+        duration: isReducedMotion ? 0.1 : 0.16,
+        ease: [0.16, 1, 0.3, 1],
+      }}
       // 防止点击浮层内部组件导致外部 input 触发 onBlur
       onMouseDown={(e) => e.preventDefault()}
       className={clsx(
-        'z-50 overflow-hidden border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] backdrop-blur-2xl transition-all duration-150',
+        'z-50 overflow-hidden border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] backdrop-blur-2xl',
         isMobile
           ? 'rounded-2xl p-3 shadow-xl'
           : 'rounded-2xl p-3 shadow-2xl',
@@ -59,7 +80,7 @@ export function SearchHistoryDropdown({
         <button
           type="button"
           onClick={clearAll}
-          className="rounded px-1.5 py-0.5 text-[11px] text-[var(--kz-fg-dim)] transition-colors hover:bg-[var(--kz-bg-hover)] hover:text-[var(--kz-accent)]"
+          className="rounded px-1.5 py-0.5 text-[11px] text-[var(--kz-fg-dim)] transition-colors hover:bg-[var(--kz-bg-hover)] hover:text-[var(--kz-accent)] cursor-pointer"
           title="清空全部历史记录"
         >
           清空
@@ -76,7 +97,7 @@ export function SearchHistoryDropdown({
             <button
               type="button"
               onClick={() => onSelect(item)}
-              className="min-w-0 max-w-[180px] truncate text-left select-none"
+              className="min-w-0 max-w-[180px] truncate text-left select-none cursor-pointer"
               title={item}
             >
               {item}
@@ -87,7 +108,7 @@ export function SearchHistoryDropdown({
                 e.stopPropagation()
                 removeSearch(item)
               }}
-              className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full text-[var(--kz-fg-dim)] transition-colors hover:bg-[var(--kz-accent)] hover:text-white group-hover:text-[var(--kz-fg-muted)]"
+              className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full text-[var(--kz-fg-dim)] transition-colors hover:bg-[var(--kz-accent)] hover:text-white group-hover:text-[var(--kz-fg-muted)] cursor-pointer"
               title={`删除「${item}」`}
               aria-label={`删除历史记录 ${item}`}
             >
@@ -106,6 +127,6 @@ export function SearchHistoryDropdown({
           </div>
         ))}
       </div>
-    </div>
+    </motion.div>
   )
 }

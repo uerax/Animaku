@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { AnimatePresence } from 'framer-motion'
 import type {
   AdBlockerMode,
   PluginMeta,
@@ -37,7 +38,7 @@ import { useSiteConfigStore, type AnnouncementItem } from '../stores/site-config
 import { fetchServerHealth } from '../lib/server-capabilities'
 import { SiteAnnouncementModal } from '../components/SiteAnnouncementModal'
 import { IconCropModal } from '../components/IconCropModal'
-import { PageHeader } from '../components/ui'
+import { PageHeader, Collapsible, SwitchRow } from '../components/ui'
 import { getSiteBranding } from '../lib/site-branding'
 import { AdminHighlightsSection } from './admin/AdminHighlightsSection'
 
@@ -2584,22 +2585,26 @@ function AdminDashboard() {
       </AdminCard>
 
       {/* 图片裁剪弹窗 */}
-      {cropModalData && (
-        <IconCropModal
-          imageSrc={cropModalData.rawUrl}
-          fileName={cropModalData.fileName}
-          onConfirm={handleCropComplete}
-          onCancel={() => setCropModalData(null)}
-        />
-      )}
+      <AnimatePresence>
+        {cropModalData && (
+          <IconCropModal
+            imageSrc={cropModalData.rawUrl}
+            fileName={cropModalData.fileName}
+            onConfirm={handleCropComplete}
+            onCancel={() => setCropModalData(null)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* 公告弹窗实时预览 */}
-      {previewAnnouncement && (
-        <SiteAnnouncementModal
-          announcement={previewAnnouncement}
-          onClose={() => setPreviewAnnouncement(null)}
-        />
-      )}
+      <AnimatePresence>
+        {previewAnnouncement && (
+          <SiteAnnouncementModal
+            announcement={previewAnnouncement}
+            onClose={() => setPreviewAnnouncement(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -2669,11 +2674,11 @@ function AdminCard({
         </div>
       </div>
 
-      {isOpen && (
+      <Collapsible open={isOpen}>
         <div className="px-4 pb-4 sm:px-6 sm:pb-6 pt-0 space-y-4 border-t border-[var(--kz-border)]/40 mt-1">
           <div className="pt-3">{children}</div>
         </div>
-      )}
+      </Collapsible>
     </section>
   )
 }
@@ -2688,15 +2693,12 @@ function AdminToggle({
   onChange: (v: boolean) => void
 }) {
   return (
-    <label className="flex items-center justify-between text-xs sm:text-sm text-[var(--kz-fg)] py-1 cursor-pointer select-none">
-      <span className="font-medium pr-2">{label}</span>
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="rounded border-[var(--kz-border)] text-[var(--kz-accent)] cursor-pointer"
-      />
-    </label>
+    <SwitchRow
+      label={label}
+      checked={checked}
+      onChange={onChange}
+      className="py-1"
+    />
   )
 }
 

@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
   NavLink,
   Outlet,
@@ -148,6 +149,7 @@ function SearchIcon() {
 }
 
 export function Layout() {
+  const isReducedMotion = useReducedMotion()
   const b = useSiteBranding()
   const iconMode = useSiteConfigStore((s) => s.iconMode)
   const iconUrl = useSiteConfigStore((s) => s.iconUrl)
@@ -549,12 +551,14 @@ export function Layout() {
               </div>
             </form>
 
-            {searchFocused && (
-              <SearchHistoryDropdown
-                onSelect={onSelectHistory}
-                className="absolute right-0 top-[calc(100%+8px)] w-72 max-w-[calc(100vw-32px)]"
-              />
-            )}
+            <AnimatePresence>
+              {searchFocused && (
+                <SearchHistoryDropdown
+                  onSelect={onSelectHistory}
+                  className="absolute right-0 top-[calc(100%+8px)] w-72 max-w-[calc(100vw-32px)]"
+                />
+              )}
+            </AnimatePresence>
           </div>
 
           {/* Desktop right action items */}
@@ -656,15 +660,17 @@ export function Layout() {
                 </button>
               </form>
 
-              {searchFocused && (
-                <div className="absolute top-[calc(100%+4px)] inset-x-2">
-                  <SearchHistoryDropdown
-                    onSelect={onSelectHistory}
-                    isMobile
-                    className="w-full"
-                  />
-                </div>
-              )}
+              <AnimatePresence>
+                {searchFocused && (
+                  <div className="absolute top-[calc(100%+4px)] inset-x-2">
+                    <SearchHistoryDropdown
+                      onSelect={onSelectHistory}
+                      isMobile
+                      className="w-full"
+                    />
+                  </div>
+                )}
+              </AnimatePresence>
             </div>
           )}
         </div>
@@ -680,7 +686,15 @@ export function Layout() {
             : 'max-w-[1760px] px-4 py-6 sm:px-5 lg:px-6',
         )}
       >
-        <Outlet />
+        <motion.div
+          key={location.pathname}
+          initial={isReducedMotion ? false : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.16, ease: 'easeOut' }}
+          className="w-full min-w-0 flex-1"
+        >
+          <Outlet />
+        </motion.div>
       </main>
 
       {/* Watch: no footer — cinema chrome; elsewhere promote repo + optional maintainer */}

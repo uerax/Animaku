@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { motion, useReducedMotion } from 'framer-motion'
 import clsx from 'clsx'
 import type { PlayableSlot } from '@animaku/shared'
 import { useWatchedStore } from '../../stores/watched'
@@ -88,6 +89,7 @@ export function MobileEpsSection({
   embedded?: boolean
   isActive?: boolean
 }) {
+  const isReducedMotion = useReducedMotion()
   const watchedMap = useWatchedStore((s) =>
     bangumiId ? s.records[bangumiId] : undefined,
   )
@@ -373,14 +375,21 @@ export function MobileEpsSection({
                 aria-selected={active}
                 onClick={() => onSelectRoad(ri)}
                 className={clsx(
-                  'kz-bili-road',
+                  'kz-bili-road relative',
                   active && 'kz-bili-road--active',
                 )}
                 title={label}
               >
-                <span className="kz-bili-road-label">{label}</span>
+                {active && (
+                  <motion.span
+                    layoutId={isReducedMotion ? undefined : 'active-road-pill'}
+                    className="absolute inset-0 rounded-full bg-[var(--kz-accent-soft)] ring-1 ring-[var(--kz-accent)]/30 pointer-events-none"
+                    transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                  />
+                )}
+                <span className="kz-bili-road-label relative z-10">{label}</span>
                 {playingHere && !active ? (
-                  <span className="kz-bili-road-live">在播</span>
+                  <span className="kz-bili-road-live relative z-10">在播</span>
                 ) : null}
               </button>
             )
@@ -410,14 +419,21 @@ export function MobileEpsSection({
                 aria-selected={active}
                 onClick={() => setSelectedRangeIndex(bucket.rangeIndex)}
                 className={clsx(
-                  'kz-bili-range-tab',
+                  'kz-bili-range-tab relative',
                   active && 'kz-bili-range-tab--active',
                 )}
                 title={`查看第 ${bucket.label} 集`}
               >
-                <span>{bucket.label}</span>
+                {active && (
+                  <motion.span
+                    layoutId={isReducedMotion ? undefined : 'active-range-pill'}
+                    className="absolute inset-0 rounded-full bg-[var(--kz-accent-soft)] ring-1 ring-[var(--kz-accent)]/30 pointer-events-none"
+                    transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                  />
+                )}
+                <span className="relative z-10">{bucket.label}</span>
                 {containsPlaying && !active ? (
-                  <span className="kz-bili-range-live" title="在播集数所在区间" />
+                  <span className="kz-bili-range-live relative z-10" title="在播集数所在区间" />
                 ) : null}
               </button>
             )
@@ -477,7 +493,13 @@ export function MobileEpsSection({
           </div>
         )}
         {hasSelection && !roadLoading && activeRoad && (
-          <div
+          <motion.div
+            layout
+            transition={
+              isReducedMotion
+                ? { duration: 0.1 }
+                : { duration: 0.28, ease: [0.16, 1, 0.3, 1] }
+            }
             ref={stripRef}
             className={clsx(
               'kz-watch-ep-strip',
@@ -498,10 +520,11 @@ export function MobileEpsSection({
                 typeof item.canonicalEp === 'number' &&
                 Boolean(watchedMap && watchedMap[item.canonicalEp] !== undefined)
               return (
-                <button
+                <motion.button
                   key={activeRoad.data[epIndex] + item.title + epIndex}
                   type="button"
                   data-ep-index={epIndex}
+                  whileTap={isReducedMotion ? undefined : { scale: 0.94 }}
                   onClick={() => {
                     if (onPickSlot && item.slot) {
                       onPickSlot(item.slot, activeRoadIndex)
@@ -524,10 +547,10 @@ export function MobileEpsSection({
                     </span>
                   ) : null}
                   <span className="kz-bili-ep-text">{item.title}</span>
-                </button>
+                </motion.button>
               )
             })}
-          </div>
+          </motion.div>
         )}
         {hasSelection && !roadLoading && !activeRoad && roads.length > 0 && (
           <p className="kz-bili-empty">请选择上方线路查看集数</p>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import clsx from 'clsx'
 import {
   bangumiOAuthUrl,
@@ -13,6 +14,7 @@ import { preloadRoute } from '../lib/route-preload'
 import { BangumiAvatar } from './BangumiImage'
 
 export function UserDropdown() {
+  const isReducedMotion = useReducedMotion()
   const [open, setOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const location = useLocation()
@@ -158,11 +160,31 @@ export function UserDropdown() {
       </button>
 
       {/* 下拉列表框架 */}
-      {open && (
-        <div
-          role="menu"
-          className="absolute right-0 top-[calc(100%+8px)] z-50 w-72 origin-top-right overflow-hidden rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-1.5 shadow-2xl backdrop-blur-2xl transition-all duration-150"
-        >
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            role="menu"
+            initial={
+              isReducedMotion
+                ? { opacity: 0 }
+                : { opacity: 0, scale: 0.95, y: -6 }
+            }
+            animate={
+              isReducedMotion
+                ? { opacity: 1 }
+                : { opacity: 1, scale: 1, y: 0 }
+            }
+            exit={
+              isReducedMotion
+                ? { opacity: 0 }
+                : { opacity: 0, scale: 0.95, y: -4 }
+            }
+            transition={{
+              duration: isReducedMotion ? 0.1 : 0.16,
+              ease: [0.16, 1, 0.3, 1],
+            }}
+            className="absolute right-0 top-[calc(100%+8px)] z-50 w-72 origin-top-right overflow-hidden rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-1.5 shadow-2xl backdrop-blur-2xl"
+          >
           {/* 用户概览卡片区 */}
           <div className="flex items-center gap-3 rounded-xl bg-[var(--kz-bg-soft)]/70 p-3">
             {authed && user.avatarUrl ? (
@@ -512,8 +534,9 @@ export function UserDropdown() {
               </form>
             )}
           </div>
-        </div>
+        </motion.div>
       )}
+    </AnimatePresence>
     </div>
   )
 }
