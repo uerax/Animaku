@@ -149,8 +149,20 @@ export function useWatchSourceLauncher({
       defaultSearchDoneFor.current = bangumiId
       setKeywordTargetPlugin(preferred)
       // 并发预热其余前排备选源，使换源面板或容灾降级 0ms 瞬间就绪
-      for (const p of topPlugins.slice(1)) {
-        void openPluginSearch(p, undefined, { autoPickFirst: false, background: true })
+      const warmKw = (
+        resolvePluginDefaultKeyword(preferred, resolvedItem, defaultKeyword) ||
+        defaultKeyword ||
+        binding.title ||
+        title
+      ).trim()
+      if (warmKw && !/^番剧\s*\d+$/.test(warmKw)) {
+        for (const p of topPlugins.slice(1)) {
+          const pKw = (
+            resolvePluginDefaultKeyword(p, resolvedItem, warmKw) ||
+            warmKw
+          ).trim()
+          void openPluginSearch(p, pKw, { autoPickFirst: false, background: true })
+        }
       }
       void pickSource(preferred, {
         name: binding.title || preferred.name,
@@ -190,7 +202,9 @@ export function useWatchSourceLauncher({
     // 并发搜索前 5 个源：默认源主导自动选集开播，其余源后台静默预热
     topPlugins.forEach((p, idx) => {
       const isDefault = idx === 0
-      const searchKw = isDefault ? kw : undefined
+      const searchKw = isDefault
+        ? kw
+        : (resolvePluginDefaultKeyword(p, resolvedItem, kw) || kw).trim()
       void openPluginSearch(p, searchKw, {
         autoPickFirst: isDefault,
         background: !isDefault,
