@@ -367,17 +367,11 @@ export function UserDropdown() {
                       : opt.host === BANGUMI_IMAGE_HOST_BANGUMI
                         ? '官方'
                         : opt.label,
-                  badge:
-                    opt.host === BANGUMI_IMAGE_HOST_MIRROR
-                      ? '推荐'
-                      : opt.host === BANGUMI_IMAGE_HOST_BANGUMI
-                        ? '直连'
-                        : undefined,
                 }))}
                 size="sm"
                 align="right"
-                className="w-24 shrink-0"
-                dropdownWidth="w-36"
+                className="w-20 shrink-0"
+                dropdownWidth="w-20"
                 aria-label="选择封面图片源"
               />
             </div>

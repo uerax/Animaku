@@ -93,7 +93,7 @@ export function TimelinePage() {
       {q.isError && (
         <ErrorState error={q.error} onRetry={() => q.refetch()} />
       )}
-      {q.data && <BangumiGrid items={items} />}
+      {q.data && <BangumiGrid items={items} coverSize="large" />}
     </div>
   )
 }

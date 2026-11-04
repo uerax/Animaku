@@ -46,15 +46,15 @@ const MotionLink = motion.create(Link)
 export const BangumiCard = memo(function BangumiCard({
   item,
   imagePriority = 'lazy',
+  coverSize = 'thumb',
 }: {
   item: BangumiItem
   imagePriority?: CoverImagePriority
+  coverSize?: 'thumb' | 'large'
 }) {
   const isReducedMotion = useReducedMotion()
 
-  // List/grid: prefer common/medium (thumb). large decode cost janks scroll
-  // when many cards enter the viewport at once.
-  const cover = coverOf(item, 'thumb')
+  const cover = coverOf(item, coverSize)
   const title = item.nameCn || item.name
   const score =
     item.ratingScore > 0 ? item.ratingScore.toFixed(1) : null
@@ -310,9 +310,11 @@ export const BangumiGrid = memo(function BangumiGrid({
    * 若未指定，则默认精确对齐 BANGUMI_GRID_CLASS 的第一排实际列数（移动 2 / 平板 4 / 桌面 6）。
    */
   eagerCount: userEagerCount,
+  coverSize = 'thumb',
 }: {
   items: BangumiItem[] | undefined | null
   eagerCount?: number
+  coverSize?: 'thumb' | 'large'
 }) {
   const responsiveEager = useResponsiveGridEagerCount()
   const eagerCount = userEagerCount ?? responsiveEager
@@ -356,6 +358,7 @@ export const BangumiGrid = memo(function BangumiGrid({
             <BangumiCard
               item={item}
               imagePriority={imagePriority}
+              coverSize={coverSize}
             />
           </motion.div>
         )
