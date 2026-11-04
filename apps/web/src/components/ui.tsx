@@ -221,11 +221,15 @@ export const BangumiCard = memo(function BangumiCard({
         <div className="poster-cue" aria-hidden="true">
           <span className="poster-cue-ring">
             <svg
-              className="size-5 translate-x-0.5 text-white"
+              className="size-6 text-white"
               viewBox="0 0 24 24"
-              fill="currentColor"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             >
-              <path d="M8 5v14l11-7z" />
+              <path d="M9 6c0 0 6 4.4189 6 6s-6 6-6 6" />
             </svg>
           </span>
           <span className="poster-cue-text">查看番剧</span>

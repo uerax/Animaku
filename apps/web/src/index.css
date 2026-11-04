@@ -313,13 +313,11 @@ textarea:focus-visible {
   color: #fff;
   opacity: 0;
   pointer-events: none;
-  background: rgba(17, 19, 33, 0.32);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
+  background: rgba(17, 19, 33, 0.22);
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   transition: opacity 0.18s ease;
   display: flex;
   position: absolute;
@@ -328,16 +326,15 @@ textarea:focus-visible {
 }
 
 .poster-cue-ring {
-  background: rgba(17, 19, 33, 0.65);
-  border: 1px solid rgba(255, 255, 255, 0.75);
+  background: rgba(17, 19, 33, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.7);
   border-radius: 50%;
   place-items: center;
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   transition: transform 0.26s cubic-bezier(0.22, 1, 0.36, 1);
   display: grid;
   transform: translateY(6px) scale(0.8);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
 }
 
 .poster-cue-text {
