@@ -13,6 +13,7 @@ import { EMPTY_ARRAY } from '../lib/stable'
 const WEEKDAYS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'] as const
 
 export function TimelinePage() {
+  const isReducedMotion = useReducedMotion()
   const today = new Date().getDay() // 0 Sun
   const defaultDay = today === 0 ? 6 : today - 1
   const [day, setDay] = useState(defaultDay)
@@ -34,8 +35,6 @@ export function TimelinePage() {
   const onSelectDay = useCallback((i: number) => {
     setDay(i)
   }, [])
-
-  const isReducedMotion = useReducedMotion()
 
   return (
     <div>

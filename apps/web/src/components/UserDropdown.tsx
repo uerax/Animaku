@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import clsx from 'clsx'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
+import clsx from 'clsx'
 import {
   bangumiOAuthUrl,
   BANGUMI_IMAGE_HOST_BANGUMI,

@@ -19,7 +19,14 @@ import {
 } from '../lib/bangumi-image-host'
 import { useSettingsStore } from '../stores/settings'
 import { isBuiltinPlugin, usePluginStore } from '../stores/plugins'
-import { PageHeader, KzSelect, KzSwitch } from '../components/ui'
+import {
+  PageHeader,
+  Collapsible,
+  SwitchRow,
+  Switch,
+  KzSelect,
+} from '../components/ui'
+import { Reorder, useDragControls } from 'framer-motion'
 import { getSiteBranding } from '../lib/site-branding'
 import { EMPTY_ARRAY, FALLBACK_DANMAKU, FALLBACK_NAV, FALLBACK_PLAYER } from '../lib/stable'
 import {
@@ -103,6 +110,144 @@ function renderPluginBadge(p: PluginMeta) {
     >
       Kazumi
     </span>
+  )
+}
+
+function PluginReorderCard({
+  plugin,
+  index,
+  isFirst,
+  isLast,
+  onMove,
+  onRemove,
+  onToggle,
+}: {
+  plugin: PluginMeta
+  index: number
+  isFirst: boolean
+  isLast: boolean
+  onMove: (name: string, dir: -1 | 1) => void
+  onRemove: (id: string) => void
+  onToggle: (id: string) => void
+}) {
+  const dragControls = useDragControls()
+  const effectivelyOn = plugin.enabled !== false
+
+  return (
+    <Reorder.Item
+      value={plugin}
+      dragListener={false}
+      dragControls={dragControls}
+      className={`group relative flex flex-col rounded-xl border select-none overflow-hidden transition-colors ${
+        isFirst && effectivelyOn
+          ? 'border-[var(--kz-accent)]/40 bg-[var(--kz-bg-elevated)] shadow-xs hover:border-[var(--kz-accent)]/70'
+          : 'border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] hover:border-[var(--kz-border-hover)] hover:shadow-xs'
+      } ${!effectivelyOn ? 'opacity-60 saturate-75 bg-[var(--kz-bg-soft)]/50' : ''}`}
+    >
+      <div className="flex items-center justify-between gap-2 px-3 py-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-2.5">
+          {/* 拖拽手柄与微调 */}
+          <div
+            className="flex items-center gap-1 shrink-0 rounded-lg bg-[var(--kz-bg-soft)] p-0.5 sm:p-1 text-[var(--kz-fg-dim)] select-none touch-none"
+            title="按住手柄拖拽排序"
+          >
+            <span
+              onPointerDown={(e) => dragControls.start(e)}
+              className="cursor-grab active:cursor-grabbing px-0.5 hover:text-[var(--kz-fg)] transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M5 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm0 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm0 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm6-8a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm0 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm0 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0z" />
+              </svg>
+            </span>
+            <span
+              className={`font-mono text-[10.5px] font-bold px-1 rounded ${
+                isFirst
+                  ? 'bg-amber-500/15 text-amber-500 dark:text-amber-400'
+                  : 'text-[var(--kz-fg-muted)]'
+              }`}
+            >
+              #{index}
+            </span>
+            <div className="flex flex-col gap-0.5 border-l border-[var(--kz-border)]/60 pl-1 my-0.5">
+              <button
+                type="button"
+                disabled={isFirst}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onMove(plugin.name, -1)
+                }}
+                title="上移"
+                className="text-[8.5px] leading-none disabled:opacity-20 hover:text-[var(--kz-accent)] cursor-pointer transition-colors p-0.5"
+              >
+                ▲
+              </button>
+              <button
+                type="button"
+                disabled={isLast}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onMove(plugin.name, 1)
+                }}
+                title="下移"
+                className="text-[8.5px] leading-none disabled:opacity-20 hover:text-[var(--kz-accent)] cursor-pointer transition-colors p-0.5"
+              >
+                ▼
+              </button>
+            </div>
+          </div>
+
+          {/* 规则名称与标签 */}
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="font-semibold text-xs sm:text-sm text-[var(--kz-fg)] truncate">
+                {plugin.name}
+              </span>
+              <span className="rounded border border-[var(--kz-border)] bg-[var(--kz-bg)] px-1.5 py-0.2 font-mono text-[10px] text-[var(--kz-fg-muted)]">
+                v{plugin.version || '?'}
+              </span>
+              {renderPluginBadge(plugin)}
+              {isFirst && (
+                <span className="inline-flex items-center gap-0.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.2 text-[9.5px] sm:text-[10px] font-semibold text-amber-500 dark:text-amber-400 shadow-xs">
+                  <span>⭐</span>
+                  <span>默认主源</span>
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* 右侧：删除按钮（自定义规则） + Switch 开关 */}
+        <div className="flex items-center gap-2 shrink-0">
+          {!isBuiltinPlugin(plugin) && (
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm(`确定删除规则「${plugin.name}」吗？`)) {
+                  onRemove(plugin.id)
+                }
+              }}
+              className="inline-flex items-center gap-0.5 rounded-md border border-rose-500/20 bg-rose-500/5 px-1.5 py-0.5 text-[10.5px] font-medium text-rose-400 hover:bg-rose-500/15 hover:border-rose-500/30 hover:text-rose-500 transition-all cursor-pointer"
+              title="删除此规则"
+            >
+              <span>🗑️</span>
+              <span className="hidden sm:inline">删除</span>
+            </button>
+          )}
+
+          <div className="flex items-center gap-1.5">
+            <Switch
+              size="sm"
+              checked={effectivelyOn}
+              onChange={() => onToggle(plugin.id)}
+              ariaLabel={effectivelyOn ? '停用规则' : '启用规则'}
+            />
+            <span className="text-xs font-medium text-[var(--kz-fg)] hidden sm:inline select-none">
+              {effectivelyOn ? '已启用' : '已停用'}
+            </span>
+          </div>
+        </div>
+      </div>
+    </Reorder.Item>
   )
 }
 
@@ -194,12 +339,6 @@ export function SettingsPage() {
     [plugins, pluginOrder],
   )
 
-  const [draggedName, setDraggedName] = useState<string | null>(null)
-  const [dragOverName, setDragOverName] = useState<string | null>(null)
-
-  const touchSourceRef = useRef<string | null>(null)
-  const touchTargetRef = useRef<string | null>(null)
-
   /**
    * Move a plugin up/down in the user sort order.
    * Reads current live `sortedPlugins` names to build the new order list.
@@ -218,92 +357,6 @@ export function SettingsPage() {
     },
     [sortedPlugins, setPluginOrder],
   )
-
-  const handleDragDrop = useCallback(
-    (targetName: string) => {
-      if (!draggedName || draggedName.toLowerCase() === targetName.toLowerCase()) {
-        setDraggedName(null)
-        setDragOverName(null)
-        return
-      }
-      const names = sortedPlugins.map((p) => p.name)
-      const fromIdx = names.findIndex(
-        (n) => n.toLowerCase() === draggedName.toLowerCase(),
-      )
-      const toIdx = names.findIndex(
-        (n) => n.toLowerCase() === targetName.toLowerCase(),
-      )
-      if (fromIdx < 0 || toIdx < 0) {
-        setDraggedName(null)
-        setDragOverName(null)
-        return
-      }
-      const newNames = [...names]
-      const [moved] = newNames.splice(fromIdx, 1)
-      newNames.splice(toIdx, 0, moved)
-      setPluginOrder(newNames)
-      setDraggedName(null)
-      setDragOverName(null)
-    },
-    [draggedName, sortedPlugins, setPluginOrder],
-  )
-
-  const handleTouchStart = useCallback((name: string) => {
-    touchSourceRef.current = name
-    touchTargetRef.current = name
-    setDraggedName(name)
-    if (typeof navigator !== 'undefined' && navigator.vibrate) {
-      try {
-        navigator.vibrate(10)
-      } catch {}
-    }
-  }, [])
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!touchSourceRef.current) return
-    const touch = e.touches[0]
-    if (!touch) return
-    const el = document.elementFromPoint(touch.clientX, touch.clientY)
-    const card = el?.closest<HTMLElement>('[data-plugin-card-name]')
-    const targetName = card?.dataset.pluginCardName
-    if (targetName) {
-      touchTargetRef.current = targetName
-      if (dragOverName !== targetName) {
-        setDragOverName(targetName)
-      }
-    }
-  }, [dragOverName])
-
-  const handleTouchEnd = useCallback(() => {
-    const fromName = touchSourceRef.current
-    const toName = touchTargetRef.current
-    if (fromName && toName && fromName.toLowerCase() !== toName.toLowerCase()) {
-      const names = sortedPlugins.map((p) => p.name)
-      const fromIdx = names.findIndex(
-        (n) => n.toLowerCase() === fromName.toLowerCase(),
-      )
-      const toIdx = names.findIndex(
-        (n) => n.toLowerCase() === toName.toLowerCase(),
-      )
-      if (fromIdx >= 0 && toIdx >= 0) {
-        const newNames = [...names]
-        const [moved] = newNames.splice(fromIdx, 1)
-        newNames.splice(toIdx, 0, moved)
-        setPluginOrder(newNames)
-      }
-    }
-    touchSourceRef.current = null
-    touchTargetRef.current = null
-    setDraggedName(null)
-    setDragOverName(null)
-  }, [sortedPlugins, setPluginOrder])
-
-  const handleTouchCancel = useCallback(() => {
-    touchSourceRef.current = null
-    touchTargetRef.current = null
-    setDraggedName(null)
-    setDragOverName(null)
-  }, [])
 
   // 折叠卡片状态管理（支持本地持久化记忆）
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
@@ -876,193 +929,28 @@ export function SettingsPage() {
           </div>
         )}
 
-        {/* 规则卡片流式列表 */}
-        <ul className="space-y-2">
-          {sortedPlugins.map((p, idx) => {
-            const effectivelyOn = p.enabled !== false
-            const isFirst = idx === 0
-            const isLast = idx === sortedPlugins.length - 1
-            const isDragging = draggedName?.toLowerCase() === p.name.toLowerCase()
-            const isDragOver = dragOverName?.toLowerCase() === p.name.toLowerCase()
-
-            return (
-              <li
-                key={p.id}
-                data-plugin-card-name={p.name}
-                draggable={true}
-                onDragStart={(e) => {
-                  e.dataTransfer.setData('text/plain', p.name)
-                  e.dataTransfer.effectAllowed = 'move'
-                  requestAnimationFrame(() => {
-                    setDraggedName(p.name)
-                  })
-                }}
-                onDragOver={(e) => {
-                  e.preventDefault()
-                  e.dataTransfer.dropEffect = 'move'
-                  if (dragOverName !== p.name) {
-                    setDragOverName(p.name)
-                  }
-                }}
-                onDragLeave={(e) => {
-                  const related = e.relatedTarget as Node | null
-                  if (related && e.currentTarget.contains(related)) {
-                    return
-                  }
-                  if (dragOverName === p.name) {
-                    setDragOverName(null)
-                  }
-                }}
-                onDrop={(e) => {
-                  e.preventDefault()
-                  handleDragDrop(p.name)
-                }}
-                onDragEnd={() => {
-                  setDraggedName(null)
-                  setDragOverName(null)
-                }}
-                className={`group relative flex flex-col rounded-xl border transition-all duration-200 select-none overflow-hidden ${
-                  isDragging
-                    ? 'opacity-40 border-dashed border-[var(--kz-accent)] bg-[var(--kz-bg-soft)] scale-[0.99]'
-                    : isDragOver
-                      ? 'border-[var(--kz-accent)] ring-2 ring-[var(--kz-accent)]/40 bg-[var(--kz-accent)]/5 shadow-md'
-                      : isFirst && effectivelyOn
-                        ? 'border-[var(--kz-accent)]/40 bg-[var(--kz-bg-elevated)] shadow-xs hover:border-[var(--kz-accent)]/70'
-                        : 'border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] hover:border-[var(--kz-border-hover)] hover:shadow-xs'
-                } ${!effectivelyOn ? 'opacity-60 saturate-75 bg-[var(--kz-bg-soft)]/50' : ''}`}
-              >
-                {/* 规则卡片行：拖拽手柄 + 序号 + 规则名称 + 驱动徽章 + 默认源徽章 + (删除) + 主启用 Switch */}
-                <div className="flex items-center justify-between gap-2 px-3 py-2">
-                  <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-2.5">
-                    {/* 拖拽手柄与微调 */}
-                    <div
-                      className="flex items-center gap-1 shrink-0 rounded-lg bg-[var(--kz-bg-soft)] p-0.5 sm:p-1 text-[var(--kz-fg-dim)] select-none touch-none"
-                      draggable={false}
-                      onDragStart={(e) => e.stopPropagation()}
-                      onTouchStart={() => handleTouchStart(p.name)}
-                      onTouchMove={handleTouchMove}
-                      onTouchEnd={handleTouchEnd}
-                      onTouchCancel={handleTouchCancel}
-                      title="按住手柄拖拽排序"
-                    >
-                      <span className="cursor-grab active:cursor-grabbing px-0.5 hover:text-[var(--kz-fg)] transition-colors">
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor">
-                          <circle cx="4.5" cy="3.5" r="1.2" />
-                          <circle cx="4.5" cy="8" r="1.2" />
-                          <circle cx="4.5" cy="12.5" r="1.2" />
-                          <circle cx="11.5" cy="3.5" r="1.2" />
-                          <circle cx="11.5" cy="8" r="1.2" />
-                          <circle cx="11.5" cy="12.5" r="1.2" />
-                        </svg>
-                      </span>
-                      <span
-                        className={`font-mono text-[10.5px] font-bold px-1 rounded ${
-                          isFirst
-                            ? 'bg-amber-500/15 text-amber-500 dark:text-amber-400'
-                            : 'text-[var(--kz-fg-muted)]'
-                        }`}
-                      >
-                        #{idx + 1}
-                      </span>
-                      <div className="flex flex-col gap-0.5 ml-0.5">
-                        <button
-                          type="button"
-                          disabled={isFirst}
-                          draggable={false}
-                          onDragStart={(e) => e.stopPropagation()}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            movePlugin(p.name, -1)
-                          }}
-                          title="上移"
-                          className="text-[8.5px] leading-none disabled:opacity-20 hover:text-[var(--kz-accent)] cursor-pointer transition-colors p-0.5"
-                        >
-                          ▲
-                        </button>
-                        <button
-                          type="button"
-                          disabled={isLast}
-                          draggable={false}
-                          onDragStart={(e) => e.stopPropagation()}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            movePlugin(p.name, 1)
-                          }}
-                          title="下移"
-                          className="text-[8.5px] leading-none disabled:opacity-20 hover:text-[var(--kz-accent)] cursor-pointer transition-colors p-0.5"
-                        >
-                          ▼
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* 规则名称与标签 */}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="font-semibold text-xs sm:text-sm text-[var(--kz-fg)] truncate">
-                          {p.name}
-                        </span>
-                        <span className="rounded border border-[var(--kz-border)] bg-[var(--kz-bg)] px-1.5 py-0.2 font-mono text-[10px] text-[var(--kz-fg-muted)]">
-                          v{p.version || '?'}
-                        </span>
-                        {renderPluginBadge(p)}
-                        {isFirst && (
-                          <span className="inline-flex items-center gap-0.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.2 text-[9.5px] sm:text-[10px] font-semibold text-amber-500 dark:text-amber-400 shadow-xs">
-                            <span>⭐</span>
-                            <span>默认主源</span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 右侧：删除按钮（自定义规则） + iOS 风格 Switch 主开关 */}
-                  <div
-                    className="flex items-center gap-2 shrink-0"
-                    draggable={false}
-                    onDragStart={(e) => e.stopPropagation()}
-                  >
-                    {!isBuiltinPlugin(p) && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (window.confirm(`确定删除规则「${p.name}」吗？`)) {
-                            removePlugin(p.id)
-                          }
-                        }}
-                        className="inline-flex items-center gap-0.5 rounded-md border border-rose-500/20 bg-rose-500/5 px-1.5 py-0.5 text-[10.5px] font-medium text-rose-400 hover:bg-rose-500/15 hover:border-rose-500/30 hover:text-rose-500 transition-all cursor-pointer"
-                        title="删除此规则"
-                      >
-                        <span>🗑️</span>
-                        <span className="hidden sm:inline">删除</span>
-                      </button>
-                    )}
-
-                    <label
-                      className="relative inline-flex items-center cursor-pointer select-none"
-                      title={
-                        effectivelyOn
-                          ? '点击停用规则'
-                          : '点击启用规则'
-                      }
-                    >
-                      <input
-                        type="checkbox"
-                        className="sr-only peer"
-                        checked={effectivelyOn}
-                        onChange={() => togglePlugin(p.id)}
-                      />
-                      <div className="w-9 h-5 sm:w-10 sm:h-5.5 bg-[var(--kz-bg-soft)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 sm:after:h-4.5 sm:after:w-4.5 after:transition-all after:shadow-sm peer-checked:bg-[var(--kz-accent)] border border-[var(--kz-border)] peer-checked:border-[var(--kz-accent)]" />
-                      <span className="ml-1.5 text-xs font-medium text-[var(--kz-fg)] hidden sm:inline">
-                        {effectivelyOn ? '已启用' : '已停用'}
-                      </span>
-                    </label>
-                  </div>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
+        {/* 规则卡片流式列表 (Reorder 物理弹簧拖拽排序) */}
+        <Reorder.Group
+          axis="y"
+          values={sortedPlugins}
+          onReorder={(newPlugins) => {
+            setPluginOrder(newPlugins.map((p) => p.name))
+          }}
+          className="space-y-2 list-none p-0 m-0"
+        >
+          {sortedPlugins.map((p, idx) => (
+            <PluginReorderCard
+              key={p.id}
+              plugin={p}
+              index={idx + 1}
+              isFirst={idx === 0}
+              isLast={idx === sortedPlugins.length - 1}
+              onMove={movePlugin}
+              onRemove={removePlugin}
+              onToggle={togglePlugin}
+            />
+          ))}
+        </Reorder.Group>
       </CollapsibleSection>
 
       {/* 6. 播放器偏好 */}
@@ -1432,11 +1320,11 @@ function CollapsibleSection({
         </div>
       </div>
 
-      {isOpen && (
+      <Collapsible open={isOpen}>
         <div className="px-4 pb-4 sm:px-6 sm:pb-6 pt-0 space-y-4 border-t border-[var(--kz-border)]/40 mt-1">
           <div className="pt-3 space-y-3">{children}</div>
         </div>
-      )}
+      </Collapsible>
     </section>
   )
 }
@@ -1453,16 +1341,13 @@ function Toggle({
   disabled?: boolean
 }) {
   return (
-    <div className="flex items-center justify-between text-sm py-0.5">
-      <span className="text-xs sm:text-sm font-medium text-[var(--kz-fg)]">{label}</span>
-      <KzSwitch
-        checked={checked}
-        onChange={onChange}
-        disabled={disabled}
-        aria-label={label}
-        size="md"
-      />
-    </div>
+    <SwitchRow
+      label={label}
+      checked={checked}
+      onChange={onChange}
+      disabled={disabled}
+      className="py-1.5"
+    />
   )
 }
 

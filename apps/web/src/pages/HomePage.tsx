@@ -15,6 +15,7 @@ import { useHistoryStore } from '../stores/history'
 import { useSettingsStore } from '../stores/settings'
 import { Link } from 'react-router-dom'
 import { useEffect, useMemo, useState } from 'react'
+import { AnimatePresence } from 'framer-motion'
 import { EMPTY_ARRAY } from '../lib/stable'
 import { preloadVideoPlayer } from '../player/lazy'
 import { useInView } from '../lib/use-in-view'
@@ -368,12 +369,14 @@ export function HomePage() {
       </section>
 
       {/* 首页站点公告弹窗 */}
-      {showAnnouncement && announcement && (
-        <SiteAnnouncementModal
-          announcement={announcement}
-          onClose={handleCloseAnnouncement}
-        />
-      )}
+      <AnimatePresence>
+        {showAnnouncement && announcement && (
+          <SiteAnnouncementModal
+            announcement={announcement}
+            onClose={handleCloseAnnouncement}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

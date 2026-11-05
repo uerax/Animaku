@@ -8,13 +8,29 @@ export function WatchHudToast({ message }: { message: string | null }) {
       className="pointer-events-none absolute left-1/2 -translate-x-1/2 z-50 flex items-center justify-center"
       style={{ top: '7%' }}
     >
-      <AnimatePresence>
+      <AnimatePresence mode="wait">
         {message && (
           <motion.div
-            initial={isReducedMotion ? false : { opacity: 0, scale: 0.9, y: -10 }}
-            animate={isReducedMotion ? undefined : { opacity: 1, scale: 1, y: 0 }}
-            exit={isReducedMotion ? undefined : { opacity: 0, scale: 0.92, y: -8 }}
-            transition={{ type: 'spring', damping: 22, stiffness: 320 }}
+            key={message}
+            initial={
+              isReducedMotion
+                ? { opacity: 0 }
+                : { opacity: 0, y: -10, scale: 0.94 }
+            }
+            animate={
+              isReducedMotion
+                ? { opacity: 1 }
+                : { opacity: 1, y: 0, scale: 1 }
+            }
+            exit={
+              isReducedMotion
+                ? { opacity: 0 }
+                : { opacity: 0, y: -8, scale: 0.95 }
+            }
+            transition={{
+              duration: isReducedMotion ? 0.15 : 0.22,
+              ease: [0.16, 1, 0.3, 1],
+            }}
             className="kz-status-hint flex items-center gap-2 shadow-2xl"
           >
             <span className="flex h-2 w-2 relative flex-shrink-0">

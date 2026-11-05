@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { Modal } from './Modal'
 import type { AnnouncementItem } from '../stores/site-config'
 
 const DISMISSED_KEY = 'animaku_announcement_dismissed'
@@ -74,7 +74,6 @@ export function SiteAnnouncementModal({
   onClose,
 }: SiteAnnouncementModalProps) {
   const {
-    id,
     title,
     content,
     imageUrl,
@@ -87,115 +86,62 @@ export function SiteAnnouncementModal({
     imageZoom = 1,
   } = announcement
   const s = SIZE_STYLES[size] || SIZE_STYLES.standard
-  const wrapperRef = useRef<HTMLDivElement>(null)
-
   const isFixedArea = Boolean(imageHeight && imageHeight > 0)
 
-  // 监听 ESC 键关闭
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
-
-  // 点击卡片外部空白区域关闭（不设遮挡背景，仅捕获外部点击）
-  useEffect(() => {
-    const handlePointerDown = (e: PointerEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
-        onClose()
-      }
-    }
-    const timer = setTimeout(() => {
-      window.addEventListener('pointerdown', handlePointerDown)
-    }, 50)
-    return () => {
-      clearTimeout(timer)
-      window.removeEventListener('pointerdown', handlePointerDown)
-    }
-  }, [onClose])
-
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="站点公告"
-      className="fixed inset-0 z-50 flex flex-col items-center justify-center p-4 pointer-events-none animate-fade-in"
+    <Modal
+      open={true}
+      onClose={onClose}
+      ariaLabel="站点公告"
+      backdropClassName="bg-black/50 backdrop-blur-xs"
+      className={`flex flex-col items-center w-full ${s.container}`}
     >
-      <div
-        ref={wrapperRef}
-        className={`flex flex-col items-center w-full ${s.container} pointer-events-auto`}
-      >
-        {/* 展示卡片主体：标题在上方，图片在最下方，超高长图卡内平滑滚动 */}
-        <div
-          className={`w-full ${!imageUrl ? 'min-h-[140px]' : ''} rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg)] shadow-2xl overflow-hidden flex flex-col max-h-[82vh] ring-1 ring-black/10 dark:ring-white/10`}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* 滚动容器：标题在上方，正文紧随其后，图片位于最下方 */}
-          <div className="overflow-y-auto flex-1 flex flex-col">
-            {/* 顶部标题与正文区域 */}
-            {(title || content || !imageUrl) && (
-              <div
-                className={`${s.padding} ${imageUrl ? 'pb-3' : ''} space-y-2 shrink-0 ${
-                  !imageUrl ? 'flex-1 flex flex-col justify-center' : ''
-                }`}
-              >
-                <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--kz-accent)] mb-0.5">
-                  <span className="text-sm">📢</span>
-                  <span>站点公告</span>
-                </div>
-                {title && (
-                  <h2 className={`${s.title} font-bold text-[var(--kz-fg)] leading-snug tracking-tight`}>
-                    {title}
-                  </h2>
-                )}
-                {content && (
-                  <div className={`${s.content} text-[var(--kz-fg-muted)] whitespace-pre-wrap break-words leading-relaxed`}>
-                    {content}
-                  </div>
-                )}
+      {/* 展示卡片主体：标题在上方，图片在最下方，超高长图卡内平滑滚动 */}
+      <div className={`w-full ${!imageUrl ? 'min-h-[140px]' : ''} rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg)] shadow-2xl overflow-hidden flex flex-col max-h-[82vh] ring-1 ring-black/10 dark:ring-white/10`}>
+        {/* 滚动容器：标题在上方，正文紧随其后，图片位于最下方 */}
+        <div className="overflow-y-auto flex-1 flex flex-col">
+          {/* 顶部标题与正文区域 */}
+          {(title || content || !imageUrl) && (
+            <div
+              className={`${s.padding} ${imageUrl ? 'pb-3' : ''} space-y-2 shrink-0 ${
+                !imageUrl ? 'flex-1 flex flex-col justify-center' : ''
+              }`}
+            >
+              <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--kz-accent)] mb-0.5">
+                <span className="text-sm">📢</span>
+                <span>站点公告</span>
               </div>
-            )}
+              {title && (
+                <h2 className={`${s.title} font-bold text-[var(--kz-fg)] leading-snug tracking-tight`}>
+                  {title}
+                </h2>
+              )}
+              {content && (
+                <div className={`${s.content} text-[var(--kz-fg-muted)] whitespace-pre-wrap break-words leading-relaxed`}>
+                  {content}
+                </div>
+              )}
+            </div>
+          )}
 
-            {/* 配图区域：位于卡片最下方，支持自定义展示高宽、平移焦点与缩放（放大/缩小） */}
-            {imageUrl && (
-              <div
-                className={`w-full shrink-0 bg-black/5 overflow-hidden flex items-center justify-center mt-auto ${
-                  title || content ? 'border-t border-[var(--kz-border)]/30' : ''
-                }`}
-                style={{
-                  height: isFixedArea ? `${imageHeight}px` : 'auto',
-                }}
-              >
-                {imageLink ? (
-                  <a
-                    href={imageLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-center relative group overflow-hidden w-full h-full"
-                    title="点击打开链接"
-                  >
-                    <img
-                      src={imageUrl}
-                      alt={title || '站点公告'}
-                      style={{
-                        height: isFixedArea ? '100%' : 'auto',
-                        width: `${imageWidth}%`,
-                        maxWidth: '100%',
-                        objectFit: isFixedArea ? 'cover' : 'contain',
-                        objectPosition: `${imageOffsetX}% ${imageOffsetY}%`,
-                        transform: imageZoom && imageZoom !== 1 ? `scale(${imageZoom})` : undefined,
-                      }}
-                      className="block transition-transform duration-300 group-hover:scale-[1.01]"
-                    />
-                    <span className="absolute bottom-2.5 right-2.5 inline-flex items-center gap-1 rounded-full bg-black/60 px-2.5 py-1 text-[10px] font-medium text-white/95 backdrop-blur-md opacity-85 group-hover:opacity-100 transition-opacity">
-                      点击跳转 ↗
-                    </span>
-                  </a>
-                ) : (
+          {/* 配图区域：位于卡片最下方，支持自定义展示高宽、平移焦点与缩放（放大/缩小） */}
+          {imageUrl && (
+            <div
+              className={`w-full shrink-0 bg-black/5 overflow-hidden flex items-center justify-center mt-auto ${
+                title || content ? 'border-t border-[var(--kz-border)]/30' : ''
+              }`}
+              style={{
+                height: isFixedArea ? `${imageHeight}px` : 'auto',
+              }}
+            >
+              {imageLink ? (
+                <a
+                  href={imageLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center relative group overflow-hidden w-full h-full"
+                  title="点击打开链接"
+                >
                   <img
                     src={imageUrl}
                     alt={title || '站点公告'}
@@ -207,33 +153,50 @@ export function SiteAnnouncementModal({
                       objectPosition: `${imageOffsetX}% ${imageOffsetY}%`,
                       transform: imageZoom && imageZoom !== 1 ? `scale(${imageZoom})` : undefined,
                     }}
-                    className="block"
+                    className="block transition-transform duration-300 group-hover:scale-[1.01]"
                   />
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* 卡片正下方居中关闭按钮 */}
-        <div className="mt-3.5 flex justify-center shrink-0">
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="关闭公告"
-            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-[var(--kz-border)] bg-[var(--kz-bg)] hover:bg-[var(--kz-bg-soft)] active:scale-90 text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] flex items-center justify-center transition-all shadow-lg cursor-pointer"
-          >
-            <svg
-              className="w-4.5 h-4.5 stroke-[2]"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+                  <span className="absolute bottom-2.5 right-2.5 inline-flex items-center gap-1 rounded-full bg-black/60 px-2.5 py-1 text-[10px] font-medium text-white/95 backdrop-blur-md opacity-85 group-hover:opacity-100 transition-opacity">
+                    点击跳转 ↗
+                  </span>
+                </a>
+              ) : (
+                <img
+                  src={imageUrl}
+                  alt={title || '站点公告'}
+                  style={{
+                    height: isFixedArea ? '100%' : 'auto',
+                    width: `${imageWidth}%`,
+                    maxWidth: '100%',
+                    objectFit: isFixedArea ? 'cover' : 'contain',
+                    objectPosition: `${imageOffsetX}% ${imageOffsetY}%`,
+                    transform: imageZoom && imageZoom !== 1 ? `scale(${imageZoom})` : undefined,
+                  }}
+                  className="block"
+                />
+              )}
+            </div>
+          )}
         </div>
       </div>
-    </div>
+
+      {/* 卡片正下方居中关闭按钮 */}
+      <div className="mt-3.5 flex justify-center shrink-0">
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="关闭公告"
+          className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-[var(--kz-border)] bg-[var(--kz-bg)] hover:bg-[var(--kz-bg-soft)] active:scale-90 text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] flex items-center justify-center transition-all shadow-lg cursor-pointer"
+        >
+          <svg
+            className="w-4.5 h-4.5 stroke-[2]"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </Modal>
   )
 }
