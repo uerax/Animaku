@@ -47,7 +47,7 @@ export function MobileEpsSection({
   playingEpisode,
   playingPageUrl,
   epCount,
-  listExpanded,
+  listExpanded: _listExpanded,
   roadLoading,
   roadError,
   pendingPluginName,
@@ -56,7 +56,7 @@ export function MobileEpsSection({
   isDefaultSearching,
   defaultSourceName,
   activePluginName,
-  onToggleList,
+  onToggleList: _onToggleList,
   onSelectRoad,
   onPickSlot,
   onPickEpisode,
@@ -74,7 +74,7 @@ export function MobileEpsSection({
   /** Exact pageUrl currently playing */
   playingPageUrl?: string | null
   epCount: number
-  listExpanded: boolean
+  listExpanded?: boolean
   roadLoading?: boolean
   roadError?: string | null
   pendingPluginName?: string | null
@@ -83,7 +83,7 @@ export function MobileEpsSection({
   isDefaultSearching?: boolean
   defaultSourceName?: string
   activePluginName?: string
-  onToggleList: () => void
+  onToggleList?: () => void
   onSelectRoad: (index: number) => void
   onPickSlot?: (slot: PlayableSlot, roadIndex: number) => void
   onPickEpisode: (epIndex: number, roadIndex: number) => void
@@ -225,7 +225,7 @@ export function MobileEpsSection({
     return isDescOrder ? [...bucket.items].reverse() : bucket.items
   }, [activeRoad, isMultiRange, slots, rangeBuckets, selectedRangeIndex, isDescOrder])
 
-  // Scroll playing card into view (horizontal strip or expanded grid)
+  // Scroll playing card into view (expanded grid)
   useEffect(() => {
     if (playingIndex < 0) return
     const root = stripRef.current
@@ -234,20 +234,12 @@ export function MobileEpsSection({
       `[data-ep-index="${playingIndex}"]`,
     )
     if (!card) return
-    if (!listExpanded) {
-      card.scrollIntoView({
-        behavior: 'smooth',
-        inline: 'center',
-        block: 'nearest',
-      })
-    } else {
-      card.scrollIntoView({
-        behavior: 'smooth',
-        inline: 'nearest',
-        block: 'center',
-      })
-    }
-  }, [listExpanded, playingIndex, visibleEpisodes, isActive])
+    card.scrollIntoView({
+      behavior: 'smooth',
+      inline: 'nearest',
+      block: 'center',
+    })
+  }, [playingIndex, visibleEpisodes, isActive])
 
   // Keep active road pill in view when many lines overflow horizontally
   useEffect(() => {
@@ -354,30 +346,6 @@ export function MobileEpsSection({
               <span>{isDescOrder ? '倒序' : '正序'}</span>
             </button>
           )}
-
-          <button
-            type="button"
-            onClick={onToggleList}
-            className="kz-bili-sec-more"
-            aria-expanded={listExpanded}
-          >
-            {rawCount > 0 ? (listExpanded ? '收起' : `全${rawCount}话`) : '全部'}
-            <svg
-              className="kz-bili-chevron"
-              data-open={listExpanded ? 'true' : 'false'}
-              viewBox="0 0 16 16"
-              fill="none"
-              aria-hidden
-            >
-              <path
-                d="M4 6.2L8 10.2L12 6.2"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
         </div>
       </div>
 
@@ -527,12 +495,7 @@ export function MobileEpsSection({
                 : { duration: 0.28, ease: [0.16, 1, 0.3, 1] }
             }
             ref={stripRef}
-            className={clsx(
-              'kz-watch-ep-strip',
-              listExpanded
-                ? 'kz-bili-ep-grid'
-                : 'kz-bili-ep-strip',
-            )}
+            className="kz-watch-ep-strip kz-bili-ep-grid"
           >
             {visibleEpisodes.map((item) => {
               const epIndex = item.actualIndex
@@ -545,6 +508,11 @@ export function MobileEpsSection({
                 !playing &&
                 typeof item.canonicalEp === 'number' &&
                 Boolean(watchedMap && watchedMap[item.canonicalEp] !== undefined)
+              const rawSourceTitle =
+                item.slot?.sourceTitle?.trim() ||
+                activeRoad.identifier[epIndex]?.trim() ||
+                item.title
+              const cardTooltip = watched ? `${rawSourceTitle} · 已观看` : rawSourceTitle
               return (
                 <motion.button
                   key={activeRoad.data[epIndex] + item.title + epIndex}
@@ -558,7 +526,7 @@ export function MobileEpsSection({
                       onPickEpisode(epIndex, activeRoadIndex)
                     }
                   }}
-                  title={watched ? `${item.title} · 已观看` : item.title}
+                  title={cardTooltip}
                   className={clsx(
                     'kz-watch-ep-card kz-bili-ep',
                     playing && 'kz-bili-ep--playing',

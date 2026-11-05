@@ -58,8 +58,6 @@ export function WatchPage() {
   const [metaOpen, setMetaOpen] = useState(false)
   /** Active media pod tab: 'episodes' (default) vs 'sources' */
   const [activeNavTab, setActiveNavTab] = useState<WatchPodTab>('episodes')
-  /** Bilibili strip: false = horizontal cards, true = full grid (desktop + mobile) */
-  const [epsListExpanded, setEpsListExpanded] = useState(false)
   /** Wide-screen theater mode — active only for current watch session (not persisted). */
   const [widescreen, setWidescreen] = useState(false)
   /** 是否正在后台并发检索备用视频源（保持视频源面板折叠，避免闪烁展开） */
@@ -88,24 +86,14 @@ export function WatchPage() {
 
   /** Last selection key we auto-focused (collapse sources / mobile scroll) */
   const focusedSelectionKey = useRef<string | null>(null)
-  /**
-   * Selection key we already auto-expanded.
-   * Avoids re-forcing grid after the user collapses「全 N 话」.
-   */
-  const autoExpandedEpsKey = useRef<string | null>(null)
 
-  /** Focus 选集 Tab after selection; default 选集 to full grid; on mobile scroll cinema into view. */
+  /** Focus 选集 Tab after selection; on mobile scroll cinema into view. */
   const focusAfterSelection = useCallback(
     (key: string, opts?: { forceScroll?: boolean }) => {
       if (!key) return
       const already = focusedSelectionKey.current === key
       focusedSelectionKey.current = key
       setActiveNavTab('episodes')
-      // 选源后默认「全 N 话」网格（每源只自动展开一次，用户可再收起）
-      if (autoExpandedEpsKey.current !== key) {
-        autoExpandedEpsKey.current = key
-        setEpsListExpanded(true)
-      }
       if (layoutMode !== 'mobile') return
       if (already && !opts?.forceScroll) return
       // Wait layout paint after collapse before scrolling.
@@ -609,7 +597,6 @@ export function WatchPage() {
       playingEpisode={w.episode?.episode}
       playingPageUrl={w.episode?.pageUrl}
       epCount={epCount}
-      listExpanded={epsListExpanded}
       roadLoading={w.roadLoading}
       roadError={w.roadError || null}
       pendingPluginName={w.pendingSource?.pluginName}
@@ -618,7 +605,6 @@ export function WatchPage() {
       isAutoProbing={isAutoProbingSources}
       isDefaultSearching={isDefaultSearching}
       defaultSourceName={w.defaultSourceName}
-      onToggleList={() => startTransition(() => setEpsListExpanded((v) => !v))}
       onSelectRoad={(ri) => startTransition(() => w.setVisibleRoad(ri))}
       onPickSlot={(slot, rd) => startTransition(() => w.pickSlot(slot, rd))}
       onPickEpisode={(ep, rd) => startTransition(() => w.pickEpisode(ep, rd))}

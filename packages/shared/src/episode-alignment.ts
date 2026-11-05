@@ -239,19 +239,31 @@ export function buildPlayableSlots(
   const firstIsZero =
     extractConservativeEpisodeNumber(firstRawTitle, -1, true) === 0
 
+  // 超过 20 集必定为半年番、年番或长篇连载动画，绝非剧场版/单集多版本资源
+  const isLongSeries = sourceItems.length > 20
+
   return sourceItems.map((item, i) => {
     const rawTitle = item.title || identifiers[item.originalIndex] || ''
     const fallbackVal = firstIsZero
       ? item.originalIndex
       : item.originalIndex + 1
-    const canonicalEp = extractConservativeEpisodeNumber(
+    // 使用 -1 作为哨兵探测源站标题中是否含有显式、高置信度的集数标识
+    const explicitEp = extractConservativeEpisodeNumber(
       rawTitle,
-      fallbackVal,
+      -1,
       i === 0,
     )
+    const canonicalEp = explicitEp >= 0 ? explicitEp : fallbackVal
     const pageUrl = urls[item.originalIndex] || ''
     const sourceTitle = rawTitle || `第${canonicalEp}集`
-    const displayTitle = sourceTitle
+    // 满足以下任一条件时，规范化为干净的集数卡片（如 "第01话"）：
+    // 1. 显式带有集数标记（如 "第1集"、"EP02"、"03" 等）；
+    // 2. 总集数超过 20 集的连载动画（如海贼王、柯南等即使源站仅给纯剧情名，卡片也整齐显示集数，原名保留在 hover tooltip）；
+    // 否则（<= 20 集且无集数标记，如剧场版 "1080P" / "4K" / "粤语版" 或短篇 OVA 纯文本篇名 "刽子手"），忠实呈现源站原名以保证辨识度
+    const displayTitle =
+      explicitEp >= 0 || isLongSeries
+        ? formatEpisodeDisplayTitle(canonicalEp)
+        : sourceTitle
 
     return {
       canonicalEp,

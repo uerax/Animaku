@@ -152,3 +152,74 @@ test('Scenario 7 (Layer 2 regression): true 0-based anime must still preserve ep
   assert.equal(slots[2].canonicalEp, 2)
 })
 
+test('Scenario 8 (Layer 2 Movie / Multi-version): preserves raw version names for pure-text resources', () => {
+  // Movie with 3 source video variants (e.g. 1080P, 4K, Cantonese dub) mismatched with Bangumi
+  const movieRoad = {
+    data: ['play/m1', 'play/m2', 'play/m3'],
+    identifier: ['正片 1080P', '正片 4K超清', '正片 粤语版'],
+  }
+  const slots = buildPlayableSlots(movieRoad, [{ type: 0, sort: 1 }]) // Bangumi has 1 ep, source has 3 -> Layer 2
+  assert.equal(slots.length, 3)
+  assert.equal(slots[0].displayTitle, '正片 1080P', 'Movie variant 1 should preserve raw version title')
+  assert.equal(slots[1].displayTitle, '正片 4K超清', 'Movie variant 2 should preserve raw version title')
+  assert.equal(slots[2].displayTitle, '正片 粤语版', 'Movie variant 3 should preserve raw version title')
+  assert.equal(slots[0].sourceTitle, '正片 1080P')
+})
+
+test('Scenario 9 (Layer 2 TV Anime): normalizes titles with explicit episode numbers to clean episode labels', () => {
+  // TV anime with extra OVA or Bangumi fetch failure, but source has explicit episode prefixes
+  const tvRoad = {
+    data: ['play/ep1', 'play/ep2', 'play/ep3'],
+    identifier: ['第01集 觉醒的勇者', '第02集 终焉之夜', '第03集 序章'],
+  }
+  const slots = buildPlayableSlots(tvRoad, null) // Layer 2
+  assert.equal(slots.length, 3)
+  assert.equal(slots[0].displayTitle, '第01话', 'Explicit episode prefix should normalize to clean display title')
+  assert.equal(slots[1].displayTitle, '第02话')
+  assert.equal(slots[2].displayTitle, '第03话')
+  assert.equal(slots[0].sourceTitle, '第01集 觉醒的勇者', 'Full raw title should be preserved in sourceTitle for hover tooltip')
+})
+
+test('Scenario 10 (Layer 2 Long Series / One Piece): series > 20 eps forces normalized episode numbers even with pure plot titles', () => {
+  // One Piece style: 25 episodes with pure plot titles (no explicit "第X集" prefix)
+  const plotTitles = [
+    '我是路飞！ 将要成为海贼王的男人！',
+    '大剑豪现身！海贼猎人罗罗诺亚·索隆',
+    '蒙卡VS路飞！神秘的美少年是谁？',
+    '路飞的过去！红发香克斯登场',
+    '恐怖 神秘的力量！海贼小丑巴基船长！',
+    '绝体绝命！驯兽师摩奇VS路飞！',
+    '壮烈决斗！剑客索隆VS杂技卡巴吉！',
+    '胜者是谁？恶魔果实能力大对决！',
+    '正义的骗子？乌索普船长',
+    '史上最强的怪人！催眠师赞高',
+    '揭穿阴谋！海贼管家克洛船长',
+    '激战！黑猫海贼团坡道大攻防！',
+    '恐怖的二人组！猫人兄弟VS索隆',
+    '路飞复活！可雅小姐的舍命抗争',
+    '打倒克洛！男人乌索普落泪的决意！',
+    '保护可雅！乌索普海贼团大显身手！',
+    '彻底愤怒！克洛VS路飞最后的决战！',
+    '你是珍禽异兽！卡蒙和奇妙的伙伴',
+    '三刀流的过去！索隆与古伊娜的誓言！',
+    '名厨登场！海上餐厅的香吉士',
+    '不速之客！克利克舰队的阿金',
+    '最强海贼舰队！克利克提督',
+    '保卫巴拉蒂！大海贼红脚哲普',
+    '鹰眼米霍克！剑豪索隆命丧大海',
+    '必杀足技炸裂！香吉士VS铁壁巴鲁',
+  ]
+  const longRoad = {
+    data: plotTitles.map((_, i) => `play/op/${i + 1}`),
+    identifier: plotTitles,
+  }
+  const slots = buildPlayableSlots(longRoad, null) // Layer 2
+  assert.equal(slots.length, 25)
+  assert.equal(slots[0].canonicalEp, 1)
+  assert.equal(slots[0].displayTitle, '第01话', 'Episode 1 should display normalized 第01话')
+  assert.equal(slots[0].sourceTitle, '我是路飞！ 将要成为海贼王的男人！', 'Hover tooltip retains full plot title')
+  assert.equal(slots[24].canonicalEp, 25)
+  assert.equal(slots[24].displayTitle, '第25话', 'Episode 25 should display normalized 第25话')
+  assert.equal(slots[24].sourceTitle, '必杀足技炸裂！香吉士VS铁壁巴鲁')
+})
+
