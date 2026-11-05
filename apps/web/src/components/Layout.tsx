@@ -30,13 +30,6 @@ const moreLinks = [
   { to: '/timeline', label: '时间表' },
 ]
 
-function getActivePrimaryNavTab(pathname: string): string | null {
-  if (pathname === '/') return '/'
-  if (pathname.startsWith('/anime')) return '/anime'
-  if (pathname.startsWith('/timeline')) return '/timeline'
-  return null
-}
-
 function GitHubIconButton() {
   const b = getSiteBranding()
   return (
@@ -64,18 +57,15 @@ function NavItem({
   label,
   end,
   onNavigate,
-  sessionId = 0,
 }: {
   to: string
   label: string
   end?: boolean
   onNavigate?: () => void
-  sessionId?: number
 }) {
   const onWarmup = () => {
     if (to !== '/') preloadRoute(to)
   }
-  const isReducedMotion = useReducedMotion()
 
   return (
     <NavLink
@@ -87,32 +77,14 @@ function NavItem({
       onTouchStart={onWarmup}
       className={({ isActive }) =>
         clsx(
-          'relative whitespace-nowrap rounded-lg px-2 py-1 text-sm font-bold tracking-wide transition-colors sm:px-3.5 sm:py-2 sm:text-[15px]',
+          'relative whitespace-nowrap rounded-lg px-2.5 py-1 text-sm font-bold tracking-wide transition-colors sm:px-3.5 sm:py-1.5 sm:text-[15px]',
           isActive
-            ? 'text-[var(--kz-fg)]'
+            ? 'bg-[var(--kz-accent-soft)] text-[var(--kz-accent)] ring-1 ring-[var(--kz-accent)]/25'
             : 'text-[var(--kz-fg-muted)] hover:bg-[var(--kz-bg-hover)] hover:text-[var(--kz-fg)]',
         )
       }
     >
-      {({ isActive }) => (
-        <>
-          <span className="relative z-10">{label}</span>
-          {isActive && (
-            <motion.span
-              layoutId={isReducedMotion ? undefined : `navbar-active-${sessionId}`}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={
-                isReducedMotion
-                  ? { duration: 0 }
-                  : { type: 'spring', damping: 28, stiffness: 380 }
-              }
-              className="absolute inset-x-2.5 sm:inset-x-3 bottom-0 h-0.5 rounded-full bg-[var(--kz-accent)] shadow-[0_0_8px_var(--kz-accent)]"
-              aria-hidden
-            />
-          )}
-        </>
-      )}
+      {label}
     </NavLink>
   )
 }
@@ -184,19 +156,6 @@ export function Layout() {
 
   const navigate = useNavigate()
   const location = useLocation()
-
-  // Track navbar session: whenever entering primary nav from an outside route (activeNavTab was null),
-  // increment sessionId so Framer Motion creates a fresh, isolated layoutId scope without flying from the sky.
-  const activeNavTab = getActivePrimaryNavTab(location.pathname)
-  const sessionRef = useRef({ prevTab: activeNavTab, id: 0 })
-
-  if (sessionRef.current.prevTab !== activeNavTab) {
-    if (sessionRef.current.prevTab === null && activeNavTab !== null) {
-      sessionRef.current.id += 1
-    }
-    sessionRef.current.prevTab = activeNavTab
-  }
-  const navSessionId = sessionRef.current.id
 
   const [params] = useSearchParams()
   const showGitHub = useSettingsStore(
@@ -378,13 +337,13 @@ export function Layout() {
             aria-label="主导航"
           >
             {primaryLinks.map((l) => (
-              <NavItem key={l.to} {...l} sessionId={navSessionId} />
+              <NavItem key={l.to} {...l} />
             ))}
 
             {/* Desktop: rest of links inline */}
             <div className="hidden items-center gap-0.5 md:flex">
               {moreLinks.map((l) => (
-                <NavItem key={l.to} {...l} sessionId={navSessionId} />
+                <NavItem key={l.to} {...l} />
               ))}
 
               {/* 自定义广告外链 / 赞助商直达 */}
@@ -424,9 +383,9 @@ export function Layout() {
               <button
                 type="button"
                 className={clsx(
-                  'relative inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-2.5 py-2 text-[15px] font-bold tracking-wide transition-colors',
+                  'relative inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-2.5 py-1 text-sm font-bold tracking-wide transition-colors sm:px-3 sm:py-1.5 sm:text-[15px]',
                   moreActive || menuOpen
-                    ? 'text-[var(--kz-fg)]'
+                    ? 'bg-[var(--kz-accent-soft)] text-[var(--kz-accent)] ring-1 ring-[var(--kz-accent)]/25'
                     : 'text-[var(--kz-fg-muted)] hover:bg-[var(--kz-bg-hover)] hover:text-[var(--kz-fg)]',
                 )}
                 aria-expanded={menuOpen}
@@ -438,12 +397,6 @@ export function Layout() {
               >
                 更多
                 <MenuIcon open={menuOpen} />
-                {moreActive && !menuOpen && (
-                  <span
-                    className="absolute inset-x-2 bottom-0 h-1 rounded-full bg-[var(--kz-accent)]"
-                    aria-hidden
-                  />
-                )}
               </button>
               {menuOpen && (
                 <div
