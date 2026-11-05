@@ -192,7 +192,7 @@ export function SearchPage() {
           )}
         </div>
       )}
-      {keyword && q.isLoading && <BangumiGridSkeleton count={12} />}
+      {keyword && q.isLoading && <BangumiGridSkeleton />}
       {keyword && q.isError && (
         <ErrorState error={q.error} onRetry={() => q.refetch()} />
       )}

@@ -50,7 +50,7 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'date', label: '放送时间' },
 ]
 
-const PAGE_SIZE = 24
+const PAGE_SIZE = 28
 
 function currentYear() {
   return new Date().getFullYear()

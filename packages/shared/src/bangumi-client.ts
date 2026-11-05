@@ -268,57 +268,75 @@ export async function fetchClientTrending(
     if (cached) return cached
   }
 
-  const urls = [
-    `${apiUrl}/v0/search/subjects?limit=${limit}&offset=${offset}`,
-    apiUrl.includes('bgm.tv')
-      ? `${BANGUMI_API_URL_MIRROR}/v0/search/subjects?limit=${limit}&offset=${offset}`
-      : `${BANGUMI_API_URL_BANGUMI}/v0/search/subjects?limit=${limit}&offset=${offset}`,
-  ]
+  const fetchBatch = async (batchLimit: number, batchOffset: number) => {
+    const urls = [
+      `${apiUrl}/v0/search/subjects?limit=${batchLimit}&offset=${batchOffset}`,
+      apiUrl.includes('bgm.tv')
+        ? `${BANGUMI_API_URL_MIRROR}/v0/search/subjects?limit=${batchLimit}&offset=${batchOffset}`
+        : `${BANGUMI_API_URL_BANGUMI}/v0/search/subjects?limit=${batchLimit}&offset=${batchOffset}`,
+    ]
 
-  let res: Response | null = null
-  for (const u of urls) {
+    let res: Response | null = null
+    for (const u of urls) {
+      try {
+        const r = await fetchFn(u, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            keyword: '*',
+            sort: 'heat',
+            filter: {
+              type: [Number(type) || 2],
+              nsfw: false,
+              air_date: [`>=${seasonStart}`],
+            },
+          }),
+          signal: opts?.signal,
+        })
+        if (r.ok) {
+          res = r
+          break
+        }
+      } catch {}
+    }
+
+    if (!res || !res.ok) {
+      throw new Error('无法连接 Bangumi 热门番剧数据源')
+    }
+
+    const json = (await res.json()) as { data?: unknown[] }
+    const batchItems: BangumiItem[] = []
+    for (const entry of json.data || []) {
+      try {
+        batchItems.push(slimItem(parseBangumiItem(entry as Record<string, unknown>)))
+      } catch {}
+    }
+    return batchItems
+  }
+
+  // Bangumi /v0/search/subjects 单次上限为 20 条，当请求数 > 20 时自动续拉下一批拼接
+  const firstBatchLimit = Math.min(limit, 20)
+  const items = await fetchBatch(firstBatchLimit, offset)
+
+  if (limit > 20 && items.length >= 20) {
+    const remaining = limit - items.length
     try {
-      const r = await fetchFn(u, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          keyword: '*',
-          sort: 'heat',
-          filter: {
-            type: [Number(type) || 2],
-            nsfw: false,
-            air_date: [`>=${seasonStart}`],
-          },
-        }),
-        signal: opts?.signal,
-      })
-      if (r.ok) {
-        res = r
-        break
-      }
-    } catch {}
+      const secondBatch = await fetchBatch(Math.min(remaining, 20), offset + items.length)
+      items.push(...secondBatch)
+    } catch {
+      // 容灾：第二批失败时保底返回第一批
+    }
   }
 
-  if (!res || !res.ok) {
-    throw new Error('无法连接 Bangumi 热门番剧数据源')
-  }
-
-  const json = (await res.json()) as { data?: unknown[] }
-  const items: BangumiItem[] = []
-  for (const entry of json.data || []) {
-    try {
-      items.push(slimItem(parseBangumiItem(entry as Record<string, unknown>)))
-    } catch {}
-  }
-
+  const result = items.slice(0, limit)
   setClientStorageCache(
     cacheKey,
-    items,
+    result,
     BANGUMI_CLIENT_CACHE_TTL.trending,
     'aniku:bgm:trending:idx',
     20,
   )
-  return items
+  return result
 }
 
 export interface ClientSearchParams {
@@ -413,49 +431,67 @@ export async function fetchClientSearch(
   if (tags.length > 0) filter.tag = tags
   if (airDate.length > 0) filter.air_date = airDate
 
-  const urls = [
-    `${apiUrl}/v0/search/subjects?limit=${limit}&offset=${offset}`,
-    apiUrl.includes('bgm.tv')
-      ? `${BANGUMI_API_URL_MIRROR}/v0/search/subjects?limit=${limit}&offset=${offset}`
-      : `${BANGUMI_API_URL_BANGUMI}/v0/search/subjects?limit=${limit}&offset=${offset}`,
-  ]
+  const fetchSearchBatch = async (batchLimit: number, batchOffset: number) => {
+    const urls = [
+      `${apiUrl}/v0/search/subjects?limit=${batchLimit}&offset=${batchOffset}`,
+      apiUrl.includes('bgm.tv')
+        ? `${BANGUMI_API_URL_MIRROR}/v0/search/subjects?limit=${batchLimit}&offset=${batchOffset}`
+        : `${BANGUMI_API_URL_BANGUMI}/v0/search/subjects?limit=${batchLimit}&offset=${batchOffset}`,
+    ]
 
-  let res: Response | null = null
-  for (const u of urls) {
+    let res: Response | null = null
+    for (const u of urls) {
+      try {
+        const r = await fetchFn(u, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            keyword: keyword || '*',
+            sort: upstreamSort,
+            filter,
+          }),
+          signal: opts?.signal,
+        })
+        if (r.ok) {
+          res = r
+          break
+        }
+      } catch {}
+    }
+
+    if (!res || !res.ok) {
+      throw new Error('搜索番剧失败，请检查网络设置')
+    }
+
+    const json = (await res.json()) as { data?: unknown[]; total?: number }
+    const rawData = Array.isArray(json.data) ? json.data : []
+    const batchItems: BangumiItem[] = []
+
+    for (const entry of rawData) {
+      try {
+        batchItems.push(slimItem(parseBangumiItem(entry as Record<string, unknown>)))
+      } catch {}
+    }
+    return { items: batchItems, total: json.total }
+  }
+
+  // Bangumi /v0/search/subjects 单次上限为 20 条，当请求数 > 20 时自动续拉下一批拼接
+  const firstBatchLimit = Math.min(limit, 20)
+  const { items, total: upstreamTotal } = await fetchSearchBatch(firstBatchLimit, offset)
+
+  if (limit > 20 && items.length >= 20) {
+    const remaining = limit - items.length
     try {
-      const r = await fetchFn(u, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          keyword: keyword || '*',
-          sort: upstreamSort,
-          filter,
-        }),
-        signal: opts?.signal,
-      })
-      if (r.ok) {
-        res = r
-        break
-      }
-    } catch {}
+      const secondBatch = await fetchSearchBatch(Math.min(remaining, 20), offset + items.length)
+      items.push(...secondBatch.items)
+    } catch {
+      // 容灾：第二批失败时保底返回第一批
+    }
   }
 
-  if (!res || !res.ok) {
-    throw new Error('搜索番剧失败，请检查网络设置')
-  }
-
-  const json = (await res.json()) as { data?: unknown[]; total?: number }
-  const rawData = Array.isArray(json.data) ? json.data : []
-  const items: BangumiItem[] = []
-
-  for (const entry of rawData) {
-    try {
-      items.push(slimItem(parseBangumiItem(entry as Record<string, unknown>)))
-    } catch {}
-  }
-
+  const trimmedItems = items.slice(0, limit)
   if (sortByDate) {
-    items.sort((a, b) => {
+    trimmedItems.sort((a, b) => {
       const da = (a.airDate || '').trim()
       const db = (b.airDate || '').trim()
       if (!da && !db) return 0
@@ -466,8 +502,8 @@ export async function fetchClientSearch(
   }
 
   const result = {
-    data: items,
-    total: typeof json.total === 'number' ? json.total : items.length,
+    data: trimmedItems,
+    total: typeof upstreamTotal === 'number' ? upstreamTotal : trimmedItems.length,
     limit,
     offset,
     sort: sortByDate ? 'date' : upstreamSort,

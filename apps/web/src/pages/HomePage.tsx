@@ -27,27 +27,31 @@ import {
   dismissAnnouncement,
 } from '../components/SiteAnnouncementModal'
 import { SiteHighlightBanner } from '../components/SiteHighlightBanner'
-import { DESKTOP_MEDIA_QUERY } from '../components/hero-cover-flow.constants'
 
-const SECTION_LIMIT = 18
+const TRENDING_LIMIT = 14
+const SUB_SECTION_LIMIT = 7
 const SECTION_STALE_TIME = 2 * 60 * 60_000
 const SECTION_GC_TIME = 12 * 60 * 60_000
 
-const MOVIES_QUERY_KEY = ['home-movies', SECTION_LIMIT] as const
+// 响应式行数策略：电脑端热门番剧 2 排（14部），手机端 3 排（6部）；剧场版与 OVA 电脑端 1 排（7部），手机端 2 排（4部）
+const HOME_TRENDING_ROWS = { mobile: 3, tablet: 2, desktop: 2 } as const
+const HOME_SUBSECTION_ROWS = { mobile: 2, tablet: 1, desktop: 1 } as const
+
+const MOVIES_QUERY_KEY = ['home-movies', SUB_SECTION_LIMIT] as const
 const moviesQueryFn = ({ signal }: { signal?: AbortSignal }) =>
   bangumiApi.search('', {
     tags: ['剧场版'],
     sort: 'heat',
-    limit: SECTION_LIMIT,
+    limit: SUB_SECTION_LIMIT,
     signal,
   })
 
-const OVAS_QUERY_KEY = ['home-ovas', SECTION_LIMIT] as const
+const OVAS_QUERY_KEY = ['home-ovas', SUB_SECTION_LIMIT] as const
 const ovasQueryFn = ({ signal }: { signal?: AbortSignal }) =>
   bangumiApi.search('', {
     tags: ['OVA'],
     sort: 'heat',
-    limit: SECTION_LIMIT,
+    limit: SUB_SECTION_LIMIT,
     signal,
   })
 
@@ -82,31 +86,9 @@ export function HomePage() {
     setShowAnnouncement(false)
   }
 
-  const [isDesktop, setIsDesktop] = useState(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-      return true
-    }
-    return window.matchMedia(DESKTOP_MEDIA_QUERY).matches
-  })
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-      return
-    }
-    const mq = window.matchMedia(DESKTOP_MEDIA_QUERY)
-    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches)
-    setIsDesktop(mq.matches)
-    if (typeof mq.addEventListener === 'function') {
-      mq.addEventListener('change', handler)
-      return () => mq.removeEventListener('change', handler)
-    }
-    mq.addListener(handler)
-    return () => mq.removeListener(handler)
-  }, [])
-
   const trending = useQuery({
-    queryKey: ['trending', SECTION_LIMIT],
-    queryFn: ({ signal }) => bangumiApi.trending(SECTION_LIMIT, 0, { signal }),
+    queryKey: ['trending', TRENDING_LIMIT],
+    queryFn: ({ signal }) => bangumiApi.trending(TRENDING_LIMIT, 0, { signal }),
     staleTime: SECTION_STALE_TIME,
     gcTime: SECTION_GC_TIME,
   })
@@ -307,18 +289,17 @@ export function HomePage() {
             查看更多
           </Link>
         </div>
-        {trending.isLoading && <BangumiGridSkeleton count={SECTION_LIMIT} />}
+        {trending.isLoading && (
+          <BangumiGridSkeleton maxRows={HOME_TRENDING_ROWS} />
+        )}
         {trending.isError && (
           <ErrorState error={trending.error} onRetry={() => trending.refetch()} />
         )}
         {trending.data && (
           // 【性能与体验契约防线】：
-          // 桌面端（>= 768px）必须严格保持 eagerCount=6，完全对齐 lg:grid-cols-6 第一排满行展示，杜绝首排右侧留白滞后；
-          // 移动端（< 768px）网格为 2 列（grid-cols-2）且上方有轮播图，适配为 eagerCount=2，消解首屏过度并发竞争。
-          <BangumiGrid
-            items={trending.data.data}
-            eagerCount={isDesktop ? 6 : 2}
-          />
+          // 桌面端（6~7列）与移动端（2~4列）均由 BangumiGrid 响应式动态首排预算自动精确对齐；
+          // HOME_TRENDING_ROWS: 电脑端展示 2 行（14部），手机端展示 3 行（6部），平板展示 2 行（8部）。
+          <BangumiGrid items={trending.data.data} maxRows={HOME_TRENDING_ROWS} />
         )}
       </section>
 
@@ -339,9 +320,9 @@ export function HomePage() {
         {movies.isError ? (
           <ErrorState error={movies.error} onRetry={() => movies.refetch()} />
         ) : movies.data ? (
-          <BangumiGrid items={movies.data.data} />
+          <BangumiGrid items={movies.data.data} maxRows={HOME_SUBSECTION_ROWS} />
         ) : (
-          <BangumiGridSkeleton count={SECTION_LIMIT} />
+          <BangumiGridSkeleton maxRows={HOME_SUBSECTION_ROWS} />
         )}
       </section>
 
@@ -362,9 +343,9 @@ export function HomePage() {
         {ovas.isError ? (
           <ErrorState error={ovas.error} onRetry={() => ovas.refetch()} />
         ) : ovas.data ? (
-          <BangumiGrid items={ovas.data.data} />
+          <BangumiGrid items={ovas.data.data} maxRows={HOME_SUBSECTION_ROWS} />
         ) : (
-          <BangumiGridSkeleton count={SECTION_LIMIT} />
+          <BangumiGridSkeleton maxRows={HOME_SUBSECTION_ROWS} />
         )}
       </section>
 

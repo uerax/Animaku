@@ -27,7 +27,7 @@ const TABS: { label: string; key: string; type?: CollectType }[] = [
   { label: '抛弃', key: 'dropped', type: CollectType.abandoned },
 ]
 
-const PAGE_SIZE = 24
+const PAGE_SIZE = 28
 
 function computePaginationPages(
   page: number,

@@ -232,26 +232,32 @@ export const BangumiCard = memo(function BangumiCard({
 })
 
 /**
- * 网格列数定义：最高响应式断点为 6 列 (lg/xl/2xl:grid-cols-6)
+ * 网格列数定义：响应式断点最高封顶为 7 列 (xl/2xl: 7 列)
  */
 const BANGUMI_GRID_CLASS =
-  'grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 sm:gap-x-5 sm:gap-y-7 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-6 2xl:grid-cols-6'
+  'grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 sm:gap-x-5 sm:gap-y-7 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-7'
 
+const GRID_MQ_XL = '(min-width: 1280px)'
 const GRID_MQ_LG = '(min-width: 1024px)'
+const GRID_MQ_MD = '(min-width: 768px)'
 const GRID_MQ_SM = '(min-width: 640px)'
 
 /**
  * 依据 BANGUMI_GRID_CLASS 实际列数断点，计算首屏第一排封面的 eager 资源预算：
  * - 移动端 (<640px, 2列): 2
- * - 平板端 (640px~1023px, 3~4列): 4
- * - 桌面端 (>=1024px, 6列): 6
+ * - 小平板端 (640px~767px, 3列): 3
+ * - 平板端 (768px~1023px, 4列): 4
+ * - 桌面端 (1024px~1279px, 6列): 6
+ * - 宽屏桌面/大屏端 (>=1280px, 7列): 7
  */
 function getResponsiveGridEagerCount(): number {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
     return 6 // SSR / 无 window 环境默认兜底桌面首排
   }
+  if (window.matchMedia(GRID_MQ_XL).matches) return 7
   if (window.matchMedia(GRID_MQ_LG).matches) return 6
-  if (window.matchMedia(GRID_MQ_SM).matches) return 4
+  if (window.matchMedia(GRID_MQ_MD).matches) return 4
+  if (window.matchMedia(GRID_MQ_SM).matches) return 3
   return 2
 }
 
@@ -262,49 +268,78 @@ export function useResponsiveGridEagerCount(): number {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
       return
     }
+    const mqXl = window.matchMedia(GRID_MQ_XL)
     const mqLg = window.matchMedia(GRID_MQ_LG)
+    const mqMd = window.matchMedia(GRID_MQ_MD)
     const mqSm = window.matchMedia(GRID_MQ_SM)
     const update = () => setCount(getResponsiveGridEagerCount())
     update()
-    if (typeof mqLg.addEventListener === 'function') {
-      mqLg.addEventListener('change', update)
-      mqSm.addEventListener('change', update)
-      return () => {
-        mqLg.removeEventListener('change', update)
-        mqSm.removeEventListener('change', update)
+    const mqs = [mqXl, mqLg, mqMd, mqSm]
+    mqs.forEach((mq) => {
+      if (typeof mq.addEventListener === 'function') {
+        mq.addEventListener('change', update)
+      } else {
+        mq.addListener(update)
       }
-    }
-    mqLg.addListener(update)
-    mqSm.addListener(update)
+    })
     return () => {
-      mqLg.removeListener(update)
-      mqSm.removeListener(update)
+      mqs.forEach((mq) => {
+        if (typeof mq.removeEventListener === 'function') {
+          mq.removeEventListener('change', update)
+        } else {
+          mq.removeListener(update)
+        }
+      })
     }
   }, [])
 
   return count
 }
 
+export type ResponsiveRows =
+  | number
+  | {
+      mobile?: number // 手机端 (< 640px, cols <= 2)
+      tablet?: number // 平板端 (640px~1023px, cols 3~4)
+      desktop?: number // 电脑端 (>= 1024px, cols >= 6)
+    }
+
+function resolveMaxRows(
+  maxRows: ResponsiveRows | undefined,
+  cols: number,
+): number | undefined {
+  if (!maxRows) return undefined
+  if (typeof maxRows === 'number') return maxRows
+  if (cols <= 2) return maxRows.mobile ?? maxRows.desktop
+  if (cols <= 4) return maxRows.tablet ?? maxRows.desktop
+  return maxRows.desktop
+}
+
 export const BangumiGrid = memo(function BangumiGrid({
   items,
   /**
    * 首屏优先积极加载的封面数量，其余卡片严格保持视口懒加载（loading="lazy"）。
-   * 若未指定，则默认精确对齐 BANGUMI_GRID_CLASS 的第一排实际列数（移动 2 / 平板 4 / 桌面 6）。
+   * 若未指定，则默认精确对齐 BANGUMI_GRID_CLASS 的第一排实际列数（移动 2 / 平板 3~4 / 桌面 6~7）。
    */
   eagerCount: userEagerCount,
   coverSize = 'thumb',
+  maxRows,
 }: {
   items: BangumiItem[] | undefined | null
   eagerCount?: number
   coverSize?: 'thumb' | 'large'
+  /** 限制最多渲染的行数，支持单一数值或按端定制 { mobile, tablet, desktop } */
+  maxRows?: ResponsiveRows
 }) {
   const responsiveEager = useResponsiveGridEagerCount()
   const eagerCount = userEagerCount ?? responsiveEager
   const isReducedMotion = useReducedMotion()
-  // 动态对齐当前响应式视口的实际列数 (移动 2 / 平板 4 / 桌面 6)，杜绝跨行错位倒流
+  // 动态对齐当前响应式视口的实际列数 (移动 2 / 平板 3~4 / 桌面 6~7)，杜绝跨行错位倒流
   const cols = Math.max(1, responsiveEager)
+  const rows = resolveMaxRows(maxRows, cols)
 
-  const list = Array.isArray(items) ? items : []
+  const rawList = Array.isArray(items) ? items : []
+  const list = rows && rows > 0 ? rawList.slice(0, cols * rows) : rawList
   if (!list.length) {
     return <EmptyState text="暂无数据" />
   }
@@ -356,11 +391,16 @@ export const BangumiGrid = memo(function BangumiGrid({
  */
 export function BangumiGridSkeleton({
   count: userCount,
+  maxRows,
 }: {
   count?: number
+  /** 限制骨架屏渲染的最大行数，支持单一数值或按端定制 { mobile, tablet, desktop } */
+  maxRows?: ResponsiveRows
 }) {
   const responsiveEager = useResponsiveGridEagerCount()
-  const defaultCount = responsiveEager * 2
+  const rows = resolveMaxRows(maxRows, responsiveEager)
+  const defaultCount =
+    rows && rows > 0 ? responsiveEager * rows : responsiveEager * 2
   const n = Math.max(1, Math.min(userCount ?? defaultCount, 28))
   return (
     <div
