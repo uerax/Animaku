@@ -613,6 +613,7 @@ export function WatchPage() {
       roadLoading={w.roadLoading}
       roadError={w.roadError || null}
       pendingPluginName={w.pendingSource?.pluginName}
+      activePluginName={w.pluginName}
       hasSelection={Boolean(w.selection)}
       isAutoProbing={isAutoProbingSources}
       isDefaultSearching={isDefaultSearching}

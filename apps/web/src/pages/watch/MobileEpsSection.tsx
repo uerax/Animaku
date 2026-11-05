@@ -54,6 +54,7 @@ export function MobileEpsSection({
   isAutoProbing,
   isDefaultSearching,
   defaultSourceName,
+  activePluginName,
   onToggleList,
   onSelectRoad,
   onPickSlot,
@@ -80,6 +81,7 @@ export function MobileEpsSection({
   isAutoProbing?: boolean
   isDefaultSearching?: boolean
   defaultSourceName?: string
+  activePluginName?: string
   onToggleList: () => void
   onSelectRoad: (index: number) => void
   onPickSlot?: (slot: PlayableSlot, roadIndex: number) => void
@@ -284,8 +286,32 @@ export function MobileEpsSection({
           </h2>
         )}
         {embedded && (
-          <div className="text-xs text-[var(--kz-fg-muted)] font-medium">
-            {countLabel ? `播放进度 ${countLabel}` : '分集列表'}
+          <div className="flex items-center gap-1.5 text-xs text-[var(--kz-fg-muted)] font-medium min-w-0">
+            {activePluginName && (
+              <>
+                <span
+                  className="inline-flex items-center gap-1 text-[11px] text-[var(--kz-fg-dim)] truncate max-w-[130px] font-normal"
+                  title={`当前视频源: ${activePluginName}`}
+                >
+                  <svg
+                    className="size-2.5 text-[var(--kz-accent)] shrink-0"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                  >
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                  </svg>
+                  <span className="truncate">{activePluginName}</span>
+                </span>
+                <span className="opacity-30 shrink-0">·</span>
+              </>
+            )}
+            <span className="shrink-0">
+              {typeof playingEpisode === 'number' && playingEpisode > 0 && rawCount > 0
+                ? `播放进度 (${playingEpisode}/${rawCount})`
+                : rawCount > 0
+                  ? `全 ${rawCount} 话`
+                  : '分集列表'}
+            </span>
           </div>
         )}
 

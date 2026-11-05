@@ -1,4 +1,4 @@
-import { memo, useState, useRef, useLayoutEffect, useMemo, useEffect } from 'react'
+import { memo, useState, useRef, useLayoutEffect, useMemo, useEffect, useId, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import type { BangumiItem } from '@animaku/shared'
@@ -710,5 +710,117 @@ export function KzSwitch({
         />
       </button>
     </label>
+  )
+}
+
+/* ──────────────────────────────────────────────────────────
+   KzSegmented — 通用现代物理弹簧质感分段胶囊组件
+   支持 framer-motion 阻尼滑块、等宽对称、极简轻量
+   ────────────────────────────────────────────────────────── */
+
+export interface KzSegmentedOption<T extends string = string> {
+  value: T
+  label: string
+  icon?: ReactNode
+  loading?: boolean
+}
+
+export interface KzSegmentedProps<T extends string = string> {
+  value: T
+  options: readonly KzSegmentedOption<T>[] | KzSegmentedOption<T>[]
+  onChange: (val: T) => void
+  equalWidth?: boolean
+  size?: 'sm' | 'md'
+  className?: string
+  layoutId?: string
+  'aria-label'?: string
+}
+
+export function KzSegmented<T extends string = string>({
+  value,
+  options,
+  onChange,
+  equalWidth = true,
+  size = 'sm',
+  className = '',
+  layoutId: customLayoutId,
+  'aria-label': ariaLabel,
+}: KzSegmentedProps<T>) {
+  const isReducedMotion = useReducedMotion()
+  const autoId = useId()
+  const layoutId = customLayoutId || `kz-seg-${autoId}`
+
+  const sizeClasses =
+    size === 'sm'
+      ? {
+          btn: 'h-7 px-2.5 text-xs',
+          icon: 'size-3.5',
+          text: 'text-xs',
+          gap: 'gap-1.5',
+        }
+      : {
+          btn: 'h-8 px-3 text-sm',
+          icon: 'size-3.5',
+          text: 'text-sm',
+          gap: 'gap-1.5',
+        }
+
+  return (
+    <div
+      role="tablist"
+      aria-label={ariaLabel}
+      className={`p-0.5 rounded-full bg-[var(--kz-bg-soft)] border border-[var(--kz-border-subtle)] shadow-2xs select-none inline-flex items-center ${
+        equalWidth ? 'w-full' : ''
+      } ${className}`}
+    >
+      {options.map((opt) => {
+        const isSelected = opt.value === value
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            role="tab"
+            aria-selected={isSelected}
+            onClick={() => onChange(opt.value)}
+            className={`group relative flex items-center justify-center ${sizeClasses.gap} ${sizeClasses.btn} rounded-full leading-none transition-colors duration-200 cursor-pointer select-none ${
+              equalWidth ? 'flex-1 w-0 min-w-0' : 'min-w-0'
+            } ${
+              isSelected
+                ? 'font-semibold text-[var(--kz-fg)]'
+                : 'font-medium text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)]'
+            }`}
+          >
+            {isSelected && (
+              <motion.span
+                layoutId={layoutId}
+                className="absolute inset-0 rounded-full bg-[var(--kz-bg-elevated)] shadow-xs ring-1 ring-black/5 dark:ring-white/10"
+                transition={
+                  isReducedMotion
+                    ? { duration: 0 }
+                    : { type: 'spring', damping: 25, stiffness: 350 }
+                }
+              />
+            )}
+            {opt.icon && (
+              <span
+                className={`${sizeClasses.icon} shrink-0 transition-colors relative z-10 ${
+                  isSelected
+                    ? 'text-[var(--kz-accent)]'
+                    : 'text-[var(--kz-fg-dim)] group-hover:text-[var(--kz-fg-muted)]'
+                }`}
+              >
+                {opt.icon}
+              </span>
+            )}
+            <span className={`relative z-10 whitespace-nowrap shrink-0 ${sizeClasses.text}`}>
+              {opt.label}
+            </span>
+            {opt.loading && (
+              <span className="relative z-10 inline-block size-2.5 animate-spin rounded-full border border-current border-t-transparent text-[var(--kz-accent)] shrink-0" />
+            )}
+          </button>
+        )
+      })}
+    </div>
   )
 }
