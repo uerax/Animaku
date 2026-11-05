@@ -395,7 +395,7 @@ export function SourceBoard({
                       <div className="flex items-center gap-1.5">
                         <span
                           className={clsx(
-                            'truncate text-[12.5px] sm:text-[13px] font-semibold tracking-tight',
+                            'truncate text-xs sm:text-[13px] font-semibold tracking-tight',
                             isActive ? 'text-[var(--kz-accent)]' : 'text-[var(--kz-fg)]',
                           )}
                         >
@@ -466,26 +466,36 @@ export function SourceBoard({
                     {/* Action Area: Only clicking this pill triggers source selection or core action */}
                     <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
                       {isPending ? (
-                        <span className="kz-source-pill kz-source-pill--probing">
-                          <span className="inline-block h-2 w-2 animate-spin rounded-full border border-[var(--kz-accent)] border-t-transparent mr-1 shrink-0" />
-                          <span>探测中…</span>
-                        </span>
+                        <KzButton
+                          size="xs"
+                          variant="outline"
+                          pill
+                          loading
+                          disabled
+                          className="h-7 px-2.5 !text-[11.5px] !font-semibold"
+                        >
+                          探测中
+                        </KzButton>
                       ) : isActive ? (
-                        <button
-                          type="button"
+                        <KzButton
+                          size="xs"
+                          variant="primary"
+                          pill
                           onClick={(e) => {
                             e.stopPropagation()
                             onUserAction()
                             setExpandedPlugin((cur) => (cur === plugin.name ? null : plugin.name))
                           }}
-                          className="kz-source-pill kz-source-pill--active cursor-pointer"
+                          className="h-7 px-3 !text-[11.5px] !font-semibold"
                           title="当前播放源（点击展开调优）"
                         >
-                          播放中
-                        </button>
+                          当前
+                        </KzButton>
                       ) : state.status === 'ready' ? (
-                        <button
-                          type="button"
+                        <KzButton
+                          size="xs"
+                          variant="outline"
+                          pill
                           onClick={(e) => {
                             e.stopPropagation()
                             onUserAction()
@@ -496,68 +506,82 @@ export function SourceBoard({
                               onSwitchSource(plugin)
                             }
                           }}
-                          className="kz-source-pill kz-source-pill--ready cursor-pointer"
+                          className="h-7 px-3 !text-[11.5px] !font-semibold border-emerald-500/50 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20"
                           title="点击切换至此源播放"
                         >
                           切换
-                        </button>
+                        </KzButton>
                       ) : state.status === 'needs_pick' ? (
-                        <button
-                          type="button"
+                        <KzButton
+                          size="xs"
+                          variant="outline"
+                          pill
                           onClick={(e) => {
                             e.stopPropagation()
                             onUserAction()
                             setExpandedPlugin((cur) => (cur === plugin.name ? null : plugin.name))
                           }}
-                          className="kz-source-pill kz-source-pill--pick cursor-pointer"
+                          className="h-7 px-2.5 !text-[11.5px] !font-semibold border-amber-500/50 text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20"
                           title="搜到多个候选，点击选条目"
                         >
                           选条目
-                        </button>
+                        </KzButton>
                       ) : state.status === 'empty' ? (
-                        <button
-                          type="button"
+                        <KzButton
+                          size="xs"
+                          variant="secondary"
+                          pill
                           onClick={(e) => {
                             e.stopPropagation()
                             onUserAction()
                             setExpandedPlugin((cur) => (cur === plugin.name ? null : plugin.name))
                           }}
-                          className="kz-source-pill kz-source-pill--retry cursor-pointer"
+                          className="h-7 px-2.5 !text-[11.5px] !font-semibold"
                           title="未搜到结果，点击换词重搜"
                         >
                           换词
-                        </button>
+                        </KzButton>
                       ) : state.status === 'error' ? (
-                        <button
-                          type="button"
+                        <KzButton
+                          size="xs"
+                          variant="danger-outline"
+                          pill
                           onClick={(e) => {
                             e.stopPropagation()
                             onUserAction()
                             reProbePlugin(plugin.name)
                           }}
-                          className="kz-source-pill kz-source-pill--retry cursor-pointer"
+                          className="h-7 px-2.5 !text-[11.5px] !font-semibold"
                           title="请求失败，点击重试探测"
                         >
                           重试
-                        </button>
+                        </KzButton>
                       ) : state.status === 'idle' ? (
-                        <button
-                          type="button"
+                        <KzButton
+                          size="xs"
+                          variant="secondary"
+                          pill
                           onClick={(e) => {
                             e.stopPropagation()
                             onUserAction()
                             prioritizePlugin(plugin.name)
                           }}
-                          className="kz-source-pill kz-source-pill--idle cursor-pointer"
+                          className="h-7 px-2.5 !text-[11.5px] !font-semibold hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)]"
                           title="点击探测此源"
                         >
                           探测
-                        </button>
+                        </KzButton>
                       ) : (
-                        <span className="kz-source-pill kz-source-pill--probing">
-                          <span className="inline-block h-2 w-2 animate-spin rounded-full border border-[var(--kz-accent)] border-t-transparent mr-1 shrink-0" />
-                          <span>探测中…</span>
-                        </span>
+                        <KzButton
+                          size="xs"
+                          variant="outline"
+                          pill
+                          loading
+                          disabled
+                          className="h-7 px-2.5 !text-[11.5px] !font-semibold"
+                        >
+                          探测中
+                        </KzButton>
                       )}
                     </div>
                   </div>
@@ -673,9 +697,13 @@ export function SourceBoard({
                                 const isProbingThis =
                                   state.status === 'probing' && state.keyword === kw
                                 return (
-                                  <button
+                                  <KzButton
                                     key={`${kw}:${idx}`}
                                     type="button"
+                                    size="xs"
+                                    variant={isCurrentKw ? 'primary' : 'secondary'}
+                                    pill
+                                    loading={isProbingThis}
                                     onClick={() => {
                                       setCardKwInputs((prev) => ({
                                         ...prev,
@@ -684,17 +712,12 @@ export function SourceBoard({
                                       reProbePlugin(plugin.name, kw)
                                     }}
                                     className={clsx(
-                                      'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-all cursor-pointer border select-none',
-                                      isCurrentKw
-                                        ? 'bg-[var(--kz-accent)] text-white border-[var(--kz-accent)] shadow-2xs'
-                                        : 'bg-[var(--kz-bg-elevated)] text-[var(--kz-fg-muted)] border-[var(--kz-border-subtle)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] hover:bg-[var(--kz-bg-hover)]',
+                                      'h-7 px-2.5 !text-[11.5px] !font-normal',
+                                      !isCurrentKw && 'hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)]',
                                     )}
                                   >
-                                    {isProbingThis && (
-                                      <span className="inline-block h-2 w-2 animate-spin rounded-full border border-current border-t-transparent" />
-                                    )}
                                     <span className="truncate max-w-[180px]">{kw}</span>
-                                  </button>
+                                  </KzButton>
                                 )
                               })}
                             </div>
@@ -717,6 +740,7 @@ export function SourceBoard({
                             placeholder={`输入针对 ${plugin.name} 的关键词…`}
                             size="sm"
                             containerClassName="flex-1 min-w-0"
+                            className="!text-[11px]"
                           />
                           <KzButton
                             type="submit"
@@ -724,6 +748,7 @@ export function SourceBoard({
                             size="sm"
                             loading={state.status === 'probing'}
                             disabled={!(cardKwInputs[plugin.name] || '').trim()}
+                            className="!text-[11px] px-3"
                           >
                             重搜
                           </KzButton>

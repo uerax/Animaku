@@ -224,22 +224,25 @@ export function WatchRecommendations({
   const isActuallyLoading = isWaitingSubject || isLoading
 
   const layoutMode = useWatchLayoutMode()
-  const initialVisibleCount =
-    layoutMode === 'desktop'
-      ? DESKTOP_INITIAL_VISIBLE_COUNT
-      : MOBILE_INITIAL_VISIBLE_COUNT
+  const isDesktop = layoutMode === 'desktop'
+  const initialVisibleCount = isDesktop
+    ? DESKTOP_INITIAL_VISIBLE_COUNT
+    : MOBILE_INITIAL_VISIBLE_COUNT
 
   const [visibleCount, setVisibleCount] = useState(initialVisibleCount)
   const sentinelRef = useRef<HTMLDivElement>(null)
+
+  // 桌面端始终保持常驻展开，移动端支持折叠
+  const effectiveIsOpen = isDesktop || isOpen
 
   // 切换番剧或屏幕布局模式时重置可见数量为首屏默认数 (桌面端 8 部 / 移动端 4 部)
   useEffect(() => {
     setVisibleCount(initialVisibleCount)
   }, [bangumiId, initialVisibleCount])
 
-  // 用户向下滚动接近列表末尾时，无感增量挂载剩余卡片 (监听 isOpen 确保展开时重新绑定哨兵)
+  // 用户向下滚动接近列表末尾时，无感增量挂载剩余卡片 (监听 effectiveIsOpen 确保展开时重新绑定哨兵)
   useEffect(() => {
-    if (!isOpen) return
+    if (!effectiveIsOpen) return
     if (visibleCount >= items.length) return
     const el = sentinelRef.current
     if (!el) return
@@ -254,7 +257,7 @@ export function WatchRecommendations({
     )
     observer.observe(el)
     return () => observer.disconnect()
-  }, [isOpen, items.length, visibleCount])
+  }, [effectiveIsOpen, items.length, visibleCount])
 
   const visibleItems = useMemo(
     () => items.slice(0, visibleCount),
@@ -268,58 +271,77 @@ export function WatchRecommendations({
 
   return (
     <section
-      className="kz-watch-panel shrink-0 overflow-hidden rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] shadow-sm transition-all duration-300"
+      className="kz-watch-panel shrink-0 overflow-hidden rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] shadow-2xs transition-all duration-300"
       aria-label="番剧推荐"
     >
-      {/* 头部：支持点击整行折叠/展开 */}
-      <button
-        type="button"
-        onClick={() => setIsOpen((v) => !v)}
-        className="kz-bili-sec-head kz-bili-sec-head--btn flex w-full items-center justify-between px-3 py-2.5 text-left transition-colors hover:bg-[var(--kz-bg-hover)]"
-        aria-expanded={isOpen}
-      >
-        <div className="flex items-center gap-2 min-w-0">
-          <span
-            className="h-3 w-0.5 shrink-0 rounded-full bg-[var(--kz-accent)]/70"
-            aria-hidden
-          />
-          <span className="font-semibold text-xs sm:text-[13px] text-[var(--kz-fg)] tracking-tight flex items-center gap-1.5">
-            番剧推荐
-            {items.length > 0 && (
-              <span className="text-[11px] font-normal text-[var(--kz-fg-muted)]">
-                ({items.length})
-              </span>
-            )}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-1 text-[var(--kz-fg-muted)] shrink-0">
-          <span className="text-xs font-normal">
-            {isOpen ? '收起' : '展开'}
-          </span>
-          <svg
-            className={clsx(
-              'kz-bili-chevron h-3.5 w-3.5 transition-transform duration-200',
-              isOpen && 'rotate-180',
-            )}
-            viewBox="0 0 16 16"
-            fill="none"
-            aria-hidden
-          >
-            <path
-              d="M4 6.2L8 10.2L12 6.2"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+      {/* 头部：桌面端为常驻标题，移动端支持折叠切换 */}
+      {isDesktop ? (
+        <div className="flex w-full items-center justify-between px-3 py-2.5 text-left border-b border-[var(--kz-border-subtle)]">
+          <div className="flex items-center gap-2 min-w-0">
+            <span
+              className="h-3.5 w-1 shrink-0 rounded-full bg-[var(--kz-accent)]"
+              aria-hidden
             />
-          </svg>
+            <span className="font-semibold text-xs sm:text-[13px] text-[var(--kz-fg)] tracking-tight flex items-center gap-1.5">
+              番剧推荐
+              {items.length > 0 && (
+                <span className="text-[11px] font-normal text-[var(--kz-fg-muted)]">
+                  ({items.length})
+                </span>
+              )}
+            </span>
+          </div>
         </div>
-      </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setIsOpen((v) => !v)}
+          className="kz-bili-sec-head kz-bili-sec-head--btn flex w-full items-center justify-between px-3 py-2.5 text-left transition-colors hover:bg-[var(--kz-bg-hover)]"
+          aria-expanded={effectiveIsOpen}
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <span
+              className="h-3.5 w-1 shrink-0 rounded-full bg-[var(--kz-accent)]"
+              aria-hidden
+            />
+            <span className="font-semibold text-xs sm:text-[13px] text-[var(--kz-fg)] tracking-tight flex items-center gap-1.5">
+              番剧推荐
+              {items.length > 0 && (
+                <span className="text-[11px] font-normal text-[var(--kz-fg-muted)]">
+                  ({items.length})
+                </span>
+              )}
+            </span>
+          </div>
 
-      {/* 折叠内容区 */}
-      {isOpen && (
-        <div className="border-t border-[var(--kz-border-subtle)] p-2 sm:p-2.5">
+          <div className="flex items-center gap-1 text-[var(--kz-fg-muted)] shrink-0">
+            <span className="text-xs font-normal">
+              {effectiveIsOpen ? '收起' : '展开'}
+            </span>
+            <svg
+              className={clsx(
+                'kz-bili-chevron h-3.5 w-3.5 transition-transform duration-200',
+                effectiveIsOpen && 'rotate-180',
+              )}
+              viewBox="0 0 16 16"
+              fill="none"
+              aria-hidden
+            >
+              <path
+                d="M4 6.2L8 10.2L12 6.2"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+        </button>
+      )}
+
+      {/* 推荐内容区 */}
+      {effectiveIsOpen && (
+        <div className={clsx('p-2 sm:p-2.5', !isDesktop && 'border-t border-[var(--kz-border-subtle)]')}>
           {isActuallyLoading && items.length === 0 ? (
             <RecommendationsSkeleton count={initialVisibleCount} />
           ) : (

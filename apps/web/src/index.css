@@ -526,8 +526,8 @@ textarea:focus-visible {
 .kz-watch-panel {
   background: var(--kz-bg-elevated);
   border: 1px solid var(--kz-border);
-  border-radius: 8px;
-  box-shadow: none;
+  border-radius: 0.875rem;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
 }
 
 /* Keep legacy header hooks for meta collapse bars */
@@ -578,8 +578,9 @@ textarea:focus-visible {
   display: inline-flex;
   align-items: center;
   max-width: 100%;
-  border-radius: 0.25rem;
-  padding: 0.1rem 0.35rem;
+  border-radius: 9999px;
+  border: 1px solid var(--kz-border-subtle);
+  padding: 0.15rem 0.5rem;
   font-size: 0.625rem;
   font-weight: 500;
   line-height: 1.25;
@@ -589,22 +590,26 @@ textarea:focus-visible {
 
 .kz-watch-chip-score {
   color: var(--kz-score);
-  background: color-mix(in srgb, var(--kz-score) 14%, var(--kz-bg-soft));
+  background: color-mix(in srgb, var(--kz-score) 12%, var(--kz-bg-soft));
+  border-color: color-mix(in srgb, var(--kz-score) 25%, transparent);
 }
 
 .kz-watch-chip-air-airing {
   color: var(--kz-air-airing);
-  background: color-mix(in srgb, var(--kz-air-airing) 14%, var(--kz-bg-soft));
+  background: color-mix(in srgb, var(--kz-air-airing) 12%, var(--kz-bg-soft));
+  border-color: color-mix(in srgb, var(--kz-air-airing) 25%, transparent);
 }
 
 .kz-watch-chip-air-finished {
   color: var(--kz-air-finished);
-  background: color-mix(in srgb, var(--kz-air-finished) 14%, var(--kz-bg-soft));
+  background: color-mix(in srgb, var(--kz-air-finished) 12%, var(--kz-bg-soft));
+  border-color: color-mix(in srgb, var(--kz-air-finished) 25%, transparent);
 }
 
 .kz-watch-chip-air-upcoming {
   color: var(--kz-air-upcoming);
-  background: color-mix(in srgb, var(--kz-air-upcoming) 14%, var(--kz-bg-soft));
+  background: color-mix(in srgb, var(--kz-air-upcoming) 12%, var(--kz-bg-soft));
+  border-color: color-mix(in srgb, var(--kz-air-upcoming) 25%, transparent);
 }
 
 .kz-watch-step {
@@ -1224,26 +1229,27 @@ html[data-theme='dark'] .kz-source-pill--retry:hover {
   align-items: center;
   gap: 0.25rem;
   border-radius: 9999px;
-  border: none;
-  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--kz-border-subtle);
+  padding: 0.3rem 0.75rem;
   font-size: 0.75rem;
   font-weight: 500;
   line-height: 1.2;
   color: var(--kz-fg-muted);
   background: var(--kz-bg-soft);
   cursor: pointer;
-  transition:
-    color 0.12s ease,
-    background 0.12s ease;
+  transition: all 0.15s ease;
 }
 
 .kz-bili-road:hover {
   color: var(--kz-fg);
+  border-color: var(--kz-border);
+  background: var(--kz-bg-hover);
 }
 
 .kz-bili-road--active {
   color: var(--kz-accent);
   background: var(--kz-accent-soft);
+  border-color: var(--kz-accent);
   font-weight: 600;
 }
 
@@ -1291,16 +1297,16 @@ html[data-theme='dark'] .kz-source-pill--retry:hover {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  border-radius: 6px;
-  border: 1px solid color-mix(in srgb, var(--kz-border) 80%, transparent);
-  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  border: 1px solid var(--kz-border-subtle);
+  padding: 0.22rem 0.65rem;
   font-size: 0.6875rem;
   font-weight: 500;
   line-height: 1.2;
   color: var(--kz-fg-muted);
   background: var(--kz-bg-soft);
   cursor: pointer;
-  transition: all 0.12s ease;
+  transition: all 0.15s ease;
 }
 
 .kz-bili-range-tab:hover {
@@ -1392,17 +1398,24 @@ html[data-theme='dark'] .kz-source-pill--retry:hover {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.2rem;
+  gap: 0.25rem;
   box-sizing: border-box;
   min-height: 2.35rem;
   min-width: 0;
-  border: none;
-  border-radius: 6px;
-  padding: 0.35rem 0.25rem;
+  border: 1px solid var(--kz-border-subtle);
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.3rem;
   background: var(--kz-bg-soft);
   color: var(--kz-fg);
   cursor: pointer;
-  transition: background 0.12s ease;
+  user-select: none;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.1s ease;
 }
 
 /* ~5 cards visible: (100% - 4 gaps) / 5 ; gap = 0.35rem */
@@ -1414,17 +1427,25 @@ html[data-theme='dark'] .kz-source-pill--retry:hover {
 
 .kz-bili-ep:hover {
   background: var(--kz-bg-hover);
+  border-color: var(--kz-border);
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.04);
+}
+
+.kz-bili-ep:active {
+  transform: scale(0.96);
 }
 
 /* B站风格已观看集数样式：文字置灰弱化，hover 时恢复正常亮度 */
 .kz-bili-ep--watched {
-  opacity: 0.68;
+  opacity: 0.65;
   color: var(--kz-fg-muted);
+  border-color: transparent;
 }
 
 .kz-bili-ep--watched:hover {
   opacity: 1;
   color: var(--kz-fg);
+  border-color: var(--kz-border);
   background: var(--kz-bg-hover);
 }
 
@@ -1432,7 +1453,9 @@ html[data-theme='dark'] .kz-source-pill--retry:hover {
   opacity: 1;
   background: var(--kz-accent-soft);
   color: var(--kz-accent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--kz-accent) 40%, transparent);
+  border-color: var(--kz-accent);
+  box-shadow: 0 0 0 1px var(--kz-accent), 0 2px 8px var(--kz-accent-ring);
+  font-weight: 600;
 }
 
 .kz-bili-ep-text {

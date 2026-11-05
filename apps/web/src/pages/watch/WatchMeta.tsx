@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import clsx from 'clsx'
 import { useAuthStore } from '../../stores/auth'
+import { KzButton } from '../../components/ui'
 import {
   CollectType,
   CollectTypeLabel,
@@ -213,7 +213,7 @@ const COLLECT_CONFIG: Record<CollectType, CollectOptionMeta> = {
         <line x1="5" y1="12" x2="19" y2="12" />
       </svg>
     ),
-    badgeClass: 'bg-[var(--kz-bg-soft)] text-[var(--kz-fg-muted)] border-[var(--kz-border)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)]',
+    badgeClass: 'bg-[var(--kz-bg-soft)] text-[var(--kz-fg)] border-[var(--kz-border)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] hover:bg-[var(--kz-bg-hover)]',
     activeOptionClass: 'text-[var(--kz-fg-muted)]',
   },
 }
@@ -257,26 +257,30 @@ function CollectControl({
 
   if (!token) {
     return (
-      <button
-        type="button"
+      <KzButton
+        size="xs"
+        variant="secondary"
+        pill
         onClick={openLoginModal}
-        className="inline-flex items-center gap-1 rounded-md border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-2 py-0.5 text-xs font-normal text-[var(--kz-fg-muted)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] transition-all duration-150 shadow-xs select-none cursor-pointer active:scale-95 leading-none"
+        className="h-7 px-3 !text-[11.5px] !font-semibold gap-1.5 hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)]"
         title="登录 Bangumi 账号同步追番"
+        leftIcon={
+          <svg
+            className="h-3.5 w-3.5 shrink-0 text-[var(--kz-accent)]"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+          </svg>
+        }
       >
-        <svg
-          className="h-3 w-3 shrink-0"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden
-        >
-          <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-        </svg>
-        <span>追番</span>
-      </button>
+        追番
+      </KzButton>
     )
   }
 
@@ -285,40 +289,44 @@ function CollectControl({
 
   return (
     <div className="relative inline-block" ref={containerRef}>
-      <button
-        type="button"
+      <KzButton
+        size="xs"
+        variant={isCollected ? 'outline' : 'secondary'}
+        pill
         onClick={() => setOpen((prev) => !prev)}
         className={clsx(
-          'inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-normal transition-all duration-150 shadow-xs select-none cursor-pointer active:scale-95 leading-none',
+          'h-7 px-3 !text-[11.5px] !font-semibold gap-1.5',
           currentConfig.badgeClass,
-          open && 'ring-1.5 ring-[var(--kz-accent)]/30',
+          open && 'ring-2 ring-[var(--kz-accent)]/25',
         )}
         aria-haspopup="listbox"
         aria-expanded={open}
         title="设置 Bangumi 追番状态"
+        leftIcon={<span className="shrink-0">{currentConfig.icon('h-3.5 w-3.5')}</span>}
+        rightIcon={
+          <svg
+            className={clsx(
+              'h-3 w-3 shrink-0 opacity-60 transition-transform duration-200 ml-0.5',
+              open && 'rotate-180',
+            )}
+            viewBox="0 0 20 20"
+            fill="currentColor"
+          >
+            <path
+              fillRule="evenodd"
+              d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+              clipRule="evenodd"
+            />
+          </svg>
+        }
       >
-        <span className="shrink-0">{currentConfig.icon('h-3 w-3')}</span>
-        <span>{isCollected ? currentConfig.label : '追番'}</span>
-        <svg
-          className={clsx(
-            'h-2.5 w-2.5 shrink-0 opacity-60 transition-transform duration-200 ml-0.5',
-            open && 'rotate-180',
-          )}
-          viewBox="0 0 20 20"
-          fill="currentColor"
-        >
-          <path
-            fillRule="evenodd"
-            d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-            clipRule="evenodd"
-          />
-        </svg>
-      </button>
+        {isCollected ? currentConfig.label : '追番'}
+      </KzButton>
 
       {open && (
         <div
           role="listbox"
-          className="absolute left-0 top-[calc(100%+4px)] z-50 min-w-[8.5rem] overflow-hidden rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] p-1 shadow-lg backdrop-blur-xl"
+          className="absolute left-0 top-[calc(100%+6px)] z-50 min-w-[9rem] overflow-hidden rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)]/98 p-1 shadow-2xl backdrop-blur-2xl ring-1 ring-black/5 dark:ring-white/10"
         >
           <div className="space-y-0.5">
             {collectOptions.map((t) => {

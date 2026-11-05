@@ -3,6 +3,7 @@ import { motion, useReducedMotion } from 'framer-motion'
 import clsx from 'clsx'
 import type { PlayableSlot } from '@animaku/shared'
 import { useWatchedStore } from '../../stores/watched'
+import { KzButton } from '../../components/ui'
 
 export type MobileEpsRoad = {
   name?: string
@@ -311,40 +312,49 @@ export function MobileEpsSection({
 
         <div className="flex items-center gap-1.5 ml-auto">
           {hasSelection && onRefreshChapters && (
-            <button
+            <KzButton
               type="button"
+              variant="ghost"
+              size="xs"
               onClick={onRefreshChapters}
-              disabled={roadLoading}
-              className="kz-bili-sec-btn"
+              loading={roadLoading}
               title="刷新选集列表"
               aria-label="刷新选集列表"
-            >
-              <svg
-                className={clsx('w-3.5 h-3.5', roadLoading && 'animate-spin text-[var(--kz-accent)]')}
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
-              </svg>
-            </button>
+              className="!text-[11.5px]"
+              leftIcon={
+                !roadLoading ? (
+                  <svg
+                    className="w-3 h-3"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+                  </svg>
+                ) : undefined
+              }
+            />
           )}
 
           {rawCount > 1 && (
-            <button
+            <KzButton
               type="button"
+              variant={isDescOrder ? 'primary' : 'ghost'}
+              size="xs"
               onClick={() => setIsDescOrder((v) => !v)}
-              className={clsx('kz-bili-sec-btn', isDescOrder && 'text-[var(--kz-accent)] font-semibold')}
               title={isDescOrder ? '当前倒序，点击切换为正序' : '当前正序，点击切换为倒序'}
+              className="!text-[11.5px]"
+              leftIcon={
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M7 3v18M3 7l4-4 4 4M17 21V3M13 17l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              }
             >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M7 3v18M3 7l4-4 4 4M17 21V3M13 17l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              <span>{isDescOrder ? '倒序' : '正序'}</span>
-            </button>
+              {isDescOrder ? '倒序' : '正序'}
+            </KzButton>
           )}
         </div>
       </div>

@@ -1,6 +1,7 @@
 import { memo, useState, useEffect, useRef, useCallback } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { bangumiApi } from '../../../lib/bangumi'
+import { KzButton } from '../../../components/ui'
 import { CommentCard } from './CommentCard'
 import { CommentPagination } from './CommentPagination'
 import { CommentSkeleton } from './CommentSkeleton'
@@ -148,15 +149,15 @@ export const WatchComments = memo(function WatchComments({
       {isLoading ? (
         <CommentSkeleton count={5} />
       ) : isError ? (
-        <div className="flex flex-col items-center justify-center py-8 text-center text-xs text-[var(--kz-fg-muted)] space-y-2">
+        <div className="flex flex-col items-center justify-center py-8 text-center text-xs text-[var(--kz-fg-muted)] space-y-3">
           <span>吐槽列表加载暂不可用</span>
-          <button
-            type="button"
+          <KzButton
+            variant="outline"
+            size="sm"
             onClick={() => setPage(page)}
-            className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg-card)] px-3 py-1 text-xs text-[var(--kz-accent)] hover:underline"
           >
             重试
-          </button>
+          </KzButton>
         </div>
       ) : isEmpty ? (
         <div className="flex flex-col items-center justify-center py-8 text-center text-xs text-[var(--kz-fg-muted)]">
