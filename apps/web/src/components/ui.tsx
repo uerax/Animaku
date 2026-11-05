@@ -185,11 +185,11 @@ export const BangumiCard = memo(function BangumiCard({
           className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/85 via-black/45 to-transparent"
           aria-hidden
         />
-        {/* bottom-left stats: 纯白空心线框火焰 + 今日更新同款 13.5px font-medium 琥珀金热度数值 + 立体暗影 */}
+        {/* bottom-left stats: 红色空心线框火焰 + 13.5px font-medium 红色热度数值 + 立体暗影 */}
         {heatText && (
           <span className="absolute bottom-1.5 left-2.5 flex max-w-[60%] items-center gap-1.5 truncate drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)]">
-            <HotFireIcon className="h-4 w-4 shrink-0 text-white" />
-            <span className="text-[13.5px] font-medium tabular-nums leading-none text-amber-300">
+            <HotFireIcon className="h-4 w-4 shrink-0 text-rose-300" />
+            <span className="text-[13.5px] font-medium tabular-nums leading-none text-rose-300">
               {heatText}
             </span>
           </span>
