@@ -385,19 +385,12 @@ export function calculateAnimeHeat(item: {
 }
 
 /**
- * 格式化热度数值为中文流媒体风格（万级带"万"，千级带"k"，千以下展示实际数字）
- * 例如：314200 -> '31.4万'，3120 -> '3.1k'，850 -> '850'
+ * 格式化热度数值（全量完整展示纯数字，如：1200、24363、114665）
  */
 export function formatHeatDisplay(heat: number | undefined | null): string {
   const n = Number(heat ?? 0)
   if (!Number.isFinite(n) || n <= 0) return ''
-  if (n >= 10_000) {
-    return `${(n / 10_000).toFixed(1).replace(/\.0$/, '')}万`
-  }
-  if (n >= 1_000) {
-    return `${(n / 1_000).toFixed(1).replace(/\.0$/, '')}k`
-  }
-  return String(n)
+  return String(Math.round(n))
 }
 
 /**

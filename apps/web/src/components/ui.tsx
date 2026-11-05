@@ -7,14 +7,30 @@ import {
   coverOf,
   estimateAirProgress,
   extractBangumiSeed,
-  formatDoingCount,
-  formatHeatCount,
-  formatCollectCount,
+  calculateAnimeHeat,
+  formatHeatDisplay,
 } from '@animaku/shared'
 import { preloadVideoPlayer } from '../player/lazy'
 import { preloadRoute } from '../lib/route-preload'
 import { useSettingsStore } from '../stores/settings'
 import { perfMetrics } from '../lib/performance-metrics'
+
+function HotFireIcon({ className = 'w-3.5 h-3.5' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
+    </svg>
+  )
+}
 
 export * from './BangumiImage'
 export * from './Modal'
@@ -64,18 +80,10 @@ export const BangumiCard = memo(function BangumiCard({
   // Derived at render from cached airDate/eps (not frozen inside list TTL).
   const air = estimateAirProgress(item)
   const airLabel = airProgressLabel(item)
-  const heatCount = formatHeatCount(item.heat)
-  const collectCount = formatCollectCount(item.collect)
-  const doingCount = formatDoingCount(item.doing)
-
-  // 剧场版/OVA/电影或已完结作品优先使用“看过”人数，连载中番剧展示“人在看”
-  const isMovieOrOva = item.tags?.some(
-    (t) => t.name === '剧场版' || t.name === 'OVA' || t.name === '电影',
-  )
-  const preferCollect = Boolean(
-    collectCount &&
-      (isMovieOrOva || air.status === 'finished' || !doingCount),
-  )
+  const heatText = useMemo(() => {
+    const heat = calculateAnimeHeat(item)
+    return heat > 0 ? formatHeatDisplay(heat) : null
+  }, [item])
 
   const eager = imagePriority !== 'lazy'
   const isLcp = imagePriority === 'high'
@@ -177,44 +185,15 @@ export const BangumiCard = memo(function BangumiCard({
           className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/85 via-black/45 to-transparent"
           aria-hidden
         />
-        {/* bottom-left stats: unboxed text with highlighted number and muted label (heat for trending, watched for movies/OVA/finished, watchers for airing) */}
-        {heatCount ? (
-          <span className="absolute bottom-1.5 left-2.5 flex max-w-[60%] items-baseline gap-1 truncate text-xs drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
-            <span className="font-bold tabular-nums text-amber-300">
-              {heatCount}
-            </span>
-            <span className="text-[11px] font-normal text-white/80">
-              热度
+        {/* bottom-left stats: 纯白空心线框火焰 + 今日更新同款 13.5px font-medium 琥珀金热度数值 + 立体暗影 */}
+        {heatText && (
+          <span className="absolute bottom-1.5 left-2.5 flex max-w-[60%] items-center gap-1.5 truncate drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)]">
+            <HotFireIcon className="h-4 w-4 shrink-0 text-white" />
+            <span className="text-[13.5px] font-medium tabular-nums leading-none text-amber-300">
+              {heatText}
             </span>
           </span>
-        ) : preferCollect ? (
-          <span className="absolute bottom-1.5 left-2.5 flex max-w-[60%] items-baseline gap-1 truncate text-xs drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
-            <span className="font-bold tabular-nums text-amber-300">
-              {collectCount}
-            </span>
-            <span className="text-[11px] font-normal text-white/80">
-              看过
-            </span>
-          </span>
-        ) : doingCount ? (
-          <span className="absolute bottom-1.5 left-2.5 flex max-w-[60%] items-baseline gap-1 truncate text-xs drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
-            <span className="font-bold tabular-nums text-amber-300">
-              {doingCount}
-            </span>
-            <span className="text-[11px] font-normal text-white/80">
-              人在看
-            </span>
-          </span>
-        ) : collectCount ? (
-          <span className="absolute bottom-1.5 left-2.5 flex max-w-[60%] items-baseline gap-1 truncate text-xs drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
-            <span className="font-bold tabular-nums text-amber-300">
-              {collectCount}
-            </span>
-            <span className="text-[11px] font-normal text-white/80">
-              看过
-            </span>
-          </span>
-        ) : null}
+        )}
         {score && (
           <span className="absolute bottom-1 right-2.5 text-lg font-black italic tracking-tight text-white tabular-nums drop-shadow-[0_2px_4px_rgba(0,0,0,0.85)] sm:text-xl">
             {score}
