@@ -3,7 +3,6 @@ import { Link, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import clsx from 'clsx'
 import {
-  bangumiOAuthUrl,
   BANGUMI_IMAGE_HOST_BANGUMI,
   BANGUMI_IMAGE_HOST_MIRROR,
 } from '@animaku/shared'
@@ -21,18 +20,15 @@ export function UserDropdown() {
 
   const authed = useAuthStore((s) => s.isAuthenticated())
   const user = useAuthStore((s) => s.getUser())
-  const login = useAuthStore((s) => s.login)
   const logout = useAuthStore((s) => s.logout)
   const initAuth = useAuthStore((s) => s.initAuth)
+  const openLoginModal = useAuthStore((s) => s.openLoginModal)
 
   const bangumiImageHost = useSettingsStore((s) => s.bangumiImageHost)
   const setBangumiImageHost = useSettingsStore((s) => s.setBangumiImageHost)
   const theme = useSettingsStore((s) => s.theme)
   const setTheme = useSettingsStore((s) => s.setTheme)
 
-  const [tokenInput, setTokenInput] = useState('')
-  const [loginLoading, setLoginLoading] = useState(false)
-  const [loginError, setLoginError] = useState<string | null>(null)
   const isReducedMotion = useReducedMotion()
 
   // 挂载时尝试初始化一次会话状态（读取现有 Token 缓存）
@@ -40,10 +36,9 @@ export function UserDropdown() {
     void initAuth()
   }, [initAuth])
 
-  // 路由变化时自动收起菜单并清空错误
+  // 路由变化时自动收起菜单
   useEffect(() => {
     setOpen(false)
-    setLoginError(null)
   }, [location.pathname])
 
   // 点击外部与 ESC 键自动关闭
@@ -78,39 +73,6 @@ export function UserDropdown() {
   const handleLogout = async () => {
     setOpen(false)
     await logout()
-    setTokenInput('')
-    setLoginError(null)
-  }
-
-  const handleLogin = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault()
-    const trimmed = tokenInput.trim()
-    if (!trimmed) {
-      setLoginError('请输入 Access Token')
-      return
-    }
-    setLoginLoading(true)
-    setLoginError(null)
-    try {
-      await login(trimmed, 'bangumi')
-      setTokenInput('')
-    } catch (err: unknown) {
-      let msg = 'Token 验证失败，请检查后重试'
-      if (err instanceof Error) {
-        if (
-          err.message.includes('Unauthorized') ||
-          err.message.includes('need Login') ||
-          err.message.includes('expired')
-        ) {
-          msg = 'Token 无效或已过期，请检查后重试'
-        } else {
-          msg = err.message
-        }
-      }
-      setLoginError(msg)
-    } finally {
-      setLoginLoading(false)
-    }
   }
 
   return (
@@ -170,25 +132,25 @@ export function UserDropdown() {
             exit={isReducedMotion ? undefined : { opacity: 0, scale: 0.94, y: -6 }}
             transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
             style={{ transformOrigin: 'top right' }}
-            className="absolute right-0 top-[calc(100%+8px)] z-50 w-72 origin-top-right rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)]/98 p-1.5 shadow-2xl backdrop-blur-2xl ring-1 ring-black/5 dark:ring-white/10"
+            className="absolute right-0 top-[calc(100%+8px)] z-50 w-60 origin-top-right rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)]/98 p-1.5 shadow-2xl backdrop-blur-2xl ring-1 ring-black/5 dark:ring-white/10"
           >
           {/* 用户概览卡片区 */}
-          <div className="flex items-center gap-3 rounded-xl bg-[var(--kz-bg-soft)]/70 p-3">
+          <div className="flex items-center gap-2.5 rounded-xl bg-[var(--kz-bg-soft)]/70 p-2.5">
             {authed && user.avatarUrl ? (
               <BangumiAvatar
                 src={user.avatarUrl}
                 name={user.nickname}
-                sizeClass="h-10 w-10"
+                sizeClass="h-9 w-9"
               />
             ) : (
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--kz-bg-hover)] text-[var(--kz-fg-muted)] ring-1 ring-[var(--kz-border)]">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--kz-bg-hover)] text-[var(--kz-fg-muted)] ring-1 ring-[var(--kz-border)]">
                 {authed ? (
-                  <span className="font-bold text-sm text-[var(--kz-accent)]">
+                  <span className="font-bold text-xs text-[var(--kz-accent)]">
                     {user.nickname.slice(0, 1).toUpperCase()}
                   </span>
                 ) : (
                   <svg
-                    className="h-5 w-5"
+                    className="h-4.5 w-4.5"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -205,12 +167,12 @@ export function UserDropdown() {
 
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                <span className="truncate font-semibold text-sm text-[var(--kz-fg)]">
+                <span className="truncate font-semibold text-xs text-[var(--kz-fg)]">
                   {authed ? user.nickname : '访客体验'}
                 </span>
                 <span
                   className={clsx(
-                    'rounded-md px-1.5 py-0.5 text-[10px] font-medium leading-none shrink-0',
+                    'rounded-md px-1.5 py-0.5 text-[9px] font-medium leading-none shrink-0',
                     authed
                       ? 'bg-[var(--kz-accent)]/15 text-[var(--kz-accent)] border border-[var(--kz-accent)]/20'
                       : 'bg-[var(--kz-bg-hover)] text-[var(--kz-fg-muted)] border border-[var(--kz-border)]',
@@ -219,7 +181,7 @@ export function UserDropdown() {
                   {authed ? (user.provider === 'bangumi' ? 'Bangumi' : '本地账号') : '未登录'}
                 </span>
               </div>
-              <p className="mt-0.5 truncate text-[11px] text-[var(--kz-fg-muted)]">
+              <p className="mt-0.5 truncate text-[10.5px] text-[var(--kz-fg-muted)]">
                 {authed
                   ? `@${user.username || user.id}`
                   : '登录后可跨端同步追番与记录'}
@@ -378,15 +340,15 @@ export function UserDropdown() {
           </div>
 
           {/* 底部功能/状态区 */}
-          <div className="mt-1 border-t border-[var(--kz-border)] pt-1.5">
+          <div className="mt-1 border-t border-[var(--kz-border)] pt-1">
             {authed ? (
               <button
                 type="button"
                 onClick={handleLogout}
-                className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-rose-500 hover:bg-rose-500/10 transition-colors text-left select-none cursor-pointer"
+                className="flex w-full items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-rose-500 hover:bg-rose-500/10 transition-colors select-none cursor-pointer"
               >
                 <svg
-                  className="h-4 w-4"
+                  className="h-3.5 w-3.5"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -398,71 +360,34 @@ export function UserDropdown() {
                   <polyline points="16 17 21 12 16 7" />
                   <line x1="21" y1="12" x2="9" y2="12" />
                 </svg>
-                <span>退出登录 / 解除绑定</span>
+                <span>退出</span>
               </button>
             ) : (
-              <form onSubmit={handleLogin} className="space-y-1.5 p-1">
-                <div className="flex items-center justify-between px-0.5">
-                  <span className="text-[11px] font-semibold text-[var(--kz-fg-muted)]">
-                    绑定 Bangumi 账号
-                  </span>
-                  <a
-                    href={bangumiOAuthUrl()}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-0.5 text-[10px] text-[var(--kz-accent)] hover:underline"
-                    title="在 Bangumi 官网获取个人 Access Token"
+              <div className="p-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false)
+                    openLoginModal()
+                  }}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[var(--kz-accent)] px-2.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-[var(--kz-accent-hover)] transition-all cursor-pointer active:scale-95"
+                >
+                  <svg
+                    className="h-3.5 w-3.5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
                   >
-                    <span>获取 Token</span>
-                    <svg
-                      className="h-2.5 w-2.5"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                      <polyline points="15 3 21 3 21 9" />
-                      <line x1="10" y1="14" x2="21" y2="3" />
-                    </svg>
-                  </a>
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="password"
-                    data-clarity-mask="True"
-                    value={tokenInput}
-                    onChange={(e) => {
-                      setTokenInput(e.target.value)
-                      if (loginError) setLoginError(null)
-                    }}
-                    placeholder="粘贴 Access Token…"
-                    disabled={loginLoading}
-                    className="min-w-0 flex-1 rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1.5 text-xs text-[var(--kz-fg)] placeholder:text-[var(--kz-fg-dim)] outline-none focus:border-[var(--kz-accent)] focus:ring-1 focus:ring-[var(--kz-accent)] transition-all"
-                  />
-                  <button
-                    type="submit"
-                    disabled={loginLoading || !tokenInput.trim()}
-                    className={clsx(
-                      'shrink-0 rounded-xl px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-all select-none',
-                      loginLoading || !tokenInput.trim()
-                        ? 'bg-[var(--kz-accent)]/50 cursor-not-allowed opacity-60'
-                        : 'bg-[var(--kz-accent)] hover:bg-[var(--kz-accent-hover)] cursor-pointer active:scale-95',
-                    )}
-                  >
-                    {loginLoading ? '验证中…' : '绑定'}
-                  </button>
-                </div>
-
-                {loginError && (
-                  <p className="px-0.5 text-[10px] text-rose-500 leading-tight">
-                    {loginError}
-                  </p>
-                )}
-              </form>
+                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                    <polyline points="10 17 15 12 10 7" />
+                    <line x1="15" y1="12" x2="3" y2="12" />
+                  </svg>
+                  <span>登录</span>
+                </button>
+              </div>
             )}
           </div>
         </motion.div>

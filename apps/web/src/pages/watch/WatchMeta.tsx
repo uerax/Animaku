@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import clsx from 'clsx'
+import { useAuthStore } from '../../stores/auth'
 import {
   CollectType,
   CollectTypeLabel,
@@ -234,6 +235,7 @@ function CollectControl({
 }) {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const openLoginModal = useAuthStore((s) => s.openLoginModal)
 
   useEffect(() => {
     if (!open) return
@@ -255,12 +257,26 @@ function CollectControl({
 
   if (!token) {
     return (
-      <Link
-        to="/settings"
-        className="inline-flex items-center gap-1 rounded-md border border-dashed border-[var(--kz-border)] bg-[var(--kz-bg-elevated)]/60 px-2 py-0.5 text-xs text-[var(--kz-fg-muted)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] transition-colors leading-none"
+      <button
+        type="button"
+        onClick={openLoginModal}
+        className="inline-flex items-center gap-1 rounded-md border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-2 py-0.5 text-xs font-normal text-[var(--kz-fg-muted)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] transition-all duration-150 shadow-xs select-none cursor-pointer active:scale-95 leading-none"
+        title="登录 Bangumi 账号同步追番"
       >
-        <span>+ 登录同步追番</span>
-      </Link>
+        <svg
+          className="h-3 w-3 shrink-0"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+        </svg>
+        <span>追番</span>
+      </button>
     )
   }
 

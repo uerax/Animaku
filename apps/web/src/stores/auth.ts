@@ -152,8 +152,14 @@ interface AuthState {
   isLoading: boolean
   /** 错误信息 */
   error: string | null
+  /** 弹出控制面板/登录弹窗是否开启 */
+  isLoginModalOpen: boolean
 
   // Actions
+  /** 打开登录弹窗 */
+  openLoginModal: () => void
+  /** 关闭登录弹窗 */
+  closeLoginModal: () => void
   /** 获取当前有效资料（未登录时返回访客资料） */
   getUser: () => UserProfile
   /** 是否已认证登录 */
@@ -183,6 +189,10 @@ export const useAuthStore = create<AuthState>()(
       profileSnapshot: null,
       isLoading: false,
       error: null,
+      isLoginModalOpen: false,
+
+      openLoginModal: () => set({ isLoginModalOpen: true }),
+      closeLoginModal: () => set({ isLoginModalOpen: false }),
 
       getUser: () => {
         const { session, profileSnapshot } = get()

@@ -152,6 +152,7 @@ export function CollectPage() {
   )
 
   const authUser = useAuthStore((s) => s.getUser())
+  const openLoginModal = useAuthStore((s) => s.openLoginModal)
 
   if (!token) {
     return (
@@ -159,9 +160,13 @@ export function CollectPage() {
         <PageHeader title="我的追番" />
         <EmptyState text="未登录账号或未配置 Bangumi Access Token" />
         <div className="mt-4 flex items-center justify-center gap-4 text-sm">
-          <Link to="/settings#bangumi-token" className="text-[var(--kz-accent)] hover:underline">
-            前往设置绑定 Bangumi 账号
-          </Link>
+          <button
+            type="button"
+            onClick={openLoginModal}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--kz-accent)] px-4 py-2 font-medium text-white hover:bg-[var(--kz-accent-hover)] transition-all cursor-pointer shadow-sm active:scale-95"
+          >
+            <span>登录同步追番</span>
+          </button>
         </div>
       </div>
     )

@@ -18,6 +18,7 @@ import { DocumentSeo } from './DocumentSeo'
 import { SiteFooter } from './SiteFooter'
 import { UserDropdown } from './UserDropdown'
 import { SearchHistoryDropdown } from './SearchHistoryDropdown'
+import { LoginModal } from './LoginModal'
 
 /** Always visible in the top strip (mobile + desktop). */
 const primaryLinks = [
@@ -691,6 +692,9 @@ export function Layout() {
 
       {/* Watch: no footer — cinema chrome; elsewhere promote repo + optional maintainer */}
       {!isWatch && <SiteFooter />}
+
+      {/* 全局登录与账号绑定控制面板 */}
+      <LoginModal />
     </div>
   )
 }
