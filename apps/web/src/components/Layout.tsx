@@ -302,7 +302,14 @@ export function Layout() {
           isWatch ? 'relative lg:sticky lg:top-0' : 'sticky top-0',
         )}
       >
-        <div className="relative mx-auto flex max-w-[1760px] items-center gap-1.5 px-2.5 py-1.5 sm:gap-3 sm:px-5 lg:px-6 sm:py-2">
+        <div
+          className={clsx(
+            'relative mx-auto flex items-center gap-1.5 px-2.5 py-1.5 sm:gap-3 sm:px-5 lg:px-0 sm:py-2',
+            isWatch
+              ? 'max-w-[1760px]'
+              : 'w-full lg:w-[86%] lg:min-w-[1080px] lg:max-w-[1680px]',
+          )}
+        >
           <NavLink
             to="/"
             className="flex shrink-0 items-center gap-2 font-semibold tracking-tight"
@@ -668,7 +675,7 @@ export function Layout() {
           'mx-auto w-full min-w-0 flex-1',
           isWatch
             ? 'max-w-[1760px] px-0 py-3 sm:px-5 sm:py-4 lg:px-6'
-            : 'max-w-[1760px] px-4 py-6 sm:px-5 lg:px-6',
+            : 'w-full lg:w-[86%] lg:min-w-[1080px] lg:max-w-[1680px] px-4 py-6 sm:px-5 lg:px-0',
         )}
       >
         <motion.div

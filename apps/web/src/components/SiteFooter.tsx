@@ -27,7 +27,7 @@ export function SiteFooter() {
 
   return (
     <footer className="border-t border-[var(--kz-border)]">
-      <div className="mx-auto flex max-w-[1760px] flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 px-4 py-3.5 text-[12px] text-[var(--kz-fg-muted)] sm:px-5 sm:py-4 lg:px-6">
+      <div className="mx-auto flex w-full lg:w-[86%] lg:min-w-[1080px] lg:max-w-[1680px] flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 px-4 py-3.5 text-[12px] text-[var(--kz-fg-muted)] sm:px-5 sm:py-4 lg:px-0">
         {githubUrl ? (
           <a
             href={githubUrl}
