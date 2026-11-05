@@ -303,14 +303,7 @@ export function Layout() {
           isWatch ? 'relative lg:sticky lg:top-0' : 'sticky top-0',
         )}
       >
-        <div
-          className={clsx(
-            'relative mx-auto flex items-center gap-1.5 px-2.5 py-1.5 sm:gap-3 sm:px-5 lg:px-0 sm:py-2',
-            isWatch
-              ? 'max-w-[1760px]'
-              : 'w-full lg:w-[86%] lg:min-w-[1080px] lg:max-w-[1680px]',
-          )}
-        >
+        <div className="relative mx-auto flex w-full lg:w-[86%] lg:min-w-[1080px] lg:max-w-[1680px] items-center gap-1.5 px-2.5 py-1.5 sm:gap-3 sm:px-5 lg:px-0 sm:py-2">
           <NavLink
             to="/"
             className="flex shrink-0 items-center gap-2 font-semibold tracking-tight"
