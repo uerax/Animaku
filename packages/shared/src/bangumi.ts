@@ -103,6 +103,10 @@ export interface BangumiItem {
   doing?: number
   /** Collect/watched count from collection.collect (0 when unknown) */
   collect?: number
+  /** Dropped count from collection.dropped (0 when unknown) */
+  dropped?: number
+  /** Wish/plan-to-watch count from collection.wish (0 when unknown) */
+  wish?: number
   /** Trending heat score (0 when unknown) */
   heat?: number
 }
@@ -312,6 +316,91 @@ export function formatDoingLabel(count: number | undefined | null): string | nul
 }
 
 /**
+ * 综合热度指数算法 (Anime Heat Score Algorithm)
+ * 1. 基础受众分 X = doing*1 + collect*1 + dropped*0.5 + wish*0.5
+ * 2. 打分人数调节系数 W (以 100 票为基准线，低于 100 线性打折，超过 100 每倍增平滑 +0.2，不设封顶)：
+ *    - votes < 100: W = votes / 100
+ *    - votes >= 100: W = 1 + ln(votes / 100) * 0.2
+ * 3. 评分加成系数 Y = ratingScore * W
+ * 4. 基础热度 = X * (1 + Y)
+ * 5. 连载加成：若当前正在连载中，额外乘以 1.2
+ */
+export function calculateAnimeHeat(item: {
+  doing?: number
+  collect?: number
+  dropped?: number
+  wish?: number
+  votes?: number
+  ratingScore?: number
+  airDate?: string
+  eps?: number
+  airing?: boolean
+}): number {
+  const doing = Math.max(0, Number(item.doing ?? 0))
+  const collect = Math.max(0, Number(item.collect ?? 0))
+  const dropped = Math.max(0, Number(item.dropped ?? 0))
+  const wish = Math.max(0, Number(item.wish ?? 0))
+  const score = Math.max(0, Number(item.ratingScore ?? 0))
+  const votes = Math.max(0, Number(item.votes ?? 0))
+
+  // 1. 基础受众分 X
+  const X = doing * 1 + collect * 1 + dropped * 0.5 + wish * 0.5
+  if (X <= 0) {
+    return 0
+  }
+
+  // 2. 打分人数调节系数 W (以 100 票为基准线，低于 100 线性打折，超过 100 每翻约 2.7 倍平滑增加 0.2，不设封顶)
+  let W = 0
+  if (votes > 0) {
+    if (votes < 100) {
+      W = votes / 100
+    } else {
+      W = 1 + Math.log(votes / 100) * 0.2
+    }
+  }
+
+  // 3. 评分加成系数 Y
+  const Y = score * W
+
+  // 4. 基础综合热度
+  let heat = X * (1 + Y)
+
+  // 5. 连载中时效加成 (1.2 倍)
+  const isCurrentlyAiring =
+    typeof item.airing === 'boolean'
+      ? item.airing
+      : Boolean(
+          item.airDate &&
+            estimateAirProgress({
+              airDate: item.airDate,
+              eps: Number(item.eps ?? 0),
+            }).status === 'airing',
+        )
+
+  if (isCurrentlyAiring) {
+    heat *= 1.2
+  }
+
+  return Math.round(heat)
+}
+
+/**
+ * 格式化热度数值为中文流媒体风格（万级带"万"，千级带"k"，千以下展示实际数字）
+ * 例如：314200 -> '31.4万'，3120 -> '3.1k'，850 -> '850'
+ */
+export function formatHeatDisplay(heat: number | undefined | null): string {
+  const n = Number(heat ?? 0)
+  if (!Number.isFinite(n) || n <= 0) return ''
+  if (n >= 10_000) {
+    return `${(n / 10_000).toFixed(1).replace(/\.0$/, '')}万`
+  }
+  if (n >= 1_000) {
+    return `${(n / 1_000).toFixed(1).replace(/\.0$/, '')}k`
+  }
+  return String(n)
+}
+
+/**
  * Compact format for trending heat score (e.g. 4566 -> '4.6k', 12500 -> '1.3w').
  */
 export function formatHeatCount(count: number | undefined | null): string {
@@ -383,6 +472,16 @@ export function parseBangumiItem(json: Record<string, unknown>): BangumiItem {
   )
   const collect =
     Number.isFinite(collectRaw) && collectRaw > 0 ? Math.trunc(collectRaw) : undefined
+  const droppedRaw = Number(
+    collection.dropped ?? json.dropped ?? 0,
+  )
+  const dropped =
+    Number.isFinite(droppedRaw) && droppedRaw > 0 ? Math.trunc(droppedRaw) : undefined
+  const wishRaw = Number(
+    collection.wish ?? json.wish ?? 0,
+  )
+  const wish =
+    Number.isFinite(wishRaw) && wishRaw > 0 ? Math.trunc(wishRaw) : undefined
   const heatRaw = Number(json.heat ?? json.count ?? 0)
   const heat =
     Number.isFinite(heatRaw) && heatRaw > 0 ? Math.trunc(heatRaw) : undefined
@@ -452,6 +551,8 @@ export function parseBangumiItem(json: Record<string, unknown>): BangumiItem {
     totalEpisodes,
     doing,
     collect,
+    dropped,
+    wish,
     heat,
   }
 }
