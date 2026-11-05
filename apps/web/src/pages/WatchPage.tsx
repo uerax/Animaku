@@ -639,7 +639,6 @@ export function WatchPage() {
       playingEpisode={w.episode?.episode}
       activePluginName={w.pluginName}
       sourcesTotalCount={w.enabledPlugins.length}
-      isAutoProbing={isAutoProbingSources}
     />
   )
 
@@ -684,7 +683,6 @@ export function WatchPage() {
       playingEpisode={w.episode?.episode}
       activePluginName={w.pluginName}
       sourcesTotalCount={w.enabledPlugins.length}
-      isAutoProbing={isAutoProbingSources}
     />
   )
 
