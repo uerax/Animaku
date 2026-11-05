@@ -12,6 +12,7 @@ import {
 } from '../../lib/highlights'
 import { useSiteConfigStore } from '../../stores/site-config'
 import { AdminSelect } from '../AdminPage'
+import { KzButton, KzInput } from '../../components/ui'
 
 function createEmptyItem(idSuffix = '0'): HighlightItem {
   return {
@@ -62,24 +63,24 @@ const HighlightItemForm = memo(function HighlightItemForm({
           <label className="font-semibold text-[var(--kz-fg)]">
             标题 <span className="text-[10px] font-normal text-[var(--kz-fg-dim)]">(选填，图片若已有字可留空)</span>
           </label>
-          <input
+          <KzInput
             type="text"
             placeholder="选填，例如：官方交流群、周边特惠、赞助支持"
             value={item.title}
             onChange={(e) => onChange({ ...item, title: e.target.value })}
-            className="w-full rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] px-3 py-2 text-xs text-[var(--kz-fg)] outline-none focus:border-[var(--kz-accent)] transition-all"
+            size="sm"
           />
         </div>
 
         {/* 角标文案 */}
         <div className="space-y-1">
           <label className="font-semibold text-[var(--kz-fg)]">角标徽章文案</label>
-          <input
+          <KzInput
             type="text"
             placeholder="例如：公告 / 推广 / 赞助 / 活动"
             value={item.badge || ''}
             onChange={(e) => onChange({ ...item, badge: e.target.value })}
-            className="w-full rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] px-3 py-2 text-xs text-[var(--kz-fg)] outline-none focus:border-[var(--kz-accent)] transition-all"
+            size="sm"
           />
         </div>
 
@@ -100,12 +101,13 @@ const HighlightItemForm = memo(function HighlightItemForm({
               />
             </label>
           </div>
-          <input
+          <KzInput
             type="text"
             placeholder="https://... 或本地上传生成的地址"
             value={item.imageUrl}
             onChange={(e) => onChange({ ...item, imageUrl: e.target.value })}
-            className="w-full rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] px-3 py-2 text-xs font-mono text-[var(--kz-fg)] outline-none focus:border-[var(--kz-accent)] transition-all"
+            size="sm"
+            className="font-mono"
           />
           <p className="text-[11px] text-[var(--kz-fg-dim)]">
             图片将 100% 满幅充满卡片容器。建议上传清晰横版海报（通栏横幅推荐宽高比约 10:1 至 14:1，双半屏推荐 6:1 至 8:1）。
@@ -117,12 +119,13 @@ const HighlightItemForm = memo(function HighlightItemForm({
           <label className="font-semibold text-[var(--kz-fg)]">
             点击跳转链接 <span className="text-rose-400">*</span>
           </label>
-          <input
+          <KzInput
             type="text"
             placeholder="https://... 或 /about"
             value={item.linkUrl}
             onChange={(e) => onChange({ ...item, linkUrl: e.target.value })}
-            className="w-full rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] px-3 py-2 text-xs font-mono text-[var(--kz-fg)] outline-none focus:border-[var(--kz-accent)] transition-all"
+            size="sm"
+            className="font-mono"
           />
         </div>
 
@@ -454,14 +457,14 @@ export const AdminHighlightsSection = memo(function AdminHighlightsSection() {
 
       {/* 5. 底部操作栏 */}
       <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-[var(--kz-border)]/40">
-        <button
-          type="button"
+        <KzButton
+          variant="danger-outline"
+          size="xs"
           onClick={handleDelete}
           disabled={isSaving || isToggling}
-          className="text-xs text-rose-400 hover:underline cursor-pointer"
         >
           清空此区域配置
-        </button>
+        </KzButton>
 
         <div className="flex items-center gap-3">
           {feedbackMsg && (
@@ -469,14 +472,15 @@ export const AdminHighlightsSection = memo(function AdminHighlightsSection() {
               {feedbackMsg}
             </span>
           )}
-          <button
-            type="button"
+          <KzButton
+            variant="primary"
+            size="sm"
             onClick={handleSave}
-            disabled={isSaving || isUploading || isToggling}
-            className="rounded-xl bg-[var(--kz-accent)] px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-[var(--kz-accent-hover)] active:scale-95 disabled:opacity-50 transition-all cursor-pointer"
+            loading={isSaving}
+            disabled={isUploading || isToggling}
           >
-            {isSaving ? '正在保存…' : '💾 保存当前卡片内容'}
-          </button>
+            💾 保存当前卡片内容
+          </KzButton>
         </div>
       </div>
     </div>

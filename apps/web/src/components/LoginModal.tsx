@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { bangumiOAuthUrl } from '@animaku/shared'
 import { Modal } from './Modal'
+import { KzButton, KzInput } from './ui'
 import { useAuthStore } from '../stores/auth'
 import { useSiteBranding } from '../lib/site-branding'
 
@@ -80,7 +81,6 @@ export function LoginModal() {
 
   // Bangumi Token 表单状态
   const [tokenInput, setTokenInput] = useState('')
-  const [tokenShowPassword, setTokenShowPassword] = useState(false)
   const [loginLoading, setLoginLoading] = useState(false)
   const [loginError, setLoginError] = useState<string | null>(null)
 
@@ -88,7 +88,6 @@ export function LoginModal() {
   const [account, setAccount] = useState('')
   const [password, setPassword] = useState('')
   const [captcha, setCaptcha] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
   const [captchaCode, setCaptchaCode] = useState(() => generateRandomCaptcha())
 
   // 轻提示 Toast 状态
@@ -274,28 +273,18 @@ export function LoginModal() {
                   </svg>
                 </a>
               </div>
-              <div className="relative">
-                <input
-                  type={tokenShowPassword ? 'text' : 'password'}
-                  data-clarity-mask="True"
-                  value={tokenInput}
-                  onChange={(e) => {
-                    setTokenInput(e.target.value)
-                    if (loginError) setLoginError(null)
-                  }}
-                  placeholder="粘贴 Bangumi 个人访问令牌…"
-                  disabled={loginLoading}
-                  className="w-full rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3.5 py-2.5 pr-14 text-xs sm:text-sm text-[var(--kz-fg)] placeholder:text-[var(--kz-fg-dim)] outline-none focus:border-[var(--kz-accent)] focus:ring-2 focus:ring-[var(--kz-accent)]/20 transition-all"
-                />
-                <button
-                  type="button"
-                  tabIndex={-1}
-                  onClick={() => setTokenShowPassword((v) => !v)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-[var(--kz-accent)] hover:opacity-80 transition-opacity cursor-pointer select-none"
-                >
-                  {tokenShowPassword ? '隐藏' : '显示'}
-                </button>
-              </div>
+              <KzInput
+                type="password"
+                showPasswordToggle
+                data-clarity-mask="True"
+                value={tokenInput}
+                onChange={(e) => {
+                  setTokenInput(e.target.value)
+                  if (loginError) setLoginError(null)
+                }}
+                placeholder="粘贴 Bangumi 个人访问令牌…"
+                disabled={loginLoading}
+              />
               <p className="mt-1.5 text-[11px] text-[var(--kz-fg-dim)] leading-tight">
                 令牌保存在本地浏览器，用于同步个人追番、评分与吐槽。
               </p>
@@ -311,27 +300,15 @@ export function LoginModal() {
             )}
 
             {/* 登录主按钮 */}
-            <button
+            <KzButton
               type="submit"
-              disabled={loginLoading || !tokenInput.trim()}
-              className={`w-full py-2 sm:py-2.5 rounded-xl font-semibold text-xs sm:text-sm text-white shadow-xs transition-all select-none flex items-center justify-center gap-1.5 cursor-pointer ${
-                loginLoading || !tokenInput.trim()
-                  ? 'bg-[var(--kz-accent)]/50 cursor-not-allowed opacity-60'
-                  : 'bg-[var(--kz-accent)] hover:bg-[var(--kz-accent-hover)] active:scale-[0.99] shadow-[0_2px_10px_var(--kz-accent-ring)]'
-              }`}
+              variant="primary"
+              loading={loginLoading}
+              disabled={!tokenInput.trim()}
+              className="w-full mt-2"
             >
-              {loginLoading ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-1.5 h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                  </svg>
-                  <span>正在验证…</span>
-                </>
-              ) : (
-                <span>登录</span>
-              )}
-            </button>
+              登录
+            </KzButton>
           </form>
         )}
 
@@ -343,12 +320,11 @@ export function LoginModal() {
               <label className="block text-xs sm:text-[13px] font-semibold text-[var(--kz-fg)] mb-1">
                 账号 / 邮箱
               </label>
-              <input
+              <KzInput
                 type="text"
                 value={account}
                 onChange={(e) => setAccount(e.target.value)}
                 placeholder="请输入账号或已绑定邮箱"
-                className="w-full rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3.5 py-2.5 text-xs sm:text-sm text-[var(--kz-fg)] placeholder:text-[var(--kz-fg-dim)] outline-none focus:border-[var(--kz-accent)] focus:ring-2 focus:ring-[var(--kz-accent)]/20 transition-all"
               />
             </div>
 
@@ -357,23 +333,13 @@ export function LoginModal() {
               <label className="block text-xs sm:text-[13px] font-semibold text-[var(--kz-fg)] mb-1">
                 密码
               </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="请输入密码"
-                  className="w-full rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3.5 py-2.5 pr-14 text-xs sm:text-sm text-[var(--kz-fg)] placeholder:text-[var(--kz-fg-dim)] outline-none focus:border-[var(--kz-accent)] focus:ring-2 focus:ring-[var(--kz-accent)]/20 transition-all"
-                />
-                <button
-                  type="button"
-                  tabIndex={-1}
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-[var(--kz-accent)] hover:opacity-80 transition-opacity cursor-pointer select-none"
-                >
-                  {showPassword ? '隐藏' : '显示'}
-                </button>
-              </div>
+              <KzInput
+                type="password"
+                showPasswordToggle
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="请输入密码"
+              />
             </div>
 
             {/* 验证码 */}
@@ -382,20 +348,20 @@ export function LoginModal() {
                 验证码
               </label>
               <div className="flex items-center gap-2">
-                <input
+                <KzInput
                   type="text"
                   maxLength={6}
                   value={captcha}
                   onChange={(e) => setCaptcha(e.target.value)}
                   placeholder="验证码"
-                  className="min-w-0 flex-1 rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3.5 py-2.5 text-xs sm:text-sm text-[var(--kz-fg)] placeholder:text-[var(--kz-fg-dim)] outline-none focus:border-[var(--kz-accent)] focus:ring-2 focus:ring-[var(--kz-accent)]/20 transition-all"
+                  containerClassName="min-w-0 flex-1"
                 />
                 {/* 仿制彩色图形验证码块，点击刷新 */}
                 <button
                   type="button"
                   onClick={() => setCaptchaCode(generateRandomCaptcha())}
                   title="点击更换验证码"
-                  className="w-24 sm:w-28 h-10 shrink-0 rounded-2xl border border-pink-200/60 dark:border-pink-900/40 bg-gradient-to-r from-pink-50 via-rose-50 to-purple-50 dark:from-neutral-900 dark:via-neutral-800 dark:to-neutral-900 flex items-center justify-center cursor-pointer select-none shadow-xs group"
+                  className="w-24 sm:w-28 h-9 sm:h-10 shrink-0 rounded-xl border border-pink-200/60 dark:border-pink-900/40 bg-gradient-to-r from-pink-50 via-rose-50 to-purple-50 dark:from-neutral-900 dark:via-neutral-800 dark:to-neutral-900 flex items-center justify-center cursor-pointer select-none shadow-xs group"
                 >
                   <span className="font-serif italic text-base sm:text-lg tracking-widest text-[#881743] dark:text-[#f48fb1] font-black group-hover:scale-105 transition-transform">
                     {captchaCode}
@@ -405,12 +371,13 @@ export function LoginModal() {
             </div>
 
             {/* 登录按钮 */}
-            <button
+            <KzButton
               type="submit"
-              className="w-full mt-2 py-2 sm:py-2.5 rounded-xl font-semibold text-xs sm:text-sm text-white shadow-xs bg-[var(--kz-accent)] hover:bg-[var(--kz-accent-hover)] active:scale-[0.99] shadow-[0_2px_10px_var(--kz-accent-ring)] transition-all select-none cursor-pointer"
+              variant="primary"
+              className="w-full mt-2"
             >
               登录
-            </button>
+            </KzButton>
           </form>
         )}
 

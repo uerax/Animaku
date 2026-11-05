@@ -14,6 +14,7 @@ import {
 } from '../lib/danmaku-pools'
 import type { PointerMode } from './chrome/usePointerMode'
 import { danmakuApi } from '../lib/plugin-api'
+import { KzButton, KzInput } from '../components/ui'
 
 export type DanmakuPanelTab = 'search' | 'danmubox' | 'settings' | 'import'
 
@@ -789,9 +790,10 @@ function SearchTab(props: Props & { compact: boolean }) {
       {/* Search Input Box */}
       <div className="space-y-1.5">
         <span className="text-xs font-semibold text-[var(--kz-fg)]">弹弹play 番剧搜索</span>
-        <div className="flex gap-2">
-          <input
-            className="flex-1 min-w-0 rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-3 py-2 text-xs text-[var(--kz-fg)] placeholder:text-[var(--kz-fg-muted)] outline-none focus:border-[var(--kz-accent)] transition-all"
+        <div className="flex items-center gap-2">
+          <KzInput
+            containerClassName="flex-1 min-w-0"
+            size="sm"
             value={props.keyword}
             onChange={(e) => props.onKeywordChange(e.target.value)}
             onKeyDown={(e) => {
@@ -799,14 +801,14 @@ function SearchTab(props: Props & { compact: boolean }) {
             }}
             placeholder="搜索番剧名称…"
           />
-          <button
-            type="button"
-            disabled={props.searchBusy}
+          <KzButton
+            variant="primary"
+            size="sm"
+            loading={props.searchBusy}
             onClick={props.onSearch}
-            className="shrink-0 rounded-xl bg-[var(--kz-accent)] px-3.5 py-2 text-xs font-semibold text-white hover:bg-[var(--kz-accent-hover)] active:scale-95 disabled:opacity-50 transition-all border-0 cursor-pointer shadow-xs"
           >
-            {props.searchBusy ? '…' : '搜索'}
-          </button>
+            搜索
+          </KzButton>
         </div>
       </div>
 
@@ -985,9 +987,10 @@ function DanmuBoxTab(props: Props & { compact: boolean }) {
           <span className="font-semibold text-[var(--kz-fg)]">弹幕盒子历史归档搜索</span>
           <span className="text-[11px] text-[var(--kz-fg-muted)]">收录 4,299 个历史资源包</span>
         </div>
-        <div className="flex gap-2">
-          <input
-            className="flex-1 min-w-0 rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-3 py-2 text-xs text-[var(--kz-fg)] placeholder:text-[var(--kz-fg-muted)] outline-none focus:border-[var(--kz-accent)] transition-all"
+        <div className="flex items-center gap-2">
+          <KzInput
+            containerClassName="flex-1 min-w-0"
+            size="sm"
             value={dbKeyword}
             onChange={(e) => setDbKeyword(e.target.value)}
             onKeyDown={(e) => {
@@ -995,14 +998,15 @@ function DanmuBoxTab(props: Props & { compact: boolean }) {
             }}
             placeholder="搜索番剧名称（如：寒蝉、龙与虎、石头门）…"
           />
-          <button
-            type="button"
-            disabled={searching || !dbKeyword.trim()}
+          <KzButton
+            variant="primary"
+            size="sm"
+            loading={searching}
+            disabled={!dbKeyword.trim()}
             onClick={() => void handleSearch()}
-            className="shrink-0 rounded-xl bg-amber-500 px-3.5 py-2 text-xs font-semibold text-white hover:bg-amber-600 active:scale-95 disabled:opacity-50 transition-all border-0 cursor-pointer shadow-xs"
           >
-            {searching ? '…' : '搜索'}
-          </button>
+            搜索
+          </KzButton>
         </div>
       </div>
 
@@ -1166,8 +1170,8 @@ function ImportTab(props: Props & { compact: boolean }) {
       {/* Card 1: Bilibili Manual Import */}
       <div className="rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-soft)]/50 p-2.5 space-y-2">
         <div className="text-xs font-semibold text-[var(--kz-fg)]">Bilibili 视频 / 番剧链接</div>
-        <input
-          className="w-full rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-2 text-xs text-[var(--kz-fg)] placeholder:text-[var(--kz-fg-muted)] outline-none focus:border-[var(--kz-accent)] transition-all"
+        <KzInput
+          size="sm"
           value={props.bvInput}
           onChange={(e) => props.onBvInputChange(e.target.value)}
           placeholder="BV号 / ep86012 / ss28277 / av号 / 完整链接"
@@ -1179,7 +1183,7 @@ function ImportTab(props: Props & { compact: boolean }) {
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 text-xs text-[var(--kz-fg-muted)]">
             <span className="font-medium">分P</span>
-            <input
+            <KzInput
               type="number"
               min={1}
               inputMode="numeric"
@@ -1187,17 +1191,19 @@ function ImportTab(props: Props & { compact: boolean }) {
               onChange={(e) =>
                 props.onBvPageChange(Math.max(1, Number(e.target.value) || 1))
               }
-              className="w-14 h-7.5 rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2 text-center text-xs font-mono font-bold text-[var(--kz-fg)] outline-none focus:border-[var(--kz-accent)]"
+              size="sm"
+              className="text-center font-mono font-bold"
+              containerClassName="w-16"
             />
           </div>
-          <button
-            type="button"
-            disabled={props.bilibiliBusy}
+          <KzButton
+            size="sm"
+            variant="primary"
+            loading={props.bilibiliBusy}
             onClick={props.onLoadBilibili}
-            className="h-7.5 px-3.5 rounded-lg bg-[var(--kz-accent)] text-white text-xs font-semibold hover:bg-[var(--kz-accent-hover)] active:scale-95 disabled:opacity-50 transition-all border-0 cursor-pointer shadow-2xs"
           >
-            {props.bilibiliBusy ? '拉取中…' : '追加 B 站弹幕'}
-          </button>
+            追加 B 站弹幕
+          </KzButton>
         </div>
 
         {/* Dedicated Stepper for Bilibili Manual */}
@@ -1239,9 +1245,10 @@ function ImportTab(props: Props & { compact: boolean }) {
         <div className="text-xs font-semibold text-[var(--kz-fg)]">
           屏蔽词列表 · {props.danmaku.filters.length} 条
         </div>
-        <div className="flex gap-2">
-          <input
-            className="flex-1 min-w-0 rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-1.5 text-xs text-[var(--kz-fg)] placeholder:text-[var(--kz-fg-muted)] outline-none focus:border-[var(--kz-accent)] transition-all"
+        <div className="flex items-center gap-2">
+          <KzInput
+            size="sm"
+            containerClassName="flex-1 min-w-0"
             value={props.filterDraft}
             onChange={(e) => props.onFilterDraftChange(e.target.value)}
             placeholder="关键词 或 /regex/"
@@ -1249,13 +1256,13 @@ function ImportTab(props: Props & { compact: boolean }) {
               if (e.key === 'Enter') props.onAddFilter()
             }}
           />
-          <button
-            type="button"
+          <KzButton
+            size="sm"
+            variant="primary"
             onClick={props.onAddFilter}
-            className="h-7.5 px-3 rounded-lg bg-[var(--kz-accent)] text-white text-xs font-semibold hover:bg-[var(--kz-accent-hover)] active:scale-95 transition-all cursor-pointer border-0 shrink-0 shadow-2xs"
           >
             添加
-          </button>
+          </KzButton>
         </div>
         {props.danmaku.filters.length > 0 && (
           <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1 bg-[var(--kz-bg)]/80 rounded-xl border border-[var(--kz-border)]">
@@ -1409,22 +1416,25 @@ function CustomSelect<T extends number | string>({
         ref={buttonRef}
         type="button"
         onClick={handleToggle}
-        className="flex items-center justify-between w-full h-8.5 px-3 rounded-xl bg-[var(--kz-bg-soft)] border border-[var(--kz-border)] text-[var(--kz-fg)] text-xs font-medium outline-none hover:border-[var(--kz-accent)] hover:bg-[var(--kz-bg-hover)] active:scale-[0.99] transition-all cursor-pointer text-left"
+        className={`flex items-center justify-between w-full h-8 px-2.5 rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] text-[var(--kz-fg)] text-xs font-medium outline-none transition-all cursor-pointer text-left shadow-xs hover:border-[var(--kz-accent)] hover:bg-[var(--kz-bg-hover)] active:scale-[0.98] ${
+          open ? 'border-[var(--kz-accent)] ring-1 ring-[var(--kz-accent)]/50' : ''
+        }`}
       >
         <span className="truncate min-w-0 flex-1">
           {selectedOpt ? selectedOpt.label : placeholder}
         </span>
         <svg
-          className={`w-3.5 h-3.5 ml-1.5 text-[var(--kz-fg-muted)] shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
-          viewBox="0 0 16 16"
-          fill="none"
+          className={`w-3.5 h-3.5 ml-1.5 text-[var(--kz-fg-muted)] shrink-0 transition-transform duration-200 ${
+            open ? 'rotate-180 text-[var(--kz-accent)]' : ''
+          }`}
+          viewBox="0 0 20 20"
+          fill="currentColor"
+          aria-hidden="true"
         >
           <path
-            d="M4 6.2L8 10.2L12 6.2"
-            stroke="currentColor"
-            strokeWidth="1.6"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+            fillRule="evenodd"
+            d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+            clipRule="evenodd"
           />
         </svg>
       </button>
@@ -1444,7 +1454,7 @@ function CustomSelect<T extends number | string>({
                 : 'auto',
               zIndex: 999999,
             }}
-            className="max-h-44 overflow-y-auto overscroll-contain py-1 rounded-xl bg-[var(--kz-bg-elevated)]/98 border border-[var(--kz-border)] shadow-2xl backdrop-blur-2xl text-[var(--kz-fg)] animate-in fade-in-50 zoom-in-95 duration-100"
+            className="max-h-44 overflow-y-auto overscroll-contain p-1 rounded-xl bg-[var(--kz-bg-elevated)]/98 border border-[var(--kz-border)] shadow-2xl backdrop-blur-2xl text-[var(--kz-fg)] animate-in fade-in-50 zoom-in-95 duration-100 ring-1 ring-black/5 dark:ring-white/10"
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
@@ -1455,7 +1465,7 @@ function CustomSelect<T extends number | string>({
                 onChange('' as T)
                 setOpen(false)
               }}
-              className="w-full px-3 py-1.5 text-left text-xs text-[var(--kz-fg-muted)] hover:bg-[var(--kz-bg-soft)] transition-colors border-0 bg-transparent cursor-pointer"
+              className="w-full rounded-lg px-2.5 py-1.5 text-left text-xs text-[var(--kz-fg-muted)] hover:bg-[var(--kz-bg-hover)] transition-colors border-0 bg-transparent cursor-pointer"
             >
               {placeholder}
             </button>
@@ -1470,15 +1480,26 @@ function CustomSelect<T extends number | string>({
                     onChange(opt.value)
                     setOpen(false)
                   }}
-                  className={`flex items-center justify-between w-full px-3 py-2 text-left text-xs transition-colors border-0 cursor-pointer ${
+                  className={`flex items-center justify-between w-full rounded-lg px-2.5 py-1.5 text-left text-xs transition-colors border-0 cursor-pointer ${
                     active
-                      ? 'bg-[var(--kz-accent-soft)] text-[var(--kz-accent)] font-bold'
-                      : 'text-[var(--kz-fg)] hover:bg-[var(--kz-bg-soft)]'
+                      ? 'bg-[var(--kz-accent)]/15 font-semibold text-[var(--kz-accent)]'
+                      : 'text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)]'
                   }`}
                 >
                   <span className="truncate min-w-0 flex-1">{opt.label}</span>
                   {active && (
-                    <span className="ml-2 text-xs text-[var(--kz-accent)]">✓</span>
+                    <svg
+                      className="h-3.5 w-3.5 text-[var(--kz-accent)] shrink-0 ml-1.5"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                      aria-hidden="true"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
                   )}
                 </button>
               )

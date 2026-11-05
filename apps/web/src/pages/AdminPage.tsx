@@ -43,6 +43,9 @@ import {
   Collapsible,
   SwitchRow,
   KzSelect,
+  KzButton,
+  KzInput,
+  KzTextarea,
   type KzSelectOption,
   type KzSelectProps,
 } from '../components/ui'
@@ -100,7 +103,6 @@ export function AdminPage() {
 
   // Gatekeeper state
   const [secretInput, setSecretInput] = useState('')
-  const [showSecret, setShowSecret] = useState(false)
   const [authError, setAuthError] = useState('')
   const [isVerifying, setIsVerifying] = useState(false)
 
@@ -147,48 +149,35 @@ export function AdminPage() {
               >
                 管理员密钥
               </label>
-              <div className="relative">
-                <input
-                  id="admin_secret_entry"
-                  type={showSecret ? 'text' : 'password'}
-                  autoFocus
-                  autoComplete="current-password"
-                  autoCorrect="off"
-                  autoCapitalize="off"
-                  spellCheck={false}
-                  placeholder="请输入 ADMIN_SECRET…"
-                  value={secretInput}
-                  onChange={(e) => {
-                    setSecretInput(e.target.value)
-                    if (authError) setAuthError('')
-                  }}
-                  className="w-full rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] pl-3 pr-10 py-2.5 text-sm text-[var(--kz-fg)] placeholder:text-[var(--kz-fg-dim)] outline-none focus:border-[var(--kz-accent)] focus:ring-1 focus:ring-[var(--kz-accent)] transition-all"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowSecret((p) => !p)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] select-none cursor-pointer"
-                  title={showSecret ? '隐藏口令' : '显示口令'}
-                  tabIndex={-1}
-                >
-                  {showSecret ? '🙈' : '👁️'}
-                </button>
-              </div>
-              {authError && (
-                <p className="text-xs font-medium text-rose-500 pt-0.5">
-                  {authError}
-                </p>
-              )}
+              <KzInput
+                id="admin_secret_entry"
+                type="password"
+                showPasswordToggle
+                autoFocus
+                autoComplete="current-password"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                placeholder="请输入 ADMIN_SECRET…"
+                value={secretInput}
+                onChange={(e) => {
+                  setSecretInput(e.target.value)
+                  if (authError) setAuthError('')
+                }}
+                error={authError}
+              />
             </div>
 
             <div className="flex flex-col gap-2 pt-2">
-              <button
+              <KzButton
                 type="submit"
-                disabled={isVerifying || !secretInput.trim()}
-                className="w-full inline-flex items-center justify-center rounded-xl bg-[var(--kz-accent)] py-2.5 px-4 text-sm font-semibold text-white shadow-md transition-all hover:bg-[var(--kz-accent-hover)] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                variant="primary"
+                loading={isVerifying}
+                disabled={!secretInput.trim()}
+                className="w-full"
               >
-                {isVerifying ? '验证中…' : '验证并进入后台'}
-              </button>
+                验证并进入后台
+              </KzButton>
               <Link
                 to="/"
                 className="w-full inline-flex items-center justify-center rounded-xl border border-[var(--kz-border)] py-2 px-4 text-xs font-medium text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] transition-colors text-center"
@@ -1144,34 +1133,34 @@ function AdminDashboard() {
                 className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] px-2.5 py-1 text-xs font-medium text-[var(--kz-fg)] outline-none focus:border-[var(--kz-accent)] transition-all cursor-pointer"
               />
               <div className="flex items-center gap-1 pl-1">
-                <button
-                  type="button"
+                <KzButton
+                  size="xs"
+                  variant="secondary"
                   onClick={() => selectQuickDate(0)}
-                  className="rounded-md border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-2 py-1 text-[11px] font-medium text-[var(--kz-fg)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] transition-all cursor-pointer"
                 >
                   今日(实时)
-                </button>
-                <button
-                  type="button"
+                </KzButton>
+                <KzButton
+                  size="xs"
+                  variant="secondary"
                   onClick={() => selectQuickDate(1)}
-                  className="rounded-md border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-2 py-1 text-[11px] font-medium text-[var(--kz-fg-muted)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-fg)] transition-all cursor-pointer"
                 >
                   昨日
-                </button>
-                <button
-                  type="button"
+                </KzButton>
+                <KzButton
+                  size="xs"
+                  variant="secondary"
                   onClick={() => selectQuickDate(2)}
-                  className="rounded-md border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-2 py-1 text-[11px] font-medium text-[var(--kz-fg-muted)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-fg)] transition-all cursor-pointer"
                 >
                   前日
-                </button>
-                <button
-                  type="button"
+                </KzButton>
+                <KzButton
+                  size="xs"
+                  variant="secondary"
                   onClick={() => selectQuickDate(7)}
-                  className="rounded-md border border-[var(--kz-border)] bg-[var(--kz-bg-soft)] px-2 py-1 text-[11px] font-medium text-[var(--kz-fg-muted)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-fg)] transition-all cursor-pointer"
                 >
                   7天前
-                </button>
+                </KzButton>
               </div>
             </div>
 
@@ -1186,15 +1175,14 @@ function AdminDashboard() {
                   历史快照
                 </span>
               )}
-              <button
-                type="button"
+              <KzButton
+                size="sm"
+                variant="outline"
+                loading={statsLoading}
                 onClick={() => loadDailyStats(statsDate)}
-                disabled={statsLoading}
-                className="inline-flex items-center gap-1 rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] px-2.5 py-1 text-xs font-semibold text-[var(--kz-fg)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] transition-all active:scale-95 disabled:opacity-50 cursor-pointer shadow-xs"
               >
-                <span className={statsLoading ? 'animate-spin' : ''}>🔄</span>
-                {statsLoading ? '刷新中…' : '刷新数据'}
-              </button>
+                刷新数据
+              </KzButton>
             </div>
           </div>
 

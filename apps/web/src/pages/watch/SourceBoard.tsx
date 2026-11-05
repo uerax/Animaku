@@ -22,6 +22,7 @@ import {
 import type { SourceSelection, SearchRow } from '../../lib/use-watch-session'
 import { useAutoSourcePick } from './use-auto-source-pick'
 import { useSiteConfigStore } from '../../stores/site-config'
+import { KzButton, KzInput } from '../../components/ui'
 
 export interface SourceBoardProps {
   bangumiId: number
@@ -703,31 +704,29 @@ export function SourceBoard({
                         {/* Custom keyword search input */}
                         <form
                           onSubmit={(e) => handleCardKeywordSubmit(plugin.name, e)}
-                          className="flex gap-1.5 pt-1.5 border-t border-[var(--kz-border-subtle)]"
+                          className="flex items-center gap-1.5 pt-1.5 border-t border-[var(--kz-border-subtle)]"
                         >
-                          <div className="relative flex-1 min-w-0">
-                            <input
-                              value={cardKwInputs[plugin.name] || ''}
-                              onChange={(e) =>
-                                setCardKwInputs((prev) => ({
-                                  ...prev,
-                                  [plugin.name]: e.target.value,
-                                }))
-                              }
-                              placeholder={`输入针对 ${plugin.name} 的关键词…`}
-                              className="w-full rounded-lg bg-[var(--kz-bg-elevated)] px-2.5 py-1 text-[11px] text-[var(--kz-fg)] border border-[var(--kz-border-subtle)] placeholder:text-[var(--kz-fg-dim)] outline-none focus:border-[var(--kz-accent)] focus:ring-1 focus:ring-[var(--kz-accent)] transition-all"
-                            />
-                          </div>
-                          <button
-                            type="submit"
-                            disabled={
-                              state.status === 'probing' ||
-                              !(cardKwInputs[plugin.name] || '').trim()
+                          <KzInput
+                            value={cardKwInputs[plugin.name] || ''}
+                            onChange={(e) =>
+                              setCardKwInputs((prev) => ({
+                                ...prev,
+                                [plugin.name]: e.target.value,
+                              }))
                             }
-                            className="rounded-lg bg-[var(--kz-accent)] px-3 py-1 text-[11px] font-medium text-white hover:bg-[var(--kz-accent-hover)] disabled:opacity-40 transition-all cursor-pointer select-none shrink-0"
+                            placeholder={`输入针对 ${plugin.name} 的关键词…`}
+                            size="sm"
+                            containerClassName="flex-1 min-w-0"
+                          />
+                          <KzButton
+                            type="submit"
+                            variant="primary"
+                            size="sm"
+                            loading={state.status === 'probing'}
+                            disabled={!(cardKwInputs[plugin.name] || '').trim()}
                           >
-                            {state.status === 'probing' ? '搜索中…' : '重搜'}
-                          </button>
+                            重搜
+                          </KzButton>
                         </form>
                       </div>
                     </div>

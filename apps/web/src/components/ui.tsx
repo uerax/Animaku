@@ -1,4 +1,4 @@
-import { memo, useState, useRef, useLayoutEffect, useMemo, useEffect, useId, type ReactNode } from 'react'
+import { memo, useState, useRef, useLayoutEffect, useMemo, useEffect, useId, forwardRef, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import type { BangumiItem } from '@animaku/shared'
@@ -846,3 +846,291 @@ export function KzSegmented<T extends string = string>({
     </div>
   )
 }
+
+/* ──────────────────────────────────────────────────────────
+   KzButton — 通用现代标准按钮组件
+   支持丰富变体、微触觉缩放反馈、Loading 加载态与图标集成
+   ────────────────────────────────────────────────────────── */
+
+export type KzButtonVariant =
+  | 'primary'
+  | 'secondary'
+  | 'outline'
+  | 'ghost'
+  | 'danger'
+  | 'danger-outline'
+
+export type KzButtonSize = 'xs' | 'sm' | 'md' | 'lg'
+
+export interface KzButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: KzButtonVariant
+  size?: KzButtonSize
+  loading?: boolean
+  pill?: boolean
+  leftIcon?: ReactNode
+  rightIcon?: ReactNode
+}
+
+export const KzButton = forwardRef<HTMLButtonElement, KzButtonProps>(
+  function KzButton(
+    {
+      variant = 'secondary',
+      size = 'md',
+      loading = false,
+      pill = false,
+      leftIcon,
+      rightIcon,
+      disabled,
+      className = '',
+      children,
+      type = 'button',
+      ...rest
+    },
+    ref,
+  ) {
+    const isDisabled = disabled || loading
+
+    const sizeClasses: Record<KzButtonSize, string> = {
+      xs: 'h-6 px-2 text-[11px] gap-1',
+      sm: 'h-8 px-2.5 text-xs gap-1.5',
+      md: 'h-9 px-3.5 text-xs sm:text-sm gap-2',
+      lg: 'h-10 sm:h-11 px-4 sm:px-5 text-sm sm:text-base gap-2',
+    }
+
+    const roundedClass = pill
+      ? 'rounded-full'
+      : size === 'xs'
+        ? 'rounded-lg'
+        : size === 'lg'
+          ? 'rounded-2xl'
+          : 'rounded-xl'
+
+    const variantClasses: Record<KzButtonVariant, string> = {
+      primary:
+        'bg-[var(--kz-accent)] text-white hover:bg-[var(--kz-accent-hover)] shadow-xs hover:shadow-[0_2px_12px_var(--kz-accent-ring)] active:scale-[0.98] border-0',
+      secondary:
+        'bg-[var(--kz-bg-soft)] text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] border border-[var(--kz-border)] hover:border-[var(--kz-border-hover,var(--kz-border))] active:scale-[0.98]',
+      outline:
+        'bg-transparent text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] border border-[var(--kz-border)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] active:scale-[0.98]',
+      ghost:
+        'bg-transparent text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] border-0 active:scale-[0.98]',
+      danger:
+        'bg-[var(--kz-danger)] text-white hover:opacity-90 shadow-xs active:scale-[0.98] border-0',
+      'danger-outline':
+        'bg-transparent text-[var(--kz-danger)] hover:bg-rose-500/10 border border-rose-500/30 active:scale-[0.98]',
+    }
+
+    return (
+      <button
+        ref={ref}
+        type={type}
+        disabled={isDisabled}
+        className={`inline-flex items-center justify-center font-medium select-none cursor-pointer transition-all duration-150 shrink-0 ${sizeClasses[size]} ${roundedClass} ${variantClasses[variant]} ${
+          isDisabled
+            ? 'opacity-50 cursor-not-allowed pointer-events-none active:scale-100 shadow-none'
+            : ''
+        } ${className}`}
+        {...rest}
+      >
+        {loading ? (
+          <span className="inline-block size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent shrink-0" />
+        ) : (
+          leftIcon && <span className="shrink-0 flex items-center">{leftIcon}</span>
+        )}
+        {children && <span className="truncate leading-none">{children}</span>}
+        {!loading && rightIcon && (
+          <span className="shrink-0 flex items-center">{rightIcon}</span>
+        )}
+      </button>
+    )
+  },
+)
+
+/* ──────────────────────────────────────────────────────────
+   KzInput — 通用现代标准单行输入框组件
+   支持焦点流光、清空按钮、密码显隐切换、前后缀图标与错误态
+   ────────────────────────────────────────────────────────── */
+
+export type KzInputSize = 'sm' | 'md' | 'lg'
+
+export interface KzInputProps
+  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> {
+  size?: KzInputSize
+  error?: boolean | string
+  clearable?: boolean
+  onClear?: () => void
+  showPasswordToggle?: boolean
+  leftIcon?: ReactNode
+  rightIcon?: ReactNode
+  containerClassName?: string
+}
+
+export const KzInput = forwardRef<HTMLInputElement, KzInputProps>(
+  function KzInput(
+    {
+      size = 'md',
+      error = false,
+      clearable = false,
+      onClear,
+      showPasswordToggle = false,
+      leftIcon,
+      rightIcon,
+      containerClassName = '',
+      className = '',
+      type = 'text',
+      value,
+      onChange,
+      disabled,
+      ...rest
+    },
+    ref,
+  ) {
+    const [showPassword, setShowPassword] = useState(false)
+    const isPasswordType = type === 'password'
+    const actualType = isPasswordType && showPassword ? 'text' : type
+
+    const sizeClasses: Record<KzInputSize, { container: string; input: string }> = {
+      sm: {
+        container: 'h-8 rounded-xl text-xs px-2.5',
+        input: 'text-xs',
+      },
+      md: {
+        container: 'h-9 sm:h-10 rounded-xl text-xs sm:text-sm px-3',
+        input: 'text-xs sm:text-sm',
+      },
+      lg: {
+        container: 'h-11 sm:h-12 rounded-2xl text-sm sm:text-base px-3.5',
+        input: 'text-sm sm:text-base',
+      },
+    }
+
+    const hasValue = value !== undefined && value !== '' && String(value).length > 0
+    const hasError = Boolean(error)
+    const errorMessage = typeof error === 'string' ? error : undefined
+
+    return (
+      <div className={`relative flex flex-col gap-1 ${containerClassName}`}>
+        <div
+          className={`group flex items-center w-full border bg-[var(--kz-bg)] text-[var(--kz-fg)] transition-all duration-150 ${
+            sizeClasses[size].container
+          } ${
+            hasError
+              ? 'border-rose-500 focus-within:border-rose-500 focus-within:ring-2 focus-within:ring-rose-500/20'
+              : 'border-[var(--kz-border)] hover:border-[var(--kz-border-hover,var(--kz-border))] focus-within:border-[var(--kz-accent)] focus-within:ring-2 focus-within:ring-[var(--kz-accent)]/20'
+          } ${disabled ? 'opacity-50 cursor-not-allowed bg-[var(--kz-bg-soft)]' : ''}`}
+        >
+          {leftIcon && (
+            <span className="shrink-0 mr-2 text-[var(--kz-fg-dim)] group-focus-within:text-[var(--kz-accent)] transition-colors flex items-center">
+              {leftIcon}
+            </span>
+          )}
+          <input
+            ref={ref}
+            type={actualType}
+            value={value}
+            onChange={onChange}
+            disabled={disabled}
+            className={`kz-input-native w-full min-w-0 bg-transparent text-[var(--kz-fg)] placeholder:text-[var(--kz-fg-dim)] !border-none !outline-none !shadow-none p-0 ring-0 focus:!border-none focus:!outline-none focus:!shadow-none focus:ring-0 ${
+              sizeClasses[size].input
+            } ${className}`}
+            {...rest}
+          />
+          {clearable && hasValue && !disabled && (
+            <button
+              type="button"
+              tabIndex={-1}
+              onClick={() => {
+                if (onClear) onClear()
+                if (onChange) {
+                  const event = {
+                    target: { value: '' },
+                  } as React.ChangeEvent<HTMLInputElement>
+                  onChange(event)
+                }
+              }}
+              className="shrink-0 ml-1.5 p-0.5 rounded-full text-[var(--kz-fg-dim)] hover:text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] transition-colors cursor-pointer"
+              title="清空"
+              aria-label="清空内容"
+            >
+              <svg className="size-3.5" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
+              </svg>
+            </button>
+          )}
+          {isPasswordType && showPasswordToggle && !disabled && (
+            <button
+              type="button"
+              tabIndex={-1}
+              onClick={() => setShowPassword((p) => !p)}
+              className="shrink-0 ml-1.5 text-xs font-semibold text-[var(--kz-accent)] hover:opacity-80 transition-opacity cursor-pointer select-none"
+              title={showPassword ? '隐藏密码' : '显示密码'}
+            >
+              {showPassword ? '隐藏' : '显示'}
+            </button>
+          )}
+          {rightIcon && (
+            <span className="shrink-0 ml-1.5 text-[var(--kz-fg-dim)] flex items-center">
+              {rightIcon}
+            </span>
+          )}
+        </div>
+        {errorMessage && (
+          <span className="text-[11px] font-medium text-rose-500 leading-tight">
+            {errorMessage}
+          </span>
+        )}
+      </div>
+    )
+  },
+)
+
+/* ──────────────────────────────────────────────────────────
+   KzTextarea — 通用现代标准多行文本域组件
+   ────────────────────────────────────────────────────────── */
+
+export interface KzTextareaProps
+  extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+  error?: boolean | string
+  containerClassName?: string
+}
+
+export const KzTextarea = forwardRef<HTMLTextAreaElement, KzTextareaProps>(
+  function KzTextarea(
+    {
+      error = false,
+      containerClassName = '',
+      className = '',
+      disabled,
+      ...rest
+    },
+    ref,
+  ) {
+    const hasError = Boolean(error)
+    const errorMessage = typeof error === 'string' ? error : undefined
+
+    return (
+      <div className={`relative flex flex-col gap-1 w-full ${containerClassName}`}>
+        <textarea
+          ref={ref}
+          disabled={disabled}
+          className={`w-full rounded-xl border bg-[var(--kz-bg)] p-3 text-xs sm:text-sm text-[var(--kz-fg)] placeholder:text-[var(--kz-fg-dim)] outline-none transition-all duration-150 ${
+            hasError
+              ? 'border-rose-500 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20'
+              : 'border-[var(--kz-border)] hover:border-[var(--kz-border-hover,var(--kz-border))] focus:border-[var(--kz-accent)] focus:ring-2 focus:ring-[var(--kz-accent)]/20'
+          } ${
+            disabled
+              ? 'opacity-50 cursor-not-allowed bg-[var(--kz-bg-soft)]'
+              : ''
+          } ${className}`}
+          {...rest}
+        />
+        {errorMessage && (
+          <span className="text-[11px] font-medium text-rose-500 leading-tight">
+            {errorMessage}
+          </span>
+        )}
+      </div>
+    )
+  },
+)

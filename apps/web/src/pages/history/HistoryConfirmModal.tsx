@@ -1,4 +1,5 @@
 import { Modal } from '../../components/Modal'
+import { KzButton } from '../../components/ui'
 
 interface HistoryConfirmModalProps {
   isOpen: boolean
@@ -38,28 +39,24 @@ export function HistoryConfirmModal({
         {description}
       </p>
       <div className="mt-6 flex justify-end gap-2.5">
-        <button
-          type="button"
+        <KzButton
+          variant="outline"
+          size="sm"
           onClick={onClose}
-          className="rounded-lg border border-[var(--kz-border)] px-3.5 py-1.5 text-sm font-medium text-[var(--kz-fg-muted)] transition-colors hover:bg-[var(--kz-bg-hover)] cursor-pointer"
         >
           {cancelText}
-        </button>
-        <button
-          type="button"
+        </KzButton>
+        <KzButton
+          variant={isDanger ? 'danger' : 'primary'}
+          size="sm"
           autoFocus
           onClick={() => {
             onConfirm()
             onClose()
           }}
-          className={`rounded-lg px-3.5 py-1.5 text-sm font-semibold text-white shadow-xs transition-colors cursor-pointer ${
-            isDanger
-              ? 'bg-[var(--kz-danger)] hover:opacity-90'
-              : 'bg-[var(--kz-accent)] hover:opacity-90'
-          }`}
         >
           {confirmText}
-        </button>
+        </KzButton>
       </div>
     </Modal>
   )

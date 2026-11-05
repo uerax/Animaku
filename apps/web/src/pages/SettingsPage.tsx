@@ -25,6 +25,9 @@ import {
   SwitchRow,
   Switch,
   KzSelect,
+  KzButton,
+  KzInput,
+  KzTextarea,
 } from '../components/ui'
 import { Reorder, useDragControls } from 'framer-motion'
 import { getSiteBranding } from '../lib/site-branding'
@@ -536,22 +539,21 @@ export function SettingsPage() {
           </a>{' '}
           创建后粘贴到下方。Token 仅保存在本机浏览器。
         </p>
-        <textarea
+        <KzTextarea
           data-clarity-mask="True"
           value={tokenInput}
           onChange={(e) => setTokenInput(e.target.value)}
           rows={3}
           placeholder="粘贴 Access Token…"
-          className="w-full rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] px-3 py-2 text-xs sm:text-sm outline-none ring-[var(--kz-accent)] focus:ring-2"
         />
         <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
+          <KzButton
+            variant="primary"
+            size="sm"
             onClick={saveToken}
-            className="rounded-xl bg-[var(--kz-accent)] px-4 py-2 text-xs sm:text-sm font-medium text-white hover:bg-[var(--kz-accent-hover)] cursor-pointer shadow-sm"
           >
             保存
-          </button>
+          </KzButton>
           {tokenMsg && <span className="text-sm text-emerald-400">{tokenMsg}</span>}
           {bangumiToken && me.isSuccess && (
             <span className="text-sm text-[var(--kz-fg-muted)]">
@@ -869,8 +871,9 @@ export function SettingsPage() {
             列表首位为播放时的默认源。可拖拽或按 ▲▼ 调整优先级顺序。
           </p>
           <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
+            <KzButton
+              variant="secondary"
+              size="sm"
               onClick={() => {
                 if (
                   window.confirm(
@@ -881,10 +884,9 @@ export function SettingsPage() {
                   setPluginMsg('已恢复默认规则')
                 }
               }}
-              className="inline-flex items-center gap-1 rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] px-3 py-1.5 text-xs font-medium text-[var(--kz-fg)] hover:bg-[var(--kz-bg-soft)] active:scale-95 transition-all cursor-pointer"
             >
-              <span>↺ 恢复默认</span>
-            </button>
+              ↺ 恢复默认
+            </KzButton>
           </div>
         </div>
 
@@ -962,13 +964,13 @@ export function SettingsPage() {
         isOpen={Boolean(openSections['player-settings'])}
         onToggle={() => toggleSection('player-settings')}
         headerActions={
-          <button
-            type="button"
+          <KzButton
+            variant="outline"
+            size="xs"
             onClick={resetPlayer}
-            className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1 text-xs text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] cursor-pointer"
           >
             恢复默认
-          </button>
+          </KzButton>
         }
       >
         <p className="text-xs text-[var(--kz-fg-muted)] leading-relaxed">
@@ -1031,7 +1033,7 @@ export function SettingsPage() {
         </p>
         <label className="flex items-center justify-between gap-3 text-xs sm:text-sm text-[var(--kz-fg)]">
           <span className="font-medium">记忆跳转时长（J 键，秒）</span>
-          <input
+          <KzInput
             type="number"
             min={1}
             max={600}
@@ -1039,7 +1041,9 @@ export function SettingsPage() {
             onChange={(e) =>
               setPlayer({ customSeekTime: Number(e.target.value) || 85 })
             }
-            className="w-20 sm:w-24 rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2 py-1.5 text-xs sm:text-sm text-center"
+            size="sm"
+            className="text-center"
+            containerClassName="w-20 sm:w-24"
           />
         </label>
         <Toggle
@@ -1079,13 +1083,13 @@ export function SettingsPage() {
         isOpen={Boolean(openSections['danmaku-settings'])}
         onToggle={() => toggleSection('danmaku-settings')}
         headerActions={
-          <button
-            type="button"
+          <KzButton
+            variant="outline"
+            size="xs"
             onClick={resetDanmaku}
-            className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1 text-xs text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] cursor-pointer"
           >
             恢复默认
-          </button>
+          </KzButton>
         }
       >
         <Toggle
