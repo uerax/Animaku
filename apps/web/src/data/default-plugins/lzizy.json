@@ -18,5 +18,6 @@
   "chapterRoads": "//div",
   "chapterResult": ".//a",
   "referer": "https://lzizy.net/",
-  "adBlockerMode": "client"
+  "adBlockerMode": "client",
+  "iconUrl": "https://lzizy.net/favicon.ico"
 }

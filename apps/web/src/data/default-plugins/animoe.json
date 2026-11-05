@@ -19,5 +19,6 @@
   "chapterRoads": "//div",
   "chapterResult": ".//a",
   "referer": "https://animoe.org/",
-  "adBlockerMode": "none"
+  "adBlockerMode": "none",
+  "iconUrl": "https://github.elemecdn.com/mstatic616/images/logo/favicon.png"
 }

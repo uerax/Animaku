@@ -17,5 +17,6 @@
   "chapterRoads": "//div[2]/div/section/div/div[2]/div[2]/div[2]/div",
   "chapterResult": "//ul/li/a",
   "referer": "",
-  "adBlockerMode": "none"
+  "adBlockerMode": "none",
+  "iconUrl": "https://www.agedm.io/favicon.ico"
 }

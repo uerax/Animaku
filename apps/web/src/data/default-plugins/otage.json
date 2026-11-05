@@ -18,5 +18,6 @@
   "chapterRoads": "//div[contains(@class,'anthology-list-box')]",
   "chapterResult": ".//a[contains(@href,'vod/play')]",
   "referer": "https://otage.cc/",
-  "adBlockerMode": "none"
+  "adBlockerMode": "none",
+  "iconUrl": "https://otage.cc/template/AGE/assets/images/favicon.ico"
 }

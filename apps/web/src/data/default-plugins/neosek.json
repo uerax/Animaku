@@ -12,6 +12,7 @@
   "useLegacyParser": false,
   "userAgent": "",
   "baseURL": "https://neosek.ai/",
+  "iconUrl": "https://neosek.ai/icon.svg",
   "searchURL": "https://neosek.ai/api/v1/search?q=@keyword&content_type=anime",
   "searchList": "//a",
   "searchName": ".",

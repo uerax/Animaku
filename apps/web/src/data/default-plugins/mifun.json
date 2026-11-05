@@ -18,5 +18,6 @@
   "chapterRoads": "//ul[contains(@class, 'hl-plays-list')]",
   "chapterResult": ".//li/a",
   "referer": "",
-  "adBlockerMode": "none"
+  "adBlockerMode": "none",
+  "iconUrl": "https://ugc.hitv.com/1/230324151010E2CA349174CE432E9353E29DE5C0EQ0NF/sVoWeL0.png?mxtheme/images/favicon.png"
 }

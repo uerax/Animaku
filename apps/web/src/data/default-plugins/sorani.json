@@ -4,7 +4,9 @@
   "name": "sorani",
   "version": "1.0",
   "weight": 60,
-  "platforms": ["app"],
+  "platforms": [
+    "app"
+  ],
   "titlePreference": "chinese",
   "muliSources": false,
   "useWebview": false,
@@ -15,5 +17,6 @@
   "baseURL": "https://www.sorani.net/",
   "searchURL": "https://api.sorani.cc/sorani-cms/api/video?page=1&size=50&keyword=@keyword&enabled=true&sortMode=relevance_popular&sortDesc=true",
   "referer": "https://www.sorani.net/",
-  "adBlockerMode": "none"
+  "adBlockerMode": "none",
+  "iconUrl": "https://www.sorani.net/favicon.ico"
 }

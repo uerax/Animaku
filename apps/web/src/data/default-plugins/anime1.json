@@ -4,7 +4,9 @@
   "name": "anime1",
   "version": "1.1",
   "weight": 60,
-  "platforms": ["app"],
+  "platforms": [
+    "app"
+  ],
   "titlePreference": "traditional",
   "traditionalChinese": true,
   "requiresFullMediaProxy": false,
@@ -22,5 +24,6 @@
   "chapterRoads": "//main",
   "chapterResult": "//a",
   "referer": "https://anime1.me/",
-  "adBlockerMode": "none"
+  "adBlockerMode": "none",
+  "iconUrl": "https://anime1.me/apple-touch-icon.png"
 }

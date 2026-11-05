@@ -18,5 +18,6 @@
   "chapterRoads": "//div",
   "chapterResult": ".//a",
   "referer": "https://ani.girigirilove.com/",
-  "adBlockerMode": "none"
+  "adBlockerMode": "none",
+  "iconUrl": "https://ani.girigirilove.com/brand/icon.png"
 }

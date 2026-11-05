@@ -20,5 +20,6 @@
   "chapterRoads": "//div",
   "chapterResult": ".//a",
   "referer": "https://www.cycani.org/",
-  "adBlockerMode": "none"
+  "adBlockerMode": "none",
+  "iconUrl": "https://www.cycani.org/favicon.ico"
 }

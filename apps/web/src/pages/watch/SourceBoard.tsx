@@ -8,13 +8,13 @@ import {
 } from 'react'
 import { Link } from 'react-router-dom'
 import clsx from 'clsx'
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import {
   type BangumiItem,
   type PluginMeta,
   type SearchItem,
   resolveBoostedPluginNames,
 } from '@animaku/shared'
+import { DEFAULT_PLUGIN_RULES } from '../../data/default-plugins'
 import {
   useSourceAggregator,
   type AggregatedSourceState,
@@ -51,6 +51,74 @@ export interface SourceBoardProps {
   embedded?: boolean
 }
 
+const DEFAULT_RULE_MAP = new Map(
+  DEFAULT_PLUGIN_RULES.map((r) => [(r.name || '').toLowerCase(), r]),
+)
+
+/**
+ * 视频源站点图标（Favicon 优先加载，加载失败或无 URL 时优雅回退至首字母徽章）
+ */
+function SourceFavicon({
+  iconUrl,
+  baseURL,
+  name,
+  isActive,
+}: {
+  iconUrl?: string
+  baseURL?: string
+  name: string
+  isActive: boolean
+}) {
+  const [imgError, setImgError] = useState(false)
+
+  const faviconUrl = useMemo(() => {
+    if (iconUrl) return iconUrl
+    if (!baseURL) return null
+    try {
+      const url = new URL(baseURL.startsWith('http') ? baseURL : `https://${baseURL}`)
+      return `${url.origin}/favicon.ico`
+    } catch {
+      return null
+    }
+  }, [iconUrl, baseURL])
+
+  // Reset image status if faviconUrl changes
+  useEffect(() => {
+    setImgError(false)
+  }, [faviconUrl])
+
+  const initial = (name.trim().charAt(0) || '?').toUpperCase()
+
+  return (
+    <div
+      className={clsx(
+        'relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-xs font-bold uppercase overflow-hidden shadow-2xs',
+        isActive
+          ? 'bg-[var(--kz-accent)]/15 border border-[var(--kz-accent)]/40 shadow-xs'
+          : 'bg-[var(--kz-bg-soft)] border border-[var(--kz-border-subtle)]',
+      )}
+    >
+      {faviconUrl && !imgError ? (
+        <img
+          src={faviconUrl}
+          alt=""
+          className="h-4.5 w-4.5 object-contain"
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <span
+          className={clsx(
+            'select-none transition-colors duration-200',
+            isActive ? 'text-[var(--kz-accent)] font-extrabold' : 'text-[var(--kz-fg-muted)]',
+          )}
+        >
+          {initial}
+        </span>
+      )}
+    </div>
+  )
+}
+
 export function SourceBoard({
   bangumiId,
   sourcesOpen,
@@ -73,7 +141,6 @@ export function SourceBoard({
   onAutoProbingChange,
   embedded = false,
 }: SourceBoardProps) {
-  const isReducedMotion = useReducedMotion()
   const [expandedPlugin, setExpandedPlugin] = useState<string | null>(null)
   const [cardKwInputs, setCardKwInputs] = useState<Record<string, string>>({})
   const prevBangumiIdRef = useRef(bangumiId)
@@ -160,7 +227,7 @@ export function SourceBoard({
             )
       }
     >
-      {/* Header bar (only shown in standalone mode) */}
+      {/* Standalone header bar */}
       {!embedded && (
         <button
           type="button"
@@ -197,7 +264,6 @@ export function SourceBoard({
                 : '点此展开多源'}
             </span>
           </div>
-
           <span className="kz-bili-sec-more text-[var(--kz-fg-muted)]" aria-hidden>
             <svg
               className={clsx(
@@ -222,8 +288,28 @@ export function SourceBoard({
       {/* Expanded body */}
       {sourcesOpen && (
         <div className={clsx(!embedded && 'border-t border-[var(--kz-border-subtle)]', 'px-2.5 py-2.5 space-y-2')}>
+          {/* Embedded mode sub-header */}
+          {embedded && (
+            <div className="flex items-center justify-between px-1 pb-0.5 text-[11px] text-[var(--kz-fg-muted)]">
+              <span className="font-medium flex items-center gap-1.5">
+                <span>已启用 {sourcesTotal} 个视频源</span>
+                {sourcesTotal > 0 && (
+                  <span className="rounded bg-[var(--kz-bg-soft)] px-1.5 py-0.5 text-[9.5px] text-[var(--kz-fg-dim)] border border-[var(--kz-border-subtle)]">
+                    {sourcesReadyCount} 就绪
+                  </span>
+                )}
+              </span>
+              {isAutoProbing && (
+                <span className="flex items-center gap-1 text-[var(--kz-accent)] text-[10.5px]">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[var(--kz-accent)] animate-ping" />
+                  探测中…
+                </span>
+              )}
+            </div>
+          )}
+
           {/* Sources List */}
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2">
             {!plugins.length && (
               <div className="p-3 text-center text-xs text-[var(--kz-fg-muted)]">
                 <p>没有启用的规则。请到设置中启用或导入。</p>
@@ -260,61 +346,44 @@ export function SourceBoard({
                 <div
                   key={plugin.id || plugin.name}
                   className={clsx(
-                    'group relative rounded-xl border transition-all duration-200 overflow-hidden',
+                    'group relative rounded-xl border transition-colors duration-200 overflow-hidden',
                     isActive
-                      ? 'border-[var(--kz-accent)] bg-[var(--kz-accent-soft)] shadow-xs'
+                      ? 'border-[var(--kz-accent)] bg-[var(--kz-accent-soft)]/50 shadow-xs'
                       : 'border-[var(--kz-border-subtle)] bg-[var(--kz-bg-elevated)] hover:border-[var(--kz-border)] hover:bg-[var(--kz-bg-hover)]',
                   )}
                 >
-                  {/* Card Main Row */}
+                  {/* Card Main Row: Clicking card body ONLY toggles expanded drawer */}
                   <div
                     onClick={() => {
                       onUserAction()
-                      prioritizePlugin(plugin.name)
-                      if (isActive) {
-                        return
-                      }
-                      if (state.status === 'ready' && state.matchedItem) {
-                        onSwitchSource(plugin, state.matchedItem)
-                      } else if (state.status === 'needs_pick') {
-                        setExpandedPlugin((cur) =>
-                          cur === plugin.name ? null : plugin.name,
-                        )
-                      } else if (state.status === 'error' || state.status === 'empty') {
-                        setExpandedPlugin((cur) =>
-                          cur === plugin.name ? null : plugin.name,
-                        )
-                      } else {
-                        onSwitchSource(plugin)
-                      }
+                      setExpandedPlugin((cur) => (cur === plugin.name ? null : plugin.name))
                     }}
-                    className="flex w-full items-center gap-2.5 p-2 text-left cursor-pointer select-none"
+                    className="relative z-10 flex w-full items-center gap-2.5 p-2 text-left cursor-pointer select-none"
                   >
-                    {/* Avatar with Status Dot */}
-                    <div className="relative flex-shrink-0">
-                      <div
-                        className={clsx(
-                          'flex h-7 w-7 items-center justify-center rounded-lg text-[11px] font-bold uppercase transition-colors',
-                          isActive
-                            ? 'bg-[var(--kz-accent)] text-white'
-                            : 'bg-[var(--kz-bg-soft)] text-[var(--kz-fg-muted)] border border-[var(--kz-border-subtle)]',
-                        )}
-                      >
-                        {(plugin.name.trim().charAt(0) || '?').toUpperCase()}
-                      </div>
+                    {/* Avatar with Favicon + Status Beacon */}
+                    <div className="relative shrink-0">
+                      <SourceFavicon
+                        iconUrl={
+                          plugin.iconUrl ||
+                          DEFAULT_RULE_MAP.get((plugin.name || '').toLowerCase())?.iconUrl
+                        }
+                        baseURL={plugin.baseURL}
+                        name={plugin.name}
+                        isActive={isActive}
+                      />
 
-                      {/* Status indicator dot */}
+                      {/* Status indicator beacon dot */}
                       <span
                         className={clsx(
-                          'absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border border-[var(--kz-bg-elevated)]',
+                          'absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--kz-bg-elevated)] transition-all',
                           state.status === 'ready' &&
-                            'bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.9)]',
+                            'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.9)]',
                           state.status === 'needs_pick' &&
-                            'bg-amber-500 shadow-[0_0_5px_rgba(245,158,11,0.9)]',
+                            'bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.9)]',
                           state.status === 'probing' &&
                             'bg-[var(--kz-accent)] animate-ping',
                           (state.status === 'empty' || state.status === 'error') &&
-                            'bg-rose-500 shadow-[0_0_5px_rgba(244,63,94,0.7)]',
+                            'bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.7)]',
                           state.status === 'idle' && 'bg-[var(--kz-fg-dim)]',
                         )}
                       />
@@ -325,7 +394,7 @@ export function SourceBoard({
                       <div className="flex items-center gap-1.5">
                         <span
                           className={clsx(
-                            'truncate text-[12px] sm:text-[13px] font-semibold tracking-tight',
+                            'truncate text-[12.5px] sm:text-[13px] font-semibold tracking-tight',
                             isActive ? 'text-[var(--kz-accent)]' : 'text-[var(--kz-fg)]',
                           )}
                         >
@@ -339,7 +408,7 @@ export function SourceBoard({
                         )}
 
                         {isActive && (
-                          <span className="rounded bg-[var(--kz-accent)] px-1.5 py-0.5 text-[9.5px] font-medium leading-none text-white shadow-xs">
+                          <span className="rounded bg-[var(--kz-accent)] px-1.5 py-0.5 text-[9.5px] font-medium leading-none text-white shadow-2xs">
                             播放中
                           </span>
                         )}
@@ -393,37 +462,41 @@ export function SourceBoard({
                       </div>
                     </div>
 
-                    {/* Action Pill Button */}
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {/* Action Area: Only clicking this pill triggers source selection or core action */}
+                    <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
                       {isPending ? (
                         <span className="kz-source-pill kz-source-pill--probing">
-                          探活中
+                          <span className="inline-block h-2 w-2 animate-spin rounded-full border border-[var(--kz-accent)] border-t-transparent mr-1 shrink-0" />
+                          <span>探测中…</span>
                         </span>
                       ) : isActive ? (
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation()
-                            setExpandedPlugin((cur) =>
-                              cur === plugin.name ? null : plugin.name,
-                            )
+                            onUserAction()
+                            setExpandedPlugin((cur) => (cur === plugin.name ? null : plugin.name))
                           }}
                           className="kz-source-pill kz-source-pill--active cursor-pointer"
-                          title="点击展开当前源条目与换词"
+                          title="当前播放源（点击展开调优）"
                         >
-                          当前
+                          播放中
                         </button>
                       ) : state.status === 'ready' ? (
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation()
-                            setExpandedPlugin((cur) =>
-                              cur === plugin.name ? null : plugin.name,
-                            )
+                            onUserAction()
+                            prioritizePlugin(plugin.name)
+                            if (state.matchedItem) {
+                              onSwitchSource(plugin, state.matchedItem)
+                            } else {
+                              onSwitchSource(plugin)
+                            }
                           }}
                           className="kz-source-pill kz-source-pill--ready cursor-pointer"
-                          title="点击展开条目列表与换词"
+                          title="点击切换至此源播放"
                         >
                           切换
                         </button>
@@ -432,232 +505,233 @@ export function SourceBoard({
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation()
-                            setExpandedPlugin((cur) =>
-                              cur === plugin.name ? null : plugin.name,
-                            )
+                            onUserAction()
+                            setExpandedPlugin((cur) => (cur === plugin.name ? null : plugin.name))
                           }}
-                          className="kz-source-pill kz-source-pill--pick"
-                          title="点击点选匹配条目"
+                          className="kz-source-pill kz-source-pill--pick cursor-pointer"
+                          title="搜到多个候选，点击选条目"
                         >
                           选条目
                         </button>
-                      ) : state.status === 'error' || state.status === 'empty' ? (
+                      ) : state.status === 'empty' ? (
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation()
-                            setExpandedPlugin((cur) =>
-                              cur === plugin.name ? null : plugin.name,
-                            )
+                            onUserAction()
+                            setExpandedPlugin((cur) => (cur === plugin.name ? null : plugin.name))
                           }}
-                          className="kz-source-pill kz-source-pill--retry"
-                          title="点击换词重搜"
+                          className="kz-source-pill kz-source-pill--retry cursor-pointer"
+                          title="未搜到结果，点击换词重搜"
                         >
                           换词
+                        </button>
+                      ) : state.status === 'error' ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onUserAction()
+                            reProbePlugin(plugin.name)
+                          }}
+                          className="kz-source-pill kz-source-pill--retry cursor-pointer"
+                          title="请求失败，点击重试探测"
+                        >
+                          重试
                         </button>
                       ) : state.status === 'idle' ? (
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation()
+                            onUserAction()
                             prioritizePlugin(plugin.name)
-                            setExpandedPlugin((cur) =>
-                              cur === plugin.name ? null : plugin.name,
-                            )
                           }}
-                          className="kz-source-pill kz-source-pill--idle"
-                          title="点击探活此源"
+                          className="kz-source-pill kz-source-pill--idle cursor-pointer"
+                          title="点击探测此源"
                         >
-                          探活
+                          探测
                         </button>
-                      ) : null}
+                      ) : (
+                        <span className="kz-source-pill kz-source-pill--probing">
+                          <span className="inline-block h-2 w-2 animate-spin rounded-full border border-[var(--kz-accent)] border-t-transparent mr-1 shrink-0" />
+                          <span>探测中…</span>
+                        </span>
+                      )}
                     </div>
                   </div>
 
-                  {/* Unified Expandable Drawer */}
-                  <AnimatePresence>
-                    {isExpanded && (
-                      <motion.div
-                        initial={isReducedMotion ? false : { height: 0, opacity: 0 }}
-                        animate={isReducedMotion ? undefined : { height: 'auto', opacity: 1 }}
-                        exit={isReducedMotion ? undefined : { height: 0, opacity: 0 }}
-                        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                        className="overflow-hidden border-t border-[var(--kz-border-subtle)] bg-[var(--kz-bg-soft)] p-2.5 space-y-2.5"
-                      >
-                      {/* Probing State Banner */}
-                      {state.status === 'probing' ? (
-                        <div className="flex items-center gap-2 rounded-lg bg-[var(--kz-bg-elevated)] border border-[var(--kz-accent)]/30 px-3 py-2 text-[11.5px] text-[var(--kz-accent)]">
-                          <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[var(--kz-accent)] border-t-transparent flex-shrink-0" />
-                          <span className="font-medium truncate">
-                            正在使用「{state.keyword || '关键词'}」检索 {plugin.name}…
-                          </span>
-                        </div>
-                      ) : state.items.length > 0 ? (
-                        /* Candidate Items List */
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between px-0.5 text-[10.5px] font-medium">
-                            <span
-                              className={clsx(
-                                state.status === 'needs_pick'
-                                  ? 'text-amber-600 dark:text-amber-300'
-                                  : 'text-[var(--kz-fg-muted)]',
-                              )}
-                            >
-                              {state.status === 'needs_pick'
-                                ? '请点选匹配的番剧条目以绑定：'
-                                : `搜到 ${state.items.length} 条候选条目：`}
+                  {/* GPU-Accelerated Hardware CSS Grid Accordion: 60fps zero-jank expand/collapse */}
+                  <div
+                    className={clsx(
+                      'grid transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden',
+                      isExpanded
+                        ? 'grid-rows-[1fr] opacity-100 border-t border-[var(--kz-border-subtle)]'
+                        : 'grid-rows-[0fr] opacity-0 border-t-0',
+                    )}
+                  >
+                    <div className="min-h-0 overflow-hidden">
+                      <div className="relative z-10 bg-[var(--kz-bg-soft)]/50 p-2.5 space-y-2.5">
+                        {/* Probing State Banner */}
+                        {state.status === 'probing' ? (
+                          <div className="flex items-center gap-2 rounded-lg bg-[var(--kz-bg-elevated)] border border-[var(--kz-accent)]/30 px-3 py-2 text-[11.5px] text-[var(--kz-accent)]">
+                            <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[var(--kz-accent)] border-t-transparent shrink-0" />
+                            <span className="font-medium truncate">
+                              正在使用「{state.keyword || '关键词'}」检索 {plugin.name}…
                             </span>
-                            {state.keyword && (
-                              <span className="text-[9.5px] text-[var(--kz-fg-dim)] truncate max-w-[140px]">
-                                词: {state.keyword}
+                          </div>
+                        ) : state.items.length > 0 ? (
+                          /* Candidate Items List */
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between px-0.5 text-[10.5px] font-medium">
+                              <span
+                                className={clsx(
+                                  state.status === 'needs_pick'
+                                    ? 'text-amber-600 dark:text-amber-300 font-semibold'
+                                    : 'text-[var(--kz-fg-muted)]',
+                                )}
+                              >
+                                {state.status === 'needs_pick'
+                                  ? '请点选匹配的番剧条目以绑定：'
+                                  : `搜到 ${state.items.length} 条候选条目：`}
                               </span>
-                            )}
-                          </div>
-                          <div className="max-h-52 overflow-y-auto space-y-1 pr-1">
-                            {state.items.map((it, idx) => {
-                              const isItemSelected =
-                                isActive && selection?.source.src === it.src
-                              return (
-                                <button
-                                  key={`${it.src}:${idx}`}
-                                  type="button"
-                                  onClick={() => {
-                                    onUserAction()
-                                    onSwitchSource(plugin, it)
-                                  }}
-                                  className={clsx(
-                                    'flex w-full items-center justify-between rounded-lg px-2.5 py-1 text-left text-[11.5px] transition-colors cursor-pointer gap-2',
-                                    isItemSelected
-                                      ? 'bg-[var(--kz-accent-soft)] text-[var(--kz-accent)] border border-[var(--kz-accent)] font-medium'
-                                      : 'bg-[var(--kz-bg-elevated)] text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] border border-[var(--kz-border-subtle)]',
-                                  )}
-                                >
-                                  <span className="flex-1 min-w-0 text-[11.5px] leading-snug break-words">
-                                    {it.name}
-                                  </span>
-                                  <span
+                              {state.keyword && (
+                                <span className="text-[9.5px] text-[var(--kz-fg-dim)] truncate max-w-[130px]">
+                                  词: {state.keyword}
+                                </span>
+                              )}
+                            </div>
+                            <div className="max-h-44 overflow-y-auto space-y-1 pr-0.5">
+                              {state.items.map((it, idx) => {
+                                const isItemSelected =
+                                  isActive && selection?.source.src === it.src
+                                return (
+                                  <button
+                                    key={`${it.src}:${idx}`}
+                                    type="button"
+                                    onClick={() => {
+                                      onUserAction()
+                                      onSwitchSource(plugin, it)
+                                    }}
                                     className={clsx(
-                                      'text-[9.5px] font-medium px-1.5 py-[1px] rounded flex-shrink-0 select-none transition-colors leading-tight',
+                                      'group/item flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-[11.5px] transition-all cursor-pointer gap-2',
                                       isItemSelected
-                                        ? 'bg-[var(--kz-accent)] text-white'
-                                        : 'text-[var(--kz-fg-muted)] bg-[var(--kz-bg-soft)] border border-[var(--kz-border-subtle)]',
+                                        ? 'bg-[var(--kz-accent-soft)] text-[var(--kz-accent)] border border-[var(--kz-accent)] font-medium shadow-2xs'
+                                        : 'bg-[var(--kz-bg-elevated)] text-[var(--kz-fg)] hover:bg-[var(--kz-bg-hover)] hover:border-[var(--kz-accent)]/50 border border-[var(--kz-border-subtle)]',
                                     )}
                                   >
-                                    {isItemSelected ? '在播' : '选用'}
-                                  </span>
-                                </button>
-                              )
-                            })}
+                                    <span className="flex-1 min-w-0 text-[11.5px] leading-snug break-words">
+                                      {it.name}
+                                    </span>
+                                    <span
+                                      className={clsx(
+                                        'text-[9.5px] font-medium px-1.5 py-0.5 rounded-md shrink-0 select-none transition-colors leading-tight',
+                                        isItemSelected
+                                          ? 'bg-[var(--kz-accent)] text-white shadow-2xs'
+                                          : 'text-[var(--kz-fg-muted)] group-hover/item:text-[var(--kz-accent)] bg-[var(--kz-bg-soft)] border border-[var(--kz-border-subtle)]',
+                                      )}
+                                    >
+                                      {isItemSelected ? '在播' : '选用'}
+                                    </span>
+                                  </button>
+                                )
+                              })}
+                            </div>
                           </div>
-                        </div>
-                      ) : (
-                        /* Empty or Error state notice */
-                        <div className="px-0.5 text-[11px] text-[var(--kz-fg-muted)]">
-                          {state.status === 'empty' ? (
-                            <span className="text-[var(--kz-fg-dim)]">
-                              未搜到结果，尝试换词：
-                            </span>
-                          ) : state.status === 'error' ? (
-                            <span className="text-rose-500 dark:text-rose-400">
-                              {state.errorMsg ? `${state.errorMsg}，尝试换词：` : '请求失败，尝试换词：'}
-                            </span>
-                          ) : state.status === 'idle' ? (
-                            <span className="text-[var(--kz-fg-dim)]">
-                              尚未探活，点击上方「探活」或下方关键词发起检索：
-                            </span>
-                          ) : null}
-                        </div>
-                      )}
+                        ) : (
+                          /* Empty or Error state notice */
+                          <div className="px-0.5 text-[11px] text-[var(--kz-fg-muted)]">
+                            {state.status === 'empty' ? (
+                              <span className="text-[var(--kz-fg-dim)]">
+                                未搜到结果，尝试换词：
+                              </span>
+                            ) : state.status === 'error' ? (
+                              <span className="text-rose-500 dark:text-rose-400">
+                                {state.errorMsg ? `${state.errorMsg}，尝试换词：` : '请求失败，尝试换词：'}
+                              </span>
+                            ) : state.status === 'idle' ? (
+                              <span className="text-[var(--kz-fg-dim)]">
+                                尚未探活，点击上方「探测」或下方关键词发起检索：
+                              </span>
+                            ) : null}
+                          </div>
+                        )}
 
-                      {/* Candidate keyword rows */}
-                      {keywordOptions.length > 0 && (
-                        <div className="space-y-1.5 pt-1 border-t border-[var(--kz-border-subtle)]">
-                          <div className="flex items-center justify-between text-[10.5px] font-medium text-[var(--kz-fg-muted)] px-0.5">
-                            <span>候选关键词：</span>
-                            <span className="text-[9.5px] text-[var(--kz-fg-dim)]">
-                              共 {Math.min(keywordOptions.length, 8)} 个
-                            </span>
-                          </div>
-                          <div className="max-h-44 overflow-y-auto space-y-1 pr-1">
-                            {keywordOptions.slice(0, 8).map((kw, idx) => {
-                              const isCurrentKw = state.keyword === kw
-                              const isProbingThis =
-                                state.status === 'probing' && state.keyword === kw
-                              return (
-                                <button
-                                  key={`${kw}:${idx}`}
-                                  type="button"
-                                  onClick={() => {
-                                    setCardKwInputs((prev) => ({
-                                      ...prev,
-                                      [plugin.name]: kw,
-                                    }))
-                                    reProbePlugin(plugin.name, kw)
-                                  }}
-                                  className={clsx(
-                                    'flex w-full items-center justify-between rounded-lg border px-2.5 py-1 text-left transition-colors cursor-pointer group/kw gap-2',
-                                    isCurrentKw
-                                      ? 'bg-[var(--kz-accent-soft)] border-[var(--kz-accent)] text-[var(--kz-accent)]'
-                                      : 'bg-[var(--kz-bg-elevated)] hover:bg-[var(--kz-bg-hover)] border-[var(--kz-border-subtle)] hover:border-[var(--kz-accent)]',
-                                  )}
-                                >
-                                  <span
+                        {/* Candidate keyword chips (Flowing Tag Chips) */}
+                        {keywordOptions.length > 0 && (
+                          <div className="space-y-1.5 pt-1.5 border-t border-[var(--kz-border-subtle)]">
+                            <div className="flex items-center justify-between text-[10.5px] font-medium text-[var(--kz-fg-muted)] px-0.5">
+                              <span>快捷换词推荐：</span>
+                              <span className="text-[9.5px] text-[var(--kz-fg-dim)]">
+                                共 {Math.min(keywordOptions.length, 8)} 个
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pr-0.5">
+                              {keywordOptions.slice(0, 8).map((kw, idx) => {
+                                const isCurrentKw = state.keyword === kw
+                                const isProbingThis =
+                                  state.status === 'probing' && state.keyword === kw
+                                return (
+                                  <button
+                                    key={`${kw}:${idx}`}
+                                    type="button"
+                                    onClick={() => {
+                                      setCardKwInputs((prev) => ({
+                                        ...prev,
+                                        [plugin.name]: kw,
+                                      }))
+                                      reProbePlugin(plugin.name, kw)
+                                    }}
                                     className={clsx(
-                                      'flex-1 min-w-0 text-[11px] font-medium leading-snug break-words',
+                                      'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-all cursor-pointer border select-none',
                                       isCurrentKw
-                                        ? 'text-[var(--kz-accent)]'
-                                        : 'text-[var(--kz-fg-muted)] group-hover/kw:text-[var(--kz-accent)]',
+                                        ? 'bg-[var(--kz-accent)] text-white border-[var(--kz-accent)] shadow-2xs'
+                                        : 'bg-[var(--kz-bg-elevated)] text-[var(--kz-fg-muted)] border-[var(--kz-border-subtle)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] hover:bg-[var(--kz-bg-hover)]',
                                     )}
                                   >
-                                    {kw}
-                                  </span>
-                                  <span
-                                    className={clsx(
-                                      'text-[9.5px] font-medium px-1.5 py-[1px] rounded flex-shrink-0 select-none transition-colors border leading-tight',
-                                      isCurrentKw
-                                        ? 'bg-[var(--kz-accent)] text-white border-[var(--kz-accent)]'
-                                        : 'text-[var(--kz-fg-muted)] group-hover/kw:text-[var(--kz-accent)] group-hover/kw:border-[var(--kz-accent)] bg-[var(--kz-bg-soft)] border-[var(--kz-border-subtle)]',
+                                    {isProbingThis && (
+                                      <span className="inline-block h-2 w-2 animate-spin rounded-full border border-current border-t-transparent" />
                                     )}
-                                  >
-                                    {isProbingThis ? '搜索中' : '重搜'}
-                                  </span>
-                                </button>
-                              )
-                            })}
+                                    <span className="truncate max-w-[180px]">{kw}</span>
+                                  </button>
+                                )
+                              })}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        )}
 
-                      {/* Custom keyword search input */}
-                      <form
-                        onSubmit={(e) => handleCardKeywordSubmit(plugin.name, e)}
-                        className="flex gap-1.5 pt-1 border-t border-[var(--kz-border-subtle)]"
-                      >
-                        <input
-                          value={cardKwInputs[plugin.name] || ''}
-                          onChange={(e) =>
-                            setCardKwInputs((prev) => ({
-                              ...prev,
-                              [plugin.name]: e.target.value,
-                            }))
-                          }
-                          placeholder={`输入针对 ${plugin.name} 的关键词…`}
-                          className="min-w-0 flex-1 rounded-md bg-[var(--kz-bg-elevated)] px-2.5 py-1 text-[11px] text-[var(--kz-fg)] border border-[var(--kz-border-subtle)] placeholder:text-[var(--kz-fg-dim)] outline-none focus:border-[var(--kz-accent)] focus:ring-1 focus:ring-[var(--kz-accent)] transition-all"
-                        />
-                        <button
-                          type="submit"
-                          disabled={
-                            state.status === 'probing' ||
-                            !(cardKwInputs[plugin.name] || '').trim()
-                          }
-                          className="rounded-md bg-[var(--kz-accent)] px-2.5 py-1 text-[11px] font-medium text-white hover:bg-[var(--kz-accent-hover)] disabled:opacity-40 transition-all cursor-pointer select-none"
+                        {/* Custom keyword search input */}
+                        <form
+                          onSubmit={(e) => handleCardKeywordSubmit(plugin.name, e)}
+                          className="flex gap-1.5 pt-1.5 border-t border-[var(--kz-border-subtle)]"
                         >
-                          {state.status === 'probing' ? '搜索中…' : '重搜'}
-                        </button>
-                      </form>
-                    </motion.div>
-                  )}
-                  </AnimatePresence>
+                          <div className="relative flex-1 min-w-0">
+                            <input
+                              value={cardKwInputs[plugin.name] || ''}
+                              onChange={(e) =>
+                                setCardKwInputs((prev) => ({
+                                  ...prev,
+                                  [plugin.name]: e.target.value,
+                                }))
+                              }
+                              placeholder={`输入针对 ${plugin.name} 的关键词…`}
+                              className="w-full rounded-lg bg-[var(--kz-bg-elevated)] px-2.5 py-1 text-[11px] text-[var(--kz-fg)] border border-[var(--kz-border-subtle)] placeholder:text-[var(--kz-fg-dim)] outline-none focus:border-[var(--kz-accent)] focus:ring-1 focus:ring-[var(--kz-accent)] transition-all"
+                            />
+                          </div>
+                          <button
+                            type="submit"
+                            disabled={
+                              state.status === 'probing' ||
+                              !(cardKwInputs[plugin.name] || '').trim()
+                            }
+                            className="rounded-lg bg-[var(--kz-accent)] px-3 py-1 text-[11px] font-medium text-white hover:bg-[var(--kz-accent-hover)] disabled:opacity-40 transition-all cursor-pointer select-none shrink-0"
+                          >
+                            {state.status === 'probing' ? '搜索中…' : '重搜'}
+                          </button>
+                        </form>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )
             })}

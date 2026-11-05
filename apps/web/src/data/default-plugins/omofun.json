@@ -19,5 +19,6 @@
   "chapterRoads": "//ul[contains(@class,'play-list-content')]",
   "chapterResult": ".//a[contains(@href,'/play/')]",
   "referer": "https://cn.211dm.com/",
-  "adBlockerMode": "server"
+  "adBlockerMode": "server",
+  "iconUrl": "https://cn.211dm.com/template/the4/statics/img/favicon.ico"
 }

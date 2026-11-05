@@ -45,7 +45,8 @@ migrateLocalStorageKey('animaku-plugins', [
 /** v39: tune girigiri weight to 59 (same as lzizy) & restore cycani oldAnimePriority */
 /** v40: add neosek (neosek.ai) built-in with weight 60 */
 /** v41: add bimi (bimiacg14.net) built-in with weight 61 */
-export const PLUGIN_DEFAULTS_VERSION = 41
+/** v42: add explicit iconUrl to built-in rules */
+export const PLUGIN_DEFAULTS_VERSION = 42
 
 interface PluginState {
   plugins: PluginMeta[]
@@ -373,7 +374,8 @@ export const usePluginStore = create<PluginState>()(
             if (
               p.weight !== seed.weight ||
               p.titlePreference !== seed.titlePreference ||
-              p.oldAnimePriority !== seed.oldAnimePriority
+              p.oldAnimePriority !== seed.oldAnimePriority ||
+              p.iconUrl !== seed.iconUrl
             ) {
               changed = true
               return {
@@ -381,6 +383,7 @@ export const usePluginStore = create<PluginState>()(
                 weight: seed.weight,
                 titlePreference: seed.titlePreference,
                 oldAnimePriority: seed.oldAnimePriority,
+                iconUrl: seed.iconUrl,
               }
             }
             return p

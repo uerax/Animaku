@@ -17,5 +17,6 @@
   "chapterRoads": "//div[2]/div[2]/div[2]/div/div[2]/div[1]/div[2]",
   "chapterResult": "//a",
   "referer": "",
-  "adBlockerMode": "none"
+  "adBlockerMode": "none",
+  "iconUrl": "https://www.7sefun.top/pc/img/favicon.ico"
 }

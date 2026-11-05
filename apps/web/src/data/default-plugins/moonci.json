@@ -18,5 +18,6 @@
   "chapterRoads": "//ul[contains(@class, 'hl-plays-list')]",
   "chapterResult": ".//li/a",
   "referer": "",
-  "adBlockerMode": "none"
+  "adBlockerMode": "none",
+  "iconUrl": "https://www.moonci.com/template/conch/asset/img/favicon.png"
 }

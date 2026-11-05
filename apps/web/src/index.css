@@ -985,9 +985,9 @@ textarea:focus-visible {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 1.5rem;
-  min-width: 3.25rem;
-  padding: 0 0.55rem;
+  height: 2.0625rem;
+  width: 4.25rem;
+  padding: 0 0.35rem;
   border-radius: 9999px;
   font-family: inherit !important;
   font-size: 11.5px !important;
@@ -1000,7 +1000,12 @@ textarea:focus-visible {
   box-sizing: border-box;
   user-select: none;
   cursor: pointer;
+  flex-shrink: 0;
   transition: all 0.15s ease;
+}
+
+.kz-source-pill:active:not(:disabled) {
+  transform: scale(0.95);
 }
 
 .kz-source-pill--active {

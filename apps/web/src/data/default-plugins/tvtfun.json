@@ -19,5 +19,6 @@
   "chapterRoads": "//div",
   "chapterResult": ".//a",
   "referer": "https://www.tvtfun.net/",
-  "adBlockerMode": "none"
+  "adBlockerMode": "none",
+  "iconUrl": "https://www.tvtfun.net/favicon.ico"
 }

@@ -19,5 +19,6 @@
   "chapterRoads": "//div",
   "chapterResult": ".//a",
   "referer": "https://next.xifanacg.com/",
-  "adBlockerMode": "none"
+  "adBlockerMode": "none",
+  "iconUrl": "https://next.xifanacg.com/favicon.ico"
 }
