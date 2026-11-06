@@ -805,9 +805,9 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
                   {/* 满幅暗色遮罩 */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent rounded-[inherit]" />
 
-                  {/* 右上角/右下角胶囊角标 (取代原番剧评分，可手动删除) */}
+                  {/* 右上角胶囊角标 */}
                   {adData.badge && (
-                    <div className="absolute right-3 bottom-3 sm:right-4 sm:bottom-4">
+                    <div className="absolute right-3 top-3 sm:right-4 sm:top-4 z-10">
                       <span className="inline-flex items-center rounded-md border border-white/20 bg-black/60 px-2 py-0.5 text-xs font-bold text-white shadow-xs backdrop-blur-xs">
                         {adData.badge}
                       </span>

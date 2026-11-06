@@ -212,6 +212,15 @@ export const HomeHeroBanner = memo(function HomeHeroBanner({
                       : 'bg-black/10'
                   }`}
                 />
+
+                {/* 右上角胶囊角标 */}
+                {ad.badge && (
+                  <div className="absolute right-3 top-3 z-10 sm:right-4 sm:top-4">
+                    <span className="inline-flex items-center rounded-full border border-white/20 bg-black/65 px-2.5 py-0.5 text-xs font-bold text-white shadow-xs backdrop-blur-md">
+                      {ad.badge}
+                    </span>
+                  </div>
+                )}
               </a>
             </div>
           )
@@ -272,7 +281,12 @@ export const HomeHeroBanner = memo(function HomeHeroBanner({
       {currentSlide && (
         <div
           className="pointer-events-none absolute inset-x-0 bottom-0 z-20"
-          style={{ padding: 'clamp(12px, 3.8cqw, 24px)' }}
+          style={{
+            paddingLeft: 'clamp(12px, 3.8cqw, 24px)',
+            paddingRight: 'clamp(12px, 3.8cqw, 24px)',
+            paddingTop: 'clamp(12px, 3.8cqw, 24px)',
+            paddingBottom: 'clamp(12px, 3.8cqw, 24px)',
+          }}
         >
           {/*
             为什么使用 Grid 单单元格堆叠 (col-start-1 row-start-1) 且不加 mode="wait"：
@@ -292,36 +306,11 @@ export const HomeHeroBanner = memo(function HomeHeroBanner({
                 exit={isReducedMotion ? undefined : { opacity: 0 }}
                 transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
                 className="col-start-1 row-start-1 flex flex-col [transform:translateZ(0)] [backface-visibility:hidden]"
-                style={{ gap: 'clamp(4px, 1.4cqw, 8px)' }}
+                style={{ gap: 'clamp(3px, 1cqw, 6px)' }}
               >
               {currentSlide.kind === 'highlight' ? (
                 <>
-                  {currentSlide.item.badge && (
-                    <div className="flex items-center">
-                      <span
-                        className="inline-flex items-center gap-1 rounded-full bg-black/65 font-bold text-white border border-white/20 shadow-xs"
-                        style={{
-                          height: 'clamp(20px, 4.8cqw, 26px)',
-                          paddingLeft: 'clamp(6px, 1.8cqw, 10px)',
-                          paddingRight: 'clamp(6px, 1.8cqw, 10px)',
-                          fontSize: 'clamp(10px, 2.5cqw, 12px)',
-                        }}
-                      >
-                        {currentSlide.item.badge}
-                      </span>
-                    </div>
-                  )}
-                  {currentSlide.item.title && (
-                    <h3
-                      className="font-black text-white tracking-wide truncate drop-shadow-[0_2px_4px_rgba(0,0,0,0.85)]"
-                      style={{
-                        fontSize: 'clamp(15px, 4.2cqw, 24px)',
-                        lineHeight: 1.2,
-                      }}
-                    >
-                      {currentSlide.item.title}
-                    </h3>
-                  )}
+                  {/* 副标题 / 描述在前 */}
                   {currentSlide.item.subtitle && (
                     <p
                       className="text-white/80 line-clamp-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]"
@@ -330,21 +319,22 @@ export const HomeHeroBanner = memo(function HomeHeroBanner({
                       {currentSlide.item.subtitle}
                     </p>
                   )}
+                  {/* 标题在后（下方，右侧预留空间避让指示点） */}
+                  {currentSlide.item.title && (
+                    <h3
+                      className="font-black text-white tracking-wide truncate drop-shadow-[0_2px_4px_rgba(0,0,0,0.85)] pr-20 sm:pr-24"
+                      style={{
+                        fontSize: 'clamp(15px, 4.2cqw, 24px)',
+                        lineHeight: 1.2,
+                      }}
+                    >
+                      {currentSlide.item.title}
+                    </h3>
+                  )}
                 </>
               ) : (
                 <>
-                  {/* 番剧标题 */}
-                  <h3
-                    className="font-black text-white tracking-wide truncate drop-shadow-[0_2px_4px_rgba(0,0,0,0.85)]"
-                    style={{
-                      fontSize: 'clamp(15px, 4.2cqw, 24px)',
-                      lineHeight: 1.2,
-                    }}
-                  >
-                    {currentSlide.item.nameCn || currentSlide.item.name}
-                  </h3>
-
-                  {/* 推荐理由 / 描述（契合度已置于题材前面，无需上方胶囊标签） */}
+                  {/* 推荐理由 / 描述在前（上方），拥有整行宽度无任何遮挡 */}
                   {displayReason && (
                     <p
                       className="flex items-center text-white/85 line-clamp-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]"
@@ -363,6 +353,17 @@ export const HomeHeroBanner = memo(function HomeHeroBanner({
                       <span className="truncate">{displayReason}</span>
                     </p>
                   )}
+
+                  {/* 番剧标题在后（下方），右侧预留 pr-20 避让指示点 */}
+                  <h3
+                    className="font-black text-white tracking-wide truncate drop-shadow-[0_2px_4px_rgba(0,0,0,0.85)] pr-20 sm:pr-24"
+                    style={{
+                      fontSize: 'clamp(15px, 4.2cqw, 24px)',
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    {currentSlide.item.nameCn || currentSlide.item.name}
+                  </h3>
                 </>
               )}
             </motion.div>
@@ -403,7 +404,13 @@ export const HomeHeroBanner = memo(function HomeHeroBanner({
 
       {/* 底部右侧精致胶囊指示条 */}
       {count > 1 && (
-        <div className="absolute bottom-5 right-5 z-20 flex items-center gap-1.5">
+        <div
+          className="absolute z-20 flex items-center gap-1.5"
+          style={{
+            bottom: 'clamp(17px, 4.4cqw, 32px)',
+            right: 'clamp(12px, 3.8cqw, 24px)',
+          }}
+        >
           {slides.map((_, idx) => {
             const isActive = idx === currentIndex
             return (
