@@ -93,7 +93,8 @@ export function SiteAnnouncementModal({
       open={true}
       onClose={onClose}
       ariaLabel="站点公告"
-      backdropClassName="bg-black/50 backdrop-blur-xs"
+      hasBackdrop={false}
+      lockScroll={false}
       className={`flex flex-col items-center w-full ${s.container}`}
     >
       {/* 展示卡片主体：标题在上方，图片在最下方，超高长图卡内平滑滚动 */}

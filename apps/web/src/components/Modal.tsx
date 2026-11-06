@@ -61,6 +61,23 @@ export function Modal({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [open, closeOnEsc, onClose])
 
+  // 当未启用遮罩时，捕获卡片外部点击关闭
+  useEffect(() => {
+    if (!open || hasBackdrop || !closeOnBackdropClick || !onClose) return
+    const handlePointerDown = (e: PointerEvent) => {
+      if (contentRef.current && !contentRef.current.contains(e.target as Node)) {
+        onClose()
+      }
+    }
+    const timer = setTimeout(() => {
+      window.addEventListener('pointerdown', handlePointerDown)
+    }, 50)
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('pointerdown', handlePointerDown)
+    }
+  }, [open, hasBackdrop, closeOnBackdropClick, onClose])
+
   // 锁定底层 body 滚动，防止移动端与桌面端穿透滑动
   useEffect(() => {
     if (!open || !lockScroll) return
@@ -85,10 +102,12 @@ export function Modal({
       {open && (
         <div
           role="dialog"
-          aria-modal="true"
+          aria-modal={hasBackdrop ? 'true' : 'false'}
           aria-label={ariaLabel}
           aria-labelledby={ariaLabelledBy}
-          className="fixed inset-0 z-50 flex items-center justify-center overflow-x-hidden overflow-y-auto"
+          className={`fixed inset-0 z-50 flex items-center justify-center overflow-x-hidden overflow-y-auto ${
+            hasBackdrop ? '' : 'pointer-events-none'
+          }`}
         >
           {/* 背景遮罩 */}
           {hasBackdrop && (
