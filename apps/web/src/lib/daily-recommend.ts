@@ -79,11 +79,13 @@ function writeTagTotalCache(tag: string, total: number) {
  */
 export const dailyRecommendClient: DailyRecommendClient = {
   searchWithTotal: async (keyword, opts) => {
+    // 强制限制 type: 2 (Anime 动画)，避免 Bangumi 上游检索命中 type: 6 (三次元/日剧)
     const res = await bangumiApi.search(keyword, {
       tags: opts.tags,
       sort: opts.sort,
       limit: opts.limit,
       offset: opts.offset,
+      type: opts.type ?? 2,
     })
     const items = res.data || []
     const total = res.total

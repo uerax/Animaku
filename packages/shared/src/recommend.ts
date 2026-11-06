@@ -523,6 +523,7 @@ export interface DailyRecommendClient {
       sort?: string
       limit?: number
       offset?: number
+      type?: number[] | number
     },
   ) => Promise<{ items: BangumiItem[]; total?: number }>
   getTagTotal?: (tag: string) => Promise<number>
@@ -775,11 +776,13 @@ export class DailyRecommendService {
       slotPromises.push(
         (async () => {
           try {
+            // 严格限定 type: 2 (Anime 动画)，避免 Bangumi 上游检索包含 type: 6 (Real 三次元/日剧)
             let res = await client.searchWithTotal('', {
               tags: searchTags,
               sort: sortMode,
               limit: 8,
               offset: slotOffset,
+              type: 2,
             })
 
             // 自适应防空保底：若冷门题材因大 offset 返回空，平滑退回 offset: 0
@@ -789,6 +792,7 @@ export class DailyRecommendService {
                 sort: sortMode,
                 limit: 8,
                 offset: 0,
+                type: 2,
               })
             }
 
@@ -829,11 +833,13 @@ export class DailyRecommendService {
     if (chosenItems.length < 5) {
       try {
         const fallbackOffset = ((seed * 73 + chosenItems.length * 29) & 0x7fffffff) % 100
+        // 严格限定 type: 2 (Anime 动画)，避免兜底池混入三次元日剧
         const fallbackRes = await client.searchWithTotal('', {
           tags: ['日本'],
           sort: 'heat',
           limit: 12,
           offset: fallbackOffset,
+          type: 2,
         })
         for (const item of fallbackRes.items || []) {
           const cover = item.images?.large || item.images?.common || item.images?.medium
