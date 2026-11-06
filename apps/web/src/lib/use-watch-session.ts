@@ -35,6 +35,7 @@ import {
   type DanmakuSettings,
   type PlayerSettings,
   type ResolvePlayResult,
+  AnimeTagFilter,
 } from '@animaku/shared'
 import { bangumiApi } from './bangumi'
 import { pluginApi } from './plugin-api'
@@ -378,6 +379,13 @@ export function useWatchSession(bangumiId: number): WatchSession {
 
   const title = resolvedItem ? resolvedItem.nameCn || resolvedItem.name || '' : ''
   const cover = resolvedItem ? coverOf(resolvedItem) : ''
+  const genres = useMemo(() => {
+    if (!resolvedItem?.tags || resolvedItem.tags.length === 0) return undefined
+    const valid = resolvedItem.tags
+      .map((t) => t.name.trim())
+      .filter((t) => AnimeTagFilter.isAllowedGenre(t))
+    return valid.length > 0 ? valid : undefined
+  }, [resolvedItem?.tags])
 
   const [roadLoading, setRoadLoading] = useState(false)
   const [roadError, setRoadError] = useState('')
@@ -1094,6 +1102,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
         playUrl: streamResolve.playUrl,
         position,
         duration,
+        genres,
       })
     },
     [
@@ -1104,6 +1113,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
       bangumiId,
       title,
       cover,
+      genres,
       streamResolve.playUrl,
     ],
   )

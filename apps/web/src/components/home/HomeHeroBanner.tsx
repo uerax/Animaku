@@ -1,6 +1,7 @@
 import { memo, useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import type { BangumiItem, HighlightItem } from '@animaku/shared'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
+import type { BangumiItem, HighlightItem, RecommendItem } from '@animaku/shared'
 import {
   coverOf,
   extractBangumiSeed,
@@ -13,11 +14,12 @@ import { preloadVideoPlayer } from '../../player/lazy'
 import { preloadRoute } from '../../lib/route-preload'
 
 type BannerSlide =
-  | { kind: 'anime'; item: BangumiItem }
+  | { kind: 'anime'; item: BangumiItem; rec?: RecommendItem }
   | { kind: 'highlight'; item: HighlightItem }
 
 interface HomeHeroBannerProps {
   items: BangumiItem[]
+  recommendations?: RecommendItem[]
   autoPlayInterval?: number
 }
 
@@ -55,19 +57,45 @@ function ChevronRightIcon({ className = 'w-4 h-4' }: { className?: string }) {
   )
 }
 
+function SparklesIcon({ className = 'h-3.5 w-3.5 text-amber-400 shrink-0', style }: { className?: string; style?: React.CSSProperties }) {
+  return (
+    <svg
+      className={className}
+      style={style}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path d="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z" />
+    </svg>
+  )
+}
+
 export const HomeHeroBanner = memo(function HomeHeroBanner({
   items,
+  recommendations,
   autoPlayInterval = 5000,
 }: HomeHeroBannerProps) {
   const host =
     useSettingsStore((s) => s.bangumiImageHost) || DEFAULT_BANGUMI_IMAGE_HOST
   const openInNewTab = useSettingsStore((s) => s.nav.openInNewTab)
+  const isReducedMotion = useReducedMotion()
 
   // 轮播图广告位配置：若已启用则随机抽取一帧插入（避开首张，保持良好首屏体验）
   const heroHighlight = usePlacementHighlight('hero_banner')?.items[0]
 
   const slides: BannerSlide[] = useMemo(() => {
-    const raw: BannerSlide[] = items.slice(0, 6).map((it) => ({ kind: 'anime', item: it }))
+    let raw: BannerSlide[] = []
+    if (recommendations && recommendations.length > 0) {
+      raw = recommendations.slice(0, 6).map((rec) => ({
+        kind: 'anime',
+        item: rec.item,
+        rec,
+      }))
+    } else {
+      raw = items.slice(0, 6).map((it) => ({ kind: 'anime', item: it }))
+    }
+
     if (!heroHighlight || raw.length === 0) return raw
 
     // 随机插入到索引 1 到 raw.length 之间
@@ -75,7 +103,7 @@ export const HomeHeroBanner = memo(function HomeHeroBanner({
     const copy = [...raw]
     copy.splice(insertIdx, 0, { kind: 'highlight', item: heroHighlight })
     return copy
-  }, [items, heroHighlight])
+  }, [items, recommendations, heroHighlight])
 
   const count = slides.length
 
@@ -116,13 +144,31 @@ export const HomeHeroBanner = memo(function HomeHeroBanner({
 
   if (count === 0) return null
 
+  const currentSlide = slides[currentIndex] ?? slides[0]
+
+  const currentReason = currentSlide.kind === 'anime' ? currentSlide.rec?.reason : null
+  const currentMatchRate = currentSlide.kind === 'anime' ? currentSlide.rec?.matchRate : null
+  const displayReason = useMemo(() => {
+    if (!currentReason) return ''
+    if (currentMatchRate != null && !currentReason.includes('契合度')) {
+      if (currentReason.includes('题材')) {
+        return currentReason.replace('题材', `题材，契合度 ${currentMatchRate}%`)
+      }
+      if (currentReason.includes('【')) {
+        return currentReason.replace('】', `】，契合度 ${currentMatchRate}%`)
+      }
+      return `${currentReason}，契合度 ${currentMatchRate}%`
+    }
+    return currentReason
+  }, [currentReason, currentMatchRate])
+
   return (
     <div
-      className="group relative h-full w-full select-none overflow-hidden rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] shadow-xs"
+      className="@container group relative h-full w-full select-none overflow-hidden rounded-2xl border border-[var(--kz-border)] bg-[var(--kz-bg-elevated)] shadow-xs"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
-      {/* 轮播卡片集合 */}
+      {/* 1. 轮播底图集合：负责纯图片 700ms 交叉淡入淡出，零内部文本销毁与重绘开销 */}
       {slides.map((slide, index) => {
         const isActive = index === currentIndex
 
@@ -166,27 +212,6 @@ export const HomeHeroBanner = memo(function HomeHeroBanner({
                       : 'bg-black/10'
                   }`}
                 />
-
-                {/* 角标与标题 */}
-                <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6 flex flex-col gap-2 z-20">
-                  {ad.badge && (
-                    <div className="flex items-center">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-black/60 px-2.5 py-1 text-xs font-bold text-white border border-white/20 backdrop-blur-md shadow-xs">
-                        {ad.badge}
-                      </span>
-                    </div>
-                  )}
-                  {ad.title && (
-                    <h3 className="text-xl sm:text-2xl font-black text-white tracking-wide truncate drop-shadow-[0_2px_4px_rgba(0,0,0,0.85)]">
-                      {ad.title}
-                    </h3>
-                  )}
-                  {ad.subtitle && (
-                    <p className="text-xs sm:text-sm text-white/80 line-clamp-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]">
-                      {ad.subtitle}
-                    </p>
-                  )}
-                </div>
               </a>
             </div>
           )
@@ -195,8 +220,6 @@ export const HomeHeroBanner = memo(function HomeHeroBanner({
         const item = slide.item
         const coverUrl = resolveImageUrl(coverOf(item, 'large'))
         const title = item.nameCn || item.name
-        const score =
-          item.ratingScore > 0 ? item.ratingScore.toFixed(1) : null
         const seed = extractBangumiSeed(item)
 
         return (
@@ -238,26 +261,115 @@ export const HomeHeroBanner = memo(function HomeHeroBanner({
                 </div>
               )}
 
-              {/* 底部与四周暗色渐变遮罩，确保文字在任何亮暗画面下均绝对清晰 */}
+              {/* 底部与四周暗色渐变遮罩 */}
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-black/10" />
-
-              {/* 仅保留：评分标签 + 番剧名称（极简克制，不繁杂） */}
-              <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6 flex flex-col gap-2 z-20">
-                {score && (
-                  <div className="flex items-center">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-black/45 px-2.5 py-1 text-xs font-bold text-white border border-white/20 backdrop-blur-md shadow-xs">
-                      <span className="text-amber-400 text-[13px]">★</span> {score} 分
-                    </span>
-                  </div>
-                )}
-                <h3 className="text-xl sm:text-2xl font-black text-white tracking-wide truncate drop-shadow-[0_2px_4px_rgba(0,0,0,0.85)]">
-                  {title}
-                </h3>
-              </div>
             </Link>
           </div>
         )
       })}
+
+      {/* 2. 顶层持久化信息面板：独立于 700ms 图片透明度图层，彻底消除父级透明度渐变引起的毛玻璃着色器闪烁 */}
+      {currentSlide && (
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 z-20"
+          style={{ padding: 'clamp(12px, 3.8cqw, 24px)' }}
+        >
+          {/*
+            为什么使用 Grid 单单元格堆叠 (col-start-1 row-start-1) 且不加 mode="wait"：
+            如果使用 mode="wait"，旧标题/胶囊退场完毕前新内容完全不渲染，会导致中间出现 ~200ms 的文字空白闪烁；
+            通过单单元格堆叠，退场与进场动画重叠进行（Crossfade 原地平滑交叉淡化），彻底消除内容断档感。
+          */}
+          <div className="grid grid-cols-1 grid-rows-1">
+            <AnimatePresence initial={false}>
+              <motion.div
+                key={
+                  currentSlide.kind === 'highlight'
+                    ? `ad-${currentSlide.item.id}`
+                    : `anime-${currentSlide.item.id}`
+                }
+                initial={isReducedMotion ? false : { opacity: 0, y: 3 }}
+                animate={isReducedMotion ? undefined : { opacity: 1, y: 0 }}
+                exit={isReducedMotion ? undefined : { opacity: 0 }}
+                transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+                className="col-start-1 row-start-1 flex flex-col [transform:translateZ(0)] [backface-visibility:hidden]"
+                style={{ gap: 'clamp(4px, 1.4cqw, 8px)' }}
+              >
+              {currentSlide.kind === 'highlight' ? (
+                <>
+                  {currentSlide.item.badge && (
+                    <div className="flex items-center">
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full bg-black/65 font-bold text-white border border-white/20 shadow-xs"
+                        style={{
+                          height: 'clamp(20px, 4.8cqw, 26px)',
+                          paddingLeft: 'clamp(6px, 1.8cqw, 10px)',
+                          paddingRight: 'clamp(6px, 1.8cqw, 10px)',
+                          fontSize: 'clamp(10px, 2.5cqw, 12px)',
+                        }}
+                      >
+                        {currentSlide.item.badge}
+                      </span>
+                    </div>
+                  )}
+                  {currentSlide.item.title && (
+                    <h3
+                      className="font-black text-white tracking-wide truncate drop-shadow-[0_2px_4px_rgba(0,0,0,0.85)]"
+                      style={{
+                        fontSize: 'clamp(15px, 4.2cqw, 24px)',
+                        lineHeight: 1.2,
+                      }}
+                    >
+                      {currentSlide.item.title}
+                    </h3>
+                  )}
+                  {currentSlide.item.subtitle && (
+                    <p
+                      className="text-white/80 line-clamp-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]"
+                      style={{ fontSize: 'clamp(11px, 2.6cqw, 13px)' }}
+                    >
+                      {currentSlide.item.subtitle}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* 番剧标题 */}
+                  <h3
+                    className="font-black text-white tracking-wide truncate drop-shadow-[0_2px_4px_rgba(0,0,0,0.85)]"
+                    style={{
+                      fontSize: 'clamp(15px, 4.2cqw, 24px)',
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    {currentSlide.item.nameCn || currentSlide.item.name}
+                  </h3>
+
+                  {/* 推荐理由 / 描述（契合度已置于题材前面，无需上方胶囊标签） */}
+                  {displayReason && (
+                    <p
+                      className="flex items-center text-white/85 line-clamp-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]"
+                      style={{
+                        fontSize: 'clamp(11px, 2.6cqw, 13px)',
+                        gap: 'clamp(4px, 1cqw, 6px)',
+                      }}
+                    >
+                      <SparklesIcon
+                        className="text-amber-400 shrink-0"
+                        style={{
+                          width: 'clamp(11px, 2.6cqw, 14px)',
+                          height: 'clamp(11px, 2.6cqw, 14px)',
+                        }}
+                      />
+                      <span className="truncate">{displayReason}</span>
+                    </p>
+                  )}
+                </>
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </div>
+      </div>
+    )}
 
       {/* 左右翻页箭头（悬停浮现） */}
       {count > 1 && (

@@ -1,20 +1,22 @@
 import { memo } from 'react'
-import type { BangumiItem } from '@animaku/shared'
+import type { BangumiItem, RecommendItem } from '@animaku/shared'
 import { HomeHeroBanner } from './HomeHeroBanner'
 import { DailyScheduleHeroCard } from './DailyScheduleHeroCard'
 
 interface HomeDesktopSplitHeroProps {
   items: BangumiItem[]
+  recommendations?: RecommendItem[]
 }
 
 export const HomeDesktopSplitHero = memo(function HomeDesktopSplitHero({
   items,
+  recommendations,
 }: HomeDesktopSplitHeroProps) {
   return (
     <div className="flex w-full gap-4 items-start">
       {/* 左侧：精选推荐轮播 Banner（黄金比例 0.382，B 站 1274/884 比例自撑高度） */}
       <div className="w-[38.2%] aspect-[1274/884] shrink-0">
-        <HomeHeroBanner items={items} />
+        <HomeHeroBanner items={items} recommendations={recommendations} />
       </div>
 
       {/* 右侧：每日放送 6 宫格矩阵（黄金比例 0.618，16:10.3 双排等高紧凑排布） */}

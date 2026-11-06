@@ -17,6 +17,8 @@ export interface WatchHistoryEntry {
   position: number
   duration: number
   updatedAt: number
+  /** 题材标签列表（用于偏好画像分析与每日推荐算法） */
+  genres?: string[]
 }
 
 export function historyId(

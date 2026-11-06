@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { bangumiImageUrl } from '@animaku/shared'
 import { bangumiApi } from '../lib/bangumi'
+import { useDailyRecommend } from '../lib/daily-recommend'
 import {
   BangumiGrid,
   BangumiGridSkeleton,
@@ -93,10 +94,16 @@ export function HomePage() {
     gcTime: SECTION_GC_TIME,
   })
 
-  // 深度复用 trending 首屏前 10 项作为焦点舞台数据，提供充足的 3D 环形缓冲池，彻底消除重复的并发 API 请求
+  // 每日算法推荐轮播：5 槽位题材互斥 + 天命种子 + 用户偏好融合（纯推荐流，解耦热门榜单）
+  const dailyRecommend = useDailyRecommend()
+  const recommendations = dailyRecommend.data
+
   const heroItems = useMemo(
-    () => (trending.data?.data ? trending.data.data.slice(0, 10) : EMPTY_ARRAY),
-    [trending.data],
+    () =>
+      recommendations && recommendations.length > 0
+        ? recommendations.map((r) => r.item)
+        : EMPTY_ARRAY,
+    [recommendations],
   )
 
   const { ref: moviesRef, inView: moviesInView } = useInView()
@@ -183,8 +190,8 @@ export function HomePage() {
       </h1>
 
       {/* 顶部焦点舞台：移动端保留 3D Cover Flow，桌面端使用分栏黄金排版 */}
-      {trending.isLoading ? (
-        <section aria-label="热门聚焦加载中">
+      {dailyRecommend.isLoading && (!recommendations || recommendations.length === 0) ? (
+        <section aria-label="今日推荐加载中">
           <div className="block lg:hidden">
             <HeroCoverFlowSkeleton />
           </div>
@@ -193,14 +200,14 @@ export function HomePage() {
           </div>
         </section>
       ) : heroItems.length >= 3 ? (
-        <section aria-label="热门聚焦">
+        <section aria-label="今日推荐">
           {/* 移动端 (< 1024px)：100% 保持原有 3D Cover Flow 体验 */}
           <div className="block lg:hidden">
-            <HeroCoverFlow items={heroItems} limit={10} />
+            <HeroCoverFlow items={heroItems} recommendations={recommendations} limit={10} />
           </div>
           {/* 桌面端 (≥ 1024px)：左侧轮播 Banner + 右侧每日更新 6 宫格矩阵 */}
           <div className="hidden lg:block">
-            <HomeDesktopSplitHero items={heroItems} />
+            <HomeDesktopSplitHero items={heroItems} recommendations={recommendations} />
           </div>
         </section>
       ) : null}

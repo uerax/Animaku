@@ -1,6 +1,7 @@
 import { memo, useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import type { BangumiItem, HighlightItem } from '@animaku/shared'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
+import type { BangumiItem, HighlightItem, RecommendItem } from '@animaku/shared'
 import {
   coverOf,
   formatDoingCount,
@@ -28,6 +29,7 @@ export { HeroCoverFlowSkeleton } from './HeroCoverFlowSkeleton'
 
 interface HeroCoverFlowProps {
   items: BangumiItem[]
+  recommendations?: RecommendItem[]
   limit?: number
 }
 
@@ -142,13 +144,43 @@ function IconChevronRight({ className = 'w-5 h-5' }: { className?: string }) {
   )
 }
 
+function StarIcon({ className = 'size-3 text-amber-400 shrink-0', style }: { className?: string; style?: React.CSSProperties }) {
+  return (
+    <svg
+      className={className}
+      style={style}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+    </svg>
+  )
+}
+
+function SparklesIcon({ className = 'h-3.5 w-3.5 text-amber-400 shrink-0', style }: { className?: string; style?: React.CSSProperties }) {
+  return (
+    <svg
+      className={className}
+      style={style}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path d="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z" />
+    </svg>
+  )
+}
+
 export const HeroCoverFlow = memo(function HeroCoverFlow({
   items,
+  recommendations,
   limit = 10,
 }: HeroCoverFlowProps) {
   const host =
     useSettingsStore((s) => s.bangumiImageHost) || DEFAULT_BANGUMI_IMAGE_HOST
   const openInNewTab = useSettingsStore((s) => s.nav.openInNewTab)
+  const isReducedMotion = useReducedMotion()
 
   const resolveImageUrl = useCallback(
     (rawSrc?: string | null) => {
@@ -582,6 +614,10 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
       : null
   const activeHeat = metaItem?.heat ? formatHeatCount(metaItem.heat) : ''
   const activeDoing = metaItem?.doing ? formatDoingCount(metaItem.doing) : ''
+  const activeRec = useMemo(() => {
+    if (!recommendations || !metaItem) return null
+    return recommendations.find((r) => r.item.id === metaItem.id) || null
+  }, [recommendations, metaItem])
 
   const ambientCoverUrl = isAccelerating
     ? (stableCoverRef.current ?? activeCoverUrl)
@@ -867,41 +903,131 @@ export const HeroCoverFlow = memo(function HeroCoverFlow({
 
       {/* 3. Active Anime Spotlight Meta Info Panel (Comfortable breathing gap) */}
       {metaItem && (
-        <div className="mt-8 text-center sm:mt-11 md:mt-14">
+        <div
+          className="text-center"
+          style={{ marginTop: 'clamp(1rem, 3vw, 2.5rem)' }}
+        >
           {/* Badges / Chips */}
-          <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-2.5">
+          <div
+            className="flex flex-wrap items-center justify-center"
+            style={{ gap: 'clamp(4px, 1.5vw, 8px)' }}
+          >
             {activeScore && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-black/40 px-3 py-1 text-xs font-bold text-white border border-white/15 backdrop-blur-md shadow-xs">
-                <span className="text-amber-400 text-[13px]">★</span> {activeScore} 分
-              </span>
+              <div
+                className="inline-flex items-center rounded-full border border-amber-400/35 bg-amber-500/15 font-bold text-amber-500 dark:text-amber-300 shadow-xs backdrop-blur-md"
+                style={{
+                  height: 'clamp(20px, 5.5vw, 26px)',
+                  paddingLeft: 'clamp(7px, 2vw, 10px)',
+                  paddingRight: 'clamp(7px, 2vw, 10px)',
+                  fontSize: 'clamp(10px, 2.8vw, 12px)',
+                  gap: 'clamp(3px, 1vw, 6px)',
+                }}
+              >
+                <StarIcon
+                  className="shrink-0 text-amber-500 dark:text-amber-400"
+                  style={{ width: 'clamp(10px, 2.8vw, 12px)', height: 'clamp(10px, 2.8vw, 12px)' }}
+                />
+                <span className="tabular-nums tracking-tight">{activeScore}</span>
+              </div>
+            )}
+            {activeRec?.tag && (
+              <div
+                className="inline-flex items-center rounded-full border border-sky-400/35 bg-sky-500/20 font-bold text-sky-600 dark:text-sky-300 shadow-xs backdrop-blur-md"
+                style={{
+                  height: 'clamp(20px, 5.5vw, 26px)',
+                  paddingLeft: 'clamp(7px, 2vw, 10px)',
+                  paddingRight: 'clamp(7px, 2vw, 10px)',
+                  fontSize: 'clamp(10px, 2.8vw, 12px)',
+                }}
+              >
+                {activeRec.tag}
+              </div>
+            )}
+            {activeRec?.matchRate != null && (
+              <div
+                className="inline-flex items-center rounded-full border border-emerald-400/35 bg-emerald-500/15 font-semibold text-emerald-600 dark:text-emerald-300 shadow-xs backdrop-blur-md"
+                style={{
+                  height: 'clamp(20px, 5.5vw, 26px)',
+                  paddingLeft: 'clamp(7px, 2vw, 10px)',
+                  paddingRight: 'clamp(7px, 2vw, 10px)',
+                  fontSize: 'clamp(10px, 2.8vw, 12px)',
+                  gap: 'clamp(3px, 1vw, 6px)',
+                }}
+              >
+                <span
+                  className="rounded-full bg-emerald-500 dark:bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)] shrink-0"
+                  style={{ width: 'clamp(5px, 1.2vw, 6px)', height: 'clamp(5px, 1.2vw, 6px)' }}
+                />
+                <span className="tabular-nums">{activeRec.matchRate}% 契合</span>
+              </div>
             )}
             {activeHeat ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--kz-bg-elevated)] px-3 py-1 text-xs font-medium text-[var(--kz-fg-muted)] border border-[var(--kz-border)] backdrop-blur-md shadow-xs">
+              <span
+                className="inline-flex items-center rounded-full bg-[var(--kz-bg-elevated)] font-medium text-[var(--kz-fg-muted)] border border-[var(--kz-border)] backdrop-blur-md shadow-xs"
+                style={{
+                  height: 'clamp(20px, 5.5vw, 26px)',
+                  paddingLeft: 'clamp(7px, 2vw, 10px)',
+                  paddingRight: 'clamp(7px, 2vw, 10px)',
+                  fontSize: 'clamp(10px, 2.8vw, 12px)',
+                  gap: 'clamp(3px, 1vw, 6px)',
+                }}
+              >
                 <span className="text-rose-500 dark:text-rose-400 text-xs leading-none" aria-hidden>🔥</span>
                 <span className="font-bold tabular-nums text-rose-500 dark:text-rose-400">{activeHeat}</span> 热度
               </span>
             ) : activeDoing ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--kz-bg-elevated)] px-3 py-1 text-xs font-medium text-[var(--kz-fg-muted)] border border-[var(--kz-border)] backdrop-blur-md shadow-xs">
+              <span
+                className="inline-flex items-center rounded-full bg-[var(--kz-bg-elevated)] font-medium text-[var(--kz-fg-muted)] border border-[var(--kz-border)] backdrop-blur-md shadow-xs"
+                style={{
+                  height: 'clamp(20px, 5.5vw, 26px)',
+                  paddingLeft: 'clamp(7px, 2vw, 10px)',
+                  paddingRight: 'clamp(7px, 2vw, 10px)',
+                  fontSize: 'clamp(10px, 2.8vw, 12px)',
+                  gap: 'clamp(3px, 1vw, 6px)',
+                }}
+              >
                 <span className="font-bold tabular-nums text-amber-500 dark:text-amber-400">{activeDoing}</span> 人在看
               </span>
             ) : null}
           </div>
 
           {/* Title - clickable direct to subject */}
-          <h3 className="mt-3">
+          <h3 style={{ marginTop: 'clamp(6px, 1.5vw, 12px)' }}>
             <Link
               to={`/subject/${metaItem.id}`}
               onMouseEnter={preloadVideoPlayer}
-              className="inline-block truncate text-xl font-black text-[var(--kz-fg)] transition-colors hover:text-[var(--kz-accent)] sm:text-2xl md:text-3xl"
+              className="inline-block truncate font-black text-[var(--kz-fg)] transition-colors hover:text-[var(--kz-accent)]"
+              style={{ fontSize: 'clamp(16px, 4.2vw, 28px)', lineHeight: 1.25 }}
             >
               {activeTitle}
             </Link>
           </h3>
-          {metaItem.name && metaItem.name !== activeTitle && (
-            <p className="mt-0.5 truncate text-xs text-[var(--kz-fg-dim)] sm:text-sm">
+          {activeRec?.reason ? (
+            <p
+              className="flex items-center justify-center text-[var(--kz-fg-muted)] line-clamp-1 max-w-lg mx-auto"
+              style={{
+                fontSize: 'clamp(11px, 2.8vw, 13px)',
+                gap: 'clamp(4px, 1vw, 6px)',
+                marginTop: 'clamp(3px, 0.8vw, 6px)',
+              }}
+            >
+              <SparklesIcon
+                className="text-amber-500 dark:text-amber-400 shrink-0"
+                style={{ width: 'clamp(10px, 2.8vw, 14px)', height: 'clamp(10px, 2.8vw, 14px)' }}
+              />
+              <span className="truncate">{activeRec.reason}</span>
+            </p>
+          ) : metaItem.name && metaItem.name !== activeTitle ? (
+            <p
+              className="truncate text-[var(--kz-fg-dim)]"
+              style={{
+                fontSize: 'clamp(11px, 2.6vw, 13px)',
+                marginTop: 'clamp(2px, 0.5vw, 4px)',
+              }}
+            >
               {metaItem.name}
             </p>
-          )}
+          ) : null}
 
           {/* 4. Pagination Segmented Indicators (固定槽位 + 内部 scaleX 纯 GPU 合成器变换，0 Layout / 0 Reflow) */}
           <div className="mt-4 flex items-center justify-center gap-1.5 sm:mt-5">
