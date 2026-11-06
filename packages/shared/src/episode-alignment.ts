@@ -18,6 +18,7 @@ export interface AlignedEpisode {
 export interface BgmEpisodeLike {
   type: number
   sort: number
+  ep?: number
   name?: string
   nameCn?: string
   name_cn?: string
@@ -30,6 +31,8 @@ export interface BgmEpisodeLike {
 export interface PlayableSlot {
   /** Canonical episode number (0, 1, 2, ...), governed by Bangumi `type===0 sort` (Layer 1) or safe conservative extraction (Layer 2) */
   canonicalEp: number
+  /** Official 1-based entry episode number within this subject (bgm.ep || index + 1), used for Danmaku & AniSkip OP/ED alignment */
+  entryEp: number
   /** Official episode subtitle from Bangumi (e.g. "冬之日", "序章"), empty string in Layer 2 */
   officialTitle: string
   /** Standard display title (e.g. "第01话 冬之日", "第00话 序章", or raw source title in Layer 2) */
@@ -210,6 +213,7 @@ export function buildPlayableSlots(
     return sourceItems.map((item, i) => {
       const bgm = officialMain[i]
       const canonicalEp = bgm.sort
+      const entryEp = bgm.ep && bgm.ep > 0 ? bgm.ep : i + 1
       const officialTitle = (bgm.name_cn || bgm.name || '').trim()
       const displayTitle = formatEpisodeDisplayTitle(canonicalEp, officialTitle)
       const pageUrl = urls[item.originalIndex] || ''
@@ -217,6 +221,7 @@ export function buildPlayableSlots(
 
       return {
         canonicalEp,
+        entryEp,
         officialTitle,
         displayTitle,
         sourceIndex: item.originalIndex,
@@ -254,6 +259,7 @@ export function buildPlayableSlots(
       i === 0,
     )
     const canonicalEp = explicitEp >= 0 ? explicitEp : fallbackVal
+    const entryEp = i + 1
     const pageUrl = urls[item.originalIndex] || ''
     const sourceTitle = rawTitle || `第${canonicalEp}集`
     // 满足以下任一条件时，规范化为干净的集数卡片（如 "第01话"）：
@@ -267,6 +273,7 @@ export function buildPlayableSlots(
 
     return {
       canonicalEp,
+      entryEp,
       officialTitle: '',
       displayTitle,
       sourceIndex: item.originalIndex,

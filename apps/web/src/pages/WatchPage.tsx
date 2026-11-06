@@ -387,7 +387,12 @@ export function WatchPage() {
           danmakuPanel={w.dm.panel}
           hudMessage={w.hudMessage}
           bangumiId={w.bangumiId}
-          episodeNumber={w.episode?.episode ?? 1}
+          episodeNumber={
+            w.episode?.entryEp ??
+            (w.episode?.sourceIndex !== undefined
+              ? w.episode.sourceIndex + 1
+              : (w.episode?.episode ?? 1))
+          }
           episodeIndex={w.episode?.sourceIndex ?? (w.episode?.episode === 1 ? 0 : undefined)}
           totalEpisodes={item?.totalEpisodes || item?.eps || 12}
           officialOpedData={w.bgmOpedData}

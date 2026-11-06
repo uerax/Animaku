@@ -9,6 +9,7 @@ import {
 
 const mockSlots12: PlayableSlot[] = Array.from({ length: 12 }, (_, i) => ({
   canonicalEp: i + 1,
+  entryEp: i + 1,
   officialTitle: `第${i + 1}话`,
   displayTitle: `第${i + 1}话`,
   sourceIndex: i,
@@ -20,6 +21,7 @@ const mockSlots12: PlayableSlot[] = Array.from({ length: 12 }, (_, i) => ({
 const mockSingleMovieSlots: PlayableSlot[] = [
   {
     canonicalEp: 1,
+    entryEp: 1,
     officialTitle: '剧场版',
     displayTitle: '剧场版',
     sourceIndex: 0,

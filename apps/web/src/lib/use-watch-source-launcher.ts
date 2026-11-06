@@ -283,6 +283,7 @@ export function useWatchSourceLauncher({
           setEpisode({
             pageUrl: targetPageUrl,
             episode: epNum,
+            entryEp: targetSlot.entryEp,
             road: roadIdx,
             sourceIndex: targetSlot.sourceIndex,
             officialTitle: targetSlot.officialTitle,
@@ -422,6 +423,7 @@ export function useWatchSourceLauncher({
         setEpisode({
           pageUrl: targetPageUrl,
           episode: epNum,
+          entryEp: targetSlot?.entryEp,
           road: roadIdx,
           sourceIndex: targetSlot?.sourceIndex ?? 0,
           officialTitle: targetSlot?.officialTitle,

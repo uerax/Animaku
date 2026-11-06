@@ -95,6 +95,7 @@ export type SourceSelection = {
 export type EpisodePlay = {
   pageUrl: string
   episode: number
+  entryEp?: number
   road: number
   sourceIndex?: number
   officialTitle?: string
@@ -514,14 +515,20 @@ export function useWatchSession(bangumiId: number): WatchSession {
     resetSearchState,
   } = sourceSearch
 
+  const effectiveEntryEp =
+    episode?.entryEp ??
+    (episode?.sourceIndex !== undefined
+      ? episode.sourceIndex + 1
+      : (episode?.episode ?? (qEp !== undefined && qEp >= 0 ? qEp : 1)))
+
   const dm = useDanmakuSession({
     bangumiId,
-    episode: episode?.episode ?? (qEp !== undefined && qEp >= 0 ? qEp : 1),
+    episode: effectiveEntryEp,
     title,
     pluginName: selection?.plugin.name || qPlugin || undefined,
     titleRefs,
     matchKey: episode
-      ? `${selection?.plugin.name || qPlugin}|${episode.pageUrl}|${episode.episode}`
+      ? `${selection?.plugin.name || qPlugin}|${episode.pageUrl}|${effectiveEntryEp}`
       : null,
     autoMatch: Boolean(
       (selection || qPlugin) && (episode || qPageUrl) && bangumiId && title,
@@ -727,6 +734,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
             setEpisode({
               pageUrl: targetPageUrl,
               episode: targetEpNum,
+              entryEp: targetSlot.entryEp,
               road: targetRoadIdx,
               sourceIndex: targetSlot.sourceIndex,
               officialTitle: targetSlot.officialTitle,
@@ -1005,6 +1013,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
       setEpisode({
         pageUrl: currentSlot.pageUrl,
         episode: currentSlot.canonicalEp,
+        entryEp: currentSlot.entryEp,
         road: episode.road,
         sourceIndex: currentSlot.sourceIndex,
         officialTitle: currentSlot.officialTitle,
@@ -1154,6 +1163,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
             setEpisode({
               pageUrl: targetSlot.pageUrl,
               episode: targetSlot.canonicalEp,
+              entryEp: targetSlot.entryEp,
               road: curEp.road,
               sourceIndex: targetSlot.sourceIndex,
               officialTitle: targetSlot.officialTitle,
@@ -1185,13 +1195,17 @@ export function useWatchSession(bangumiId: number): WatchSession {
   // ── bangumi-oped: per-show OP/ED timestamps & player settings ───────
   const activePluginName =
     selection?.plugin.name || qPlugin || activeTargetPlugin?.name || ''
-  const rawEp = episode?.episode ?? (qEp !== undefined && qEp >= 0 ? qEp : 0)
+  const effectiveEntryEpForOped =
+    episode?.entryEp ??
+    (episode?.sourceIndex !== undefined
+      ? episode.sourceIndex + 1
+      : (episode?.episode ?? (qEp !== undefined && qEp >= 0 ? qEp : 0)))
 
   const { resolvedPlayerSettings, bgmOpedData, expectedDurationSeconds } =
     useWatchOpedSettings({
       bangumiId,
       activePluginName,
-      episodeNumber: rawEp,
+      episodeNumber: effectiveEntryEpForOped,
       playerSettings,
     })
 

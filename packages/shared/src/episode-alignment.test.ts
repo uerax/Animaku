@@ -223,3 +223,29 @@ test('Scenario 10 (Layer 2 Long Series / One Piece): series > 20 eps forces norm
   assert.equal(slots[24].sourceTitle, '必杀足技炸裂！香吉士VS铁壁巴鲁')
 })
 
+test('Scenario 11: Split-cour / Season 2 (Subject 584847: sort 14..25 with ep 1..12)', () => {
+  const part2Official = [
+    { type: 0, sort: 14, ep: 1, name: '君と先輩の駆け落ち', name_cn: '你与学姐的私奔' },
+    { type: 0, sort: 15, ep: 2, name: 'いつか思いだす遠くの空の青い夜', name_cn: '某天忆起遥远天空下的青涩夜晚' },
+    { type: 0, sort: 16, ep: 3, name: '明日の風', name_cn: '明日之风' },
+  ]
+  const sourceRoad = {
+    data: ['url/1', 'url/2', 'url/3'],
+    identifier: ['01', '02', '03'],
+  }
+  const slots = buildPlayableSlots(sourceRoad, part2Official)
+  assert.equal(slots.length, 3)
+  assert.equal(slots[0].canonicalEp, 14, 'Canonical broadcast episode is 14 for UI display')
+  assert.equal(slots[0].entryEp, 1, 'Entry episode is 1 for Danmaku and AniSkip matching')
+  assert.equal(slots[0].displayTitle, '第14话')
+  assert.equal(slots[0].officialTitle, '你与学姐的私奔')
+
+  assert.equal(slots[1].canonicalEp, 15)
+  assert.equal(slots[1].entryEp, 2)
+  assert.equal(slots[1].displayTitle, '第15话')
+  assert.equal(slots[1].officialTitle, '某天忆起遥远天空下的青涩夜晚')
+
+  assert.equal(slots[2].canonicalEp, 16)
+  assert.equal(slots[2].entryEp, 3)
+})
+

@@ -286,10 +286,15 @@ export function useBangumiEpisodesDuration(
       const episodes = res.data ?? []
       const map = new Map<number, number>()
       for (const ep of episodes) {
-        const n = ep.ep ?? ep.sort
-        if (n > 0 && ep.duration_seconds > 0) {
-          // First occurrence wins (may have SP/OP/ED rows mixed in)
-          if (!map.has(n)) map.set(n, ep.duration_seconds)
+        if (ep.duration_seconds > 0) {
+          // 统一支持条目内脚标 (ep.ep: 1, 2, 3...) 与放送编号 (ep.sort: 14, 15, 16...) 双向索引
+          const entryNum = ep.ep && ep.ep > 0 ? ep.ep : undefined
+          if (entryNum && !map.has(entryNum)) {
+            map.set(entryNum, ep.duration_seconds)
+          }
+          if (ep.sort > 0 && !map.has(ep.sort)) {
+            map.set(ep.sort, ep.duration_seconds)
+          }
         }
       }
       return map
