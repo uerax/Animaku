@@ -70,6 +70,10 @@ export function UserDropdown() {
     preloadRoute('/history')
   }
 
+  const onWarmupTimeline = () => {
+    preloadRoute('/timeline')
+  }
+
   const handleLogout = async () => {
     setOpen(false)
     await logout()
@@ -246,6 +250,36 @@ export function UserDropdown() {
                 <span>观看历史</span>
               </div>
               <span className="text-[10px] text-[var(--kz-fg-dim)]">最近播放</span>
+            </Link>
+
+            {/* 每日时间表 */}
+            <Link
+              to="/timeline"
+              role="menuitem"
+              onMouseEnter={onWarmupTimeline}
+              onFocus={onWarmupTimeline}
+              onTouchStart={onWarmupTimeline}
+              onClick={() => setOpen(false)}
+              className="flex items-center justify-between rounded-xl px-3 py-2 text-xs font-medium text-[var(--kz-fg)] transition-colors hover:bg-[var(--kz-bg-hover)] hover:text-[var(--kz-accent)]"
+            >
+              <div className="flex items-center gap-2.5">
+                <svg
+                  className="h-4 w-4 text-[var(--kz-fg-muted)]"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+                <span>每日时间表</span>
+              </div>
+              <span className="text-[10px] text-[var(--kz-fg-dim)]">追番放送</span>
             </Link>
 
             {/* 分割线 */}
