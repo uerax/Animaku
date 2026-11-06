@@ -1594,3 +1594,34 @@ html[data-theme='dark'] .kz-source-pill--retry:hover {
     background: var(--kz-scroll-thumb-hover);
   }
 }
+
+/* Bilibili-style playful elastic bounce on nav link hover */
+@keyframes kz-nav-bounce {
+  0% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-3.5px);
+  }
+  60% {
+    transform: translateY(1px);
+  }
+  85% {
+    transform: translateY(-0.5px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .kz-nav-title:hover {
+    animation: kz-nav-bounce 0.6s ease-out;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kz-nav-title:hover {
+    animation: none !important;
+  }
+}

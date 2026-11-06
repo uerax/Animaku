@@ -7,10 +7,6 @@
  */
 
 export const routeImports = {
-  anime: () =>
-    import('../pages/AnimePage').then((m) => ({ default: m.AnimePage })),
-  timeline: () =>
-    import('../pages/TimelinePage').then((m) => ({ default: m.TimelinePage })),
   collect: () =>
     import('../pages/CollectPage').then((m) => ({ default: m.CollectPage })),
   history: () =>
@@ -32,8 +28,6 @@ export type RouteKey = keyof typeof routeImports
 /** Path prefix to route key mapping */
 function normalizeRoutePath(path: string): RouteKey | null {
   const clean = path.split('?')[0].split('#')[0]
-  if (clean === '/anime' || clean.startsWith('/anime/')) return 'anime'
-  if (clean === '/timeline' || clean.startsWith('/timeline/')) return 'timeline'
   if (clean === '/collect' || clean.startsWith('/collect/')) return 'collect'
   if (clean === '/history' || clean.startsWith('/history/')) return 'history'
   if (clean === '/settings' || clean.startsWith('/settings/')) return 'settings'
@@ -85,8 +79,6 @@ export function preloadCoreNavigationRoutes(): void {
   if (shouldSkipIdlePreload()) return
 
   const coreRoutes: RouteKey[] = [
-    'anime',
-    'timeline',
     'collect',
     'history',
     'settings',

@@ -72,7 +72,7 @@ export function NavLinks() {
       className="flex h-full min-w-0 items-center gap-1 sm:gap-2 lg:gap-3"
       aria-label="主导航"
     >
-      {/* Primary destinations with active sliding underline */}
+      {/* Primary destinations with active underline indicator */}
       {mainLinks.map((link) => {
         const isActive = link.end
           ? location.pathname === link.to
@@ -95,18 +95,13 @@ export function NavLinks() {
                 : 'text-[var(--kz-fg-muted)] hover:text-[var(--kz-fg)]',
             )}
           >
-            <span className="relative flex items-center justify-center py-1 transition-transform duration-150 group-hover:-translate-y-[1px] group-active:scale-95">
-              <span>{link.label}</span>
+            <span className="relative flex items-center justify-center py-1">
+              <span className="kz-nav-title inline-block">{link.label}</span>
 
-              {/* 贴近文字底部的灵动指示小横条 (抬高至文字下方约 5px) */}
+              {/* 贴近文字底部的激活指示小横条 (静态纯 CSS，无跨组件位移动画开销) */}
               {isActive && (
-                <motion.span
-                  layoutId="nav-underline"
-                  transition={
-                    isReducedMotion
-                      ? { duration: 0 }
-                      : { type: 'spring', damping: 30, stiffness: 400 }
-                  }
+                <span
+                  aria-hidden="true"
                   className="absolute -bottom-1.5 inset-x-0 h-[2.5px] rounded-full bg-[var(--kz-accent)]"
                 />
               )}
@@ -132,8 +127,8 @@ export function NavLinks() {
             )}
             title={link.title}
           >
-            <span className="relative flex items-center gap-1.5 py-1 transition-transform duration-150 group-hover:-translate-y-[1px]">
-              <span>{link.title}</span>
+            <span className="relative flex items-center gap-1.5 py-1">
+              <span className="kz-nav-title inline-block">{link.title}</span>
               {link.badge && (
                 <span
                   className={clsx(

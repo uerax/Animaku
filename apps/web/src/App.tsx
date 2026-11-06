@@ -4,13 +4,13 @@ import { Layout } from './components/Layout'
 import { LoadingState } from './components/ui'
 import { routeImports } from './lib/route-preload'
 
-// Keep HomePage and NotFoundPage in the initial chunk for instantaneous render
+// Keep core navigation pages and NotFoundPage in the initial chunk for instantaneous render
 import { HomePage } from './pages/HomePage'
+import { AnimePage } from './pages/AnimePage'
+import { TimelinePage } from './pages/TimelinePage'
 import { NotFoundPage } from './pages/NotFoundPage'
 
-// Route-level code splitting: lazy-load non-index pages using unified preload loaders
-const TimelinePage = lazy(routeImports.timeline)
-const AnimePage = lazy(routeImports.anime)
+// Route-level code splitting: lazy-load secondary pages using unified preload loaders
 const SearchPage = lazy(routeImports.search)
 const CollectPage = lazy(routeImports.collect)
 const HistoryPage = lazy(routeImports.history)
@@ -32,22 +32,8 @@ export default function App() {
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<HomePage />} />
-        <Route
-          path="timeline"
-          element={
-            <Suspense fallback={<PageFallback />}>
-              <TimelinePage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="anime"
-          element={
-            <Suspense fallback={<PageFallback />}>
-              <AnimePage />
-            </Suspense>
-          }
-        />
+        <Route path="timeline" element={<TimelinePage />} />
+        <Route path="anime" element={<AnimePage />} />
         <Route
           path="search"
           element={
