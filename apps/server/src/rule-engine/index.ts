@@ -912,6 +912,22 @@ export async function searchWithRule(
     }
   }
 
+  // akianime — dedicated adapter (HTML search + detail hash links)
+  {
+    const { isAkianimeRule, searchAkianime } = await import('../lib/akianime')
+    if (isAkianimeRule(rule)) {
+      try {
+        return await searchAkianime(rule, keyword)
+      } catch (e) {
+        return {
+          pluginName: rule.name,
+          items: [],
+          diagnostics: [e instanceof Error ? e.message : String(e)],
+        }
+      }
+    }
+  }
+
   // neosek — dedicated adapter (RESTful JSON API + &content_type=anime)
   {
     const { isNeosekRule, searchNeosek } = await import('../lib/neosek')
@@ -1308,6 +1324,22 @@ export async function chaptersWithRule(
     if (isTvTFunRule(rule)) {
       try {
         return await chaptersTvTFun(rule, source)
+      } catch (e) {
+        return {
+          pluginName: rule.name,
+          roads: [],
+          diagnostics: [e instanceof Error ? e.message : String(e)],
+        }
+      }
+    }
+  }
+
+  // akianime — dedicated adapter (HTML multi-road chapters + YDY prioritized)
+  {
+    const { isAkianimeRule, chaptersAkianime } = await import('../lib/akianime')
+    if (isAkianimeRule(rule)) {
+      try {
+        return await chaptersAkianime(rule, source)
       } catch (e) {
         return {
           pluginName: rule.name,
@@ -1950,6 +1982,14 @@ export async function resolvePlay(
     const { isTvTFunRule, resolveTvTFun } = await import('../lib/tvtfun')
     if (isTvTFunRule(rule)) {
       return wrapResolveWithTicket(rule, await resolveTvTFun(rule, pageUrl))
+    }
+  }
+
+  // akianime: dedicated adapter (player_aaaa & aniplayer CMECloud MP4 direct stream)
+  {
+    const { isAkianimeRule, resolveAkianime } = await import('../lib/akianime')
+    if (isAkianimeRule(rule)) {
+      return wrapResolveWithTicket(rule, await resolveAkianime(rule, pageUrl))
     }
   }
 

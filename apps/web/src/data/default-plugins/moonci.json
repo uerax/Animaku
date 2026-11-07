@@ -3,7 +3,7 @@
   "type": "anime",
   "name": "moonci",
   "version": "1.0",
-  "weight": 58,
+  "weight": 57,
   "titlePreference": "chinese",
   "muliSources": true,
   "useWebview": false,

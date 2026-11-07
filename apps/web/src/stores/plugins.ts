@@ -46,7 +46,8 @@ migrateLocalStorageKey('animaku-plugins', [
 /** v40: add neosek (neosek.ai) built-in with weight 60 */
 /** v41: add bimi (bimiacg14.net) built-in with weight 61 */
 /** v42: add explicit iconUrl to built-in rules */
-export const PLUGIN_DEFAULTS_VERSION = 42
+/** v43: add akianime (akianime.cc) built-in with weight 58 & tune source weights */
+export const PLUGIN_DEFAULTS_VERSION = 43
 
 interface PluginState {
   plugins: PluginMeta[]

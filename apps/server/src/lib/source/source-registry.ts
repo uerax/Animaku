@@ -16,6 +16,7 @@ import { anime1Adapter } from './adapters/anime1'
 import { animoeAdapter } from './adapters/animoe'
 import { soraniAdapter } from './adapters/sorani'
 import { neosekAdapter } from './adapters/neosek'
+import { akianimeAdapter } from './adapters/akianime'
 import { bimiAdapter } from './adapters/bimi'
 
 export interface SourceRegistryOptions {
@@ -47,6 +48,7 @@ export class SourceRegistry {
       animoeAdapter,
       soraniAdapter,
       neosekAdapter,
+      akianimeAdapter,
       bimiAdapter,
     ]
 
@@ -123,6 +125,16 @@ export class SourceRegistry {
       normalized === 'neosek.ai'
     ) {
       return this.adapters.get('neosekai') || null
+    }
+    if (
+      normalized === 'akianime' ||
+      normalized === 'akianime.cc' ||
+      normalized === 'akianime.com' ||
+      normalized === 'aki' ||
+      normalized === 'aki_anime' ||
+      normalized === 'akianime最新动漫'
+    ) {
+      return this.adapters.get('akianime') || null
     }
     if (
       normalized === 'bimi' ||
