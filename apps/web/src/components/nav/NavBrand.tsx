@@ -37,7 +37,7 @@ export function NavBrand({ onNavigate }: NavBrandProps) {
       </div>
 
       {/* Brand title & tagline */}
-      <div className="flex flex-col leading-tight">
+      <div className="hidden flex-col leading-tight sm:flex">
         <span className="text-[14.5px] font-extrabold tracking-tight bg-gradient-to-r from-[var(--kz-fg)] via-[var(--kz-fg)] to-[var(--kz-fg-muted)] group-hover:to-[var(--kz-accent)] bg-clip-text text-transparent transition-all duration-300 sm:text-[16px]">
           {b.productName}
         </span>
