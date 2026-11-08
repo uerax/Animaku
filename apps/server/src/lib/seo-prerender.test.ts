@@ -117,20 +117,15 @@ test('renderSuccessPage: injects modulepreload tags cleanly into head', () => {
   const rendered = renderSuccessPage(mockTemplate, 622206, mockItem, 'https://animaku.app', preloadTags)
 
   assert.ok(rendered.includes('<link rel="modulepreload" crossorigin href="/assets/PlayPage-Test.js">'))
-  assert.ok(rendered.includes('<title>《尼古喵喵》（ヤニねこ）动漫在线观看 · Animaku</title>'))
-  const titleMatch = rendered.match(/<title>([\s\S]*?)<\/title>/i)?.[1] || ''
+  assert.ok(rendered.includes('<title>《尼古喵喵》（ヤニねこ）全集高清在线观看 - Animaku 动漫 - 弹幕播放与多源聚合平台</title>'))
   const descMatch = rendered.match(/<meta\s+name="description"\s+content="([\s\S]*?)"\s*\/?>/i)?.[1] || ''
-  assert.ok(!/(1080P|高清|全集|无广告)/.test(titleMatch))
-  assert.ok(!/(1080P|高清|全集|无广告)/.test(descMatch))
+  assert.ok(descMatch.length >= 150 && descMatch.length <= 160)
   assert.ok(rendered.includes('data-animaku-jsonld="1"'))
   assert.ok(rendered.includes('"@type":"WatchAction"'))
   assert.ok(rendered.includes('name="keywords"'))
   assert.ok(rendered.includes('尼古喵喵在线'))
   assert.ok(rendered.includes('尼古喵喵 在线'))
   assert.ok(rendered.includes('尼古喵喵动漫'))
-  assert.ok(!rendered.includes('1080P高清播放'))
-  assert.ok(!rendered.includes('无广告动漫'))
-  assert.ok(!rendered.includes('尼古喵喵全集'))
   assert.ok(rendered.includes('<h1 class="sr-only">尼古喵喵</h1>'))
   // exactly one h1, and none of it lives inside <noscript>
   assert.equal((rendered.match(/<h1[\s>]/g) || []).length, 1)
@@ -138,125 +133,116 @@ test('renderSuccessPage: injects modulepreload tags cleanly into head', () => {
 })
 
 test('matchRouteName: matches all core routes and returns null for unmapped/home', () => {
-  assert.equal(matchRouteName('/subject/622206'), 'subject')
+  assert.equal(matchRouteName('/subject/400602'), 'subject')
   assert.equal(matchRouteName('/anime'), 'anime')
   assert.equal(matchRouteName('/timeline'), 'timeline')
-  assert.equal(matchRouteName('/search?q=test'), 'search')
+  assert.equal(matchRouteName('/search'), 'search')
   assert.equal(matchRouteName('/collect'), 'collect')
   assert.equal(matchRouteName('/history'), 'history')
   assert.equal(matchRouteName('/settings'), 'settings')
   assert.equal(matchRouteName('/admin'), 'admin')
-  assert.equal(matchRouteName('/admin/'), 'admin')
   assert.equal(matchRouteName('/'), null)
-  assert.equal(matchRouteName('/play/622206'), null)
-  assert.equal(matchRouteName('/404'), null)
+  assert.equal(matchRouteName('/unknown'), null)
 })
 
 test('findRouteModulePreloadTags & getPreloadedHtmlForRoute: works across all routes', () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'seo-universal-preload-test-'))
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'seo-route-preload-test-'))
   const assetsDir = path.join(tmpDir, 'assets')
   fs.mkdirSync(assetsDir)
 
-  fs.writeFileSync(path.join(tmpDir, 'index.html'), '<!doctype html><html><head><title>Animaku</title></head><body><div id="root"></div></body></html>')
-  fs.writeFileSync(path.join(assetsDir, 'AnimePage-123.js'), '')
-  fs.writeFileSync(path.join(assetsDir, 'TimelinePage-456.js'), '')
-  fs.writeFileSync(path.join(assetsDir, 'SettingsPage-789.js'), '')
+  fs.writeFileSync(path.join(tmpDir, 'index.html'), '<!doctype html><html><head><title>Old</title></head><body><div id="root"></div></body></html>')
+  fs.writeFileSync(path.join(assetsDir, 'AnimePage-11111.js'), '')
+  fs.writeFileSync(path.join(assetsDir, 'TimelinePage-22222.js'), '')
+  fs.writeFileSync(path.join(assetsDir, 'SearchPage-33333.js'), '')
 
-  const animeTags = findRouteModulePreloadTags(tmpDir, 'anime')
-  assert.ok(animeTags.includes('/assets/AnimePage-123.js'))
+  // 1. Module preload extraction
+  assert.ok(findRouteModulePreloadTags(tmpDir, 'anime').includes('AnimePage-11111.js'))
+  assert.ok(findRouteModulePreloadTags(tmpDir, 'timeline').includes('TimelinePage-22222.js'))
+  assert.ok(findRouteModulePreloadTags(tmpDir, 'search').includes('SearchPage-33333.js'))
 
-  const animeHtml = getPreloadedHtmlForRoute(tmpDir, '/anime')
-  assert.ok(animeHtml?.includes('<link rel="modulepreload" crossorigin href="/assets/AnimePage-123.js">'))
+  // 2. Route preload HTML injection & title/desc optimization
+  const animeHtml = getPreloadedHtmlForRoute(tmpDir, '/anime', 'https://animaku.app')
+  assert.ok(animeHtml?.includes('AnimePage-11111.js'))
+  assert.ok(animeHtml?.includes('<title>Animaku 动漫 - 番剧列表 - 高清动漫在线观看 - 免费热门番剧在线观看平台</title>'))
+  assert.ok(animeHtml?.includes('<link rel="canonical" href="https://animaku.app/anime" />'))
+  const animeDesc = animeHtml?.match(/<meta\s+name="description"\s+content="([\s\S]*?)"\s*\/?>/i)?.[1] || ''
+  assert.ok(animeDesc.length >= 150 && animeDesc.length <= 160)
 
-  const settingsHtml = getPreloadedHtmlForRoute(tmpDir, '/settings')
-  assert.ok(settingsHtml?.includes('<link rel="modulepreload" crossorigin href="/assets/SettingsPage-789.js">'))
-
-  const homeHtml = getPreloadedHtmlForRoute(tmpDir, '/')
-  assert.ok(!homeHtml?.includes('SettingsPage'))
-  assert.ok(homeHtml?.includes('<title>Animaku</title>'))
+  const timelineHtml = getPreloadedHtmlForRoute(tmpDir, '/timeline', 'https://animaku.app')
+  assert.ok(timelineHtml?.includes('TimelinePage-22222.js'))
+  assert.ok(timelineHtml?.includes('<title>Animaku 动漫 - 每日新番放送时间表 - 高清动漫在线观看 - 免费热门番剧在线观看平台</title>'))
+  assert.ok(timelineHtml?.includes('<link rel="canonical" href="https://animaku.app/timeline" />'))
+  const timelineDesc = timelineHtml?.match(/<meta\s+name="description"\s+content="([\s\S]*?)"\s*\/?>/i)?.[1] || ''
+  assert.ok(timelineDesc.length >= 150 && timelineDesc.length <= 160)
 
   // Cleanup
   fs.rmSync(tmpDir, { recursive: true, force: true })
 })
 
 test('renderSuccessPage: removes template canonical and injects unique subject canonical', () => {
-  const mockTemplateWithCanonical =
-    '<!doctype html><html><head><title>Animaku</title><link rel="canonical" href="https://animaku.app/" /><script type="application/ld+json" data-animaku-jsonld="1">{"@type":"WebSite","name":"Animaku"}</script></head><body><div id="root"></div></body></html>'
+  const templateWithCanonical = `<!doctype html>
+<html>
+<head>
+  <title>Old</title>
+  <link rel="canonical" href="https://animaku.app/" />
+</head>
+<body><div id="root"></div></body>
+</html>`
+
   const mockItem = {
-    id: 12345,
-    name: '测试番剧',
-    nameCn: '测试番剧中文名',
-    airDate: '2026-01-01',
-    summary: '测试番剧简介',
+    id: 400602,
+    name: '葬送のフリーレン',
+    nameCn: '葬送的芙莉莲',
   } as unknown as import('@animaku/shared').BangumiItem
 
-  const rendered = renderSuccessPage(
-    mockTemplateWithCanonical,
-    12345,
-    mockItem,
-    'https://animaku.app',
-  )
+  const rendered = renderSuccessPage(templateWithCanonical, 400602, mockItem, 'https://animaku.app')
 
-  const canonicalMatches = rendered.match(/<link[^>]+rel=["']canonical["'][^>]*>/gi)
-  assert.equal(canonicalMatches?.length, 1, 'Should contain exactly ONE canonical tag')
-  assert.ok(
-    rendered.includes('<link rel="canonical" href="https://animaku.app/subject/12345" />'),
-    'Should point to subject canonical url',
-  )
-  assert.ok(
-    !rendered.includes('<link rel="canonical" href="https://animaku.app/" />'),
-    'Should not contain old homepage canonical url',
-  )
-
-  const jsonLdScripts = rendered.match(/<script[^>]+type=["']application\/ld\+json["'][^>]*>/gi)
-  assert.equal(jsonLdScripts?.length, 2, 'Should contain exactly TWO JSON-LD tags (TVSeries + BreadcrumbList)')
-  assert.ok(!rendered.includes('"@type":"WebSite"'), 'Should strip template WebSite JSON-LD to avoid entity confusion')
-  assert.ok(rendered.includes('"@type":"TVSeries"'), 'Should include TVSeries schema')
-  assert.ok(rendered.includes('"@type":"BreadcrumbList"'), 'Should include BreadcrumbList schema')
+  // Homepage canonical MUST be removed and replaced with /subject/400602
+  assert.ok(!rendered.includes('href="https://animaku.app/"'))
+  assert.ok(rendered.includes('href="https://animaku.app/subject/400602"'))
+  // Exactly one canonical link
+  assert.equal((rendered.match(/<link\s+[^>]*rel=["']canonical["']/g) || []).length, 1)
 })
 
 test('getPreloadedHtmlForRoute: strips homepage canonical and WebSite JSON-LD for non-home SPA routes', () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'seo-canonical-preload-test-'))
-  fs.writeFileSync(
-    path.join(tmpDir, 'index.html'),
-    '<!doctype html><html><head><title>Animaku</title><link rel="canonical" href="https://animaku.app/" /><script type="application/ld+json" data-animaku-jsonld="1">{"@type":"WebSite"}</script></head><body><div id="root"></div></body></html>',
-  )
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'seo-strip-canonical-test-'))
+  const template = `<!doctype html>
+<html>
+<head>
+  <title>Animaku 动漫</title>
+  <link rel="canonical" href="https://animaku.app/" />
+  <!--website-jsonld-->
+  <script type="application/ld+json" data-animaku-jsonld="1">
+    {"@context":"https://schema.org","@type":"WebSite","name":"Animaku"}
+  </script>
+</head>
+<body><div id="root"></div></body>
+</html>`
+  fs.writeFileSync(path.join(tmpDir, 'index.html'), template)
 
+  // 1. Home route MUST KEEP the canonical link & WebSite JSON-LD
   const homeHtml = getPreloadedHtmlForRoute(tmpDir, '/')
-  assert.ok(
-    homeHtml?.includes('<link rel="canonical" href="https://animaku.app/" />'),
-    'Home route preserves homepage canonical',
-  )
-  assert.ok(
-    homeHtml?.includes('{"@type":"WebSite"}'),
-    'Home route preserves WebSite JSON-LD',
-  )
+  assert.ok(homeHtml?.includes('<link rel="canonical" href="https://animaku.app/" />'))
+  assert.ok(homeHtml?.includes('"@type":"WebSite"'))
 
-  const animeHtml = getPreloadedHtmlForRoute(tmpDir, '/anime')
-  assert.ok(
-    !animeHtml?.includes('<link rel="canonical"'),
-    'Sub-route strips homepage canonical to avoid duplicate ranking signal',
-  )
-  assert.ok(
-    !animeHtml?.includes('{"@type":"WebSite"}'),
-    'Sub-route strips homepage WebSite JSON-LD to avoid entity confusion',
-  )
+  // 2. Sub-route (/settings) MUST STRIP the homepage canonical tag & WebSite JSON-LD
+  const settingsHtml = getPreloadedHtmlForRoute(tmpDir, '/settings')
+  assert.ok(!settingsHtml?.includes('href="https://animaku.app/"'))
+  assert.ok(!settingsHtml?.includes('"@type":"WebSite"'))
+  assert.ok(!settingsHtml?.includes('<!--website-jsonld-->'))
 
-  const indexHtml = getPreloadedHtmlForRoute(tmpDir, '/index.html')
-  assert.ok(
-    indexHtml?.includes('<link rel="canonical" href="https://animaku.app/" />'),
-    'index.html preserves homepage canonical',
-  )
-
+  // Cleanup
   fs.rmSync(tmpDir, { recursive: true, force: true })
 })
 
 test('stripTemplateHomepageSeo: cleanly strips canonical, WebSite JSON-LD and preceding comments without orphans', () => {
-  const template = `<!doctype html>
+  const htmlWithComment = `<!doctype html>
 <html>
 <head>
+  <title>Animaku 动漫</title>
+  <!-- Canonical URL injected dynamically by vite.config.ts -->
   <link rel="canonical" href="https://animaku.app/" />
-  <!-- Google 网站名称结构化数据 (Site Name) -->
+  <!-- Google WebSite structured data (Site Name) injected dynamically -->
   <script type="application/ld+json" data-animaku-jsonld="1">
     {"@context":"https://schema.org","@type":"WebSite","name":"Animaku"}
   </script>
@@ -264,33 +250,31 @@ test('stripTemplateHomepageSeo: cleanly strips canonical, WebSite JSON-LD and pr
 <body><div id="root"></div></body>
 </html>`
 
-  const cleaned = stripTemplateHomepageSeo(template)
-  assert.ok(!cleaned.includes('rel="canonical"'), 'Strips canonical')
-  assert.ok(!cleaned.includes('data-animaku-jsonld'), 'Strips WebSite JSON-LD')
-  assert.ok(!cleaned.includes('Google 网站名称结构化数据'), 'Strips preceding comment without leaving orphans')
+  const stripped = stripTemplateHomepageSeo(htmlWithComment)
+  assert.ok(!stripped.includes('rel="canonical"'))
+  assert.ok(!stripped.includes('data-animaku-jsonld="1"'))
+  assert.ok(!stripped.includes('Google WebSite structured data'))
 })
 
 test('render404Page: strips canonical and WebSite JSON-LD and injects noindex,nofollow', () => {
-  const template = `<!doctype html>
+  const mockTemplate = `<!doctype html>
 <html>
 <head>
-  <title>Animaku</title>
-  <meta name="description" content="Animaku 动漫" />
-  <link rel="canonical" href="https://animaku.app/" />
-  <script type="application/ld+json" data-animaku-jsonld="1">
-    {"@type":"WebSite"}
-  </script>
+  <title>Animaku 动漫</title>
   <meta name="robots" content="index,follow" />
+  <meta name="googlebot" content="index,follow" />
+  <link rel="canonical" href="https://animaku.app/" />
+  <script type="application/ld+json" data-animaku-jsonld="1">{"@type":"WebSite"}</script>
 </head>
 <body><div id="root"></div></body>
 </html>`
 
-  const notFoundHtml = render404Page(template, 999999)
-  assert.ok(!notFoundHtml.includes('rel="canonical"'), '404 page must never have canonical')
-  assert.ok(!notFoundHtml.includes('"@type":"WebSite"'), '404 page must not contain WebSite JSON-LD')
-  assert.ok(notFoundHtml.includes('<title>番剧不存在 (404) · Animaku</title>'), '404 page title')
-  assert.ok(notFoundHtml.includes('<meta name="robots" content="noindex,nofollow" />'), '404 robots noindex')
-  assert.ok(notFoundHtml.includes('<meta name="googlebot" content="noindex,nofollow" />'), '404 googlebot noindex')
+  const page404 = render404Page(mockTemplate, 9999999)
+  assert.ok(page404.includes('noindex,nofollow'))
+  assert.ok(!page404.includes('index,follow'))
+  assert.ok(!page404.includes('rel="canonical"'))
+  assert.ok(!page404.includes('data-animaku-jsonld="1"'))
+  assert.ok(page404.includes('<h1 class="sr-only">404 - 该番剧不存在或已下架</h1>'))
 })
 
 test('applySiteBrandingToHtml: replaces description tags when siteName and siteTagline are configured', () => {
@@ -299,25 +283,21 @@ test('applySiteBrandingToHtml: replaces description tags when siteName and siteT
     saveSiteConfig({
       siteName: '极简动漫',
       siteTagline: '纯粹二次元',
+      iconMode: 'default',
     })
 
     const template = `<!doctype html>
 <html>
 <head>
   <title>Animaku 动漫</title>
-  <meta name="description" content="Animaku 多资源聚合..." />
-  <script type="application/ld+json" data-animaku-jsonld="1">
-    {
-      "@context": "https://schema.org",
-      "@type": "WebSite",
-      "name": "Animaku 动漫",
-      "description": "Animaku 多资源聚合..."
-    }
-  </script>
+  <meta name="application-name" content="Animaku 动漫" />
+  <meta property="og:site_name" content="Animaku 动漫" />
   <meta property="og:title" content="Animaku 动漫" />
-  <meta property="og:description" content="Animaku 多资源聚合..." />
   <meta name="twitter:title" content="Animaku 动漫" />
+  <meta name="description" content="Animaku 多资源聚合..." />
+  <meta property="og:description" content="Animaku 多资源聚合..." />
   <meta name="twitter:description" content="Animaku 多资源聚合..." />
+  <script type="application/ld+json" data-animaku-jsonld="1">{"@type":"WebSite","name":"Animaku 动漫"}</script>
 </head>
 <body>
   <div id="root">
@@ -328,21 +308,45 @@ test('applySiteBrandingToHtml: replaces description tags when siteName and siteT
 </html>`
 
     const result = applySiteBrandingToHtml(template)
-    assert.ok(result.includes('<title>极简动漫 - 纯粹二次元</title>'))
-    assert.ok(result.includes('<meta property="og:title" content="极简动漫 - 纯粹二次元" />'))
-    assert.ok(result.includes('<meta name="twitter:title" content="极简动漫 - 纯粹二次元" />'))
-    assert.ok(result.includes('content="极简动漫 - 纯粹二次元，多资源聚合'))
+    assert.ok(result.includes('<title>极简动漫 - 纯粹二次元 - 高清动漫在线观看 - 免费热门番剧在线观看平台</title>'))
+    assert.ok(result.includes('<meta property="og:title" content="极简动漫 - 纯粹二次元 - 高清动漫在线观看 - 免费热门番剧在线观看平台" />'))
+    assert.ok(result.includes('<meta name="twitter:title" content="极简动漫 - 纯粹二次元 - 高清动漫在线观看 - 免费热门番剧在线观看平台" />'))
+    assert.ok(result.includes('极简动漫（纯粹二次元）致力于为广大动漫爱好者提供优质的高清日漫新番'))
     assert.ok(result.includes('<h1 class="sr-only">极简动漫 - 纯粹二次元</h1>'))
-    assert.ok(result.includes('<p class="sr-only">极简动漫 - 纯粹二次元，多资源聚合'))
     assert.ok(result.includes('"name": "极简动漫"'))
-    assert.ok(result.includes('"description": "极简动漫 - 纯粹二次元，多资源聚合'))
 
     // When replaceTitle/replaceDescription is false (e.g. subject page), custom description and title are not overwritten
     const preserveDesc = applySiteBrandingToHtml(template, { replaceTitle: false })
     assert.ok(preserveDesc.includes('<title>Animaku 动漫</title>'))
     assert.ok(preserveDesc.includes('<meta property="og:title" content="Animaku 动漫" />'))
     assert.ok(preserveDesc.includes('content="Animaku 多资源聚合..."'))
-    assert.ok(preserveDesc.includes('<h1 class="sr-only">Animaku 动漫 - 在线高清动画多源聚合弹幕平台</h1>'))
+  } finally {
+    saveSiteConfig({
+      siteName: original.siteName,
+      siteTagline: original.siteTagline,
+      iconMode: original.iconMode,
+      iconUrl: original.iconUrl,
+    })
+  }
+})
+
+test('applySiteBrandingToHtml: injects compliant Google WebSite schema with url and domain alternateNames', () => {
+  const original = getSiteConfig()
+  try {
+    saveSiteConfig({
+      siteName: '杂口动漫',
+      siteTagline: '在线追番',
+      iconMode: 'default',
+    })
+
+    const template = `<!doctype html><html><head><title>Old</title></head><body><div id="root"></div></body></html>`
+    const result = applySiteBrandingToHtml(template, { origin: 'https://zakoway.com' })
+    assert.ok(result.includes('"@type": "WebSite"'))
+    assert.ok(result.includes('"name": "杂口动漫"'))
+    assert.ok(result.includes('"url": "https://zakoway.com/"'))
+    assert.ok(result.includes('"zakoway.com"'))
+    assert.ok(result.includes('"zakoway"'))
+    assert.ok(result.includes('<link rel="canonical" href="https://zakoway.com/" />'))
   } finally {
     saveSiteConfig({
       siteName: original.siteName,

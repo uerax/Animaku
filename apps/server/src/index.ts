@@ -405,7 +405,8 @@ if (webRoot) {
     ) {
       return next()
     }
-    const html = getPreloadedHtmlForRoute(webRoot, c.req.path)
+    const origin = resolvePublicOrigin(config.siteUrl, c.req)
+    const html = getPreloadedHtmlForRoute(webRoot, c.req.path, origin)
     if (html) {
       return new Response(html, {
         status: 200,

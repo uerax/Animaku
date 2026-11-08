@@ -6,15 +6,34 @@
  * Absolute OG / canonical URLs need VITE_SITE_URL (or runtime origin fallback).
  */
 
-import { formatDefaultDescription } from '@animaku/shared'
+import {
+  DEFAULT_SITE_NAME,
+  formatHomeTitle,
+  formatAnimeListTitle,
+  formatTimelineTitle,
+  formatSubjectTitle,
+  formatDefaultDescription,
+  formatAnimeListDescription,
+  formatTimelineDescription,
+  formatSubjectDescription,
+} from '@animaku/shared'
 import { useSiteConfigStore } from '../stores/site-config'
 
-export { formatDefaultDescription }
+export {
+  DEFAULT_SITE_NAME,
+  formatHomeTitle,
+  formatAnimeListTitle,
+  formatTimelineTitle,
+  formatSubjectTitle,
+  formatDefaultDescription,
+  formatAnimeListDescription,
+  formatTimelineDescription,
+  formatSubjectDescription,
+}
 
-export const SITE_NAME = 'Animaku 动漫'
+export const SITE_NAME = DEFAULT_SITE_NAME
 
-export const DEFAULT_DESCRIPTION =
-  'Animaku 多资源聚合的日漫番剧、剧场版动画在线观看，支持高性能自研弹幕播放、画质超分、OP / ED 智能跳过、Bangumi 每日更新时间表与追番历史。'
+export const DEFAULT_DESCRIPTION = formatDefaultDescription()
 
 /** Max length for meta description (search engines typically show ~150–160). */
 const DESC_MAX = 160
@@ -41,40 +60,40 @@ export const STATIC_ROUTE_SEO: Record<
   Omit<PageSeo, 'path' | 'image' | 'jsonLd'>
 > = {
   '/': {
-    title: 'Animaku 动漫',
+    title: formatHomeTitle(),
     description: DEFAULT_DESCRIPTION,
   },
   '/anime': {
-    title: '番剧目录',
-    description: '按标签与排序浏览 Bangumi 动画目录，点击进入详情与选源播放。',
+    title: formatAnimeListTitle(),
+    description: formatAnimeListDescription(),
   },
   '/timeline': {
-    title: '放送时间表',
-    description: '按星期查看 Bangumi 放送时间表，快速找到今日更新的动画。',
+    title: formatTimelineTitle(),
+    description: formatTimelineDescription(),
   },
   '/search': {
-    title: '搜索',
-    description: '在 Bangumi 中搜索动画，进入详情后选源播放。',
+    title: '搜索 - 高清动漫在线观看 - 免费热门番剧在线观看平台',
+    description: '在全网动画与Bangumi索引中搜索心仪动漫番剧，获取全集高清视频源与实时弹幕播放支持。',
     robots: 'noindex,follow',
   },
   '/collect': {
-    title: '追番',
-    description: 'Bangumi 收藏同步（需 Token）。本地私有列表，不对搜索引擎开放。',
+    title: '我的追番收藏',
+    description: 'Bangumi 收藏数据同步（需个人 Token）。本地私有追番列表，不对搜索引擎开放。',
     robots: 'noindex,nofollow',
   },
   '/history': {
-    title: '观看历史',
-    description: '本地浏览器保存的播放进度，不对搜索引擎开放。',
+    title: '本地播放历史',
+    description: '本地浏览器保存的动画播放进度与选集记录，不对搜索引擎开放。',
     robots: 'noindex,nofollow',
   },
   '/settings': {
-    title: '设置',
-    description: '规则、播放器、弹幕与账号相关设置。',
+    title: '播放与站点设置',
+    description: '视频源切换规则、播放器内核、弹幕样式与账号数据管理设置。',
     robots: 'noindex,nofollow',
   },
   '/admin': {
-    title: '站点运维与管理',
-    description: '站点运维与全局配置管理，需管理员鉴权。',
+    title: '站点运维与全局配置',
+    description: '站点运维管理与全局功能配置面板，需系统管理员权限。',
     robots: 'noindex,nofollow',
   },
   '/404': {
@@ -104,17 +123,15 @@ export function formatDocumentTitle(pageTitle: string, siteName?: string): strin
   // 若标题已经包含当前生效的站名，避免重复拼接
   if (t.includes(effectiveSiteName)) return t
 
-  // 若标题以默认的 " · Animaku" 或 " · Animaku 动漫" 结尾，替换为自定义站名
-  if (t.endsWith(' · Animaku') || t.endsWith(' · Animaku 动漫')) {
-    const cleanPrefix = t.replace(/ · (Animaku 动漫|Animaku)$/, '')
-    return `${cleanPrefix} · ${effectiveSiteName}`
+  // 若包含默认站名占位符，全局替换为当前自定义站名
+  if (t.includes(DEFAULT_SITE_NAME)) {
+    return t.replace(new RegExp(DEFAULT_SITE_NAME, 'g'), effectiveSiteName)
+  }
+  if (t.includes('Animaku')) {
+    return t.replace(/Animaku/g, effectiveSiteName)
   }
 
-  // 针对默认首页标题 'Animaku 动漫'，若已设置了自定义站名，则直接返回自定义站名
-  if (t === SITE_NAME || t === 'Animaku') {
-    return effectiveSiteName
-  }
-
+  // 针对简短页面（设置、观看历史等），拼接品牌后缀
   return `${t} · ${effectiveSiteName}`
 }
 

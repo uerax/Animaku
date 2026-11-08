@@ -2,14 +2,40 @@
  * 跨端同构 SEO 工具函数集合（Title、Description 与 Keywords 生成器）
  */
 
-export const DEFAULT_SITE_NAME = 'Animaku'
+export const DEFAULT_SITE_NAME = 'Animaku 动漫'
+
+/**
+ * 格式化站点首页的标准 SEO 标题。
+ * 格式：{自定义站点名称} - 高清动漫在线观看 - 免费热门番剧在线观看平台
+ */
+export function formatHomeTitle(siteName?: string): string {
+  const brand = (siteName || '').trim() || DEFAULT_SITE_NAME
+  return `${brand} - 高清动漫在线观看 - 免费热门番剧在线观看平台`
+}
+
+/**
+ * 格式化番剧列表/目录页的标准 SEO 标题。
+ * 格式：{自定义站点名称} - 番剧列表 - 高清动漫在线观看 - 免费热门番剧在线观看平台
+ */
+export function formatAnimeListTitle(siteName?: string): string {
+  const brand = (siteName || '').trim() || DEFAULT_SITE_NAME
+  return `${brand} - 番剧列表 - 高清动漫在线观看 - 免费热门番剧在线观看平台`
+}
+
+/**
+ * 格式化每日新番放送时间表页的标准 SEO 标题。
+ * 格式：{自定义站点名称} - 每日新番放送时间表 - 高清动漫在线观看 - 免费热门番剧在线观看平台
+ */
+export function formatTimelineTitle(siteName?: string): string {
+  const brand = (siteName || '').trim() || DEFAULT_SITE_NAME
+  return `${brand} - 每日新番放送时间表 - 高清动漫在线观看 - 免费热门番剧在线观看平台`
+}
 
 /**
  * 格式化番剧详情/播放页的标准 SEO 标题。
- * 覆盖场景：A在线、A 在线、A动漫、A 在线观看。
  * 示例：
- * - 有原名/别名：《葬送的芙莉莲》（葬送のフリーレン）动漫在线观看 · Animaku
- * - 无原名：《葬送的芙莉莲》动漫在线观看 · Animaku
+ * - 有原名：《葬送的芙莉莲》（葬送のフリーレン）全集高清在线观看 - Animaku 动漫 - 弹幕播放与多源聚合平台
+ * - 无原名：《葬送的芙莉莲》全集高清在线观看 - Animaku 动漫 - 弹幕播放与多源聚合平台
  */
 export function formatSubjectTitle(
   name: string,
@@ -22,51 +48,136 @@ export function formatSubjectTitle(
     cleanAlt && cleanAlt !== baseName
       ? `《${baseName}》（${cleanAlt}）`
       : `《${baseName}》`
-  return `${displayTitle}动漫在线观看 · ${siteName}`
+  const effectiveSiteName = (siteName || '').trim() || DEFAULT_SITE_NAME
+  return `${displayTitle}全集高清在线观看 - ${effectiveSiteName} - 弹幕播放与多源聚合平台`
 }
 
 /**
- * 格式化站点全局 / 首页的标准 SEO Meta Description。
+ * 格式化站点全局 / 首页的标准 SEO Meta Description（精确达到 150-160 字符）。
  * 联动用户在后台设置的网站名称与副标题。
  */
 export function formatDefaultDescription(
   siteName?: string,
   siteTagline?: string,
 ): string {
-  const name = (siteName || '').trim()
-  const tagline = (siteTagline || '').trim()
-  if (!name && !tagline) {
-    return 'Animaku 多资源聚合的日漫番剧、剧场版动画在线观看，支持高性能自研弹幕播放、画质超分、OP / ED 智能跳过、Bangumi 每日更新时间表与追番历史。'
+  const brand = (siteName || '').trim() || DEFAULT_SITE_NAME
+  const cleanTagline = (siteTagline || '').trim()
+  const sub = cleanTagline ? `（${cleanTagline}）` : ''
+  const full = `${brand}${sub}致力于为广大动漫爱好者提供优质的高清日漫新番、剧场版动画以及热门国创在线观看服务。平台采用先进的多线路多源聚合技术，保证播放流畅与极速换源，同时支持自研高性能弹幕互动、画质超分辨率增强、OP/ED智能跳过、Bangumi每日更新时间表与云端追番历史记录，打造极致纯净舒适的在线观影追番体验。`
+  if (full.length > 160) {
+    return `${full.slice(0, 159)}…`
   }
-  const brand = name || DEFAULT_SITE_NAME
-  const sub = tagline ? ` - ${tagline}` : ''
-  return `${brand}${sub}，多资源聚合的日漫番剧、剧场版动画在线观看，支持高性能自研弹幕播放、画质超分、OP / ED 智能跳过、Bangumi 每日更新时间表与追番历史。`
+  return full
+}
+
+/**
+ * 格式化番剧列表/目录页的标准 SEO Meta Description（精确达到 150-160 字符）。
+ */
+export function formatAnimeListDescription(siteName?: string): string {
+  const brand = (siteName || '').trim() || DEFAULT_SITE_NAME
+  const full = `${brand}番剧列表分类频道为您提供全网丰富的日本动画与热门国创索引。支持按放送年份、上线季度、题材类型以及Bangumi权威评分与热度排行榜进行多维度精准筛选。所有收录番剧均提供多线路高清视频源一键快速切换播放，搭配自研实时弹幕互动与分集选集，帮助广大动漫爱好者轻松探索、发现并在线畅享海量精彩动画番剧。`
+  if (full.length > 160) {
+    return `${full.slice(0, 159)}…`
+  }
+  return full
+}
+
+/**
+ * 格式化每日新番放送时间表页的标准 SEO Meta Description（精确达到 150-160 字符）。
+ */
+export function formatTimelineDescription(siteName?: string): string {
+  const brand = (siteName || '').trim() || DEFAULT_SITE_NAME
+  const full = `${brand}每日新番放送时间表为您实时呈现本季每周一至周日的日本动画连载更新日历。同步Bangumi官方最新放送日程，清晰展示每日开播新番剧集、更新集数、首播档期与开播预告。平台支持一键直达对应番剧详情与多线路高清播放，搭配实时弹幕互动与追番日程管理，让您第一时间掌握最新连载番剧动态，追番更新绝不错过。`
+  if (full.length > 160) {
+    return `${full.slice(0, 159)}…`
+  }
+  return full
+}
+
+export interface SubjectDescriptionOptions {
+  rawSummary?: string
+  siteName?: string
+  tags?: string[]
+  airDate?: string
+  maxLen?: number
+  minLen?: number
 }
 
 /**
  * 格式化番剧详情/播放页的标准 SEO Meta Description。
- * 覆盖场景：前置引导真实核心能力（动漫在线观看、聚合多个视频源、弹幕与选集播放），后接剧情简介截取。
+ * 采用智能动态拼接 + 兜底垫字引擎，确保在 Bing 等搜索引擎中恒定在 150-160 字符黄金区间。
  */
 export function formatSubjectDescription(
   name: string,
-  rawSummary?: string,
-  maxLen = 160,
-  siteName = DEFAULT_SITE_NAME,
+  summaryOrOptions?: string | SubjectDescriptionOptions,
+  legacyMaxLen = 160,
+  legacySiteName = DEFAULT_SITE_NAME,
 ): string {
+  let rawSummary = ''
+  let siteName = legacySiteName
+  let tags: string[] | undefined
+  let airDate: string | undefined
+  let maxLen = legacyMaxLen
+  let minLen = 150
+
+  if (typeof summaryOrOptions === 'object' && summaryOrOptions !== null) {
+    rawSummary = summaryOrOptions.rawSummary || ''
+    siteName = summaryOrOptions.siteName || DEFAULT_SITE_NAME
+    tags = summaryOrOptions.tags
+    airDate = summaryOrOptions.airDate
+    if (typeof summaryOrOptions.maxLen === 'number') maxLen = summaryOrOptions.maxLen
+    if (typeof summaryOrOptions.minLen === 'number') minLen = summaryOrOptions.minLen
+  } else if (typeof summaryOrOptions === 'string') {
+    rawSummary = summaryOrOptions
+    siteName = legacySiteName
+    maxLen = legacyMaxLen
+  }
+
   const baseName = (name || '').trim() || '番剧'
   const effectiveSiteName = (siteName || '').trim() || DEFAULT_SITE_NAME
-  const prefix = `《${baseName}》动漫在线观看。${effectiveSiteName} 聚合多个视频源，支持弹幕与选集播放。`
+  const prefix = `《${baseName}》全集高清正片在线观看。${effectiveSiteName}聚合多个优质视频源，提供流畅极速播放与实时弹幕互动。`
   const summary = (rawSummary || '').replace(/\s+/g, ' ').trim()
-  if (!summary) {
-    return prefix
+
+  // 附加结构化标签与年代（增强 SEO 上下文与语义）
+  const metaParts: string[] = []
+  if (airDate && airDate.trim()) {
+    const yearMonth = airDate.trim().slice(0, 7)
+    metaParts.push(`【首播：${yearMonth}】`)
   }
-  // 留出前缀和 "剧情简介：" 的字符预算
-  const availableLen = Math.max(20, maxLen - prefix.length - 6)
-  const truncatedSummary =
-    summary.length <= availableLen
-      ? summary
-      : `${summary.slice(0, availableLen - 1)}…`
-  return `${prefix}剧情简介：${truncatedSummary}`
+  if (Array.isArray(tags) && tags.length > 0) {
+    const cleanTags = tags.map((t) => t.trim()).filter(Boolean).slice(0, 3)
+    if (cleanTags.length > 0) {
+      metaParts.push(`【类型：${cleanTags.join('/')}】`)
+    }
+  }
+  const metaInfo = metaParts.join('')
+
+  const featureFiller =
+    '全站支持画质超分辨率增强、OP/ED智能跳过、多源极速切换与播放历史云端同步，带来纯净无广告追番体验。'
+  const emptySummaryFallback =
+    '平台收录全网官方多线路高清视频源，支持自研高性能弹幕互动、画质超分辨率增强、OP/ED智能跳过、分集播放与历史同步，致力于为动漫爱好者打造纯净流畅的极致观影体验。'
+
+  let assembled = ''
+  if (summary) {
+    assembled = `${prefix}${metaInfo}剧情简介：${summary}`
+    // 如果加上简介依然少于下限，将特性说明填充进去
+    if (assembled.length < minLen) {
+      assembled = `${prefix}${metaInfo}剧情简介：${summary} ${featureFiller}`
+    }
+  } else {
+    assembled = `${prefix}${metaInfo}${emptySummaryFallback}`
+  }
+
+  // 二次垫字兜底
+  if (assembled.length < minLen) {
+    assembled = `${assembled}Bangumi权威评分与每日时间表同步更新，精彩好番不容错过。`
+  }
+
+  if (assembled.length <= maxLen) {
+    return assembled
+  }
+
+  return `${assembled.slice(0, maxLen - 1)}…`
 }
 
 /**
@@ -86,6 +197,7 @@ export function generateSubjectKeywords(
     `${baseName} 在线`,
     `${baseName}动漫`,
     `${baseName} 在线观看`,
+    `${baseName}全集高清`,
     '番剧在线',
     '在线观看',
   ]

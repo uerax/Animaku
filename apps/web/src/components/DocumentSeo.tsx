@@ -3,8 +3,13 @@ import { matchPath, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   coverOf,
+  formatAnimeListDescription,
+  formatAnimeListTitle,
+  formatHomeTitle,
   formatSubjectDescription,
   formatSubjectTitle,
+  formatTimelineDescription,
+  formatTimelineTitle,
   generateSubjectKeywords,
 } from '@animaku/shared'
 import { bangumiApi } from '../lib/bangumi'
@@ -14,7 +19,6 @@ import {
   buildBreadcrumbJsonLd,
   buildTvSeriesJsonLd,
   buildWebsiteJsonLd,
-  DEFAULT_DESCRIPTION,
   formatDefaultDescription,
   type PageSeo,
 } from '../lib/seo'
@@ -62,14 +66,14 @@ export function DocumentSeo() {
           : undefined
       const summary = item?.summary?.trim()
       const title = formatSubjectTitle(name, alt, siteName?.trim() || undefined)
-      const description = formatSubjectDescription(
-        name,
-        summary,
-        160,
-        siteName?.trim() || undefined,
-      )
-      const cover = item ? coverOf(item, 'large') || coverOf(item) : ''
       const tagNames = item?.tags?.map((t) => t.name).filter(Boolean) || []
+      const description = formatSubjectDescription(name, {
+        rawSummary: summary,
+        siteName: siteName?.trim() || undefined,
+        tags: tagNames,
+        airDate: item?.airDate || undefined,
+      })
+      const cover = item ? coverOf(item, 'large') || coverOf(item) : ''
       const keywords = generateSubjectKeywords(name, alt, tagNames).join(', ')
       const genre = Array.from(new Set(['动画', '动漫', '日本动画', ...tagNames.slice(0, 5)]))
 
@@ -116,25 +120,30 @@ export function DocumentSeo() {
       const base = STATIC_ROUTE_SEO['/search']
       return {
         ...base,
-        title: q ? `搜索「${q}」` : base.title,
+        title: q ? `搜索「${q}」- 高清动漫在线观看` : base.title,
         path: '/search',
         description: q
-          ? `Bangumi 搜索「${q}」的结果 — ${siteName?.trim() || 'Animaku'}`
+          ? `在 ${siteName?.trim() || 'Animaku 动漫'} 中搜索「${q}」的动画番剧结果，支持多源播放与弹幕。`
           : base.description,
       }
     }
 
     const staticSeo = STATIC_ROUTE_SEO[pathname]
     if (staticSeo) {
+      const trimmedName = siteName?.trim()
+      const trimmedTagline = siteTagline?.trim()
       let routeTitle = staticSeo.title
       let routeDescription = staticSeo.description
+
       if (pathname === '/') {
-        const trimmedName = siteName?.trim()
-        const trimmedTagline = siteTagline?.trim()
-        if (trimmedName) {
-          routeTitle = trimmedTagline ? `${trimmedName} - ${trimmedTagline}` : trimmedName
-        }
+        routeTitle = formatHomeTitle(trimmedName)
         routeDescription = formatDefaultDescription(trimmedName, trimmedTagline)
+      } else if (pathname === '/anime') {
+        routeTitle = formatAnimeListTitle(trimmedName)
+        routeDescription = formatAnimeListDescription(trimmedName)
+      } else if (pathname === '/timeline') {
+        routeTitle = formatTimelineTitle(trimmedName)
+        routeDescription = formatTimelineDescription(trimmedName)
       }
 
       let routeJsonLd: PageSeo['jsonLd'] = undefined
@@ -162,7 +171,7 @@ export function DocumentSeo() {
     }
 
     return {
-      title: siteName?.trim() || 'Animaku',
+      title: formatHomeTitle(siteName?.trim()),
       description: formatDefaultDescription(siteName?.trim(), siteTagline?.trim()),
       path: pathname,
       robots: 'noindex,follow',

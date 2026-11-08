@@ -6,6 +6,11 @@ import {
   formatDefaultDescription,
   formatSubjectDescription,
   formatSubjectTitle,
+  formatHomeTitle,
+  formatAnimeListTitle,
+  formatAnimeListDescription,
+  formatTimelineTitle,
+  formatTimelineDescription,
   generateSubjectKeywords,
   parseBangumiItem,
   toBangumiOfficialImageUrl,
@@ -183,32 +188,31 @@ export function stripTemplateHomepageSeo(html: string): string {
  */
 export function applySiteBrandingToHtml(
   html: string,
-  options: { replaceTitle?: boolean; replaceDescription?: boolean } = {
-    replaceTitle: true,
-    replaceDescription: true,
-  },
+  options: { replaceTitle?: boolean; replaceDescription?: boolean; origin?: string } = {},
 ): string {
+  const shouldReplaceTitle = options.replaceTitle ?? true
+  const shouldReplaceDesc = options.replaceDescription ?? shouldReplaceTitle
   const cfg = getSiteConfig()
   let result = html
 
   if (cfg.siteName || cfg.siteTagline) {
+    const brand = cfg.siteName || 'Animaku 动漫'
     const siteTitle = cfg.siteTagline
-      ? `${cfg.siteName || 'Animaku'} - ${cfg.siteTagline}`
-      : cfg.siteName || 'Animaku'
+      ? `${brand} - ${cfg.siteTagline} - 高清动漫在线观看 - 免费热门番剧在线观看平台`
+      : formatHomeTitle(cfg.siteName)
     const dynamicDesc = formatDefaultDescription(cfg.siteName, cfg.siteTagline)
 
-    if (cfg.siteName) {
-      result = result.replace(
-        /<meta\s+property=["']og:site_name["']\s+content=["'][\s\S]*?["']\s*\/?>/i,
-        `<meta property="og:site_name" content="${escapeHtml(cfg.siteName)}" />`,
-      )
-      result = result.replace(
-        /<meta\s+name=["']application-name["']\s+content=["'][\s\S]*?["']\s*\/?>/i,
-        `<meta name="application-name" content="${escapeHtml(cfg.siteName)}" />`,
-      )
-    }
+    const effectiveBrand = cfg.siteName || 'Animaku 动漫'
+    result = result.replace(
+      /<meta\s+property=["']og:site_name["']\s+content=["'][\s\S]*?["']\s*\/?>/i,
+      `<meta property="og:site_name" content="${escapeHtml(effectiveBrand)}" />`,
+    )
+    result = result.replace(
+      /<meta\s+name=["']application-name["']\s+content=["'][\s\S]*?["']\s*\/?>/i,
+      `<meta name="application-name" content="${escapeHtml(effectiveBrand)}" />`,
+    )
 
-    if (options.replaceTitle) {
+    if (shouldReplaceTitle) {
       result = result.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(siteTitle)}</title>`)
       result = result.replace(
         /<meta\s+property=["']og:title["']\s+content=["'][\s\S]*?["']\s*\/?>/i,
@@ -221,8 +225,8 @@ export function applySiteBrandingToHtml(
 
       // 动态更新首页原始 HTML 骨架中的 h1 与 p 标签，保证爬虫在首屏无 JS 情况下抓到自定义品牌
       const siteHeading = cfg.siteTagline
-        ? `${cfg.siteName || 'Animaku'} - ${cfg.siteTagline}`
-        : `${cfg.siteName || 'Animaku'} 动漫 - 在线高清动画多源聚合弹幕平台`
+        ? `${brand} - ${cfg.siteTagline}`
+        : `${brand} - 高清动漫在线观看 - 免费热门番剧在线观看平台`
       result = result.replace(
         /<h1\s+class=["']sr-only["']>[\s\S]*?<\/h1>/i,
         `<h1 class="sr-only">${escapeHtml(siteHeading)}</h1>`,
@@ -232,30 +236,88 @@ export function applySiteBrandingToHtml(
         `<p class="sr-only">${escapeHtml(dynamicDesc)}</p>`,
       )
 
-      // 动态重写首页 HTML 中预埋的 WebSite 结构化数据 (JSON-LD)，覆盖静态写死的 name 与 description
+      // 动态重写/补全首页 HTML 中的 WebSite 结构化数据 (JSON-LD)，严格遵循 Google Site Name 规范（带 url 与 alternateName）
+      const originBase = options.origin ? options.origin.replace(/\/+$/, '') : ''
+      const homepageUrl = originBase ? `${originBase}/` : ''
+
+      let domainName = ''
+      let domainBase = ''
+      if (originBase) {
+        try {
+          const u = new URL(originBase.includes('://') ? originBase : `https://${originBase}`)
+          domainName = u.hostname.toLowerCase()
+          domainBase = domainName.split('.')[0]
+        } catch {
+          domainName = originBase.replace(/^https?:\/\//i, '').split('/')[0].split(':')[0].toLowerCase()
+          domainBase = domainName.split('.')[0]
+        }
+      }
+
+      const candidateNames = [
+        brand,
+        cfg.siteName,
+        'Animaku 动漫',
+        'Animaku',
+        domainName,
+        domainBase,
+      ].filter(Boolean) as string[]
+      const alternateName = Array.from(new Set(candidateNames))
+
       const websiteJsonRegex =
         /(<script\s+type=["']application\/ld\+json["']\s+data-animaku-jsonld=["']1["']>\s*\{[\s\S]*?"@type"\s*:\s*"WebSite"[\s\S]*?<\/script>)/i
-      result = result.replace(websiteJsonRegex, (match) => {
-        try {
-          const jsonStr = match.replace(/^<script[^>]*>/i, '').replace(/<\/script>$/i, '')
-          const obj = JSON.parse(jsonStr)
-          if (cfg.siteName) {
-            obj.name = cfg.siteName
-            if (Array.isArray(obj.alternateName)) {
-              obj.alternateName = Array.from(new Set([cfg.siteName, ...obj.alternateName]))
+
+      if (websiteJsonRegex.test(result)) {
+        result = result.replace(websiteJsonRegex, (match) => {
+          try {
+            const jsonStr = match.replace(/^<script[^>]*>/i, '').replace(/<\/script>$/i, '')
+            const obj = JSON.parse(jsonStr)
+            obj.name = brand
+            obj.alternateName = alternateName
+            obj.description = dynamicDesc
+            if (homepageUrl) {
+              obj.url = homepageUrl
+              obj.potentialAction = {
+                '@type': 'SearchAction',
+                target: {
+                  '@type': 'EntryPoint',
+                  urlTemplate: `${originBase}/search?q={search_term_string}`,
+                },
+                'query-input': 'required name=search_term_string',
+              }
             }
+            return `<script type="application/ld+json" data-animaku-jsonld="1">\n      ${escapeJsonLdScript(JSON.stringify(obj, null, 2))}\n    </script>`
+          } catch {
+            return match
           }
-          obj.description = dynamicDesc
-          return `<script type="application/ld+json" data-animaku-jsonld="1">\n      ${escapeJsonLdScript(JSON.stringify(obj, null, 2))}\n    </script>`
-        } catch {
-          return match
+        })
+      } else if (homepageUrl && shouldReplaceTitle) {
+        const newObj = {
+          '@context': 'https://schema.org',
+          '@type': 'WebSite',
+          name: brand,
+          alternateName,
+          url: homepageUrl,
+          description: dynamicDesc,
+          potentialAction: {
+            '@type': 'SearchAction',
+            target: {
+              '@type': 'EntryPoint',
+              urlTemplate: `${originBase}/search?q={search_term_string}`,
+            },
+            'query-input': 'required name=search_term_string',
+          },
         }
-      })
+        const scriptBlock = `    <script type="application/ld+json" data-animaku-jsonld="1">\n      ${escapeJsonLdScript(JSON.stringify(newObj, null, 2))}\n    </script>\n  </head>`
+        result = result.replace(/<\/head>/i, scriptBlock)
+      }
+
+      if (homepageUrl && shouldReplaceTitle) {
+        if (!/<link\s+[^>]*rel=["']canonical["'][^>]*\/?>/i.test(result)) {
+          result = result.replace(/<\/head>/i, `  <link rel="canonical" href="${escapeHtml(homepageUrl)}" />\n  </head>`)
+        }
+      }
     }
 
-    // 默认 description 仅在未显式关闭 replaceDescription（且 replaceTitle 未置否）时注入，
-    // 避免覆盖详情页已渲染好的番剧专属简介 meta description。
-    const shouldReplaceDesc = options.replaceDescription ?? options.replaceTitle ?? true
     if (shouldReplaceDesc) {
       result = result.replace(
         /<meta\s+name=["']description["']\s+content=["'][\s\S]*?["']\s*\/?>/i,
@@ -303,7 +365,11 @@ export function applySiteBrandingToHtml(
 /**
  * Returns clean HTML template with route-specific modulepreload tags injected for SPA routes.
  */
-export function getPreloadedHtmlForRoute(webRoot: string, pathname: string): string | null {
+export function getPreloadedHtmlForRoute(
+  webRoot: string,
+  pathname: string,
+  origin = '',
+): string | null {
   const template = getCleanTemplateHtml(webRoot)
   if (!template) return null
 
@@ -319,11 +385,71 @@ export function getPreloadedHtmlForRoute(webRoot: string, pathname: string): str
   if (route) {
     const tags = templateCache?.routePreloadTags[route] || findRouteModulePreloadTags(webRoot, route)
     if (tags) {
-      html = html.replace(/<\/head>/i, `${tags}\n  </head>`)
+      html = html.replace(/<\/head>/i, `${tags}\n  <\/head>`)
     }
   }
 
-  return applySiteBrandingToHtml(html)
+  const cfg = getSiteConfig()
+  // 为 /anime 与 /timeline 静态路由在服务端直出专属的 Title、150-160 字符 Description 及 Canonical
+  if (route === 'anime' || route === 'timeline') {
+    const isAnime = route === 'anime'
+    const routeTitle = isAnime
+      ? formatAnimeListTitle(cfg.siteName)
+      : formatTimelineTitle(cfg.siteName)
+    const routeDesc = isAnime
+      ? formatAnimeListDescription(cfg.siteName)
+      : formatTimelineDescription(cfg.siteName)
+    const canonicalUrl = origin
+      ? `${origin}${isAnime ? '/anime' : '/timeline'}`
+      : isAnime ? '/anime' : '/timeline'
+
+    if (/<title>[\s\S]*?<\/title>/i.test(html)) {
+      html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(routeTitle)}<\/title>`)
+    } else {
+      html = html.replace(/<head>/i, `<head>\n  <title>${escapeHtml(routeTitle)}<\/title>`)
+    }
+
+    if (/<meta\s+name=["']description["']\s+content=["'][\s\S]*?["']\s*\/?>/i.test(html)) {
+      html = html.replace(
+        /<meta\s+name=["']description["']\s+content=["'][\s\S]*?["']\s*\/?>/i,
+        `<meta name="description" content="${escapeHtml(routeDesc)}" />`,
+      )
+    } else {
+      html = html.replace(/<head>/i, `<head>\n  <meta name="description" content="${escapeHtml(routeDesc)}" />`)
+    }
+
+    html = html.replace(
+      /<meta\s+property=["']og:title["']\s+content=["'][\s\S]*?["']\s*\/?>/i,
+      `<meta property="og:title" content="${escapeHtml(routeTitle)}" />`,
+    )
+    html = html.replace(
+      /<meta\s+property=["']og:description["']\s+content=["'][\s\S]*?["']\s*\/?>/i,
+      `<meta property="og:description" content="${escapeHtml(routeDesc)}" />`,
+    )
+    html = html.replace(
+      /<meta\s+name=["']twitter:title["']\s+content=["'][\s\S]*?["']\s*\/?>/i,
+      `<meta name="twitter:title" content="${escapeHtml(routeTitle)}" />`,
+    )
+    html = html.replace(
+      /<meta\s+name=["']twitter:description["']\s+content=["'][\s\S]*?["']\s*\/?>/i,
+      `<meta name="twitter:description" content="${escapeHtml(routeDesc)}" />`,
+    )
+    html = html.replace(
+      /<h1\s+class=["']sr-only["']>[\s\S]*?<\/h1>/i,
+      `<h1 class="sr-only">${escapeHtml(routeTitle)}</h1>`,
+    )
+    html = html.replace(
+      /<p\s+class=["']sr-only["']>[\s\S]*?<\/p>/i,
+      `<p class="sr-only">${escapeHtml(routeDesc)}</p>`,
+    )
+    if (canonicalUrl) {
+      html = html.replace(/<\/head>/i, `  <link rel="canonical" href="${escapeHtml(canonicalUrl)}" />\n  </head>`)
+    }
+
+    return applySiteBrandingToHtml(html, { replaceTitle: false, replaceDescription: false, origin })
+  }
+
+  return applySiteBrandingToHtml(html, { origin })
 }
 
 export type SubjectSeoResult =
@@ -450,15 +576,20 @@ export function renderSuccessPage(
   const altName =
     item.nameCn && item.name && item.nameCn !== item.name ? item.name : undefined
   const cfg = getSiteConfig()
-  const siteName = cfg.siteName || 'Animaku'
+  const siteName = cfg.siteName || undefined
   const pageTitle = formatSubjectTitle(name, altName, siteName)
   const rawSummary = (item.summary || '').trim()
-  const metaDesc = formatSubjectDescription(name, rawSummary, 160, siteName)
+  const tagNames = item.tags?.map((t) => t.name).filter(Boolean) || []
+  const metaDesc = formatSubjectDescription(name, {
+    rawSummary,
+    siteName,
+    tags: tagNames,
+    airDate: item.airDate || undefined,
+  })
   const canonicalUrl = origin ? `${origin}/subject/${subjectId}` : `/subject/${subjectId}`
   const rawCover = coverOf(item, 'large') || coverOf(item)
   const coverUrl = rawCover ? toBangumiOfficialImageUrl(rawCover) : ''
 
-  const tagNames = item.tags?.map((t) => t.name).filter(Boolean) || []
   const keywordsList = generateSubjectKeywords(name, altName, tagNames)
   const keywordsStr = keywordsList.join(', ')
   const genreList = Array.from(new Set(['动画', '动漫', '日本动画', ...tagNames.slice(0, 5)]))
@@ -481,11 +612,15 @@ export function renderSuccessPage(
   // 1. Replace <title>
   html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(pageTitle)}</title>`)
 
-  // 2. Replace <meta name="description" ...>
-  html = html.replace(
-    /<meta\s+name="description"\s+content="[\s\S]*?"\s*\/?>/i,
-    `<meta name="description" content="${escapeHtml(metaDesc)}" />`,
-  )
+  // 2. Replace or inject <meta name="description" ...>
+  if (/<meta\s+name=["']description["']\s+content=["'][\s\S]*?["']\s*\/?>/i.test(html)) {
+    html = html.replace(
+      /<meta\s+name=["']description["']\s+content=["'][\s\S]*?["']\s*\/?>/i,
+      `<meta name="description" content="${escapeHtml(metaDesc)}" />`,
+    )
+  } else {
+    html = html.replace(/<head>/i, `<head>\n    <meta name="description" content="${escapeHtml(metaDesc)}" />`)
+  }
 
   // Replace or inject <meta name="keywords" ...>
   if (/<meta\s+name="keywords"\s+content="[\s\S]*?"\s*\/?>/i.test(html)) {
@@ -580,7 +715,7 @@ export function render404Page(templateHtml: string, subjectId: number): string {
   let html = templateHtml
 
   const cfg = getSiteConfig()
-  const siteName = cfg.siteName || 'Animaku'
+  const siteName = cfg.siteName || undefined
   const title404 = `番剧不存在 (404) · ${siteName}`
   const desc404 = `未找到条目 ID 为 ${subjectId} 的番剧信息。该番剧可能已下架或不存在。`
 
