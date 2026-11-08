@@ -22,6 +22,7 @@ test('source-registry: lists built-in tier adapters and handles alias normalizat
   assert.ok(ids.includes('anime1'))
   assert.ok(ids.includes('animoe'))
   assert.ok(ids.includes('sorani'))
+  assert.ok(ids.includes('akianime'))
   assert.ok(ids.includes('bimi'))
 
   // 正常现代源
@@ -45,6 +46,8 @@ test('source-registry: lists built-in tier adapters and handles alias normalizat
   assert.equal(registry.getAdapter('青空')?.id, 'sorani')
   assert.equal(registry.getAdapter('哔咪')?.id, 'bimi')
   assert.equal(registry.getAdapter('bimiacg')?.id, 'bimi')
+  assert.equal(registry.getAdapter('akianime.cc')?.id, 'akianime')
+  assert.equal(registry.getAdapter('akianime')?.id, 'akianime')
 })
 
 test('source-registry: validateEgress enforces protocol, standard web ports, and public host boundary', () => {

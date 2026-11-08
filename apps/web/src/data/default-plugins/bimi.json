@@ -4,7 +4,7 @@
   "id": "bimi",
   "name": "bimi",
   "version": "1.0",
-  "weight": 61,
+  "weight": 60,
   "titlePreference": "chinese",
   "muliSources": true,
   "useWebview": false,

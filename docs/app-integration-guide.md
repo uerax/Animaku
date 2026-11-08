@@ -23,7 +23,7 @@
 ### 3. 双轨视频源交互模式：受控源 vs 规则引擎
 Animaku 服务端提供两套并行的视频源调用接口体系：
 * **官方受控源接口（`/api/source/*`，强烈推荐官方客户端首选）**：
-  * 服务端固化内置高质量适配器（`neosek`, `tvtfun`, `cycani`, `sorani`, `xifan-next`, `anime1`, `moonci`, `animoe` 等）。
+  * 服务端固化内置高质量适配器（`neosek`, `tvtfun`, `cycani`, `sorani`, `xifan-next`, `anime1`, `moonci`, `animoe`, `akianime`, `bimi` 等）。
   * 客户端仅需传递源标识字符串（如 `"source": "neosekai"`）与目标关键字/URL，无需在客户端本地维护繁重复杂的 JSON 抓取规则，免受规则版本滞后影响。
   * 拥有严格的出站安全策略与端口白名单，稳定性极高。
 * **动态规则引擎接口（`/api/plugin/*`，扩展模式）**：
@@ -96,6 +96,12 @@ Animaku 服务端提供两套并行的视频源调用接口体系：
     {
       "id": "sorani",
       "name": "sorani",
+      "tier": "tier_a",
+      "capabilities": { "allowedPorts": [80, 443] }
+    },
+    {
+      "id": "akianime",
+      "name": "AkiAnime",
       "tier": "tier_a",
       "capabilities": { "allowedPorts": [80, 443] }
     }

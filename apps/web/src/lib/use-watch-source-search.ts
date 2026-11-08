@@ -376,9 +376,15 @@ export function useWatchSourceSearch({
             await pickSourceRef.current?.(plugin, items[0])
           } catch {
             /* pickSource already set roadError and cleaned state */
+            // 命中条目但分集解析失败：同样视为默认源不可用，激活备用源自动裁决
+            if (opts?.autoPickFirst && !selectionRef.current) {
+              setDefaultSearchEmpty(true)
+            }
           }
         } else {
           if (opts?.autoPickFirst && !selectionRef.current) {
+            // 相似度不足未自动开播：同样视为默认源不可用，激活备用源自动裁决
+            setDefaultSearchEmpty(true)
             setRoadError(`${plugin.name} 搜索结果与当前番剧标题不够相近，请在「视频源」中确认或点选`)
             setHudMessage(`${plugin.name} 未自动匹配，请在视频源中点选`)
           }

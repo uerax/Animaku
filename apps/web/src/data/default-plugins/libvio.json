@@ -3,7 +3,7 @@
   "type": "release",
   "name": "libvio",
   "version": "1.0",
-  "weight": 60,
+  "weight": 55,
   "titlePreference": "original",
   "requiresFullMediaProxy": true,
   "muliSources": true,
