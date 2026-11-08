@@ -4,6 +4,8 @@ export interface WatchHistoryEntry {
   title: string
   cover?: string
   episode: number
+  /** 条目内 1-based 标准集数编号 (与弹幕、OP/ED 对齐) */
+  entryEp?: number
   road: number
   pluginName: string
   /** Episode play-page URL (used for resolve + deep-link resume). */

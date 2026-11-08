@@ -6,6 +6,7 @@ import {
   filterOutObviousNonMainContent,
   extractConservativeEpisodeNumber,
   buildPlayableSlots,
+  resolveTargetSlot,
 } from './episode-alignment.ts'
 
 test('Scenario 1: Fate/stay night [UBW] (Subject 100403: 00 PROLOGUE + pure titles)', () => {
@@ -248,4 +249,35 @@ test('Scenario 11: Split-cour / Season 2 (Subject 584847: sort 14..25 with ep 1.
   assert.equal(slots[2].canonicalEp, 16)
   assert.equal(slots[2].entryEp, 3)
 })
+test('resolveTargetSlot: 拆季番历史恢复与对齐', () => {
+  const part2Official = [
+    { type: 0, sort: 14, ep: 1 },
+    { type: 0, sort: 15, ep: 2 },
+    { type: 0, sort: 16, ep: 3 },
+  ]
+  // 场景 A: Layer 1 槽位 (canonicalEp 14, 15, 16)
+  const layer1Slots = buildPlayableSlots({ data: ['u1', 'u2', 'u3'], identifier: ['01', '02', '03'] }, part2Official)
+  const hitDirect = resolveTargetSlot(layer1Slots, 14)
+  assert.equal(hitDirect?.canonicalEp, 14)
+  assert.equal(hitDirect?.entryEp, 1)
 
+  // 场景 B: Layer 2 槽位 (源站只有 3 集，canonicalEp 为 1, 2, 3)
+  const layer2Slots = buildPlayableSlots({ data: ['u1', 'u2', 'u3'], identifier: ['第1集', '第2集', '第3集'] }, [])
+  assert.equal(layer2Slots[0].canonicalEp, 1)
+  assert.equal(layer2Slots[0].entryEp, 1)
+
+  // B1: 传入新版历史 entryEpHint = 1，精准命中第 1 集
+  const hitByHint = resolveTargetSlot(layer2Slots, 14, 1)
+  assert.equal(hitByHint?.canonicalEp, 1)
+  assert.equal(hitByHint?.entryEp, 1)
+
+  // B2: 老历史没有 entryEpHint，但通过 part2Official 查到 sort 14 对应 ep 1，同样精准命中第 1 集
+  const hitByBgmMap = resolveTargetSlot(layer2Slots, 14, undefined, part2Official)
+  assert.equal(hitByBgmMap?.canonicalEp, 1)
+  assert.equal(hitByBgmMap?.entryEp, 1)
+
+  // B3: 既无 entryEpHint 又无 bgmEpisodes，且 qEp=14 超过 slots.length (3)，安全兜底回退到第 1 集 (绝不越界跑到最后一集)
+  const hitFallback = resolveTargetSlot(layer2Slots, 14)
+  assert.equal(hitFallback?.canonicalEp, 1)
+  assert.equal(hitFallback?.entryEp, 1)
+})

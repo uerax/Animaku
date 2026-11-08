@@ -22,6 +22,7 @@ import {
   alignSourceToOfficial,
   resolveAlignedEpisodeNumber,
   buildPlayableSlots,
+  resolveTargetSlot,
   findDefaultSourcePlugin,
   resolveTargetSourcePlugin,
   resolveBoostedPluginNames,
@@ -62,6 +63,7 @@ import {
   formatMinutesSeconds,
   lookupResumePosition,
   lookupHistorySourceUrl,
+  lookupHistoryEntryEp,
 } from './watch-resume'
 import {
   deriveTitleRefs,
@@ -698,11 +700,8 @@ export function useWatchSession(bangumiId: number): WatchSession {
           }
         } else if (qEp !== undefined && qEp >= 0) {
           // Explicit deep-link episode specified in URL (e.g. ?ep=0 or ?ep=1)
-          targetSlot = roadSlots.find((s) => s.canonicalEp === qEp) ?? null
-          if (!targetSlot && roadSlots.length > 0) {
-            const fallbackIdx = Math.max(0, Math.min(qEp === 0 ? 0 : qEp - 1, roadSlots.length - 1))
-            targetSlot = roadSlots[fallbackIdx] || roadSlots[0]
-          }
+          const entryEpHint = lookupHistoryEntryEp(bangumiId, qEp)
+          targetSlot = resolveTargetSlot(roadSlots, qEp, entryEpHint, bgmEps) ?? null
         }
 
         setSelection({ plugin, source: searchItem, roads })
@@ -725,6 +724,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
                   plugin.name,
                   targetEpNum,
                   targetRoadIdx,
+                  targetSlot.entryEp,
                 )
 
           resumeOverrideRef.current = effectivePos > 0 ? effectivePos : null
@@ -938,6 +938,7 @@ export function useWatchSession(bangumiId: number): WatchSession {
         selection.plugin.name,
         epNum,
         roadIndex,
+        slot.entryEp,
       )
       resumeOverrideRef.current = null
       streamResolve.resetRecoveryTracker()
@@ -1099,11 +1100,18 @@ export function useWatchSession(bangumiId: number): WatchSession {
 
       maybePrefetchOnProgress(position, duration)
 
+      const effectiveEntryEp =
+        episode.entryEp ??
+        (episode.sourceIndex !== undefined
+          ? episode.sourceIndex + 1
+          : episode.episode)
+
       upsertHistory({
         bangumiId,
         title,
         cover,
         episode: episode.episode,
+        entryEp: effectiveEntryEp,
         road: episode.road,
         pluginName: selection.plugin.name,
         pageUrl: episode.pageUrl,

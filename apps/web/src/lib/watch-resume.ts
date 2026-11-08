@@ -41,16 +41,17 @@ export function calculateResumePositionFromList(
   pluginName: string,
   episode: number,
   road: number,
+  entryEp?: number,
 ): number {
   const list = Array.isArray(items) ? items : []
 
-  // 1. 精确匹配：番剧 + 插件 + 集数 + 线路
+  // 1. 精确匹配：番剧 + 插件 + 集数 + 线路 (优先 entryEp 对齐，回退 episode 对齐)
   const exact = list.find(
     (i) =>
       i.bangumiId === bangumiId &&
       i.pluginName === pluginName &&
-      i.episode === episode &&
-      i.road === road,
+      i.road === road &&
+      ((entryEp !== undefined && i.entryEp === entryEp) || i.episode === episode),
   )
   if (exact) {
     if (isPlaybackFinished(exact.position, exact.duration)) return 0
@@ -59,7 +60,9 @@ export function calculateResumePositionFromList(
 
   // 2. 跨线路/源回退：同番剧同集数（继承已有进度）
   const sameEp = list.find(
-    (i) => i.bangumiId === bangumiId && i.episode === episode,
+    (i) =>
+      i.bangumiId === bangumiId &&
+      ((entryEp !== undefined && i.entryEp === entryEp) || i.episode === episode),
   )
   if (sameEp) {
     if (isPlaybackFinished(sameEp.position, sameEp.duration)) return 0
@@ -77,9 +80,31 @@ export function lookupResumePosition(
   pluginName: string,
   episode: number,
   road: number,
+  entryEp?: number,
 ): number {
   const items = useHistoryStore.getState().items
-  return calculateResumePositionFromList(items, bangumiId, pluginName, episode, road)
+  return calculateResumePositionFromList(
+    items,
+    bangumiId,
+    pluginName,
+    episode,
+    road,
+    entryEp,
+  )
+}
+
+/**
+ * 快捷读取历史 Store 并查询某番剧指定展示集数对应的 entryEp (0ms 本地同步读取)
+ */
+export function lookupHistoryEntryEp(
+  bangumiId: number,
+  episode?: number,
+): number | undefined {
+  if (episode === undefined) return undefined
+  const items = useHistoryStore.getState().items
+  const list = Array.isArray(items) ? items : []
+  const hit = list.find((i) => i.bangumiId === bangumiId && i.episode === episode)
+  return hit?.entryEp
 }
 
 /**

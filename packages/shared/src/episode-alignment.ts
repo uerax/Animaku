@@ -323,3 +323,39 @@ export function resolveAlignedEpisodeNumber(
   const match = aligned.find((a) => a.sourceIndex === epIndex)
   return match !== undefined ? match.episode : null
 }
+
+/**
+ * 依据 URL 或历史记录的集数参数 (qEp)，智能解析出目标播放槽位 (PlayableSlot)。
+ * 1. 优先尝试直接匹配 canonicalEp === qEp (Layer 1 正常对齐场景)；
+ * 2. 若扑空 (如 Layer 2 源站仅有 1..12，而 qEp 为 14)：
+ *    通过 entryEpHint 或 Bangumi 官方数据映射 (sort -> ep)，找到对应的条目内序号；
+ *    再从 slots 中寻找 entryEp === targetEntryEp，实现精准对齐；
+ * 3. 安全兜底：如果 qEp 在合理范围内 (1..slots.length) 则按 qEp - 1 下标偏移，否则安全降级到 slots[0]，杜绝大集数溢出截断至末集。
+ */
+export function resolveTargetSlot(
+  slots: PlayableSlot[],
+  qEp: number | undefined,
+  entryEpHint?: number,
+  bgmEpisodes?: BgmEpisodeLike[] | null,
+): PlayableSlot | undefined {
+  if (!slots || slots.length === 0) return undefined
+  if (qEp === undefined || qEp < 0) return slots[0]
+
+  // 1. 直接按 canonicalEp 查找 (如目标源同为 14)
+  const direct = slots.find((s) => s.canonicalEp === qEp)
+  if (direct) return direct
+
+  // 2. 跨层级/拆季番条目集数映射查找 (利用本地历史 entryEpHint 或 Bangumi sort -> ep 映射表)
+  const targetEntryEp =
+    entryEpHint ??
+    bgmEpisodes?.find((e) => e.type === 0 && e.sort === qEp)?.ep
+
+  if (targetEntryEp !== undefined && targetEntryEp > 0) {
+    const mapped = slots.find((s) => s.entryEp === targetEntryEp)
+    if (mapped) return mapped
+  }
+
+  // 3. 安全下标回退：仅当 qEp 在合法集数范围内才尝试 qEp - 1，避免大集数 (如 14) 强行截断到最后一集
+  const safeIdx = qEp >= 1 && qEp <= slots.length ? qEp - 1 : 0
+  return slots[safeIdx] || slots[0]
+}

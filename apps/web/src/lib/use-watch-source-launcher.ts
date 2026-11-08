@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import type { NavigateOptions, URLSearchParamsInit } from 'react-router-dom'
 import {
   buildPlayableSlots,
+  resolveTargetSlot,
   rankSearchItems,
   resolvePluginDefaultKeyword,
   resolveTargetSourcePlugin,
@@ -14,7 +15,7 @@ import { pluginApi } from './plugin-api'
 import { findRoadsForPlay, writeRoadsForSource } from './roads-cache'
 import { usePluginStore } from '../stores/plugins'
 import { useSourceBindingStore } from '../stores/source-bindings'
-import { lookupHistorySourceUrl, lookupResumePosition } from './watch-resume'
+import { lookupHistorySourceUrl, lookupResumePosition, lookupHistoryEntryEp } from './watch-resume'
 import type { BangumiItemLike } from './watch-keywords'
 import type { EpisodePlay, SourceSelection } from './use-watch-session'
 
@@ -257,15 +258,8 @@ export function useWatchSourceLauncher({
             s.pageUrl.replace(/\/$/, '') === qPageUrl.replace(/\/$/, ''),
         )
       } else if (qEp !== undefined && qEp >= 0) {
-        targetSlot = slots.find((s) => s.canonicalEp === qEp)
-      }
-
-      if (!targetSlot && slots.length > 0) {
-        const fallbackIdx =
-          qEp !== undefined && qEp >= 0
-            ? Math.max(0, Math.min(qEp === 0 ? 0 : qEp - 1, slots.length - 1))
-            : 0
-        targetSlot = slots[fallbackIdx] || slots[0]
+        const entryEpHint = lookupHistoryEntryEp(bangumiId, qEp)
+        targetSlot = resolveTargetSlot(slots, qEp, entryEpHint, bgmEpisodes)
       }
 
       if (targetSlot) {
@@ -276,7 +270,7 @@ export function useWatchSourceLauncher({
           episodeRef.current?.road !== roadIdx ||
           episodeRef.current?.pageUrl !== targetPageUrl
         ) {
-          const pos = lookupResumePosition(bangumiId, qPlugin, epNum, roadIdx)
+          const pos = lookupResumePosition(bangumiId, qPlugin, epNum, roadIdx, targetSlot.entryEp)
           resumeOverrideRef.current = null
           setResumePosition(pos)
           setVisibleRoad(roadIdx)
@@ -396,21 +390,14 @@ export function useWatchSourceLauncher({
               s.pageUrl.replace(/\/$/, '') === qPageUrl.replace(/\/$/, ''),
           )
         } else if (qEp !== undefined && qEp >= 0) {
-          targetSlot = slots.find((s) => s.canonicalEp === qEp)
-        }
-
-        if (!targetSlot && slots.length > 0) {
-          const fallbackIdx =
-            qEp !== undefined && qEp >= 0
-              ? Math.max(0, Math.min(qEp === 0 ? 0 : qEp - 1, slots.length - 1))
-              : 0
-          targetSlot = slots[fallbackIdx] || slots[0]
+          const entryEpHint = lookupHistoryEntryEp(bangumiId, qEp)
+          targetSlot = resolveTargetSlot(slots, qEp, entryEpHint, bgmEpisodes)
         }
 
         const epNum = targetSlot?.canonicalEp ?? 1
         const targetPageUrl = targetSlot?.pageUrl || targetRoad?.data[0] || qPageUrl
 
-        const pos = lookupResumePosition(bangumiId, qPlugin, epNum, roadIdx)
+        const pos = lookupResumePosition(bangumiId, qPlugin, epNum, roadIdx, targetSlot?.entryEp)
         resumeOverrideRef.current = null
         setResumePosition(pos)
 
