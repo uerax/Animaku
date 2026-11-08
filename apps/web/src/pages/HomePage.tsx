@@ -28,6 +28,7 @@ import {
   dismissAnnouncement,
 } from '../components/SiteAnnouncementModal'
 import { SiteHighlightBanner } from '../components/SiteHighlightBanner'
+import { ViewAllLink } from '../components/ViewAllLink'
 
 const TRENDING_LIMIT = 14
 const SUB_SECTION_LIMIT = 7
@@ -219,12 +220,7 @@ export function HomePage() {
         <section>
           <div className="mb-4 sm:mb-5 flex items-center justify-between gap-3">
             <h2 className="kz-section-title font-black">历史观看</h2>
-            <Link
-              to="/history"
-              className="text-[13px] font-semibold text-[var(--kz-accent)] hover:underline"
-            >
-              查看更多
-            </Link>
+            <ViewAllLink to="/history" />
           </div>
           {/*
             min-w-0 on grid + items: iOS Safari keeps min-width:auto on grid
@@ -289,12 +285,7 @@ export function HomePage() {
       <section>
         <div className="mb-4 sm:mb-5 flex items-center justify-between gap-3">
           <h2 className="kz-section-title font-black">热门番剧</h2>
-          <Link
-            to="/anime"
-            className="text-[13px] font-semibold text-[var(--kz-accent)] hover:underline"
-          >
-            查看更多
-          </Link>
+          <ViewAllLink to="/anime" />
         </div>
         {trending.isLoading && (
           <BangumiGridSkeleton maxRows={HOME_TRENDING_ROWS} />
@@ -317,12 +308,7 @@ export function HomePage() {
       <section ref={moviesRef}>
         <div className="mb-4 sm:mb-5 flex items-center justify-between gap-3">
           <h2 className="kz-section-title font-black">剧场版</h2>
-          <Link
-            to="/anime?tag=%E5%89%A7%E5%9C%BA%E7%89%88&year=all&month=all"
-            className="text-[13px] font-semibold text-[var(--kz-accent)] hover:underline"
-          >
-            查看更多
-          </Link>
+          <ViewAllLink to="/anime?tag=%E5%89%A7%E5%9C%BA%E7%89%88&year=all&month=all" />
         </div>
         {movies.isError ? (
           <ErrorState error={movies.error} onRetry={() => movies.refetch()} />
@@ -340,12 +326,7 @@ export function HomePage() {
       <section ref={ovasRef}>
         <div className="mb-4 sm:mb-5 flex items-center justify-between gap-3">
           <h2 className="kz-section-title font-black">OVA / 特别篇</h2>
-          <Link
-            to="/anime?tag=OVA&year=all&month=all"
-            className="text-[13px] font-semibold text-[var(--kz-accent)] hover:underline"
-          >
-            查看更多
-          </Link>
+          <ViewAllLink to="/anime?tag=OVA&year=all&month=all" />
         </div>
         {ovas.isError ? (
           <ErrorState error={ovas.error} onRetry={() => ovas.refetch()} />
