@@ -4,7 +4,7 @@
 
   <h1>Animaku</h1>
 
-  <img src="apps/web/public/android-chrome-512x512.png" width="512" alt="Animaku logo" />
+  <img src="apps/web/public/android-chrome-512x512.png" width="256" alt="Animaku logo" />
 
   <p>
     <img src="https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React 19" />
