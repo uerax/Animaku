@@ -46,7 +46,7 @@ export const HomeDesktopSplitHeroSkeleton = memo(function HomeDesktopSplitHeroSk
 
         {/* 右侧空白边缘操作按钮骨架 */}
         <div className="absolute left-[calc(100%+12px)] top-0 z-20">
-          <div className="kz-skeleton h-10 w-10 rounded-xl" />
+          <div className="kz-skeleton h-[88px] w-10 rounded-lg" />
         </div>
       </div>
     </div>

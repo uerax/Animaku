@@ -28,14 +28,10 @@ function ChevronLeftIcon({ className = 'w-4 h-4' }: { className?: string }) {
     <svg
       className={className}
       viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      fill="currentColor"
       aria-hidden="true"
     >
-      <path d="m15 18-6-6 6-6" />
+      <path d="M15.4571 3.04289C15.8476 3.43342 15.8476 4.06658 15.4571 4.45711L8.09098 11.8232C7.99335 11.9209 7.99335 12.0791 8.09098 12.1768L15.4571 19.5429C15.8476 19.9334 15.8476 20.5666 15.4571 20.9571C15.0666 21.3476 14.4334 21.3476 14.0429 20.9571L6.67677 13.591C5.79809 12.7123 5.79809 11.2877 6.67677 10.409L14.0429 3.04289C14.4334 2.65237 15.0666 2.65237 15.4571 3.04289z" />
     </svg>
   )
 }
@@ -45,14 +41,10 @@ function ChevronRightIcon({ className = 'w-4 h-4' }: { className?: string }) {
     <svg
       className={className}
       viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      fill="currentColor"
       aria-hidden="true"
     >
-      <path d="m9 18 6-6-6-6" />
+      <path d="M8.5429 3.04289C8.15237 3.43342 8.15237 4.06658 8.5429 4.45711L15.909 11.8232C16.0066 11.9209 16.0066 12.0791 15.909 12.1768L8.5429 19.5429C8.15237 19.9334 8.15237 20.5666 8.5429 20.9571C8.93342 21.3476 9.56659 21.3476 9.95711 20.9571L17.3232 13.591C18.2019 12.7123 18.2019 11.2877 17.3232 10.409L9.95711 3.04289C9.56659 2.65237 8.93342 2.65237 8.5429 3.04289z" />
     </svg>
   )
 }
@@ -372,7 +364,7 @@ export const HomeHeroBanner = memo(function HomeHeroBanner({
       </div>
     )}
 
-      {/* 左右翻页箭头（悬停浮现） */}
+      {/* 左右翻页按钮（B站方圆角半透明风格，位于左右两侧垂直居中） */}
       {count > 1 && (
         <>
           <button
@@ -383,7 +375,7 @@ export const HomeHeroBanner = memo(function HomeHeroBanner({
               prevSlide()
             }}
             aria-label="上一张"
-            className="absolute left-3 top-1/2 -translate-y-1/2 z-20 flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-black/40 text-white backdrop-blur-md opacity-0 transition-all duration-200 hover:scale-110 hover:bg-black/70 group-hover:opacity-100"
+            className="absolute left-3 top-1/2 -translate-y-1/2 z-20 flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-white backdrop-blur-sm opacity-0 transition-all duration-200 hover:bg-white/30 active:scale-95 group-hover:opacity-100"
           >
             <ChevronLeftIcon className="h-4 w-4" />
           </button>
@@ -395,7 +387,7 @@ export const HomeHeroBanner = memo(function HomeHeroBanner({
               nextSlide()
             }}
             aria-label="下一张"
-            className="absolute right-3 top-1/2 -translate-y-1/2 z-20 flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-black/40 text-white backdrop-blur-md opacity-0 transition-all duration-200 hover:scale-110 hover:bg-black/70 group-hover:opacity-100"
+            className="absolute right-3 top-1/2 -translate-y-1/2 z-20 flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-white backdrop-blur-sm opacity-0 transition-all duration-200 hover:bg-white/30 active:scale-95 group-hover:opacity-100"
           >
             <ChevronRightIcon className="h-4 w-4" />
           </button>
