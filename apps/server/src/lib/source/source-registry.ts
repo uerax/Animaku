@@ -18,6 +18,7 @@ import { soraniAdapter } from './adapters/sorani'
 import { neosekAdapter } from './adapters/neosek'
 import { akianimeAdapter } from './adapters/akianime'
 import { bimiAdapter } from './adapters/bimi'
+import { huaziAdapter } from './adapters/huazi'
 
 export interface SourceRegistryOptions {
   playback?: PlaybackRegistry
@@ -50,6 +51,7 @@ export class SourceRegistry {
       neosekAdapter,
       akianimeAdapter,
       bimiAdapter,
+      huaziAdapter,
     ]
 
     for (const adapter of initialAdapters) {
@@ -144,6 +146,15 @@ export class SourceRegistry {
       normalized === 'bimibimi'
     ) {
       return this.adapters.get('bimi') || null
+    }
+    if (
+      normalized === 'huazi' ||
+      normalized === '花子' ||
+      normalized === '花子动漫' ||
+      normalized === 'huazidm' ||
+      normalized === 'huazi_dm'
+    ) {
+      return this.adapters.get('huazi') || null
     }
     return null
   }

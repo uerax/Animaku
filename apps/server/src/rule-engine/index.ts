@@ -928,6 +928,22 @@ export async function searchWithRule(
     }
   }
 
+  // huazi — dedicated adapter (RESTful JSON videos search)
+  {
+    const { isHuaziRule, searchHuazi } = await import('../lib/huazi')
+    if (isHuaziRule(rule)) {
+      try {
+        return await searchHuazi(rule, keyword)
+      } catch (e) {
+        return {
+          pluginName: rule.name,
+          items: [],
+          diagnostics: [e instanceof Error ? e.message : String(e)],
+        }
+      }
+    }
+  }
+
   // neosek — dedicated adapter (RESTful JSON API + &content_type=anime)
   {
     const { isNeosekRule, searchNeosek } = await import('../lib/neosek')
@@ -1340,6 +1356,22 @@ export async function chaptersWithRule(
     if (isAkianimeRule(rule)) {
       try {
         return await chaptersAkianime(rule, source)
+      } catch (e) {
+        return {
+          pluginName: rule.name,
+          roads: [],
+          diagnostics: [e instanceof Error ? e.message : String(e)],
+        }
+      }
+    }
+  }
+
+  // huazi — dedicated adapter (RESTful JSON multi-road chapters)
+  {
+    const { isHuaziRule, chaptersHuazi } = await import('../lib/huazi')
+    if (isHuaziRule(rule)) {
+      try {
+        return await chaptersHuazi(rule, source)
       } catch (e) {
         return {
           pluginName: rule.name,
@@ -1990,6 +2022,14 @@ export async function resolvePlay(
     const { isAkianimeRule, resolveAkianime } = await import('../lib/akianime')
     if (isAkianimeRule(rule)) {
       return wrapResolveWithTicket(rule, await resolveAkianime(rule, pageUrl))
+    }
+  }
+
+  // huazi: dedicated adapter (POST /api/play/resolve MP4/HLS direct stream)
+  {
+    const { isHuaziRule, resolveHuazi } = await import('../lib/huazi')
+    if (isHuaziRule(rule)) {
+      return wrapResolveWithTicket(rule, await resolveHuazi(rule, pageUrl))
     }
   }
 
