@@ -42,36 +42,43 @@ test('formatHomeTitle & static titles: dynamic siteName with keyword rich patter
   )
 })
 
-test('formatSubjectTitle: formats title with intent keywords and platform positioning', () => {
-  // Case 1: with alternate name
-  const title1 = formatSubjectTitle('葬送的芙莉莲', '葬送のフリーレン')
+test('formatSubjectTitle: formats title with intent keywords, Japanese alt name, and length guard', () => {
+  // Case 1: with alternate name (within safe length)
+  const title1 = formatSubjectTitle('秒速5厘米', '秒速5センチメートル', '扎口动漫')
   assert.equal(
     title1,
-    '《葬送的芙莉莲》（葬送のフリーレン）全集高清在线观看 - Animaku 动漫 - 弹幕播放与多源聚合平台',
+    '《秒速5厘米》（秒速5センチメートル）在线观看 - 扎口动漫',
   )
-  assert.ok(title1.length >= 45 && title1.length <= 65)
+  assert.ok(title1.length <= 32, `title1 length ${title1.length} exceeds 32`)
 
   // Case 2: without alternate name
   const title2 = formatSubjectTitle('鬼灭之刃')
   assert.equal(
     title2,
-    '《鬼灭之刃》全集高清在线观看 - Animaku 动漫 - 弹幕播放与多源聚合平台',
+    '《鬼灭之刃》在线观看 - Animaku 动漫',
   )
-  assert.ok(title2.length >= 35)
+  assert.ok(title2.length <= 25)
 
   // Case 3: custom site name
   const title3 = formatSubjectTitle('进击的巨人', undefined, 'MyAnime')
   assert.equal(
     title3,
-    '《进击的巨人》全集高清在线观看 - MyAnime - 弹幕播放与多源聚合平台',
+    '《进击的巨人》在线观看 - MyAnime',
   )
 
   // Case 4: identical name and alternate name deduplication
   const title4 = formatSubjectTitle('BLEACH', 'BLEACH')
   assert.equal(
     title4,
-    '《BLEACH》全集高清在线观看 - Animaku 动漫 - 弹幕播放与多源聚合平台',
+    '《BLEACH》在线观看 - Animaku 动漫',
   )
+
+  // Case 5: very long Japanese alternate name gets smoothly truncated under 32 chars
+  const longAlt = '転生したらスライムだった件について語る長い名前の作品'
+  const title5 = formatSubjectTitle('关于我转生变成史莱姆这档事', longAlt, '扎口动漫')
+  assert.ok(title5.length <= 32, `title5 length ${title5.length} exceeds 32`)
+  assert.ok(title5.startsWith('《关于我转生变成史莱姆这档事》'))
+  assert.ok(title5.endsWith('在线观看 - 扎口动漫'))
 })
 
 test('formatDefaultDescription & list descriptions: length strictly targets 150-160 characters', () => {

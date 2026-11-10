@@ -106,7 +106,7 @@ export function DocumentSeo() {
                 }),
                 buildBreadcrumbJsonLd([
                   { name: '首页', path: '/' },
-                  { name: '番剧目录', path: '/anime' },
+                  { name: '番剧', path: '/anime' },
                   { name, path },
                 ]),
               ]
@@ -152,7 +152,7 @@ export function DocumentSeo() {
       } else if (pathname === '/anime') {
         routeJsonLd = buildBreadcrumbJsonLd([
           { name: '首页', path: '/' },
-          { name: '番剧目录', path: '/anime' },
+          { name: '番剧', path: '/anime' },
         ])
       } else if (pathname === '/timeline') {
         routeJsonLd = buildBreadcrumbJsonLd([

@@ -117,11 +117,13 @@ test('renderSuccessPage: injects modulepreload tags cleanly into head', () => {
   const rendered = renderSuccessPage(mockTemplate, 622206, mockItem, 'https://animaku.app', preloadTags)
 
   assert.ok(rendered.includes('<link rel="modulepreload" crossorigin href="/assets/PlayPage-Test.js">'))
-  assert.ok(rendered.includes('<title>《尼古喵喵》（ヤニねこ）全集高清在线观看 - Animaku 动漫 - 弹幕播放与多源聚合平台</title>'))
+  assert.ok(rendered.includes('<title>《尼古喵喵》（ヤニねこ）在线观看 - Animaku 动漫</title>'))
   const descMatch = rendered.match(/<meta\s+name="description"\s+content="([\s\S]*?)"\s*\/?>/i)?.[1] || ''
   assert.ok(descMatch.length >= 150 && descMatch.length <= 160)
   assert.ok(rendered.includes('data-animaku-jsonld="1"'))
   assert.ok(rendered.includes('"@type":"WatchAction"'))
+  assert.ok(rendered.includes('"name":"番剧"'))
+  assert.ok(!rendered.includes('"name":"番剧目录"'))
   assert.ok(rendered.includes('name="keywords"'))
   assert.ok(rendered.includes('尼古喵喵在线'))
   assert.ok(rendered.includes('尼古喵喵 在线'))
@@ -337,9 +339,10 @@ test('applySiteBrandingToHtml: injects compliant Google WebSite schema with url 
       siteName: '杂口动漫',
       siteTagline: '在线追番',
       iconMode: 'default',
+      iconUpdatedAt: 0,
     })
 
-    const template = `<!doctype html><html><head><title>Old</title></head><body><div id="root"></div></body></html>`
+    const template = `<!doctype html><html><head><title>Old</title><meta property="og:image" content="/android-chrome-512x512.png" /><meta name="twitter:image" content="/android-chrome-512x512.png" /></head><body><div id="root"></div></body></html>`
     const result = applySiteBrandingToHtml(template, { origin: 'https://zakoway.com' })
     assert.ok(result.includes('"@type": "WebSite"'))
     assert.ok(result.includes('"name": "杂口动漫"'))
@@ -347,6 +350,8 @@ test('applySiteBrandingToHtml: injects compliant Google WebSite schema with url 
     assert.ok(result.includes('"zakoway.com"'))
     assert.ok(result.includes('"zakoway"'))
     assert.ok(result.includes('<link rel="canonical" href="https://zakoway.com/" />'))
+    assert.ok(result.includes('<meta property="og:image" content="https://zakoway.com/android-chrome-512x512.png" />'))
+    assert.ok(result.includes('<meta name="twitter:image" content="https://zakoway.com/android-chrome-512x512.png" />'))
   } finally {
     saveSiteConfig({
       siteName: original.siteName,

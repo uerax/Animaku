@@ -33,9 +33,11 @@ export function formatTimelineTitle(siteName?: string): string {
 
 /**
  * 格式化番剧详情/播放页的标准 SEO 标题。
- * 示例：
- * - 有原名：《葬送的芙莉莲》（葬送のフリーレン）全集高清在线观看 - Animaku 动漫 - 弹幕播放与多源聚合平台
- * - 无原名：《葬送的芙莉莲》全集高清在线观看 - Animaku 动漫 - 弹幕播放与多源聚合平台
+ * 遵循 Google 最佳实践：单一分隔符 + 黄金字数控制在 28-30 字符内，杜绝触发搜索重写截断。
+ * 格式：
+ * - 有原名：《中文名》（日文原名）在线观看 - 站点名
+ * - 无原名 / 原名与中文名相同：《中文名》在线观看 - 站点名
+ * - 超长保护：若日文原名过长导致总长超 32 字符，自适应收敛日文名，确保中文名与品牌词 100% 完整可见。
  */
 export function formatSubjectTitle(
   name: string,
@@ -44,12 +46,31 @@ export function formatSubjectTitle(
 ): string {
   const baseName = (name || '').trim() || '番剧'
   const cleanAlt = (altName || '').trim()
-  const displayTitle =
-    cleanAlt && cleanAlt !== baseName
-      ? `《${baseName}》（${cleanAlt}）`
-      : `《${baseName}》`
   const effectiveSiteName = (siteName || '').trim() || DEFAULT_SITE_NAME
-  return `${displayTitle}全集高清在线观看 - ${effectiveSiteName} - 弹幕播放与多源聚合平台`
+
+  // 基础无副标题格式：《片名》在线观看 - 站点名
+  const baseTitle = `《${baseName}》在线观看 - ${effectiveSiteName}`
+  if (!cleanAlt || cleanAlt === baseName) {
+    return baseTitle
+  }
+
+  // Google 搜索结果标题建议上限约为 32 字符（约 580-600px 物理像素宽度）
+  const MAX_TITLE_LEN = 32
+  const fullTitle = `《${baseName}》（${cleanAlt}）在线观看 - ${effectiveSiteName}`
+  if (fullTitle.length <= MAX_TITLE_LEN) {
+    return fullTitle
+  }
+
+  // 当日文名过长时，优先保证中文名与品牌词完整展示，对日文原名做平滑收敛
+  // 32 - (baseTitle.length + 括号2字符 + 省略号1字符)
+  const allowedAltLen = MAX_TITLE_LEN - baseTitle.length - 3
+  if (allowedAltLen >= 4) {
+    const truncatedAlt = `${cleanAlt.slice(0, allowedAltLen)}…`
+    return `《${baseName}》（${truncatedAlt}）在线观看 - ${effectiveSiteName}`
+  }
+
+  // 若中文名本身较长，省略日文原名，确保主标题不受截断
+  return baseTitle
 }
 
 /**

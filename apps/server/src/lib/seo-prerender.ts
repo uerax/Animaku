@@ -195,7 +195,10 @@ export function applySiteBrandingToHtml(
   const cfg = getSiteConfig()
   let result = html
 
-  if (cfg.siteName || cfg.siteTagline) {
+  const originBase = options.origin ? options.origin.replace(/\/+$/, '') : ''
+  const homepageUrl = originBase ? `${originBase}/` : ''
+
+  if (cfg.siteName || cfg.siteTagline || homepageUrl) {
     const brand = cfg.siteName || 'Animaku 动漫'
     const siteTitle = cfg.siteTagline
       ? `${brand} - ${cfg.siteTagline} - 高清动漫在线观看 - 免费热门番剧在线观看平台`
@@ -237,9 +240,6 @@ export function applySiteBrandingToHtml(
       )
 
       // 动态重写/补全首页 HTML 中的 WebSite 结构化数据 (JSON-LD)，严格遵循 Google Site Name 规范（带 url 与 alternateName）
-      const originBase = options.origin ? options.origin.replace(/\/+$/, '') : ''
-      const homepageUrl = originBase ? `${originBase}/` : ''
-
       let domainName = ''
       let domainBase = ''
       if (originBase) {
@@ -357,6 +357,22 @@ export function applySiteBrandingToHtml(
       .replace(/href=["']\/site\.webmanifest(?:\?[^"']*)?["']/gi, `href="/site.webmanifest${v}"`)
       .replace(/content=["']\/android-chrome-512x512\.png(?:\?[^"']*)?["']/gi, `content="/android-chrome-512x512.png${v}"`)
       .replace(/href=["']\/logo\.png(?:\?[^"']*)?["']/gi, `href="/logo.png${v}"`)
+  }
+
+  // 严格遵循 Open Graph 与 Twitter Cards 官方规范：
+  // 首页与静态路由的 og:image / twitter:image 必须升级为绝对 URL，杜绝社交平台分享时预览图空白裂图
+  if (originBase) {
+    const v = cfg.iconUpdatedAt ? `?v=${cfg.iconUpdatedAt}` : ''
+    const absImage = `${originBase}/android-chrome-512x512.png${v}`
+    result = result
+      .replace(
+        /<meta\s+property=["']og:image["']\s+content=["']\/android-chrome-512x512\.png(?:\?[^"']*)?["']\s*\/?>/gi,
+        `<meta property="og:image" content="${escapeHtml(absImage)}" />`,
+      )
+      .replace(
+        /<meta\s+name=["']twitter:image["']\s+content=["']\/android-chrome-512x512\.png(?:\?[^"']*)?["']\s*\/?>/gi,
+        `<meta name="twitter:image" content="${escapeHtml(absImage)}" />`,
+      )
   }
 
   return result
@@ -547,7 +563,7 @@ export function buildJsonLd(args: {
       {
         '@type': 'ListItem',
         position: 2,
-        name: '番剧目录',
+        name: '番剧',
         item: args.origin ? `${args.origin}/anime` : '/anime',
       },
       {
