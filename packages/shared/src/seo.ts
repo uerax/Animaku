@@ -6,29 +6,37 @@ export const DEFAULT_SITE_NAME = 'Animaku 动漫'
 
 /**
  * 格式化站点首页的标准 SEO 标题。
- * 格式：{自定义站点名称} - 高清动漫在线观看 - 免费热门番剧在线观看平台
+ * 遵循 Google 最佳实践：精炼短小，控制在 20-25 字符安全区间，避免多重短横线截断。
+ * - 有副标题：{品牌} - {副标题}（如：扎口动漫 - 弹幕播放与多源聚合平台）
+ * - 无副标题：{品牌} - 高清动漫在线观看与弹幕聚合平台
  */
-export function formatHomeTitle(siteName?: string): string {
+export function formatHomeTitle(siteName?: string, siteTagline?: string): string {
   const brand = (siteName || '').trim() || DEFAULT_SITE_NAME
-  return `${brand} - 高清动漫在线观看 - 免费热门番剧在线观看平台`
+  const tagline = (siteTagline || '').trim()
+  if (tagline) {
+    return `${brand} - ${tagline}`
+  }
+  return `${brand} - 高清动漫在线观看与弹幕聚合平台`
 }
 
 /**
  * 格式化番剧列表/目录页的标准 SEO 标题。
- * 格式：{自定义站点名称} - 番剧列表 - 高清动漫在线观看 - 免费热门番剧在线观看平台
+ * 遵循 Google 最佳实践：核心词在前，单短横线分隔，品牌在后，杜绝样板词堆砌。
+ * 格式：番剧列表 - 高清动漫在线 - {自定义站点名称}
  */
 export function formatAnimeListTitle(siteName?: string): string {
   const brand = (siteName || '').trim() || DEFAULT_SITE_NAME
-  return `${brand} - 番剧列表 - 高清动漫在线观看 - 免费热门番剧在线观看平台`
+  return `番剧列表 - 高清动漫在线 - ${brand}`
 }
 
 /**
  * 格式化每日新番放送时间表页的标准 SEO 标题。
- * 格式：{自定义站点名称} - 每日新番放送时间表 - 高清动漫在线观看 - 免费热门番剧在线观看平台
+ * 遵循 Google 最佳实践：核心词在前，单短横线分隔，品牌在后，杜绝样板词堆砌。
+ * 格式：新番放送时间表 - 每日连载更新 - {自定义站点名称}
  */
 export function formatTimelineTitle(siteName?: string): string {
   const brand = (siteName || '').trim() || DEFAULT_SITE_NAME
-  return `${brand} - 每日新番放送时间表 - 高清动漫在线观看 - 免费热门番剧在线观看平台`
+  return `新番放送时间表 - 每日连载更新 - ${brand}`
 }
 
 /**

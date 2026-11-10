@@ -181,15 +181,15 @@ export default defineConfig(({ mode }) => {
             }
           }
 
-          const alternateName: string[] = ['Animaku 动漫', 'Animaku动漫', 'Animaku']
-          if (
+          const candidateNames = [
+            'Animaku 动漫',
             hostnameBackup &&
             hostnameBackup !== 'localhost' &&
-            hostnameBackup !== '127.0.0.1' &&
-            !alternateName.includes(hostnameBackup)
-          ) {
-            alternateName.push(hostnameBackup)
-          }
+            hostnameBackup !== '127.0.0.1'
+              ? hostnameBackup
+              : undefined,
+          ].filter(Boolean) as string[]
+          const alternateName: string[] = Array.from(new Set(candidateNames))
 
           const jsonLd: Record<string, unknown> = {
             '@context': 'https://schema.org',

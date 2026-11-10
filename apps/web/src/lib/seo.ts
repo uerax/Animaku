@@ -72,7 +72,7 @@ export const STATIC_ROUTE_SEO: Record<
     description: formatTimelineDescription(),
   },
   '/search': {
-    title: '搜索 - 高清动漫在线观看 - 免费热门番剧在线观看平台',
+    title: '搜索 - 高清动漫在线观看',
     description: '在全网动画与Bangumi索引中搜索心仪动漫番剧，获取全集高清视频源与实时弹幕播放支持。',
     robots: 'noindex,follow',
   },
@@ -296,16 +296,6 @@ export function buildWebsiteJsonLd(siteUrl = resolveSiteUrl()): Record<string, u
     }
   }
 
-  const alternateName: string[] = ['Animaku 动漫', 'Animaku动漫', 'Animaku']
-  if (
-    hostnameBackup &&
-    hostnameBackup !== 'localhost' &&
-    hostnameBackup !== '127.0.0.1' &&
-    !alternateName.includes(hostnameBackup)
-  ) {
-    alternateName.push(hostnameBackup)
-  }
-
   const dynamicName = useSiteConfigStore.getState().siteName?.trim()
   const dynamicTagline = useSiteConfigStore.getState().siteTagline?.trim()
   const effectiveSiteName = dynamicName || SITE_NAME
@@ -313,6 +303,13 @@ export function buildWebsiteJsonLd(siteUrl = resolveSiteUrl()): Record<string, u
     effectiveSiteName,
     dynamicTagline,
   )
+
+  const candidateNames = [
+    effectiveSiteName,
+    dynamicName,
+    hostnameBackup && hostnameBackup !== 'localhost' && hostnameBackup !== '127.0.0.1' ? hostnameBackup : undefined,
+  ].filter(Boolean) as string[]
+  const alternateName: string[] = Array.from(new Set(candidateNames))
 
   return {
     '@context': 'https://schema.org',

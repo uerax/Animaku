@@ -105,6 +105,7 @@ test('findSubjectModulePreloadTags: extracts PlayPage and dependency chunks from
 })
 
 test('renderSuccessPage: injects modulepreload tags cleanly into head', () => {
+  saveSiteConfig({ siteName: undefined, siteTagline: undefined })
   const mockTemplate = '<!doctype html><html><head><title>Old</title></head><body><div id="root"></div></body></html>'
   const mockItem = {
     id: 622206,
@@ -163,17 +164,22 @@ test('findRouteModulePreloadTags & getPreloadedHtmlForRoute: works across all ro
   assert.ok(findRouteModulePreloadTags(tmpDir, 'search').includes('SearchPage-33333.js'))
 
   // 2. Route preload HTML injection & title/desc optimization
+  saveSiteConfig({ siteName: undefined, siteTagline: undefined })
   const animeHtml = getPreloadedHtmlForRoute(tmpDir, '/anime', 'https://animaku.app')
   assert.ok(animeHtml?.includes('AnimePage-11111.js'))
-  assert.ok(animeHtml?.includes('<title>Animaku 动漫 - 番剧列表 - 高清动漫在线观看 - 免费热门番剧在线观看平台</title>'))
+  assert.ok(animeHtml?.includes('<title>番剧列表 - 高清动漫在线 - Animaku 动漫</title>'))
   assert.ok(animeHtml?.includes('<link rel="canonical" href="https://animaku.app/anime" />'))
+  assert.ok(animeHtml?.includes('"@type":"BreadcrumbList"'))
+  assert.ok(animeHtml?.includes('"name":"番剧"'))
   const animeDesc = animeHtml?.match(/<meta\s+name="description"\s+content="([\s\S]*?)"\s*\/?>/i)?.[1] || ''
   assert.ok(animeDesc.length >= 150 && animeDesc.length <= 160)
 
   const timelineHtml = getPreloadedHtmlForRoute(tmpDir, '/timeline', 'https://animaku.app')
   assert.ok(timelineHtml?.includes('TimelinePage-22222.js'))
-  assert.ok(timelineHtml?.includes('<title>Animaku 动漫 - 每日新番放送时间表 - 高清动漫在线观看 - 免费热门番剧在线观看平台</title>'))
+  assert.ok(timelineHtml?.includes('<title>新番放送时间表 - 每日连载更新 - Animaku 动漫</title>'))
   assert.ok(timelineHtml?.includes('<link rel="canonical" href="https://animaku.app/timeline" />'))
+  assert.ok(timelineHtml?.includes('"@type":"BreadcrumbList"'))
+  assert.ok(timelineHtml?.includes('"name":"放送时间表"'))
   const timelineDesc = timelineHtml?.match(/<meta\s+name="description"\s+content="([\s\S]*?)"\s*\/?>/i)?.[1] || ''
   assert.ok(timelineDesc.length >= 150 && timelineDesc.length <= 160)
 
@@ -223,9 +229,10 @@ test('getPreloadedHtmlForRoute: strips homepage canonical and WebSite JSON-LD fo
   fs.writeFileSync(path.join(tmpDir, 'index.html'), template)
 
   // 1. Home route MUST KEEP the canonical link & WebSite JSON-LD
+  saveSiteConfig({ siteName: undefined, siteTagline: undefined })
   const homeHtml = getPreloadedHtmlForRoute(tmpDir, '/')
   assert.ok(homeHtml?.includes('<link rel="canonical" href="https://animaku.app/" />'))
-  assert.ok(homeHtml?.includes('"@type":"WebSite"'))
+  assert.ok(/["']@type["']\s*:\s*["']WebSite["']/i.test(homeHtml || ''))
 
   // 2. Sub-route (/settings) MUST STRIP the homepage canonical tag & WebSite JSON-LD
   const settingsHtml = getPreloadedHtmlForRoute(tmpDir, '/settings')
@@ -310,9 +317,9 @@ test('applySiteBrandingToHtml: replaces description tags when siteName and siteT
 </html>`
 
     const result = applySiteBrandingToHtml(template)
-    assert.ok(result.includes('<title>极简动漫 - 纯粹二次元 - 高清动漫在线观看 - 免费热门番剧在线观看平台</title>'))
-    assert.ok(result.includes('<meta property="og:title" content="极简动漫 - 纯粹二次元 - 高清动漫在线观看 - 免费热门番剧在线观看平台" />'))
-    assert.ok(result.includes('<meta name="twitter:title" content="极简动漫 - 纯粹二次元 - 高清动漫在线观看 - 免费热门番剧在线观看平台" />'))
+    assert.ok(result.includes('<title>极简动漫 - 纯粹二次元</title>'))
+    assert.ok(result.includes('<meta property="og:title" content="极简动漫 - 纯粹二次元" />'))
+    assert.ok(result.includes('<meta name="twitter:title" content="极简动漫 - 纯粹二次元" />'))
     assert.ok(result.includes('极简动漫（纯粹二次元）致力于为广大动漫爱好者提供优质的高清日漫新番'))
     assert.ok(result.includes('<h1 class="sr-only">极简动漫 - 纯粹二次元</h1>'))
     assert.ok(result.includes('"name": "极简动漫"'))

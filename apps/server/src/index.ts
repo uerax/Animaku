@@ -187,7 +187,8 @@ app.route('/api/admin', adminSiteRoutes)
 // Host-aware SEO & AI discovery files (before SPA static so they are not shadowed by public/)
 app.get('/robots.txt', (c) => {
   const origin = resolvePublicOrigin(config.siteUrl, c.req)
-  return new Response(buildRobotsTxt(origin), {
+  const cfg = getSiteConfig()
+  return new Response(buildRobotsTxt(origin, cfg.siteName), {
     status: 200,
     headers: {
       'Content-Type': 'text/plain; charset=utf-8',
@@ -197,7 +198,8 @@ app.get('/robots.txt', (c) => {
 })
 app.get('/llms.txt', (c) => {
   const origin = resolvePublicOrigin(config.siteUrl, c.req)
-  return new Response(buildLlmsTxt(origin), {
+  const cfg = getSiteConfig()
+  return new Response(buildLlmsTxt(origin, cfg.siteName), {
     status: 200,
     headers: {
       'Content-Type': 'text/markdown; charset=utf-8',
@@ -337,12 +339,13 @@ if (webRoot) {
   app.get('/site.webmanifest', (c) => {
     const cfg = getSiteConfig()
     const ver = cfg.iconUpdatedAt ? `?v=${cfg.iconUpdatedAt}` : ''
+    const brand = cfg.siteName || 'Animaku 动漫'
     const manifest = {
-      name: cfg.siteName || 'Animaku 动漫',
+      name: brand,
       short_name: cfg.siteName || 'Animaku',
       description: cfg.siteTagline
-        ? `${cfg.siteName || 'Animaku'} - ${cfg.siteTagline}`
-        : 'Animaku 动漫 - 在线高清动画多源聚合弹幕平台',
+        ? `${brand} - ${cfg.siteTagline}`
+        : `${brand} - 在线高清动画多源聚合弹幕平台`,
       lang: 'zh-CN',
       start_url: '/',
       scope: '/',

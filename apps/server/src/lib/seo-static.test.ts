@@ -33,10 +33,10 @@ test('buildRobotsTxt: contains explicit rules for mainstream AI bots', () => {
 })
 
 test('buildLlmsTxt: generates restrained markdown with accurate Frieren ID and no exaggeration/API promises', () => {
-  const llms = buildLlmsTxt('https://animaku.test')
+  const llms = buildLlmsTxt('https://animaku.test', '扎口动漫')
 
-  assert.ok(llms.startsWith('# Animaku'))
-  assert.ok(llms.includes('[番剧目录](https://animaku.test/anime)'))
+  assert.ok(llms.startsWith('# 扎口动漫'))
+  assert.ok(llms.includes('[番剧](https://animaku.test/anime)'))
   assert.ok(llms.includes('[每日放送时间表](https://animaku.test/timeline)'))
   assert.ok(llms.includes('https://animaku.test/subject/{bangumiId}'))
 

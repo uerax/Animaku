@@ -16,29 +16,34 @@ test('formatHomeTitle & static titles: dynamic siteName with keyword rich patter
   // Default siteName
   assert.equal(
     formatHomeTitle(),
-    'Animaku 动漫 - 高清动漫在线观看 - 免费热门番剧在线观看平台',
+    'Animaku 动漫 - 高清动漫在线观看与弹幕聚合平台',
   )
   assert.equal(
     formatAnimeListTitle(),
-    'Animaku 动漫 - 番剧列表 - 高清动漫在线观看 - 免费热门番剧在线观看平台',
+    '番剧列表 - 高清动漫在线 - Animaku 动漫',
   )
   assert.equal(
     formatTimelineTitle(),
-    'Animaku 动漫 - 每日新番放送时间表 - 高清动漫在线观看 - 免费热门番剧在线观看平台',
+    '新番放送时间表 - 每日连载更新 - Animaku 动漫',
   )
 
-  // Custom siteName
+  // Custom siteName without tagline
   assert.equal(
     formatHomeTitle('次元宇宙'),
-    '次元宇宙 - 高清动漫在线观看 - 免费热门番剧在线观看平台',
+    '次元宇宙 - 高清动漫在线观看与弹幕聚合平台',
+  )
+  // Custom siteName with tagline
+  assert.equal(
+    formatHomeTitle('扎口动漫', '弹幕播放与多源聚合平台'),
+    '扎口动漫 - 弹幕播放与多源聚合平台',
   )
   assert.equal(
     formatAnimeListTitle('次元宇宙'),
-    '次元宇宙 - 番剧列表 - 高清动漫在线观看 - 免费热门番剧在线观看平台',
+    '番剧列表 - 高清动漫在线 - 次元宇宙',
   )
   assert.equal(
     formatTimelineTitle('次元宇宙'),
-    '次元宇宙 - 每日新番放送时间表 - 高清动漫在线观看 - 免费热门番剧在线观看平台',
+    '新番放送时间表 - 每日连载更新 - 次元宇宙',
   )
 })
 

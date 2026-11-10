@@ -56,12 +56,13 @@ export function resolvePublicOrigin(
   return `${proto}://${host}`.replace(/\/+$/, '')
 }
 
-export function buildRobotsTxt(origin: string): string {
+export function buildRobotsTxt(origin: string, siteName?: string): string {
+  const brand = (siteName || '').trim() || 'Animaku'
   const sitemapLine = origin
     ? `Sitemap: ${origin}/sitemap.xml\n`
     : '# Set SITE_URL or open via public Host so Sitemap: can be absolute\n'
 
-  return `# Animaku robots.txt
+  return `# ${brand} robots.txt
 
 # Explicit allowances for AI and LLM search/answer bots
 User-agent: GPTBot
@@ -107,16 +108,18 @@ ${sitemapLine}`
 /**
  * Generate standard /llms.txt for AI agents and LLM discoverability.
  */
-export function buildLlmsTxt(origin: string): string {
+export function buildLlmsTxt(origin: string, siteName?: string): string {
   const base = origin.replace(/\/+$/, '') || 'https://animaku.app'
+  const brand = (siteName || '').trim() || 'Animaku 动漫'
+  const brandShort = (siteName || '').trim() || 'Animaku'
 
-  return `# Animaku
+  return `# ${brandShort}
 
-> Animaku 是一个极简、现代的番剧信息与聚合播放平台。以 Bangumi 官方权威元数据为准，集成多源视频解析、双源弹幕实时对齐与去重、以及现代化播放体验。
+> ${brand}是一个极简、现代的番剧信息与聚合播放平台。以 Bangumi 官方权威元数据为准，集成多源视频解析、双源弹幕实时对齐与去重、以及现代化播放体验。
 
 ## 核心页面与索引 (Core Pages)
 
-- [番剧目录](${base}/anime): 全量番剧分类索引与多维度筛选（年份、季度、类型、热度/评分排序）
+- [番剧](${base}/anime): 全量番剧分类索引与多维度筛选（年份、季度、类型、热度/评分排序）
 - [每日放送时间表](${base}/timeline): 每周 7 天新番每日连载与播出时间表
 - [番剧详情与播放页](${base}/subject/{id}): 核心单页（例如 ${base}/subject/400602），包含番剧完整中日文元数据、分集列表、在线播放与多源弹幕
 

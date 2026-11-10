@@ -136,7 +136,7 @@ export function DocumentSeo() {
       let routeDescription = staticSeo.description
 
       if (pathname === '/') {
-        routeTitle = formatHomeTitle(trimmedName)
+        routeTitle = formatHomeTitle(trimmedName, trimmedTagline)
         routeDescription = formatDefaultDescription(trimmedName, trimmedTagline)
       } else if (pathname === '/anime') {
         routeTitle = formatAnimeListTitle(trimmedName)
