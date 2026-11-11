@@ -27,7 +27,6 @@ test('buildJsonLd: builds TVSeries and BreadcrumbList schema objects without agg
     alternateName: 'Fate UBW',
     description: '圣杯战争',
     image: 'https://lain.bgm.tv/pic/cover/l/100403.jpg',
-    datePublished: '2014-10-04',
     canonicalUrl: 'https://animaku.app/subject/100403',
     origin: 'https://animaku.app',
   })
@@ -36,6 +35,9 @@ test('buildJsonLd: builds TVSeries and BreadcrumbList schema objects without agg
   assert.equal(tvSeries.name, 'Fate/stay night [Unlimited Blade Works]')
   assert.equal(tvSeries.alternateName, 'Fate UBW')
   assert.equal(tvSeries.url, 'https://animaku.app/subject/100403')
+
+  // Strictly assert datePublished is omitted so Google doesn't display anime air date as page publication date
+  assert.equal(tvSeries.datePublished, undefined)
 
   // Verify WatchAction
   const watchAction = tvSeries.potentialAction as Record<string, unknown>

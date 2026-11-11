@@ -594,7 +594,6 @@ export function buildJsonLd(args: {
   alternateName?: string
   description?: string
   image?: string
-  datePublished?: string
   canonicalUrl: string
   origin: string
   genre?: string[]
@@ -609,7 +608,7 @@ export function buildJsonLd(args: {
       : {}),
     ...(args.description ? { description: args.description } : {}),
     ...(args.image ? { image: args.image } : {}),
-    ...(args.datePublished ? { datePublished: args.datePublished } : {}),
+    // datePublished removed: Google misinterprets anime airDate as page publication date
     ...(args.genre && args.genre.length > 0 ? { genre: args.genre } : {}),
     ...(args.keywords ? { keywords: args.keywords } : {}),
     potentialAction: {
@@ -694,7 +693,6 @@ export function renderSuccessPage(
     alternateName: altName,
     description: metaDesc,
     image: coverUrl || undefined,
-    datePublished: item.airDate || undefined,
     canonicalUrl,
     origin,
     genre: genreList,

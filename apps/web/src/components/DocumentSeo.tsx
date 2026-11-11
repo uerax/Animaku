@@ -99,7 +99,6 @@ export function DocumentSeo() {
                   alternateName: alt,
                   description: summary,
                   image: cover || undefined,
-                  datePublished: item.airDate || undefined,
                   path,
                   genre,
                   keywords,

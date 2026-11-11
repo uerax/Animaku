@@ -19,6 +19,7 @@ data/*
 *.db-wal
 *.db-shm
 *.db-journal
+.agents/
 
 # Plan files
 [Pp]lan.md

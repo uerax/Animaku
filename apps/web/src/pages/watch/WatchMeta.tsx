@@ -109,7 +109,11 @@ function MetaChips({ item }: { item: BangumiItem }) {
       {airLabel && (
         <span className={airChipClass(air.status)}>{airLabel}</span>
       )}
-      {item.airDate && <span className="kz-watch-chip">{item.airDate}</span>}
+      {item.airDate && (
+        <span className="kz-watch-chip">
+          {item.airDate.length > 7 ? item.airDate.slice(0, 7) : item.airDate}
+        </span>
+      )}
       {item.tags?.slice(0, 6).map((t) => (
         <span key={t.name} className="kz-watch-chip max-w-[8rem] truncate">
           {t.name}

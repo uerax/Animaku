@@ -340,7 +340,6 @@ export function buildTvSeriesJsonLd(args: {
   alternateName?: string
   description?: string
   image?: string
-  datePublished?: string
   path: string
   genre?: string[]
   keywords?: string
@@ -356,7 +355,7 @@ export function buildTvSeriesJsonLd(args: {
       : {}),
     ...(args.description ? { description: truncateDescription(args.description, 300) } : {}),
     ...(args.image ? { image: toAbsoluteUrl(args.image, siteUrl) } : {}),
-    ...(args.datePublished ? { datePublished: args.datePublished } : {}),
+    // datePublished removed: Google misinterprets anime airDate as page publication date
     ...(args.genre && args.genre.length > 0 ? { genre: args.genre } : {}),
     ...(args.keywords ? { keywords: args.keywords } : {}),
     potentialAction: {
