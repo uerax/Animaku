@@ -829,55 +829,14 @@ export function useDanmakuSession(opts: UseDanmakuSessionOpts): DanmakuSession {
 
   const handleLoadDanmuBox = useCallback(
     async (
-      repo: string,
-      hash: string,
-      file: string,
-      archiveTitle?: string,
+      _repo: string,
+      _hash: string,
+      _file: string,
+      _archiveTitle?: string,
     ) => {
-      setStatus(`弹幕盒子 · 正在载入 ${file} ...`)
-      try {
-        const res = await danmakuApi.danmuboxComments(repo, hash, { file })
-        const comments = res.data || []
-        const count = res.count || comments.length
-        const packInfo: ActiveDanmuBoxPack = {
-          repo,
-          hash,
-          title: archiveTitle || activeDanmuBoxRef.current?.title || file,
-          file,
-          allFiles: res.allFiles,
-        }
-        activeDanmuBoxRef.current = packInfo
-        setActiveDanmuBox(packInfo)
-
-        setPools((p) =>
-          writePool(
-            p,
-            'danmubox',
-            comments,
-            'replace',
-            file.replace(/\.xml$/i, ''),
-            true,
-          ),
-        )
-
-        const existingAll = [
-          ...pools.dandan.comments,
-          ...pools.bilibili_auto.comments,
-          ...pools.bilibili_manual.comments,
-        ]
-        const { incremental } = deduplicateDanmakuIncremental(
-          existingAll,
-          comments,
-        )
-
-        setStatus(
-          `弹幕盒子 · 已载入 ${count} 条 (${incremental.length} 增量) · ${file}`,
-        )
-      } catch (err) {
-        setStatus(`弹幕盒子载入失败: ${err instanceof Error ? err.message : String(err)}`)
-      }
+      setStatus('弹幕盒子：请下载 7z 压缩包并解压后，前往「导入/屏蔽」选择本地 XML 导入')
     },
-    [pools],
+    [],
   )
 
   const handleUnloadDanmuBox = useCallback(() => {

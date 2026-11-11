@@ -3,14 +3,8 @@ import {
   initDanmuBox,
   isDanmuBoxLoaded,
   searchDanmuBox,
-  getDanmuBoxEntry,
 } from '../lib/danmubox/index'
 import {
-  ensureArchiveUnpacked,
-  getDanmuBoxEpisodeComments,
-} from '../lib/danmubox/archive'
-import {
-  setDanmuBoxCdnHeaders,
   setDanmakuCdnHeaders,
 } from '../lib/cdn-cache-headers'
 import { wantsCacheBypass } from '../lib/ttl-cache'
@@ -59,82 +53,24 @@ danmuboxRoutes.get('/danmubox/search', async (c) => {
   }
 })
 
-danmuboxRoutes.get('/danmubox/episodes', async (c) => {
-  const repo = (c.req.query('repo') || '').trim()
-  const hash = (c.req.query('hash') || '').trim()
-
-  if (!repo || !hash) {
-    return c.json({ error: 'bad_request', message: '缺少 repo 或 hash 参数' }, 400)
-  }
-
-  try {
-    const files = await ensureArchiveUnpacked(repo, hash)
-    const entry = getDanmuBoxEntry(repo, hash)
-
-    const bypass = wantsCacheBypass(c)
-    setDanmuBoxCdnHeaders(c, bypass)
-
-    return c.json({
-      data: files,
-      entry: entry || null,
-    })
-  } catch (err) {
-    return c.json(
-      {
-        error: 'danmubox_episodes_failed',
-        message: err instanceof Error ? err.message : String(err),
-      },
-      502,
-    )
-  }
+// 客户端迁移提示：旧的服务端下载解压接口已废弃并下放至客户端浏览器执行
+danmuboxRoutes.get('/danmubox/episodes', (c) => {
+  return c.json(
+    {
+      error: 'deprecated',
+      message: '弹幕盒子已升级为纯前端客户端直连解压，请升级网页客户端',
+    },
+    410,
+  )
 })
-
-async function handleCommentsFetch(c: import('hono').Context, repo: string, hash: string) {
-  if (!repo || !hash) {
-    return c.json({ error: 'bad_request', message: '缺少 repo 或 hash 参数' }, 400)
-  }
-
-  const file = c.req.query('file')?.trim()
-  const rawEp = c.req.query('ep') || c.req.query('episode')
-  const episode = rawEp ? parseInt(rawEp, 10) : undefined
-  const seasonTag = c.req.query('season')?.trim()
-
-  const bypass = wantsCacheBypass(c)
-
-  try {
-    const result = await getDanmuBoxEpisodeComments(repo, hash, {
-      file: file || undefined,
-      episode: Number.isFinite(episode) ? episode : undefined,
-      seasonTag: seasonTag || undefined,
-    })
-
-    setDanmuBoxCdnHeaders(c, bypass)
-
-    return c.json({
-      data: result.comments,
-      count: result.count,
-      file: result.file,
-      allFiles: result.allFiles,
-    })
-  } catch (err) {
-    return c.json(
-      {
-        error: 'danmubox_comments_failed',
-        message: err instanceof Error ? err.message : String(err),
-      },
-      502,
-    )
-  }
-}
 
 danmuboxRoutes.get('/danmubox/comments', (c) => {
-  const repo = (c.req.query('repo') || '').trim()
-  const hash = (c.req.query('hash') || '').trim()
-  return handleCommentsFetch(c, repo, hash)
+  return c.json(
+    {
+      error: 'deprecated',
+      message: '弹幕盒子已升级为纯前端客户端直连解压，请升级网页客户端',
+    },
+    410,
+  )
 })
 
-danmuboxRoutes.get('/danmubox/comments/:repo/:hash', (c) => {
-  const repo = c.req.param('repo')
-  const hash = decodeURIComponent(c.req.param('hash'))
-  return handleCommentsFetch(c, repo, hash)
-})

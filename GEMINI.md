@@ -24,7 +24,9 @@
 - **网络抓取 (Ask)**: 涉及外部 API 请求或网页抓取（WebFetch）时，应向用户说明并征得确认。
 
 ## 5. 终端命令执行权限 (Bash / Run Command Policy)
-在调用终端命令工具（`run_command`）时，严格遵循以下白名单与黑名单机制：
+在调用终端命令工具（`run_command`）时，严格遵循以下规则：
+- **终端环境**：终端命令必须使用 Git Bash 语法，严禁使用 PowerShell 原生语法/Cmdlet（如 `Get-ChildItem`、`Select-String` 等）。如果底层终端为 PowerShell，需通过 Git Bash 风格命令或 `bash -c "..."` 包装执行。
+- 严格遵循以下白名单与黑名单机制：
 
 ### 绝对禁止执行 (Deny)
 - `rm -rf /*`, `rm -rf /` 等根目录或整盘高危删除指令。

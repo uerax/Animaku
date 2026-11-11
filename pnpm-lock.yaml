@@ -10,9 +10,6 @@ importers:
 
   apps/server:
     dependencies:
-      7zip-min:
-        specifier: ^3.0.1
-        version: 3.0.1
       '@animaku/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -128,12 +125,6 @@ importers:
         version: 5.9.3
 
 packages:
-
-  7zip-bin@5.1.1:
-    resolution: {integrity: sha512-sAP4LldeWNz0lNzmTird3uWfFDWWTeg6V/MsmyyLR9X1idwKBWIgt/ZvinqQldJm3LecKEs1emkbquO6PCiLVQ==}
-
-  7zip-min@3.0.1:
-    resolution: {integrity: sha512-WB4VCA/KSKzxhj+BAp8fI3ZYMMAftclkXlUTckuiDacsqyubQxxG3lGcpBcgzWWuJqnfQncEq1xrJpPLSxqsxw==}
 
   '@babel/code-frame@7.29.7':
     resolution: {integrity: sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw==}
@@ -1464,12 +1455,6 @@ packages:
         optional: true
 
 snapshots:
-
-  7zip-bin@5.1.1: {}
-
-  7zip-min@3.0.1:
-    dependencies:
-      7zip-bin: 5.1.1
 
   '@babel/code-frame@7.29.7':
     dependencies:

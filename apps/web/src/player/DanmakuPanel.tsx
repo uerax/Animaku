@@ -14,6 +14,9 @@ import {
 } from '../lib/danmaku-pools'
 import type { PointerMode } from './chrome/usePointerMode'
 import { danmakuApi } from '../lib/plugin-api'
+import {
+  getDanmuBoxCdnDownloadUrl,
+} from '../lib/danmubox/client'
 import { KzButton, KzInput } from '../components/ui'
 
 export type DanmakuPanelTab = 'search' | 'danmubox' | 'settings' | 'import'
@@ -869,21 +872,14 @@ function SearchTab(props: Props & { compact: boolean }) {
   )
 }
 
-/* ─── DanmuBox Tab ─── */
+/* ─── DanmuBox Tab (Pure Search & Download Mode) ─── */
 
 function DanmuBoxTab(props: Props & { compact: boolean }) {
   const [dbKeyword, setDbKeyword] = useState(props.keyword || '')
   const [searching, setSearching] = useState(false)
   const [results, setResults] = useState<DanmuBoxEntry[]>([])
   const [searched, setSearched] = useState(false)
-  const [expandedHash, setExpandedHash] = useState<string | null>(null)
-  const [episodesMap, setEpisodesMap] = useState<Record<string, string[]>>({})
-  const [selectedFilesMap, setSelectedFilesMap] = useState<Record<string, string>>({})
-  const [loadingEps, setLoadingEps] = useState<Record<string, boolean>>({})
-  const [loadingFile, setLoadingFile] = useState<string | null>(null)
-
-  const active = props.activeDanmuBox
-  const danmuboxOffset = props.poolOffsets?.danmubox ?? 0
+  const [copiedKey, setCopiedKey] = useState<string | null>(null)
 
   const handleSearch = async () => {
     const kw = dbKeyword.trim()
@@ -908,78 +904,38 @@ function DanmuBoxTab(props: Props & { compact: boolean }) {
     }
   }, [])
 
-  const toggleExpand = async (item: DanmuBoxEntry) => {
+  const handleCopyDirectLink = async (item: DanmuBoxEntry) => {
     const key = `${item.repo}:${item.fileHash}`
-    if (expandedHash === key) {
-      setExpandedHash(null)
-      return
-    }
-    setExpandedHash(key)
-    if (!episodesMap[key]) {
-      setLoadingEps((prev) => ({ ...prev, [key]: true }))
-      try {
-        const res = await danmakuApi.danmuboxEpisodes(item.repo, item.fileHash)
-        const list = sortDanmakuXmlFiles(res.data || [])
-        setEpisodesMap((prev) => ({ ...prev, [key]: list }))
-        const best =
-          props.targetEpisode !== undefined && list.length > 0
-            ? matchBestEpisodeXml(list, props.targetEpisode)
-            : list[0]
-        if (best) {
-          setSelectedFilesMap((prev) => ({ ...prev, [key]: best }))
-        }
-      } catch (err) {
-        console.error(err)
-      } finally {
-        setLoadingEps((prev) => ({ ...prev, [key]: false }))
-      }
-    }
-  }
-
-  const handlePickFile = async (item: DanmuBoxEntry, file: string) => {
-    if (!props.onLoadDanmuBox) return
-    setLoadingFile(`${item.fileHash}:${file}`)
+    const url = getDanmuBoxCdnDownloadUrl(item.repo, item.fileHash)
     try {
-      await props.onLoadDanmuBox(item.repo, item.fileHash, file, item.title)
-    } finally {
-      setLoadingFile(null)
+      await navigator.clipboard.writeText(url)
+      setCopiedKey(key)
+      setTimeout(() => setCopiedKey(null), 2000)
+    } catch {
+      window.open(url, '_blank')
     }
   }
 
   return (
     <div className="space-y-3.5">
-      {/* Active Pack Status Card */}
-      {active && (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <span className="text-amber-500 text-xs">📦</span>
-              <span className="text-xs font-semibold text-amber-700 dark:text-amber-300 truncate">
-                已装配: {active.title}
-              </span>
-            </div>
-            {props.onUnloadDanmuBox && (
-              <button
-                type="button"
-                onClick={props.onUnloadDanmuBox}
-                className="shrink-0 text-[11px] font-medium text-amber-700 dark:text-amber-300 hover:text-red-500 hover:underline border-0 bg-transparent cursor-pointer"
-              >
-                移除
-              </button>
-            )}
-          </div>
-          <div className="text-[11.5px] font-mono text-[var(--kz-fg-muted)] truncate">
-            当前分集: {active.file.replace(/\.xml$/i, '')}
-          </div>
-          <OffsetStepper
-            value={danmuboxOffset}
-            onChange={(v) => props.onSetPoolOffset?.('danmubox', v)}
-            onReset={() => props.onSetPoolOffset?.('danmubox', 0)}
-            label="盒子独立时移"
-            subLabel="微调解决历史压制片头差异"
-          />
+      {/* Risk Warning & Usage Guide */}
+      <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 space-y-2">
+        <div className="flex items-center gap-1.5 text-xs font-bold text-amber-700 dark:text-amber-400">
+          <span>⚠️</span>
+          <span>历史留档弹幕文件偏大, 谨慎使用</span>
         </div>
-      )}
+        <div className="text-[11px] text-[var(--kz-fg-muted)] leading-relaxed">
+          历史归档包含全季 XML 弹幕（.7z 格式）。请点击下载并解压后，前往「导入/屏蔽」选择对应单集 XML 即可在播放器中观看。
+        </div>
+        <button
+          type="button"
+          onClick={() => props.onTabChange('import')}
+          className="flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/20 px-2.5 py-1 text-[11px] font-semibold text-amber-800 dark:text-amber-200 hover:bg-amber-500/30 transition-all cursor-pointer"
+        >
+          <span>📁</span>
+          <span>前往「导入本地 XML」面板</span>
+        </button>
+      </div>
 
       {/* Search Bar */}
       <div className="space-y-1.5">
@@ -1023,21 +979,7 @@ function DanmuBoxTab(props: Props & { compact: boolean }) {
         ) : (
           results.map((item) => {
             const key = `${item.repo}:${item.fileHash}`
-            const isExpanded = expandedHash === key
-            const epList = episodesMap[key] || []
-            const isEpLoading = loadingEps[key]
-            const bestFile =
-              props.targetEpisode !== undefined && epList.length > 0
-                ? matchBestEpisodeXml(epList, props.targetEpisode)
-                : epList[0]
-            const selectedFile =
-              selectedFilesMap[key] || bestFile || epList[0] || ''
-            const isCurrentActive =
-              active?.repo === item.repo &&
-              active?.hash === item.fileHash &&
-              active?.file === selectedFile
-            const isLoadingThis =
-              loadingFile === `${item.fileHash}:${selectedFile}`
+            const cdnUrl = getDanmuBoxCdnDownloadUrl(item.repo, item.fileHash)
 
             return (
               <div
@@ -1056,99 +998,26 @@ function DanmuBoxTab(props: Props & { compact: boolean }) {
                       <span>{(item.size / 1024 / 1024).toFixed(2)} MB</span>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => void toggleExpand(item)}
-                    className="shrink-0 rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1 text-[11.5px] font-medium text-[var(--kz-fg)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] transition-all cursor-pointer"
-                  >
-                    {isExpanded ? '收起' : '选集'}
-                  </button>
-                </div>
-
-                {isExpanded && (
-                  <div className="mt-2 pt-2 border-t border-[var(--kz-border)]/60 space-y-2.5 animate-in fade-in duration-150">
-                    {isEpLoading ? (
-                      <div className="py-3 text-center text-[11.5px] text-[var(--kz-fg-muted)]">
-                        正在下载并解压包内分集…
-                      </div>
-                    ) : epList.length === 0 ? (
-                      <div className="py-2 text-center text-[11.5px] text-[var(--kz-fg-muted)]">
-                        包内暂无可用分集
-                      </div>
-                    ) : epList.length === 1 ? (
-                      <div className="flex items-center justify-between gap-2 pt-1">
-                        <span className="text-[11.5px] text-[var(--kz-fg)] truncate flex-1 font-mono">
-                          {epList[0].replace(/\.xml$/i, '')}
-                        </span>
-                        <button
-                          type="button"
-                          disabled={isCurrentActive || isLoadingThis}
-                          onClick={() => void handlePickFile(item, epList[0])}
-                          className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all border-0 shadow-2xs ${
-                            isCurrentActive
-                              ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 cursor-default'
-                              : 'bg-amber-500 hover:bg-amber-600 active:scale-95 text-white disabled:opacity-50 cursor-pointer'
-                          }`}
-                        >
-                          {isLoadingThis
-                            ? '载入中…'
-                            : isCurrentActive
-                              ? '已载入'
-                              : '载入单集弹幕'}
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="space-y-2 pt-0.5">
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between text-[11px] text-[var(--kz-fg-muted)]">
-                            <span>选择章节分集 (共 {epList.length} 话)</span>
-                            {bestFile && selectedFile === bestFile && (
-                              <span className="text-[10.5px] text-amber-600 dark:text-amber-400 font-medium">
-                                ⚡ 已定位第 {props.targetEpisode ?? 1} 话
-                              </span>
-                            )}
-                          </div>
-                          <CustomSelect
-                            value={selectedFile}
-                            placeholder="选择分集…"
-                            options={epList.map((f) => ({
-                              value: f,
-                              label: f.replace(/\.xml$/i, ''),
-                            }))}
-                            onChange={(val) => {
-                              setSelectedFilesMap((prev) => ({
-                                ...prev,
-                                [key]: String(val),
-                              }))
-                            }}
-                          />
-                        </div>
-
-                        <div className="flex items-center justify-between gap-2 pt-1">
-                          <div className="min-w-0 flex-1 text-[11px] text-[var(--kz-fg-muted)] truncate font-mono">
-                            {selectedFile ? selectedFile.replace(/\.xml$/i, '') : '未选择'}
-                          </div>
-                          <button
-                            type="button"
-                            disabled={!selectedFile || isCurrentActive || isLoadingThis}
-                            onClick={() => void handlePickFile(item, selectedFile)}
-                            className={`shrink-0 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all border-0 shadow-2xs ${
-                              isCurrentActive
-                                ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 cursor-default'
-                                : 'bg-amber-500 hover:bg-amber-600 active:scale-95 text-white disabled:opacity-50 cursor-pointer'
-                            }`}
-                          >
-                            {isLoadingThis
-                              ? '载入中…'
-                              : isCurrentActive
-                                ? '当前已载入'
-                                : '载入此集弹幕'}
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      title="复制下载直链（支持复制到迅雷/IDM或外部下载器）"
+                      onClick={() => void handleCopyDirectLink(item)}
+                      className="rounded-lg border border-[var(--kz-border)] bg-[var(--kz-bg)] px-2.5 py-1 text-[11px] font-medium text-[var(--kz-fg-muted)] hover:border-[var(--kz-accent)] hover:text-[var(--kz-accent)] transition-all cursor-pointer"
+                    >
+                      {copiedKey === key ? '已复制' : '复制直链'}
+                    </button>
+                    <a
+                      href={cdnUrl}
+                      download={`${item.title}.7z`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-lg bg-[var(--kz-accent)] hover:bg-[var(--kz-accent-hover)] text-white px-3 py-1 text-[11.5px] font-medium transition-all shadow-2xs no-underline flex items-center justify-center cursor-pointer"
+                    >
+                      下载
+                    </a>
                   </div>
-                )}
+                </div>
               </div>
             )
           })
