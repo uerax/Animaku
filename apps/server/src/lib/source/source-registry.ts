@@ -19,6 +19,7 @@ import { neosekAdapter } from './adapters/neosek'
 import { akianimeAdapter } from './adapters/akianime'
 import { bimiAdapter } from './adapters/bimi'
 import { huaziAdapter } from './adapters/huazi'
+import { jzacgAdapter } from './adapters/jzacg'
 
 export interface SourceRegistryOptions {
   playback?: PlaybackRegistry
@@ -52,6 +53,7 @@ export class SourceRegistry {
       akianimeAdapter,
       bimiAdapter,
       huaziAdapter,
+      jzacgAdapter,
     ]
 
     for (const adapter of initialAdapters) {
@@ -155,6 +157,15 @@ export class SourceRegistry {
       normalized === 'huazi_dm'
     ) {
       return this.adapters.get('huazi') || null
+    }
+    if (
+      normalized === 'jzacg' ||
+      normalized === '橘子' ||
+      normalized === '橘子动漫' ||
+      normalized === 'mgnacg' ||
+      normalized === 'jz_acg'
+    ) {
+      return this.adapters.get('jzacg') || null
     }
     return null
   }

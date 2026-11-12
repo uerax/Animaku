@@ -858,6 +858,9 @@ function getSourceSpecs(): SourceProbeSpec[] {
     } else if (key.includes('omofun')) {
       remediationHint =
         '【omofun 专有适配器】检查 apps/server/src/lib/omofun.ts：1. 搜索验证网关 (Gate) 是否被阻断；2. player_aaaa 变量提取与解密。'
+    } else if (key.includes('jzacg')) {
+      remediationHint =
+        '【jzacg 专有适配器】检查 apps/server/src/lib/jzacg.ts：1. mgnacg.com / jzacg.com 域名解析与 301 重定向；2. MacCMS suggest 接口与 media/{id} 选集结构；3. player_aaaa 或 iframe 解析。'
     }
 
     return {

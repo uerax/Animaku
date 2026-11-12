@@ -25,6 +25,7 @@ test('source-registry: lists built-in tier adapters and handles alias normalizat
   assert.ok(ids.includes('akianime'))
   assert.ok(ids.includes('bimi'))
   assert.ok(ids.includes('huazi'))
+  assert.ok(ids.includes('jzacg'))
 
   // 正常现代源
   const xifanNext = registry.getAdapter('xifan-next')
@@ -53,6 +54,10 @@ test('source-registry: lists built-in tier adapters and handles alias normalizat
   assert.equal(registry.getAdapter('花子动漫')?.id, 'huazi')
   assert.equal(registry.getAdapter('花子')?.id, 'huazi')
   assert.equal(registry.getAdapter('huazidm')?.id, 'huazi')
+  assert.equal(registry.getAdapter('jzacg')?.id, 'jzacg')
+  assert.equal(registry.getAdapter('橘子动漫')?.id, 'jzacg')
+  assert.equal(registry.getAdapter('橘子')?.id, 'jzacg')
+  assert.equal(registry.getAdapter('mgnacg')?.id, 'jzacg')
 })
 
 test('source-registry: validateEgress enforces protocol, standard web ports, and public host boundary', () => {

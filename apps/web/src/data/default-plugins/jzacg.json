@@ -1,0 +1,23 @@
+{
+  "api": "1",
+  "type": "anime",
+  "name": "jzacg",
+  "version": "1.0",
+  "weight": 58,
+  "titlePreference": "chinese",
+  "muliSources": true,
+  "useWebview": false,
+  "useNativePlayer": true,
+  "usePost": false,
+  "useLegacyParser": false,
+  "baseURL": "https://www.mgnacg.com/",
+  "searchURL": "https://www.mgnacg.com/search/-------------/?wd=@keyword",
+  "searchList": "//ul[contains(@class, 'hl-one-list')]/li | //div[contains(@class, 'module-items')]/div | //ul[contains(@class, 'myui-vodlist')]/li",
+  "searchName": ".//div[contains(@class, 'hl-item-title')]/a | .//div[contains(@class, 'module-card-item-title')]/a | .//h4/a",
+  "searchResult": ".//div[contains(@class, 'hl-item-title')]/a | .//div[contains(@class, 'module-card-item-title')]/a | .//h4/a",
+  "chapterRoads": "//ul[contains(@class, 'hl-plays-list')] | //div[contains(@class, 'module-play-list-content')] | //ul[contains(@class, 'myui-content__list')]",
+  "chapterResult": ".//li/a | .//a",
+  "referer": "https://www.mgnacg.com/",
+  "adBlockerMode": "none",
+  "iconUrl": "https://www.mgnacg.com/favicon.ico"
+}

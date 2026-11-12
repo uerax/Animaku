@@ -1056,6 +1056,22 @@ export async function searchWithRule(
     }
   }
 
+  // jzacg — dedicated adapter (MacCMS suggest API + multiple line extraction)
+  {
+    const { isJzacgRule, searchJzacg } = await import('../lib/jzacg')
+    if (isJzacgRule(rule)) {
+      try {
+        return await searchJzacg(rule, keyword)
+      } catch (e) {
+        return {
+          pluginName: rule.name,
+          items: [],
+          diagnostics: [e instanceof Error ? e.message : String(e)],
+        }
+      }
+    }
+  }
+
   // Omofun / 211dm — search gate + hash detail URLs (chapters/resolve stay generic)
   {
     const { isOmofunRule, searchOmofun } = await import('../lib/omofun')
@@ -1372,6 +1388,22 @@ export async function chaptersWithRule(
     if (isHuaziRule(rule)) {
       try {
         return await chaptersHuazi(rule, source)
+      } catch (e) {
+        return {
+          pluginName: rule.name,
+          roads: [],
+          diagnostics: [e instanceof Error ? e.message : String(e)],
+        }
+      }
+    }
+  }
+
+  // jzacg — dedicated adapter (HTML multi-road chapters + fallback)
+  {
+    const { isJzacgRule, chaptersJzacg } = await import('../lib/jzacg')
+    if (isJzacgRule(rule)) {
+      try {
+        return await chaptersJzacg(rule, source)
       } catch (e) {
         return {
           pluginName: rule.name,
@@ -2046,6 +2078,14 @@ export async function resolvePlay(
     const { isMoonciRule, resolveMoonci } = await import('../lib/moonci')
     if (isMoonciRule(rule)) {
       return wrapResolveWithTicket(rule, await resolveMoonci(rule, pageUrl))
+    }
+  }
+
+  // jzacg: dedicated adapter (player_aaaa & iframe Resolver)
+  {
+    const { isJzacgRule, resolveJzacg } = await import('../lib/jzacg')
+    if (isJzacgRule(rule)) {
+      return wrapResolveWithTicket(rule, await resolveJzacg(rule, pageUrl))
     }
   }
 

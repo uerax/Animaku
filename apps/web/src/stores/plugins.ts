@@ -48,7 +48,8 @@ migrateLocalStorageKey('animaku-plugins', [
 /** v42: add explicit iconUrl to built-in rules */
 /** v43: add akianime (akianime.cc) built-in with weight 58 & tune source weights */
 /** v44: add huazi (huazidm.com) built-in with weight 58 (same as akianime) */
-export const PLUGIN_DEFAULTS_VERSION = 44
+/** v45: add jzacg (jzacg.com) built-in with weight 58 */
+export const PLUGIN_DEFAULTS_VERSION = 45
 
 interface PluginState {
   plugins: PluginMeta[]
