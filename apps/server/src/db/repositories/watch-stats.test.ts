@@ -201,9 +201,29 @@ test('WatchStatsRepository & Stats Routes Integration', async (t) => {
     assert.equal(rankRes.headers.get('CDN-Cache-Control'), 'max-age=300')
     const rankData = (await rankRes.json()) as any
     assert.equal(rankData.type, 'today')
+    assert.equal(rankData.limit, 5)
     assert.ok(Array.isArray(rankData.data))
 
-    // 4. Test GET /subject/:id
+    // 4. Test Semantic shortcuts: /rank/today, /rank/week, /rank/month (default limit 10)
+    const todayRes = await statsRoutes.fetch(new Request('http://localhost/rank/today'))
+    assert.equal(todayRes.status, 200)
+    const todayData = (await todayRes.json()) as any
+    assert.equal(todayData.type, 'today')
+    assert.equal(todayData.limit, 10)
+
+    const weekRes = await statsRoutes.fetch(new Request('http://localhost/rank/week'))
+    assert.equal(weekRes.status, 200)
+    const weekData = (await weekRes.json()) as any
+    assert.equal(weekData.type, 'week')
+    assert.equal(weekData.limit, 10)
+
+    const monthRes = await statsRoutes.fetch(new Request('http://localhost/rank/month?limit=15'))
+    assert.equal(monthRes.status, 200)
+    const monthData = (await monthRes.json()) as any
+    assert.equal(monthData.type, 'month')
+    assert.equal(monthData.limit, 15)
+
+    // 5. Test GET /subject/:id
     const subReq = new Request('http://localhost/subject/90001')
     const subRes = await statsRoutes.fetch(subReq)
     assert.equal(subRes.status, 200)

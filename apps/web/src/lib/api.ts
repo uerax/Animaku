@@ -126,8 +126,20 @@ export const statsApi = {
   getSubjectStats: (bangumiId: number) =>
     api<{ data: AnimePlayStats }>(`/api/stats/subject/${bangumiId}`),
   getRankings: (type: 'today' | 'week' | 'month' | 'total' = 'total', limit = 20) =>
-    api<{ data: Array<{ bangumiId: number; totalPlayCount: number }>; type: string }>(
+    api<{ data: Array<{ bangumiId: number; totalPlayCount: number }>; type: string; limit?: number }>(
       `/api/stats/rank?type=${type}&limit=${limit}`,
+    ),
+  getTodayRankings: (limit = 10) =>
+    api<{ data: Array<{ bangumiId: number; totalPlayCount: number }>; type: string; limit?: number }>(
+      `/api/stats/rank/today?limit=${limit}`,
+    ),
+  getWeekRankings: (limit = 10) =>
+    api<{ data: Array<{ bangumiId: number; totalPlayCount: number }>; type: string; limit?: number }>(
+      `/api/stats/rank/week?limit=${limit}`,
+    ),
+  getMonthRankings: (limit = 10) =>
+    api<{ data: Array<{ bangumiId: number; totalPlayCount: number }>; type: string; limit?: number }>(
+      `/api/stats/rank/month?limit=${limit}`,
     ),
 }
 

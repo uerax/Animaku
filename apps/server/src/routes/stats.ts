@@ -107,19 +107,34 @@ statsRoutes.get('/subject/:id', (c) => {
   return c.json(resp)
 })
 
-function handleRankings(c: Context) {
-  const rawType = (c.req.query('type') || 'total').toLowerCase()
+function handleRankings(
+  c: Context,
+  fixedType?: 'today' | 'week' | 'month' | 'total',
+  defaultLimit = 20,
+) {
+  const rawType = (fixedType || c.req.query('type') || 'total').toLowerCase()
   const type: 'today' | 'week' | 'month' | 'total' =
     rawType === 'today' || rawType === 'week' || rawType === 'month' ? rawType : 'total'
 
-  const limit = Math.min(Math.max(Number(c.req.query('limit')) || 20, 1), 100)
+  const limitParam = c.req.query('limit')
+  const limit = Math.min(
+    Math.max(limitParam !== undefined ? Number(limitParam) || defaultLimit : defaultLimit, 1),
+    100,
+  )
   const bypass = c.req.query('refresh') === '1' || c.req.header('cache-control')?.includes('no-cache')
   setRankingsCdnHeaders(c as never, Boolean(bypass))
 
   const list = watchStatsRepo.getTopRankings(type, limit)
-  return c.json({ data: list, type })
+  return c.json({ data: list, type, limit })
 }
 
 // Top rankings with support for today, week (7d), month (30d), total
-statsRoutes.get('/rank', handleRankings)
-statsRoutes.get('/rank/top', handleRankings)
+statsRoutes.get('/rank', (c) => handleRankings(c, undefined, 20))
+statsRoutes.get('/rank/top', (c) => handleRankings(c, undefined, 20))
+
+// Semantic dedicated top10 shortcuts (defaults to limit=10, customizable via ?limit=N)
+statsRoutes.get('/rank/today', (c) => handleRankings(c, 'today', 10))
+statsRoutes.get('/rank/day', (c) => handleRankings(c, 'today', 10))
+statsRoutes.get('/rank/week', (c) => handleRankings(c, 'week', 10))
+statsRoutes.get('/rank/month', (c) => handleRankings(c, 'month', 10))
+statsRoutes.get('/rank/total', (c) => handleRankings(c, 'total', 10))

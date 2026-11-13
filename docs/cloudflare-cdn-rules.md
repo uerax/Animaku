@@ -211,17 +211,17 @@ Animaku 系统内部已实施了精细化的响应头策略（`Cache-Control`, `
   - **浏览器 TTL (Browser TTL)**：`🔘 替代源服务器，使用此 TTL (Override origin server and use this TTL)` -> 选择 `1 年 (1 year)`
   - **目的**：Vite 构建产物自带内容 Hash，1 年强缓存实现 0ms 边缘毫秒级秒开。
 
-#### 规则 4：日历、热门、全站运营展位、视频源列表、分集列表、番剧推荐与番剧吐槽 API 缓存 (API Soft Cache)
+#### 规则 4：日历、热门、播放榜单、全站运营展位、视频源列表、分集列表、番剧推荐与番剧吐槽 API 缓存 (API Soft Cache)
 - **规则名称**：`animaku-api-soft-cache`
 - **匹配表达式 (Expression)**：
   ```text
-  (http.request.method eq "GET" and (starts_with(http.request.uri.path, "/api/bangumi/calendar") or starts_with(http.request.uri.path, "/api/bangumi/trending") or starts_with(http.request.uri.path, "/api/bangumi/recommendations") or http.request.uri.path eq "/api/site/highlights" or http.request.uri.path eq "/api/source/list" or (starts_with(http.request.uri.path, "/api/bangumi/subjects/") and (http.request.uri.path contains "/comments" or http.request.uri.path contains "/recommendations" or http.request.uri.path contains "/episodes"))))
+  (http.request.method eq "GET" and (starts_with(http.request.uri.path, "/api/bangumi/calendar") or starts_with(http.request.uri.path, "/api/bangumi/trending") or starts_with(http.request.uri.path, "/api/bangumi/recommendations") or starts_with(http.request.uri.path, "/api/stats/rank") or http.request.uri.path eq "/api/site/highlights" or http.request.uri.path eq "/api/source/list" or (starts_with(http.request.uri.path, "/api/bangumi/subjects/") and (http.request.uri.path contains "/comments" or http.request.uri.path contains "/recommendations" or http.request.uri.path contains "/episodes"))))
   ```
 - **缓存设置**：
   - **缓存资格 (Cache Eligibility)**：`符合缓存条件 (Eligible for cache)`
-  - **边缘 TTL (Edge TTL)**：`🔘 使用缓存控制标头（如果存在），否则绕过缓存 (Use cache control header if present, bypass cache otherwise)`（服务端通过 `setBangumiListCdnHeaders` 对日历/热门/分集下发 `s-maxage=7200` 即 2 小时、通过 `setHighlightsCdnHeaders` 对全站精选展位下发 `s-maxage=60` 即 1 分钟、通过 `setCommentsCdnHeaders` 对番剧吐槽下发 `s-maxage=3600` 即 1 小时、通过 `setRecommendationsCdnHeaders` 对番剧推荐下发 `s-maxage=86400` 即 24 小时，由源站精确控制）
+  - **边缘 TTL (Edge TTL)**：`🔘 使用缓存控制标头（如果存在），否则绕过缓存 (Use cache control header if present, bypass cache otherwise)`（服务端通过 `setBangumiListCdnHeaders` 对日历/热门/分集下发 `s-maxage=7200` 即 2 小时、通过 `setRankingsCdnHeaders` 对播放排行榜下发 `s-maxage=300` 即 5 分钟、通过 `setHighlightsCdnHeaders` 对全站精选展位下发 `s-maxage=60` 即 1 分钟、通过 `setCommentsCdnHeaders` 对番剧吐槽下发 `s-maxage=3600` 即 1 小时、通过 `setRecommendationsCdnHeaders` 对番剧推荐下发 `s-maxage=86400` 即 24 小时，由源站精确控制）
   - **浏览器 TTL (Browser TTL)**：`🔘 接受源服务器 TTL (Respect origin server TTL)`（源站按需下发 `max-age=0` 或 `max-age=60`，由客户端与 React Query 协同管理）
-  - **目的**：将高频访问的番剧分集列表（`/api/bangumi/subjects/:id/episodes`）、推荐列表（`/api/bangumi/subjects/:id/recommendations`）、吐槽列表（`/api/bangumi/subjects/:id/comments`）、日历（`/api/bangumi/calendar`）、热门（`/api/bangumi/trending`）、全站运营展位（`/api/site/highlights`）与固化源列表（`/api/source/list`）拦截在边缘 CDN，极大降低服务端与 Bangumi 上游并发压力。
+  - **目的**：将高频访问的番剧分集列表（`/api/bangumi/subjects/:id/episodes`）、推荐列表（`/api/bangumi/subjects/:id/recommendations`）、吐槽列表（`/api/bangumi/subjects/:id/comments`）、播放榜单（`/api/stats/rank/*`）、日历（`/api/bangumi/calendar`）、热门（`/api/bangumi/trending`）、全站运营展位（`/api/site/highlights`）与固化源列表（`/api/source/list`）拦截在边缘 CDN，极大降低服务端与 Bangumi 上游并发压力。
 
 #### 规则 5：SSR 番剧详情页边缘缓存 (SSR Subject Cache)
 - **规则名称**：`animaku-ssr-subject-cache`
@@ -250,7 +250,7 @@ Animaku 系统内部已实施了精细化的响应头策略（`Cache-Control`, `
 ### 4.3 客户端一键穿透与刷新机制
 
 全系统（服务端 + CDN）已统一接入缓存穿透协议：
-- **主动刷新**：只要请求携带 `?refresh=1`、`?refresh=true` 或请求头 `Cache-Control: no-cache`，服务端 `setDanmakuCdnHeaders`、`setDanmuBoxCdnHeaders`、`setBangumiListCdnHeaders`、`setHighlightsCdnHeaders`、`setCommentsCdnHeaders`、`setRecommendationsCdnHeaders` 与 `ttl-cache` 会自动下发 `CDN-Cache-Control: no-store` 与 `Cloudflare-CDN-Cache-Control: no-store`，强制穿透边缘 CDN 并回源拉取最新鲜数据。
+- **主动刷新**：只要请求携带 `?refresh=1`、`?refresh=true` 或请求头 `Cache-Control: no-cache`，服务端 `setDanmakuCdnHeaders`、`setDanmuBoxCdnHeaders`、`setBangumiListCdnHeaders`、`setRankingsCdnHeaders`、`setHighlightsCdnHeaders`、`setCommentsCdnHeaders`、`setRecommendationsCdnHeaders` 与 `ttl-cache` 会自动下发 `CDN-Cache-Control: no-store` 与 `Cloudflare-CDN-Cache-Control: no-store`，强制穿透边缘 CDN 并回源拉取最新鲜数据。
 - **网站图标 (Favicon 与全尺寸多平台图标) 版本一致性与穿透**：系统采用“单图上传 → 服务端统一派生全套多尺寸图标（16×16、32×32、ICO、180×180、192×192、512×512）”架构。所有尺寸资源、HTML 模板引用及 `site.webmanifest` 动态清单共享同一个全局版本号 `?v=${iconVersion}`。在站长更换图标或重置官方默认时，所有尺寸的 URL 同时变为全新 Cache Key，保证访客与 CDN 秒级同步新图标，各端（PC 标签页、Retina、iOS Safari 桌面、Android PWA）均维持正常的高效缓存（`max-age=86400`），彻底消除新旧图标混用与多尺寸抢占残留。若需对裸根路径 `/favicon.ico` 强制清除历史遗留，亦可在 Cloudflare 控制台 -> **缓存 -> 配置 -> 自定义清除 (Purge by URL)** 中输入 `https://你的域名/favicon.ico` 立即秒级清除边缘单文件缓存。
 
 ---
