@@ -22,6 +22,19 @@ import {
   wantsCacheBypass,
 } from '../lib/ttl-cache'
 import { pluginCircuitBreaker } from '../lib/source/plugin-circuit-breaker'
+import {
+  guardedOp,
+  buildSourceCacheKey,
+} from '../lib/source/guarded-ops'
+import {
+  resolveBuiltinSourceId,
+  resolveUpstreamKey,
+} from '../lib/source/resolve-builtin-id'
+import { resolveIp } from '../lib/ip-rate-limit'
+import {
+  checkSourceRateLimit,
+  SourceRateLimitError,
+} from '../lib/source-rate-limit'
 
 export const pluginRoutes = new Hono()
 
@@ -78,48 +91,42 @@ pluginRoutes.post('/search', async (c) => {
     )
   }
   const keyword = body.keyword.trim()
-  const key = pluginCacheKey('search', rule, keyword.toLowerCase())
+  const sourceId = resolveBuiltinSourceId(rule)
+  const upstreamKey = sourceId || resolveUpstreamKey(rule)
+  const cacheKey = sourceId
+    ? buildSourceCacheKey(sourceId, 'search', keyword.toLowerCase())
+    : pluginCacheKey('search', rule, keyword.toLowerCase())
   const bypass = wantsCacheBypass(c)
-
-  if (bypass) {
-    cacheDelete(key)
-  } else {
-    // Fast in-memory cache hit (< 0.1ms)
-    const memHit = cacheGet<PluginSearchResult>(key)
-    if (memHit) {
-      return c.json({ data: memHit }, 200, cacheHeaders(true))
-    }
-  }
-
-  // Circuit breaker check before making outbound request on cache miss
-  const breakerCheck = pluginCircuitBreaker.checkBeforeSearch(rule.name)
-  if (!breakerCheck.allowed) {
-    return c.json(
-      {
-        error: 'circuit_breaker_tripped',
-        message: breakerCheck.reason || '源站响应异常，熔断冷却中 (请稍后重试)',
-      },
-      504,
-    )
-  }
+  const clientIp = resolveIp(c)
 
   try {
-    // Cache MISS: execute upstream search with single-flight loader deduplication
-    const { value, hit } = await cacheGetOrSet(
-      key,
-      PLUGIN_CACHE_TTL.search,
-      async () => {
-        const result = await searchWithRule(rule, keyword)
-        pluginCircuitBreaker.recordSuccess(rule.name)
-        return result
-      },
-      { bypass, maxEntries: PLUGIN_MAX_ENTRIES },
-    )
-    // Always 200 when we finished parsing — empty items is a soft failure
-    return c.json({ data: value }, 200, cacheHeaders(hit))
+    const { data, hit } = await guardedOp<PluginSearchResult>({
+      kind: 'search',
+      upstreamKey,
+      cacheKey,
+      clientIp,
+      bypass,
+      loader: () => searchWithRule(rule, keyword),
+      isEmpty: (res) => !res.items || res.items.length === 0,
+      reformatResult: (res) => ({ ...res, pluginName: rule.name }),
+    })
+    return c.json({ data }, 200, cacheHeaders(hit))
   } catch (e) {
-    pluginCircuitBreaker.recordFailure(rule.name, e)
+    if (e instanceof SourceRateLimitError) {
+      c.header('Retry-After', String(e.retryAfterSec))
+      return c.json(
+        {
+          error: 'source_rate_limited',
+          message: e.message,
+          retryAfterSec: e.retryAfterSec,
+        },
+        429,
+      )
+    }
     const message = e instanceof Error ? e.message : String(e)
+    if (/熔断冷却中/.test(message)) {
+      return c.json({ error: 'circuit_breaker_tripped', message }, 504)
+    }
     console.error('[plugin/search]', message)
     return c.json({ error: 'search_failed', message }, errStatus(message))
   }
@@ -145,39 +152,42 @@ pluginRoutes.post('/chapters', async (c) => {
     )
   }
   const source = body.source.trim().replace(/\/+$/, '')
-  const key = pluginCacheKey('chapters', rule, source)
+  const sourceId = resolveBuiltinSourceId(rule)
+  const upstreamKey = sourceId || resolveUpstreamKey(rule)
+  const cacheKey = sourceId
+    ? buildSourceCacheKey(sourceId, 'chapters', source)
+    : pluginCacheKey('chapters', rule, source)
   const bypass = wantsCacheBypass(c)
-
-  if (bypass) {
-    cacheDelete(key)
-  } else {
-    // Fast in-memory cache hit (< 0.1ms)
-    const memHit = cacheGet<PluginChapterResult>(key)
-    if (memHit) {
-      return c.json({ data: memHit }, 200, cacheHeaders(true))
-    }
-  }
+  const clientIp = resolveIp(c)
 
   try {
-    // Cache MISS: execute upstream chapter extraction with single-flight loader deduplication
-    const { value, hit } = await cacheGetOrSet(
-      key,
-      0,
-      async () => {
-        return await chaptersWithRule(rule, source)
-      },
-      { bypass, maxEntries: PLUGIN_MAX_ENTRIES },
-    )
-    if (!hit) {
-      const ttl =
-        value.roads?.length > 0
-          ? PLUGIN_CACHE_TTL.chapters
-          : PLUGIN_CACHE_TTL.chaptersEmpty
-      cacheSet(key, value, ttl, PLUGIN_MAX_ENTRIES)
-    }
-    return c.json({ data: value }, 200, cacheHeaders(hit))
+    const { data, hit } = await guardedOp<PluginChapterResult>({
+      kind: 'chapters',
+      upstreamKey,
+      cacheKey,
+      clientIp,
+      bypass,
+      loader: () => chaptersWithRule(rule, source),
+      isEmpty: (res) => !res.roads || res.roads.length === 0,
+      reformatResult: (res) => ({ ...res, pluginName: rule.name }),
+    })
+    return c.json({ data }, 200, cacheHeaders(hit))
   } catch (e) {
+    if (e instanceof SourceRateLimitError) {
+      c.header('Retry-After', String(e.retryAfterSec))
+      return c.json(
+        {
+          error: 'source_rate_limited',
+          message: e.message,
+          retryAfterSec: e.retryAfterSec,
+        },
+        429,
+      )
+    }
     const message = e instanceof Error ? e.message : String(e)
+    if (/熔断冷却中/.test(message)) {
+      return c.json({ error: 'circuit_breaker_tripped', message }, 504)
+    }
     console.error('[plugin/chapters]', message)
     return c.json({ error: 'chapter_failed', message }, errStatus(message))
   }
@@ -211,6 +221,23 @@ pluginRoutes.post('/resolve', async (c) => {
     else {
       const cached = cacheGet<Awaited<ReturnType<typeof resolvePlay>>>(key)
       if (cached) return c.json({ data: cached }, 200, cacheHeaders(true))
+    }
+
+    // 缓存未命中时对解析请求计次限频
+    const sourceId = resolveBuiltinSourceId(rule)
+    const upstreamKey = sourceId || resolveUpstreamKey(rule)
+    const clientIp = resolveIp(c)
+    const limitCheck = checkSourceRateLimit(clientIp, upstreamKey, 'resolve')
+    if (!limitCheck.allowed) {
+      c.header('Retry-After', String(limitCheck.retryAfterSec))
+      return c.json(
+        {
+          error: 'source_rate_limited',
+          message: `该视频源请求过于频繁，请 ${limitCheck.retryAfterSec} 秒后重试`,
+          retryAfterSec: limitCheck.retryAfterSec,
+        },
+        429,
+      )
     }
 
     // Single-flight: concurrent resolves for same page share one upstream parse.

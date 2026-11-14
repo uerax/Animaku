@@ -9,6 +9,8 @@ export interface RateLimitOptions {
   apiLimitPerSec?: number
   /** Heavy plugin/media parsing API limit per second (default: 10) */
   heavyLimitPerSec?: number
+  /** Controlled source API limit per second (default: 10) */
+  sourceLimitPerSec?: number
 }
 
 interface WindowBucket {
@@ -19,6 +21,7 @@ interface WindowBucket {
 // In-memory sliding window rate limiter stores
 const apiWindowStore = new Map<string, WindowBucket>()
 const heavyWindowStore = new Map<string, WindowBucket>()
+const sourceWindowStore = new Map<string, WindowBucket>()
 
 // Cleanup idle windows every 60 seconds
 const pruneTimer = setInterval(() => {
@@ -33,10 +36,15 @@ const pruneTimer = setInterval(() => {
       heavyWindowStore.delete(ip)
     }
   }
+  for (const [ip, bucket] of sourceWindowStore.entries()) {
+    if (now - bucket.windowStart > 5000) {
+      sourceWindowStore.delete(ip)
+    }
+  }
 }, 60 * 1000)
 pruneTimer.unref()
 
-function resolveIp(c: Context): string {
+export function resolveIp(c: Context): string {
   const ip = getClientIp(c.req)
   if (ip && ip !== '127.0.0.1') return ip
   const sock = clientRemoteAddress(c)
@@ -80,6 +88,7 @@ function checkWindowLimit(
 export function ipAccessAndRateLimit(options?: RateLimitOptions) {
   const apiLimit = options?.apiLimitPerSec ?? 30
   const heavyLimit = options?.heavyLimitPerSec ?? 10
+  const sourceLimit = options?.sourceLimitPerSec ?? 10
 
   return async function middleware(c: Context, next: Next) {
     const path = c.req.path
@@ -135,14 +144,38 @@ export function ipAccessAndRateLimit(options?: RateLimitOptions) {
       }
     }
 
-    // 4. Standard API check (/api/*)
+    // 4. Controlled source endpoints check (/api/source/*)
+    const isSourceEndpoint = path.startsWith('/api/source')
+    if (isSourceEndpoint) {
+      const { allowed, remaining } = checkWindowLimit(
+        sourceWindowStore,
+        ip,
+        sourceLimit,
+        now,
+      )
+      c.res.headers.set('X-RateLimit-Limit', String(sourceLimit))
+      c.res.headers.set('X-RateLimit-Remaining', String(remaining))
+
+      if (!allowed) {
+        c.res.headers.set('Retry-After', '1')
+        return c.json(
+          {
+            error: 'too_many_requests',
+            message: '请求过于频繁，请稍后再试 (Rate limit exceeded for source endpoints)',
+          },
+          429,
+        )
+      }
+    }
+
+    // 5. Standard API check (/api/*)
     const { allowed, remaining } = checkWindowLimit(
       apiWindowStore,
       ip,
       apiLimit,
       now,
     )
-    if (!isHeavyEndpoint) {
+    if (!isHeavyEndpoint && !isSourceEndpoint) {
       c.res.headers.set('X-RateLimit-Limit', String(apiLimit))
       c.res.headers.set('X-RateLimit-Remaining', String(remaining))
     }

@@ -8,6 +8,7 @@ import {
   resolvePluginDefaultKeyword,
 } from '@animaku/shared'
 import { pluginApi } from './plugin-api'
+import { ApiError } from './api'
 import { getCachedPluginSearch, setCachedPluginSearch } from './plugin-result-cache'
 import { useSourceBindingStore, type SourceBindingEntry } from '../stores/source-bindings'
 import { AUTO_PICK_MIN_SIMILARITY, type SourceSelection, type SearchRow } from './use-watch-session'
@@ -29,6 +30,7 @@ export interface AggregatedSourceState {
   errorMsg?: string
   searched: boolean
   keyword?: string
+  rateLimitedUntil?: number
 }
 
 export interface UseSourceAggregatorOptions {
@@ -225,7 +227,7 @@ export function useSourceAggregator({
         let matchedItem: SearchItem | undefined
 
         if (row.error && !raw.length) {
-          status = row.error.includes('超时') ? 'error' : 'empty'
+          status = (row.error.includes('超时') || row.error.includes('频繁')) ? 'error' : 'empty'
         } else if (!raw.length) {
           status = 'empty'
         } else if (score >= AUTO_PICK_MIN_SIMILARITY) {
@@ -243,6 +245,7 @@ export function useSourceAggregator({
           items: ranked,
           matchedItem,
           errorMsg: row.error,
+          rateLimitedUntil: row.rateLimitedUntil,
           searched: true,
           keyword: row.keyword || defaultKeyword,
         }
@@ -384,12 +387,26 @@ export function useSourceAggregator({
           const isTimeout =
             ac.signal.aborted ||
             (err instanceof Error && /timeout|超时/i.test(err.message))
+          const is429 =
+            (err instanceof ApiError && err.status === 429) ||
+            /source_rate_limited|过于频繁/i.test(String(err))
+          const body =
+            err instanceof ApiError
+              ? (err.body as { retryAfterSec?: number } | null)
+              : null
+          const retrySec = body?.retryAfterSec ?? 5
+          const rateLimitedUntil = is429 ? Date.now() + retrySec * 1000 : undefined
           setSources((prev) => ({
             ...prev,
             [pluginName]: {
               plugin,
               status: 'error',
-              errorMsg: isTimeout ? '源站超时 (5s)' : '源站响应异常',
+              errorMsg: is429
+                ? '该源请求过于频繁，请稍后再试'
+                : isTimeout
+                  ? '源站超时 (5s)'
+                  : '源站响应异常',
+              rateLimitedUntil,
               items: [],
               searched: true,
               keyword: kw,
@@ -504,6 +521,10 @@ export function useSourceAggregator({
 
   const reProbePlugin = useCallback(
     (pluginName: string, customKeyword?: string) => {
+      const curState = sources[pluginName]
+      if (curState?.rateLimitedUntil && Date.now() < curState.rateLimitedUntil) {
+        return
+      }
       const kw = customKeyword?.trim()
       if (kw) {
         customKeywordsRef.current[pluginName] = kw
@@ -524,7 +545,7 @@ export function useSourceAggregator({
       })
       prioritizePlugin(pluginName, true)
     },
-    [plugins, prioritizePlugin],
+    [plugins, prioritizePlugin, sources],
   )
 
   const inFlightPlugins = useMemo(() => {

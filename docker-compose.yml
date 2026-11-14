@@ -76,6 +76,11 @@ services:
       SOURCE_PROXY_MAP: ${SOURCE_PROXY_MAP:-}
       SOURCE_PROXY_CYCANI: ${SOURCE_PROXY_CYCANI:-}
 
+      # 视频源防封禁频控（防第三方源站封服务端出口 IP；按 IP+源+操作 独立滑动窗口；命中缓存不计入配额）
+      SOURCE_SEARCH_LIMIT_PER_MIN: ${SOURCE_SEARCH_LIMIT_PER_MIN:-15}
+      SOURCE_CHAPTERS_LIMIT_PER_MIN: ${SOURCE_CHAPTERS_LIMIT_PER_MIN:-15}
+      SOURCE_RESOLVE_LIMIT_PER_MIN: ${SOURCE_RESOLVE_LIMIT_PER_MIN:-30}
+
     # 自动加载同目录下的 .env 环境变量文件（如存在）
     env_file:
       - path: .env

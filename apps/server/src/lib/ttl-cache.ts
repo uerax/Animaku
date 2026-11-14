@@ -38,6 +38,8 @@ export const BANGUMI_CACHE_TTL = {
 /** Plugin exec result TTLs (search 4h; chapters 30m session shield; resolve classified). */
 export const PLUGIN_CACHE_TTL = {
   search: 4 * 60 * 60_000,
+  /** Empty search results — 90s short cache to prevent upstream stampede while allowing timely retry */
+  searchEmpty: 90_000,
   chapters: 30 * 60_000,
   /** Empty / failed chapter resolution — 1 min cooldown to shield upstream while allowing timely retry. */
   chaptersEmpty: 60_000,

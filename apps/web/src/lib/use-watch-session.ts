@@ -86,6 +86,8 @@ export type SearchRow = {
   /** true after user has triggered at least one search for this plugin */
   searched?: boolean
   keyword?: string
+  /** 触发频控时的倒计时解封时间戳 (ms) */
+  rateLimitedUntil?: number
 }
 
 export type SourceSelection = {

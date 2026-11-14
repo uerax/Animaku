@@ -12,6 +12,7 @@ import {
   type SearchItem,
 } from '@animaku/shared'
 import { pluginApi } from './plugin-api'
+import { ApiError } from './api'
 import { findRoadsForPlay, writeRoadsForSource } from './roads-cache'
 import { usePluginStore } from '../stores/plugins'
 import { useSourceBindingStore } from '../stores/source-bindings'
@@ -443,9 +444,18 @@ export function useWatchSourceLauncher({
       } catch (e) {
         if (!cancelled) {
           resumeDoneFor.current = key
-          const msg = e instanceof Error ? e.message : '续播加载失败'
+          const is429 =
+            (e instanceof ApiError && e.status === 429) ||
+            /source_rate_limited|过于频繁/i.test(String(e))
+          const msg = is429
+            ? '该源请求过于频繁，请稍后再试'
+            : (e instanceof Error ? e.message : '续播加载失败')
           setRoadError(msg)
-          setHudMessage(`视频源分集加载失败：${msg}，建议切换视频源`)
+          setHudMessage(
+            is429
+              ? '该视频源请求过于频繁，建议稍后重试或切换其他源'
+              : `视频源分集加载失败：${msg}，建议切换视频源`,
+          )
         }
       } finally {
         if (!cancelled) setRoadLoading(false)

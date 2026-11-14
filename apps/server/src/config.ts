@@ -342,4 +342,10 @@ export const config = {
    * 视频源到代理的映射关系（键名为视频源小写，如 cycani -> proxy1）
    */
   sourceProxyMap: parseSourceProxyMap(),
+  /**
+   * 视频源防滥用限频配置（每用户/IP 每源 每分钟请求源站上限，命中缓存不占额度）
+   */
+  sourceSearchLimitPerMin: envInt(process.env.SOURCE_SEARCH_LIMIT_PER_MIN, 15),
+  sourceChaptersLimitPerMin: envInt(process.env.SOURCE_CHAPTERS_LIMIT_PER_MIN, 15),
+  sourceResolveLimitPerMin: envInt(process.env.SOURCE_RESOLVE_LIMIT_PER_MIN, 30),
 }

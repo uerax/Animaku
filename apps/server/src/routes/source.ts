@@ -1,5 +1,13 @@
 import { Hono } from 'hono'
 import { sourceRegistry } from '../lib/source/source-registry'
+import { guardedOp, buildSourceCacheKey } from '../lib/source/guarded-ops'
+import { resolveIp } from '../lib/ip-rate-limit'
+import { wantsCacheBypass } from '../lib/ttl-cache'
+import {
+  checkSourceRateLimit,
+  SourceRateLimitError,
+} from '../lib/source-rate-limit'
+import type { PluginSearchResult, PluginChapterResult } from '@animaku/shared'
 
 export const sourceRoutes = new Hono()
 
@@ -50,6 +58,10 @@ function errStatus(message: string): 400 | 502 | 504 {
   return 502
 }
 
+function cacheHeaders(hit: boolean): Record<string, string> {
+  return { 'X-Cache': hit ? 'HIT' : 'MISS' }
+}
+
 /**
  * 获取固化视频源列表
  */
@@ -92,11 +104,45 @@ sourceRoutes.post('/search', async (c) => {
     return c.json({ error: 'bad_request', message: '缺少 keyword 参数' }, 400)
   }
 
+  const adapter = sourceRegistry.getAdapter(source)
+  if (!adapter) {
+    return c.json({ error: 'bad_request', message: `Unknown source: ${source}` }, 400)
+  }
+
+  const sourceId = adapter.id
+  const upstreamKey = sourceId
+  const cacheKey = buildSourceCacheKey(sourceId, 'search', keyword.toLowerCase())
+  const bypass = wantsCacheBypass(c)
+  const clientIp = resolveIp(c)
+
   try {
-    const data = await sourceRegistry.search(source, keyword)
-    return c.json({ data })
+    const { data, hit } = await guardedOp<PluginSearchResult>({
+      kind: 'search',
+      upstreamKey,
+      cacheKey,
+      clientIp,
+      bypass,
+      loader: () => sourceRegistry.search(sourceId, keyword),
+      isEmpty: (res) => !res.items || res.items.length === 0,
+      reformatResult: (res) => ({ ...res, pluginName: adapter.name || sourceId }),
+    })
+    return c.json({ data }, 200, cacheHeaders(hit))
   } catch (err) {
+    if (err instanceof SourceRateLimitError) {
+      c.header('Retry-After', String(err.retryAfterSec))
+      return c.json(
+        {
+          error: 'source_rate_limited',
+          message: err.message,
+          retryAfterSec: err.retryAfterSec,
+        },
+        429,
+      )
+    }
     const message = err instanceof Error ? err.message : String(err)
+    if (/熔断冷却中/.test(message)) {
+      return c.json({ error: 'circuit_breaker_tripped', message }, 504)
+    }
     return c.json({ error: 'search_failed', message }, errStatus(message))
   }
 })
@@ -140,11 +186,45 @@ sourceRoutes.post('/chapters', async (c) => {
     return c.json({ error: 'bad_request', message: '缺少 url 参数' }, 400)
   }
 
+  const adapter = sourceRegistry.getAdapter(source)
+  if (!adapter) {
+    return c.json({ error: 'bad_request', message: `Unknown source: ${source}` }, 400)
+  }
+
+  const sourceId = adapter.id
+  const upstreamKey = sourceId
+  const cacheKey = buildSourceCacheKey(sourceId, 'chapters', url.replace(/\/+$/, ''))
+  const bypass = wantsCacheBypass(c)
+  const clientIp = resolveIp(c)
+
   try {
-    const data = await sourceRegistry.chapters(source, url)
-    return c.json({ data })
+    const { data, hit } = await guardedOp<PluginChapterResult>({
+      kind: 'chapters',
+      upstreamKey,
+      cacheKey,
+      clientIp,
+      bypass,
+      loader: () => sourceRegistry.chapters(sourceId, url),
+      isEmpty: (res) => !res.roads || res.roads.length === 0,
+      reformatResult: (res) => ({ ...res, pluginName: adapter.name || sourceId }),
+    })
+    return c.json({ data }, 200, cacheHeaders(hit))
   } catch (err) {
+    if (err instanceof SourceRateLimitError) {
+      c.header('Retry-After', String(err.retryAfterSec))
+      return c.json(
+        {
+          error: 'source_rate_limited',
+          message: err.message,
+          retryAfterSec: err.retryAfterSec,
+        },
+        429,
+      )
+    }
     const message = err instanceof Error ? err.message : String(err)
+    if (/熔断冷却中/.test(message)) {
+      return c.json({ error: 'circuit_breaker_tripped', message }, 504)
+    }
     return c.json({ error: 'chapters_failed', message }, errStatus(message))
   }
 })
@@ -183,8 +263,28 @@ sourceRoutes.post('/resolve', async (c) => {
     return c.json({ error: 'bad_request', message: '缺少 pageUrl 参数' }, 400)
   }
 
+  const adapter = sourceRegistry.getAdapter(source)
+  if (!adapter) {
+    return c.json({ error: 'bad_request', message: `Unknown source: ${source}` }, 400)
+  }
+
+  const sourceId = adapter.id
+  const clientIp = resolveIp(c)
+  const limitCheck = checkSourceRateLimit(clientIp, sourceId, 'resolve')
+  if (!limitCheck.allowed) {
+    c.header('Retry-After', String(limitCheck.retryAfterSec))
+    return c.json(
+      {
+        error: 'source_rate_limited',
+        message: `该视频源请求过于频繁，请 ${limitCheck.retryAfterSec} 秒后重试`,
+        retryAfterSec: limitCheck.retryAfterSec,
+      },
+      429,
+    )
+  }
+
   try {
-    const data = await sourceRegistry.resolveAndRegister(source, pageUrl)
+    const data = await sourceRegistry.resolveAndRegister(sourceId, pageUrl)
     return c.json({ data })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

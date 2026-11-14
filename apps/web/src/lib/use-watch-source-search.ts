@@ -7,6 +7,7 @@ import {
   type SearchItem,
 } from '@animaku/shared'
 import { pluginApi } from './plugin-api'
+import { ApiError } from './api'
 import {
   getCachedPluginSearch,
   setCachedPluginSearch,
@@ -119,6 +120,7 @@ export function useWatchSourceSearch({
 
   const pluginSearchGen = useRef<Record<string, number>>({})
   const pluginSearchAbort = useRef<Record<string, AbortController>>({})
+  const rateLimitedUntilMap = useRef<Record<string, number>>({})
   const prevBangumiIdRef = useRef(bangumiId)
 
   const getPluginKeyword = useCallback(
@@ -207,6 +209,13 @@ export function useWatchSourceSearch({
         background?: boolean
       },
     ) => {
+      const cooldownUntil = rateLimitedUntilMap.current[plugin.name]
+      if (cooldownUntil && Date.now() < cooldownUntil) {
+        const remainingSec = Math.max(1, Math.ceil((cooldownUntil - Date.now()) / 1000))
+        setHudMessage(`源站「${plugin.name}」请求过于频繁，请 ${remainingSec} 秒后重试`)
+        return
+      }
+
       const gen = (pluginSearchGen.current[plugin.name] || 0) + 1
       pluginSearchGen.current[plugin.name] = gen
       try {
@@ -309,11 +318,24 @@ export function useWatchSourceSearch({
         if (searchAc.signal.aborted) return
         const msg = e instanceof Error ? e.message : '搜索失败'
         if (/取消|aborted|AbortError/i.test(msg)) return
-        error = /504|timeout|超时|无法访问/i.test(msg)
-          ? '源站超时，请稍后重试'
-          : /502|源站返回/i.test(msg)
-            ? '源站暂时不可用'
-            : msg
+
+        const is429 =
+          (e instanceof ApiError && e.status === 429) ||
+          /source_rate_limited|过于频繁/i.test(msg)
+
+        if (is429) {
+          const body = e instanceof ApiError ? (e.body as { retryAfterSec?: number } | null) : null
+          const sec = body?.retryAfterSec ?? 5
+          rateLimitedUntilMap.current[plugin.name] = Date.now() + sec * 1000
+          error = '该源请求过于频繁，请稍后再试'
+          setHudMessage(`源站「${plugin.name}」请求过于频繁，请稍后再试`)
+        } else {
+          error = /504|timeout|超时|无法访问/i.test(msg)
+            ? '源站超时，请稍后重试'
+            : /502|源站返回/i.test(msg)
+              ? '源站暂时不可用'
+              : msg
+        }
       }
 
       if (pluginSearchGen.current[plugin.name] !== gen) return
@@ -321,9 +343,11 @@ export function useWatchSourceSearch({
         prev.map((row) =>
           row.plugin.name === plugin.name
             ? {
+                ...row,
                 plugin,
                 items,
                 error,
+                rateLimitedUntil: rateLimitedUntilMap.current[plugin.name],
                 pending: false,
                 searched: true,
                 keyword,

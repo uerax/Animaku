@@ -542,20 +542,36 @@ export function SourceBoard({
                           换词
                         </KzButton>
                       ) : state.status === 'error' ? (
-                        <KzButton
-                          size="xs"
-                          variant="danger-outline"
-                          pill
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onUserAction()
-                            reProbePlugin(plugin.name)
-                          }}
-                          className="h-7 px-2.5 !text-[11.5px] !font-semibold"
-                          title="请求失败，点击重试探测"
-                        >
-                          重试
-                        </KzButton>
+                        (() => {
+                          const isCooldown = Boolean(
+                            state.rateLimitedUntil && Date.now() < state.rateLimitedUntil,
+                          )
+                          const remainingSec = isCooldown
+                            ? Math.max(1, Math.ceil((state.rateLimitedUntil! - Date.now()) / 1000))
+                            : 0
+                          return (
+                            <KzButton
+                              size="xs"
+                              variant="danger-outline"
+                              pill
+                              disabled={isCooldown}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                if (isCooldown) return
+                                onUserAction()
+                                reProbePlugin(plugin.name)
+                              }}
+                              className="h-7 px-2.5 !text-[11.5px] !font-semibold"
+                              title={
+                                isCooldown
+                                  ? `该源请求过于频繁，请等待冷却 (${remainingSec}s)`
+                                  : '请求失败，点击重试探测'
+                              }
+                            >
+                              {isCooldown ? `${remainingSec}s` : '重试'}
+                            </KzButton>
+                          )
+                        })()
                       ) : state.status === 'idle' ? (
                         <KzButton
                           size="xs"
