@@ -23,6 +23,7 @@ import type { SourceSelection, SearchRow } from '../../lib/use-watch-session'
 import { useAutoSourcePick } from './use-auto-source-pick'
 import { useSiteConfigStore } from '../../stores/site-config'
 import { KzButton, KzInput } from '../../components/ui'
+import { useKeyedCooldownCallback } from '../../lib/use-cooldown'
 
 export interface SourceBoardProps {
   bangumiId: number
@@ -203,12 +204,20 @@ export function SourceBoard({
     onAllFallbacksFailed,
   })
 
+  const [reProbePluginWithCooldown, isPluginCooling] = useKeyedCooldownCallback(
+    (pluginName: string, kw?: string) => {
+      reProbePlugin(pluginName, kw)
+    },
+    500,
+  )
+
   function handleCardKeywordSubmit(pluginName: string, e: FormEvent) {
     e.preventDefault()
+    if (isPluginCooling(pluginName)) return
     onUserAction()
     const kw = (cardKwInputs[pluginName] || '').trim()
     if (!kw) return
-    reProbePlugin(pluginName, kw)
+    reProbePluginWithCooldown(pluginName, kw)
   }
 
   const sourcesTotal = plugins.length
@@ -554,18 +563,20 @@ export function SourceBoard({
                               size="xs"
                               variant="danger-outline"
                               pill
-                              disabled={isCooldown}
+                              disabled={isCooldown || isPluginCooling(plugin.name)}
                               onClick={(e) => {
                                 e.stopPropagation()
-                                if (isCooldown) return
+                                if (isCooldown || isPluginCooling(plugin.name)) return
                                 onUserAction()
-                                reProbePlugin(plugin.name)
+                                reProbePluginWithCooldown(plugin.name)
                               }}
                               className="h-7 px-2.5 !text-[11.5px] !font-semibold"
                               title={
                                 isCooldown
                                   ? `该源请求过于频繁，请等待冷却 (${remainingSec}s)`
-                                  : '请求失败，点击重试探测'
+                                  : isPluginCooling(plugin.name)
+                                    ? '操作冷却中 (0.5s)'
+                                    : '请求失败，点击重试探测'
                               }
                             >
                               {isCooldown ? `${remainingSec}s` : '重试'}
@@ -720,12 +731,14 @@ export function SourceBoard({
                                     variant={isCurrentKw ? 'primary' : 'secondary'}
                                     pill
                                     loading={isProbingThis}
+                                    disabled={isPluginCooling(plugin.name)}
                                     onClick={() => {
+                                      if (isPluginCooling(plugin.name)) return
                                       setCardKwInputs((prev) => ({
                                         ...prev,
                                         [plugin.name]: kw,
                                       }))
-                                      reProbePlugin(plugin.name, kw)
+                                      reProbePluginWithCooldown(plugin.name, kw)
                                     }}
                                     className={clsx(
                                       'h-7 px-2.5 !text-[11.5px] !font-normal',
@@ -763,7 +776,8 @@ export function SourceBoard({
                             variant="primary"
                             size="sm"
                             loading={state.status === 'probing'}
-                            disabled={!(cardKwInputs[plugin.name] || '').trim()}
+                            disabled={!(cardKwInputs[plugin.name] || '').trim() || isPluginCooling(plugin.name)}
+                            title={isPluginCooling(plugin.name) ? '搜索冷却中 (0.5s)' : '重搜'}
                             className="!text-[11px] px-3"
                           >
                             重搜

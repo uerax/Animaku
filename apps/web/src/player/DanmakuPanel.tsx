@@ -14,6 +14,7 @@ import {
 } from '../lib/danmaku-pools'
 import type { PointerMode } from './chrome/usePointerMode'
 import { danmakuApi } from '../lib/plugin-api'
+import { useCooldownCallback } from '../lib/use-cooldown'
 import {
   getDanmuBoxCdnDownloadUrl,
 } from '../lib/danmubox/client'
@@ -788,6 +789,8 @@ function SettingsTab({
 /* ─── Search Tab (Dandanplay) ─── */
 
 function SearchTab(props: Props & { compact: boolean }) {
+  const [handleSearchWithCd, isSearchCooling] = useCooldownCallback(props.onSearch, 500)
+
   return (
     <div className="space-y-3">
       {/* Search Input Box */}
@@ -800,7 +803,7 @@ function SearchTab(props: Props & { compact: boolean }) {
             value={props.keyword}
             onChange={(e) => props.onKeywordChange(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') props.onSearch()
+              if (e.key === 'Enter') handleSearchWithCd()
             }}
             placeholder="搜索番剧名称…"
           />
@@ -808,7 +811,9 @@ function SearchTab(props: Props & { compact: boolean }) {
             variant="primary"
             size="sm"
             loading={props.searchBusy}
-            onClick={props.onSearch}
+            disabled={!props.keyword.trim() || isSearchCooling}
+            title={isSearchCooling ? '搜索冷却中 (0.5s)' : '搜索'}
+            onClick={handleSearchWithCd}
           >
             搜索
           </KzButton>
@@ -897,10 +902,12 @@ function DanmuBoxTab(props: Props & { compact: boolean }) {
     }
   }
 
+  const [handleSearchWithCd, isSearchCooling] = useCooldownCallback(handleSearch, 500)
+
   // Pre-search on first mount if keyword exists and results empty
   useEffect(() => {
     if (dbKeyword.trim() && !searched && results.length === 0) {
-      void handleSearch()
+      void handleSearchWithCd()
     }
   }, [])
 
@@ -950,7 +957,7 @@ function DanmuBoxTab(props: Props & { compact: boolean }) {
             value={dbKeyword}
             onChange={(e) => setDbKeyword(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') void handleSearch()
+              if (e.key === 'Enter') void handleSearchWithCd()
             }}
             placeholder="搜索番剧名称（如：寒蝉、龙与虎、石头门）…"
           />
@@ -958,8 +965,9 @@ function DanmuBoxTab(props: Props & { compact: boolean }) {
             variant="primary"
             size="sm"
             loading={searching}
-            disabled={!dbKeyword.trim()}
-            onClick={() => void handleSearch()}
+            disabled={!dbKeyword.trim() || isSearchCooling}
+            title={isSearchCooling ? '搜索冷却中 (0.5s)' : '搜索'}
+            onClick={() => void handleSearchWithCd()}
           >
             搜索
           </KzButton>
@@ -1033,6 +1041,7 @@ function ImportTab(props: Props & { compact: boolean }) {
   const { poolOffsets, onSetPoolOffset } = props
   const biliManualOffset = poolOffsets?.bilibili_manual ?? 0
   const uploadOffset = poolOffsets?.upload ?? 0
+  const [handleLoadBilibiliWithCd, isBilibiliCooling] = useCooldownCallback(props.onLoadBilibili, 500)
 
   return (
     <div className="space-y-3.5">
@@ -1045,7 +1054,7 @@ function ImportTab(props: Props & { compact: boolean }) {
           onChange={(e) => props.onBvInputChange(e.target.value)}
           placeholder="BV号 / ep86012 / ss28277 / av号 / 完整链接"
           onKeyDown={(e) => {
-            if (e.key === 'Enter') props.onLoadBilibili()
+            if (e.key === 'Enter') handleLoadBilibiliWithCd()
           }}
         />
 
@@ -1069,7 +1078,9 @@ function ImportTab(props: Props & { compact: boolean }) {
             size="sm"
             variant="primary"
             loading={props.bilibiliBusy}
-            onClick={props.onLoadBilibili}
+            disabled={!props.bvInput.trim() || isBilibiliCooling}
+            title={isBilibiliCooling ? '请求冷却中 (0.5s)' : '追加 B 站弹幕'}
+            onClick={handleLoadBilibiliWithCd}
           >
             追加 B 站弹幕
           </KzButton>
