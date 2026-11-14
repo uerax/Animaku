@@ -137,7 +137,9 @@ export class WatchStatsRepository {
    * Check if an IP has exceeded the new devices registration rate limit (20/hour).
    */
   private checkIpNewDeviceRate(clientIp: string, now: number): boolean {
-    if (!clientIp || clientIp === '127.0.0.1' || clientIp === 'localhost') return true
+    const isLocal = !clientIp || clientIp === '127.0.0.1' || clientIp === '::1'
+    if (process.env.NODE_ENV !== 'production' && isLocal) return true
+    if (!clientIp) return true
     let bucket = this.ipNewDeviceTracker.get(clientIp)
     if (!bucket || now - bucket.windowStart >= 60 * 60 * 1000) {
       bucket = { count: 1, windowStart: now }
@@ -210,13 +212,15 @@ export class WatchStatsRepository {
     if (lastActive && now - lastActive < DEDUP_WINDOW_MS) {
       return { success: true, deduped: true }
     }
-    this.activeDeviceCache.set(cleanDeviceId, now)
 
     // Rate-limit new device creations per IP (e.g. max 20 new devices/hour) to guard SQLite against DoS
     const isKnown = this.isDeviceKnown(cleanDeviceId)
     if (!isKnown && !this.checkIpNewDeviceRate(clientIp, now)) {
       return { success: true, deduped: true }
     }
+
+    // 校验通过后才写入活跃缓存（被拦截的假设备不占内存）
+    this.activeDeviceCache.set(cleanDeviceId, now)
 
     // Buffer device update (playIncrement = 0 means pure heartbeat, not a play view)
     const existingDev = this.pendingDevices.get(cleanDeviceId)
@@ -275,9 +279,21 @@ export class WatchStatsRepository {
       }
     }
 
+    // 2. 新设备 IP 限额前置检查：未知设备且 IP 超限时直接返回已去重状态，绝不累加播放量
+    const isKnown = this.isDeviceKnown(cleanDeviceId)
+    if (!isKnown && !this.checkIpNewDeviceRate(clientIp, now)) {
+      const currentTotal = this.getTotalViewsFast(bangumiId)
+      return {
+        success: true,
+        deduped: true,
+        totalPlayCount: currentTotal,
+      }
+    }
+
+    // 3. 校验通过，写入 10 分钟去重缓存
     this.dedupCache.set(dedupKey, now)
 
-    // 2. Buffer pending increments in memory
+    // 4. Buffer pending increments in memory
     const curPendingTotal = this.pendingTotalViews.get(bangumiId) || 0
     this.pendingTotalViews.set(bangumiId, curPendingTotal + 1)
 
@@ -286,7 +302,7 @@ export class WatchStatsRepository {
     const curPendingDaily = this.pendingDailyViews.get(dailyKey) || 0
     this.pendingDailyViews.set(dailyKey, curPendingDaily + 1)
 
-    // 3. Buffer device update
+    // 5. Buffer device update（前面已确认合法，直接存入，不再二次调用 checkIpNewDeviceRate 重复扣减）
     const existingDev = this.pendingDevices.get(cleanDeviceId)
     if (existingDev) {
       existingDev.lastSeenAt = now
@@ -297,24 +313,21 @@ export class WatchStatsRepository {
         existingDev.fingerprint = fingerprint
       }
     } else {
-      const isKnown = this.isDeviceKnown(cleanDeviceId)
-      if (isKnown || this.checkIpNewDeviceRate(clientIp, now)) {
-        this.pendingDevices.set(cleanDeviceId, {
-          fingerprint,
-          lastIp: clientIp || '127.0.0.1',
-          lastSeenAt: now,
-          lastPlayedAt: now,
-          playIncrement: 1,
-        })
-        this.knownDeviceIds.add(cleanDeviceId)
-      }
+      this.pendingDevices.set(cleanDeviceId, {
+        fingerprint,
+        lastIp: clientIp || '127.0.0.1',
+        lastSeenAt: now,
+        lastPlayedAt: now,
+        playIncrement: 1,
+      })
+      this.knownDeviceIds.add(cleanDeviceId)
     }
 
-    // 4. Update memory cache of total views for instant client responses
+    // 6. Update memory cache of total views for instant client responses
     const newTotal = this.getTotalViewsFast(bangumiId) + 1
     this.memoryTotalViews.set(bangumiId, newTotal)
 
-    // 5. Check watermark threshold for early flush
+    // 7. Check watermark threshold for early flush
     if (this.pendingTotalViews.size >= MAX_PENDING_WATERMARK) {
       setImmediate(() => this.flushSync())
     }

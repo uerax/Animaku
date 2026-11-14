@@ -335,7 +335,18 @@ test('WatchStatsRepository & Stats Routes Integration', async (t) => {
       .get(spammerIp) as any
     assert.equal(registeredSpamDevices.cnt, 20, 'Only the first 20 new devices from the same IP should be registered')
 
-    // 4. Verify getDailyStats includes playDevices
+    // 4. Verify that exceeding IP cannot inflate play views with fresh device IDs
+    const currentPlayCount = watchStatsRepo.getPlayStats(90001).totalPlayCount
+    const blockedPlayRes = watchStatsRepo.recordPlayView({
+      deviceId: 'dev_99999999999999999999999999999999',
+      bangumiId: 90001,
+      episode: 1,
+      clientIp: spammerIp, // 该 IP 已经满了 20 个新设备名额
+    })
+    assert.equal(blockedPlayRes.deduped, true, 'Exceeded new device must be marked as deduped and blocked')
+    assert.equal(watchStatsRepo.getPlayStats(90001).totalPlayCount, currentPlayCount, 'Play count must not increase for rate-limited new devices')
+
+    // 5. Verify getDailyStats includes playDevices
     const dailyStats = watchStatsRepo.getDailyStats()
     assert.ok(typeof dailyStats.dau === 'number')
     assert.ok(typeof dailyStats.playDevices === 'number')
