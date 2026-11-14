@@ -2,7 +2,6 @@ import { memo, useId, useMemo } from 'react'
 import type { DanmakuComment } from '@animaku/shared'
 import { formatTime } from '../media/format'
 import {
-  usePlayerPlayedRanges,
   usePlayerProgress,
   usePlayerTime,
 } from '../timeStore'
@@ -40,23 +39,32 @@ export interface PlayerSeekRangeProps {
  */
 export const PlayerSeekRange = memo(function PlayerSeekRange({
   dragRatio,
-  onSeekRatio,
 }: PlayerSeekRangeProps) {
   perfMetrics.recordProgressRender()
   const progress = usePlayerProgress()
   const effectiveProgress = dragRatio !== null ? dragRatio * 100 : progress
 
   return (
-    <input
-      type="range"
+    <div
       className="kz-seek"
-      min={0}
-      max={1000}
-      value={Math.round(effectiveProgress * 10)}
-      onChange={(e) => onSeekRatio(Number(e.target.value) / 1000)}
       style={{ ['--kz-progress' as string]: `${effectiveProgress}%` }}
       aria-label="进度"
-    />
+      role="slider"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(effectiveProgress)}
+    >
+      <div className="kz-seek-track">
+        <div
+          className="kz-seek-played"
+          style={{ width: `${effectiveProgress}%` }}
+        />
+      </div>
+      <div
+        className="kz-seek-thumb"
+        style={{ left: `${effectiveProgress}%` }}
+      />
+    </div>
   )
 })
 
@@ -105,15 +113,13 @@ export function computeDanmakuHeatmap(
 export interface PlayerDanmakuHeatmapProps {
   comments?: DanmakuComment[]
   duration: number
-  dragRatio?: number | null
   height?: number
   numBuckets?: number
   idPrefix?: string
 }
 
 /**
- * 局部订阅弹幕热力图组件（已播放的非连续区间上色，跳过的区间保持白色）
- * 仅根据 video.played 实际播放区间渲染 clipPath，跳过区域（如从 1 分钟跳到 5 分钟）不被包含在蒙版中，保持纯白
+ * 局部订阅弹幕热力图组件（纯净优雅的弹幕密度波浪，鼠标悬停时高亮浮现）
  */
 export const PlayerDanmakuHeatmap = memo(function PlayerDanmakuHeatmap({
   comments,
@@ -123,40 +129,14 @@ export const PlayerDanmakuHeatmap = memo(function PlayerDanmakuHeatmap({
   idPrefix,
 }: PlayerDanmakuHeatmapProps) {
   const autoId = useId().replace(/[^a-zA-Z0-9_-]/g, '')
-  const prefix = idPrefix || `kz-hm-${autoId}`
+  const gradId = idPrefix ? `${idPrefix}-grad` : `kz-hm-grad-${autoId}`
 
   const heatmapPath = useMemo(
     () => computeDanmakuHeatmap(comments, duration, numBuckets, height),
     [comments, duration, numBuckets, height],
   )
 
-  const playedRanges = usePlayerPlayedRanges()
-
   if (!heatmapPath || duration <= 0) return null
-
-  const clipId = `${prefix}-clip`
-  const gradPlayedId = `${prefix}-grad-p`
-  const gradUnplayedId = `${prefix}-grad-u`
-
-  // 映射真实观看/播放过的区间（秒）为 SVG userSpace 坐标（0 ~ 100）
-  // 跳过的区间（如 1 分钟跳到 5 分钟）不会生成 rect，顶层主题色被裁切排除，从而显示底层白色
-  const rangeRects = playedRanges
-    .map(([start, end], idx) => {
-      const left = Math.max(0, Math.min(100, (start / duration) * 100))
-      const right = Math.max(0, Math.min(100, (end / duration) * 100))
-      const width = Math.max(0, right - left)
-      if (width <= 0) return null
-      return (
-        <rect
-          key={idx}
-          x={Number(left.toFixed(2))}
-          y={0}
-          width={Number(width.toFixed(2))}
-          height={height}
-        />
-      )
-    })
-    .filter(Boolean)
 
   return (
     <svg
@@ -166,42 +146,12 @@ export const PlayerDanmakuHeatmap = memo(function PlayerDanmakuHeatmap({
       aria-hidden="true"
     >
       <defs>
-        {/* 已播放区域渐变（主题色，鲜明高亮） */}
-        <linearGradient id={gradPlayedId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="rgba(56, 189, 248, 0.7)" />
-          <stop offset="100%" stopColor="rgba(56, 189, 248, 0.08)" />
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="rgba(56, 189, 248, 0.45)" />
+          <stop offset="100%" stopColor="rgba(56, 189, 248, 0.02)" />
         </linearGradient>
-
-        {/* 未播放/跳过区域渐变（白色半透明） */}
-        <linearGradient id={gradUnplayedId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="rgba(255, 255, 255, 0.38)" />
-          <stop offset="100%" stopColor="rgba(255, 255, 255, 0.06)" />
-        </linearGradient>
-
-        {/* 动态裁切区域：仅包含真正播放过的所有区间矩形集合（跳过的部分被排除，自动显示底层白色） */}
-        <clipPath id={clipId}>
-          {rangeRects.length > 0 ? (
-            rangeRects
-          ) : (
-            <rect x="0" y="0" width="0" height={height} />
-          )}
-        </clipPath>
       </defs>
-
-      {/* 底层：未播放/跳过区域（全宽半透明白色波浪） */}
-      <path
-        d={heatmapPath}
-        fill={`url(#${gradUnplayedId})`}
-        className="kz-seek-heatmap-unplayed"
-      />
-
-      {/* 顶层：已播放区域（主题天蓝色，通过 clip-path 仅裁切出真正看过的片段） */}
-      <path
-        d={heatmapPath}
-        fill={`url(#${gradPlayedId})`}
-        clipPath={`url(#${clipId})`}
-        className="kz-seek-heatmap-played"
-      />
+      <path d={heatmapPath} fill={`url(#${gradId})`} />
     </svg>
   )
 })

@@ -402,7 +402,7 @@ export function MobileControls(props: PlayerControlsProps) {
           onPointerUp={handleSeekPointerUp}
           onPointerCancel={handleSeekPointerUp}
         >
-          {/* Danmaku Heatmap Wave (Tracks non-contiguous played ranges, skipped areas stay white) */}
+          {/* Danmaku Heatmap Wave */}
           <PlayerDanmakuHeatmap
             comments={comments}
             duration={duration}

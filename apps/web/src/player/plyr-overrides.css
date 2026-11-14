@@ -779,21 +779,13 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   width: 100%;
   height: 22px;
   pointer-events: none;
-  opacity: 0.85;
+  opacity: 0.8;
   transition: opacity 0.2s ease;
   z-index: 0;
 }
 
 .kz-seek-wrap:hover .kz-seek-heatmap {
   opacity: 1;
-}
-
-.kz-seek-heatmap-unplayed {
-  transition: opacity 0.2s ease;
-}
-
-.kz-seek-heatmap-played {
-  transition: opacity 0.2s ease;
 }
 
 .kz-seek-marker {
@@ -865,116 +857,62 @@ html[data-theme='light'] .kz-watch-road-chip[aria-selected='true'] {
   }
 }
 
-/* Seek bar: Safari/macOS does not fill native range tracks with accent-color —
-   paint played portion via --kz-progress + WebKit/Moz pseudo elements. */
+/* Modern Seek Bar Rail & Center-Locked Thumb (100% align with Heatmap cut-off) */
 .kz-seek {
   --kz-progress: 0%;
   --kz-seek-fill: #38bdf8;
   --kz-seek-rest: rgba(255, 255, 255, 0.25);
   --kz-seek-h: 4px;
-  --kz-seek-pad: 4px;
-  display: block;
+  display: flex;
+  align-items: center;
+  position: relative;
   width: 100%;
   height: 12px;
   margin: 0;
-  padding: var(--kz-seek-pad) 0;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  accent-color: var(--kz-seek-fill);
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
+  padding: 0;
   box-sizing: border-box;
-  position: relative;
   z-index: 2;
   pointer-events: none;
-  transition: padding 0.15s ease;
 }
 
 .kz-seek-wrap:hover .kz-seek {
   --kz-seek-h: 6px;
-  --kz-seek-pad: 3px;
 }
 
-.kz-seek:focus {
-  outline: none;
-}
-
-.kz-seek:focus-visible {
-  outline: 2px solid rgba(56, 189, 248, 0.55);
-  outline-offset: 3px;
-}
-
-/* WebKit / Blink (Safari, Chrome) */
-.kz-seek::-webkit-slider-runnable-track {
+.kz-seek-track {
+  position: relative;
+  width: 100%;
   height: var(--kz-seek-h);
-  border-radius: 999px;
-  background: linear-gradient(
-    to right,
-    var(--kz-seek-fill) 0%,
-    var(--kz-seek-fill) var(--kz-progress),
-    var(--kz-seek-rest) var(--kz-progress),
-    var(--kz-seek-rest) 100%
-  );
-  transition: height 0.15s ease;
-}
-
-.kz-seek::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 12px;
-  height: 12px;
-  margin-top: calc((var(--kz-seek-h) - 12px) / 2);
-  border: 0;
-  border-radius: 50%;
-  background: #ffffff;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
-  cursor: pointer;
-  transform: scale(1);
-  transition:
-    transform 0.15s ease,
-    box-shadow 0.15s ease,
-    margin-top 0.15s ease;
-}
-
-.kz-seek-wrap:hover .kz-seek::-webkit-slider-thumb {
-  transform: scale(1.25);
-  background: #ffffff;
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.7), 0 0 0 2px rgba(255, 255, 255, 0.9);
-}
-
-/* Firefox */
-.kz-seek::-moz-range-track {
-  height: var(--kz-seek-h);
-  border: 0;
   border-radius: 999px;
   background: var(--kz-seek-rest);
+  overflow: hidden;
   transition: height 0.15s ease;
 }
 
-.kz-seek::-moz-range-progress {
-  height: var(--kz-seek-h);
-  border: 0;
+.kz-seek-played {
+  height: 100%;
   border-radius: 999px;
   background: var(--kz-seek-fill);
-  transition: height 0.15s ease;
+  transition: none;
 }
 
-.kz-seek::-moz-range-thumb {
+.kz-seek-thumb {
+  position: absolute;
+  top: 50%;
   width: 12px;
   height: 12px;
-  border: 0;
   border-radius: 50%;
   background: #ffffff;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
-  cursor: pointer;
-  transform: scale(1);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transform: translate(-50%, -50%) scale(1);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+  pointer-events: none;
 }
 
-.kz-seek-wrap:hover .kz-seek::-moz-range-thumb {
-  transform: scale(1.25);
+.kz-seek-wrap:hover .kz-seek-thumb {
+  transform: translate(-50%, -50%) scale(1.25);
   background: #ffffff;
   box-shadow: 0 0 10px rgba(56, 189, 248, 0.7), 0 0 0 2px rgba(255, 255, 255, 0.9);
 }
