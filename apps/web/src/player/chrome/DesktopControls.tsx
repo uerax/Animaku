@@ -6,7 +6,11 @@ import {
   type SuperResolutionMode,
 } from '@animaku/shared'
 import type { AspectRatioMode, PlayerControlsProps } from './types'
-import { PlayerSeekRange, PlayerTimeDisplay } from './PlaybackProgressUi'
+import {
+  PlayerDanmakuHeatmap,
+  PlayerSeekRange,
+  PlayerTimeDisplay,
+} from './PlaybackProgressUi'
 import { SourcePreferenceMenu } from './SourcePreferenceMenu'
 import {
   IconCheck,
@@ -24,6 +28,7 @@ import {
   IconPlay,
   IconPrev,
   IconSettings,
+  IconSpeedText,
   IconVolume,
   IconVolumeMute,
   IconWebFs,
@@ -39,57 +44,14 @@ const ASPECT_RATIO_OPTIONS: { value: AspectRatioMode; label: string }[] = [
   { value: '4:3', label: '画幅 4:3' },
 ]
 
-function srTitle(
-  webGpuOk: boolean | null,
-  srMode: SuperResolutionMode,
-  srActive: boolean,
-  labels: Record<SuperResolutionMode, string>,
-): string {
-  if (webGpuOk === false) return '超分（当前环境无 WebGPU）'
-  if (srMode === 'off') return '超分（关闭）'
-  return `超分（${labels[srMode]}${srActive ? ' · 运行中' : ' · 等待画面'}）`
-}
-
-/**
- * Compute SVG danmaku density curve path across seekbar.
- */
-function computeDanmakuHeatmap(
-  comments: DanmakuComment[] | undefined,
-  duration: number,
-  numBuckets = 60,
-): string | null {
-  if (!comments || comments.length < 5 || duration <= 0) return null
-  const buckets = new Array(numBuckets).fill(0)
-  for (const c of comments) {
-    if (c.time >= 0 && c.time <= duration) {
-      const idx = Math.min(
-        numBuckets - 1,
-        Math.floor((c.time / duration) * numBuckets),
-      )
-      buckets[idx]++
-    }
+function formatSpeedMenuLabel(s: number) {
+  if (Math.abs(s - 1) < 0.01) {
+    return <IconSpeedText />
   }
-  const max = Math.max(...buckets)
-  if (max <= 1) return null
-
-  // 3-point moving average smoothing
-  const smoothed = buckets.map((val, i) => {
-    const prev = buckets[i - 1] ?? val
-    const next = buckets[i + 1] ?? val
-    return (prev + val * 2 + next) / 4
-  })
-  const smoothedMax = Math.max(...smoothed) || 1
-
-  const height = 24
-  let path = `M 0 ${height}`
-  for (let i = 0; i < numBuckets; i++) {
-    const x = (i / (numBuckets - 1)) * 100
-    const normalized = smoothed[i] / smoothedMax
-    const y = height - Math.pow(normalized, 0.75) * (height - 3)
-    path += ` L ${x.toFixed(1)} ${y.toFixed(1)}`
+  if (Math.abs(s - 2) < 0.01) {
+    return '2.0'
   }
-  path += ` L 100 ${height} Z`
-  return path
+  return s
 }
 
 /**
@@ -163,12 +125,6 @@ export function DesktopControls(props: PlayerControlsProps) {
       setSettingsSubmenu('root')
     }
   }, [settingsMenuOpen])
-
-  // Heatmap path calculation
-  const heatmapPath = useMemo(
-    () => computeDanmakuHeatmap(comments, duration),
-    [comments, duration],
-  )
 
   // OP / ED chapter markers — only active when bangumi-oped is enabled and valid timestamps exist
   // 若当前视频源时长与 Bangumi 官方单集时长绝对误差超过容差 (4s)，说明该源可能存在广告或剪辑错位，不渲染 OP/ED 高亮标尺
@@ -254,6 +210,14 @@ export function DesktopControls(props: PlayerControlsProps) {
 
   const handleSeekPointerDown = (e: PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return
+    const target = e.target as HTMLElement | null
+    if (
+      target?.closest(
+        '.kz-speed-menu, .kz-settings-popover, .kz-danmaku-panel, .kz-oped-panel, .kz-bar-row',
+      )
+    ) {
+      return
+    }
     e.preventDefault()
     e.stopPropagation()
     isDraggingRef.current = true
@@ -268,6 +232,15 @@ export function DesktopControls(props: PlayerControlsProps) {
   }
 
   const handleSeekPointerMove = (e: PointerEvent<HTMLDivElement>) => {
+    if (
+      !isDraggingRef.current &&
+      (e.target as HTMLElement | null)?.closest(
+        '.kz-speed-menu, .kz-settings-popover, .kz-danmaku-panel, .kz-oped-panel, .kz-bar-row',
+      )
+    ) {
+      setHoverRatio(null)
+      return
+    }
     const ratio = calcSeekRatio(e.clientX)
     setHoverRatio(ratio)
     if (isDraggingRef.current) {
@@ -327,23 +300,13 @@ export function DesktopControls(props: PlayerControlsProps) {
         onPointerCancel={handleSeekPointerUp}
         onPointerLeave={handleSeekPointerLeave}
       >
-        {/* Danmaku Heatmap Wave */}
-        {heatmapPath && (
-          <svg
-            className="kz-seek-heatmap"
-            viewBox="0 0 100 24"
-            preserveAspectRatio="none"
-            aria-hidden="true"
-          >
-            <defs>
-              <linearGradient id="kz-heatmap-grad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="rgba(56, 189, 248, 0.45)" />
-                <stop offset="100%" stopColor="rgba(56, 189, 248, 0.02)" />
-              </linearGradient>
-            </defs>
-            <path d={heatmapPath} fill="url(#kz-heatmap-grad)" />
-          </svg>
-        )}
+        {/* Danmaku Heatmap Wave (Tracks non-contiguous played ranges, skipped areas stay white) */}
+        <PlayerDanmakuHeatmap
+          comments={comments}
+          duration={duration}
+          height={24}
+          numBuckets={60}
+        />
 
         {/* OP/ED Chapter Markers */}
         {opMarker && (
@@ -479,14 +442,19 @@ export function DesktopControls(props: PlayerControlsProps) {
           <div className="kz-speed-wrap">
             <button
               type="button"
-              className="kz-ctrl"
+              className="kz-ctrl kz-speed-btn"
+              data-active={Math.abs((player.speed || 1) - 1) > 0.01}
               onClick={onToggleSpeedMenu}
-              title="播放倍速"
+              title={`播放倍速（当前 ${player.speed || 1}x）`}
             >
-              {player.speed || 1}x
+              {formatSpeedMenuLabel(player.speed || 1)}
             </button>
             {speedMenuOpen && (
-              <div className="kz-speed-menu">
+              <div
+                className="kz-speed-menu"
+                onPointerDown={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
                 {[...speedOptions].reverse().map((s) => (
                   <button
                     key={s}
@@ -494,51 +462,9 @@ export function DesktopControls(props: PlayerControlsProps) {
                     data-active={Math.abs((player.speed || 1) - s) < 0.01}
                     onClick={() => onPickSpeed(s)}
                   >
-                    {s}x
+                    {formatSpeedMenuLabel(s)}
                   </button>
                 ))}
-              </div>
-            )}
-          </div>
-
-          {/* Quick Super Resolution Menu */}
-          <div className="kz-speed-wrap kz-sr-wrap">
-            <button
-              type="button"
-              className="kz-ctrl"
-              data-active={srMode !== 'off'}
-              onClick={onToggleSrMenu}
-              title={srTitle(webGpuOk, srMode, srActive, srLabels)}
-            >
-              {srMode === 'off'
-                ? '超分'
-                : `${srLabels[srMode]}${srActive ? '' : '…'}`}
-            </button>
-            {srMenuOpen && (
-              <div className="kz-speed-menu">
-                {webGpuOk === false && (
-                  <div
-                    className="px-2 py-1.5 text-[11px] leading-snug text-amber-200/90"
-                    style={{ maxWidth: '12rem' }}
-                  >
-                    {typeof window !== 'undefined' && !window.isSecureContext
-                      ? 'WebGPU 需 HTTPS 或 localhost；用局域网 IP 的 HTTP 访问时不可用'
-                      : '当前环境无 WebGPU，选档会提示失败'}
-                  </div>
-                )}
-                {(['off', 'efficiency', 'quality'] as SuperResolutionMode[]).map(
-                  (m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      data-active={srMode === m}
-                      onClick={() => onPickSr(m)}
-                    >
-                      {srLabels[m]}
-                      {m === srMode && srActive && m !== 'off' ? ' ✓' : ''}
-                    </button>
-                  ),
-                )}
               </div>
             )}
           </div>
@@ -577,6 +503,8 @@ export function DesktopControls(props: PlayerControlsProps) {
                 className={`kz-settings-popover ${
                   settingsSubmenu === 'source' ? 'kz-settings-popover--source' : ''
                 }`}
+                onPointerDown={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
               >
                 {settingsSubmenu === 'root' && (
                   <div>

@@ -14,7 +14,11 @@ import {
   type SuperResolutionMode,
 } from '@animaku/shared'
 import type { AspectRatioMode, PlayerControlsProps } from './types'
-import { PlayerSeekRange, PlayerTimeDisplay } from './PlaybackProgressUi'
+import {
+  PlayerDanmakuHeatmap,
+  PlayerSeekRange,
+  PlayerTimeDisplay,
+} from './PlaybackProgressUi'
 import { SourcePreferenceMenu } from './SourcePreferenceMenu'
 import {
   IconBack,
@@ -83,47 +87,6 @@ function barPopupStyle(pos: PopupPos): CSSProperties {
 }
 
 /**
- * Compute SVG danmaku density curve path across seekbar.
- */
-function computeDanmakuHeatmap(
-  comments: DanmakuComment[] | undefined,
-  duration: number,
-  numBuckets = 50,
-): string | null {
-  if (!comments || comments.length < 5 || duration <= 0) return null
-  const buckets = new Array(numBuckets).fill(0)
-  for (const c of comments) {
-    if (c.time >= 0 && c.time <= duration) {
-      const idx = Math.min(
-        numBuckets - 1,
-        Math.floor((c.time / duration) * numBuckets),
-      )
-      buckets[idx]++
-    }
-  }
-  const max = Math.max(...buckets)
-  if (max <= 1) return null
-
-  const smoothed = buckets.map((val, i) => {
-    const prev = buckets[i - 1] ?? val
-    const next = buckets[i + 1] ?? val
-    return (prev + val * 2 + next) / 4
-  })
-  const smoothedMax = Math.max(...smoothed) || 1
-
-  const height = 20
-  let path = `M 0 ${height}`
-  for (let i = 0; i < numBuckets; i++) {
-    const x = (i / (numBuckets - 1)) * 100
-    const normalized = smoothed[i] / smoothedMax
-    const y = height - Math.pow(normalized, 0.75) * (height - 3)
-    path += ` L ${x.toFixed(1)} ${y.toFixed(1)}`
-  }
-  path += ` L 100 ${height} Z`
-  return path
-}
-
-/**
  * Mobile / touch control bar + Unified Settings.
  */
 export function MobileControls(props: PlayerControlsProps) {
@@ -187,12 +150,6 @@ export function MobileControls(props: PlayerControlsProps) {
   const [settingsSubmenu, setSettingsSubmenu] = useState<
     'root' | 'speed' | 'sr' | 'aspectRatio' | 'shortcuts' | 'source'
   >('root')
-
-  // Heatmap path calculation
-  const heatmapPath = useMemo(
-    () => computeDanmakuHeatmap(comments, duration),
-    [comments, duration],
-  )
 
   // OP / ED chapter markers — only active when bangumi-oped is enabled and valid timestamps exist
   // 若当前视频源时长与 Bangumi 官方单集时长绝对误差超过容差 (4s)，说明该源可能存在广告或剪辑错位，不渲染 OP/ED 高亮标尺
@@ -267,6 +224,14 @@ export function MobileControls(props: PlayerControlsProps) {
 
   const handleSeekPointerDown = (e: PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return
+    const target = e.target as HTMLElement | null
+    if (
+      target?.closest(
+        '.kz-speed-menu, .kz-settings-popover, .kz-danmaku-panel, .kz-oped-panel, .kz-bar-row, .kz-mobile-bar-menu',
+      )
+    ) {
+      return
+    }
     e.preventDefault()
     e.stopPropagation()
     isDraggingRef.current = true
@@ -303,26 +268,11 @@ export function MobileControls(props: PlayerControlsProps) {
   }
 
   const barRef = useRef<HTMLDivElement>(null)
-  const srBtnRef = useRef<HTMLButtonElement>(null)
   const volBtnRef = useRef<HTMLButtonElement>(null)
   const settingsBtnRef = useRef<HTMLButtonElement>(null)
 
-  const [srPos, setSrPos] = useState<PopupPos | null>(null)
   const [volPos, setVolPos] = useState<PopupPos | null>(null)
   const [settingsPos, setSettingsPos] = useState<PopupPos | null>(null)
-
-  useLayoutEffect(() => {
-    if (!srMenuOpen) {
-      setSrPos(null)
-      return
-    }
-    const update = () => {
-      setSrPos(placeInBar(barRef.current, srBtnRef.current, 108))
-    }
-    update()
-    window.addEventListener('resize', update)
-    return () => window.removeEventListener('resize', update)
-  }, [srMenuOpen, showBar, pinBar])
 
   useLayoutEffect(() => {
     if (!volumeMenuOpen) {
@@ -354,22 +304,15 @@ export function MobileControls(props: PlayerControlsProps) {
 
   const stop = (e: SyntheticEvent) => e.stopPropagation()
 
-  const anyMenuOpen = srMenuOpen || volumeMenuOpen || settingsMenuOpen
+  const anyMenuOpen = volumeMenuOpen || settingsMenuOpen
 
   const lastDismissAtRef = useRef(0)
 
   const dismissMenus = (e: SyntheticEvent) => {
     e.stopPropagation()
     lastDismissAtRef.current = Date.now()
-    if (srMenuOpen) onToggleSrMenu()
     if (volumeMenuOpen) onToggleVolumeMenu()
     if (settingsMenuOpen) onToggleSettingsMenu?.()
-  }
-
-  const safeToggleSr = (e: SyntheticEvent) => {
-    e.stopPropagation()
-    if (Date.now() - lastDismissAtRef.current < 300) return
-    onToggleSrMenu()
   }
 
   const safeToggleVolume = (e: SyntheticEvent) => {
@@ -459,23 +402,13 @@ export function MobileControls(props: PlayerControlsProps) {
           onPointerUp={handleSeekPointerUp}
           onPointerCancel={handleSeekPointerUp}
         >
-          {/* Danmaku Heatmap Wave */}
-          {heatmapPath && (
-            <svg
-              className="kz-seek-heatmap"
-              viewBox="0 0 100 20"
-              preserveAspectRatio="none"
-              aria-hidden="true"
-            >
-              <defs>
-                <linearGradient id="kz-heatmap-grad-m" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="rgba(56, 189, 248, 0.45)" />
-                  <stop offset="100%" stopColor="rgba(56, 189, 248, 0.02)" />
-                </linearGradient>
-              </defs>
-              <path d={heatmapPath} fill="url(#kz-heatmap-grad-m)" />
-            </svg>
-          )}
+          {/* Danmaku Heatmap Wave (Tracks non-contiguous played ranges, skipped areas stay white) */}
+          <PlayerDanmakuHeatmap
+            comments={comments}
+            duration={duration}
+            height={20}
+            numBuckets={50}
+          />
 
           {/* OP/ED Chapter Markers */}
           {opMarker && (
@@ -581,28 +514,6 @@ export function MobileControls(props: PlayerControlsProps) {
               </button>
             )}
 
-            <div className="kz-speed-wrap kz-sr-wrap">
-              <button
-                ref={srBtnRef}
-                type="button"
-                className="kz-ctrl"
-                data-active={srMode !== 'off' || srMenuOpen}
-                onClick={safeToggleSr}
-                title={
-                  webGpuOk === false
-                    ? '当前浏览器不支持 WebGPU 超分'
-                    : srMode === 'off'
-                      ? '超分'
-                      : `超分：${srLabels[srMode]}`
-                }
-                aria-expanded={srMenuOpen}
-              >
-                {srMode === 'off'
-                  ? '超分'
-                  : `${srLabels[srMode]}${srActive ? '' : '…'}`}
-              </button>
-            </div>
-
             <div className="kz-vol-popup-wrap">
               <button
                 ref={volBtnRef}
@@ -658,41 +569,6 @@ export function MobileControls(props: PlayerControlsProps) {
         </div>
 
         {/* Absolute menus on .kz-bar — outside .kz-bar-row overflow clip */}
-        {srMenuOpen && srPos && (
-          <div
-            className="kz-speed-menu kz-mobile-bar-menu"
-            data-player-chrome
-            style={barPopupStyle(srPos)}
-            onMouseDown={stop}
-            onClick={stop}
-            onPointerDown={stop}
-          >
-            {webGpuOk === false && (
-              <div
-                className="px-2.5 py-1.5 text-[11.5px] leading-snug text-amber-200/90"
-                style={{ maxWidth: '13rem' }}
-              >
-                {typeof window !== 'undefined' && !window.isSecureContext
-                  ? 'WebGPU 需 HTTPS 或 localhost'
-                  : '当前环境无 WebGPU'}
-              </div>
-            )}
-            {(['off', 'efficiency', 'quality'] as SuperResolutionMode[]).map(
-              (m) => (
-                <button
-                  key={m}
-                  type="button"
-                  data-active={srMode === m}
-                  onClick={() => onPickSr(m)}
-                >
-                  {srLabels[m]}
-                  {m === srMode && srActive && m !== 'off' ? ' ✓' : ''}
-                </button>
-              ),
-            )}
-          </div>
-        )}
-
         {volumeMenuOpen && volPos && (
           <div
             className="kz-vol-popup kz-mobile-bar-menu"

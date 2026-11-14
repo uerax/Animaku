@@ -21,6 +21,19 @@ const MIN_START_BUFFER_MP4_SEC = 0.4
 /** Don't stall forever on empty CDN; start anyway after this. */
 const MAX_START_WAIT_MS = 3_500
 
+function extractPlayedRanges(
+  video: HTMLVideoElement | null,
+): Array<[number, number]> | undefined {
+  if (!video?.played) return undefined
+  const len = video.played.length
+  if (len === 0) return undefined
+  const ranges: Array<[number, number]> = []
+  for (let i = 0; i < len; i++) {
+    ranges.push([video.played.start(i), video.played.end(i)])
+  }
+  return ranges
+}
+
 export interface UseMediaEngineOptions {
   videoRef: RefObject<HTMLVideoElement | null>
   activeSrc: string
@@ -196,7 +209,11 @@ export function useMediaEngine({
     const v = videoRef.current
     if (!v) return
     const safeTarget = Math.max(0, targetTime)
-    timeStore?.updateTime(safeTarget, v.duration || duration)
+    timeStore?.updateTime(
+      safeTarget,
+      v.duration || duration,
+      extractPlayedRanges(v),
+    )
     pendingSeekTargetRef.current = safeTarget
     seekLockExpiryRef.current = Date.now() + 1500
     applySeek(v, safeTarget)
@@ -215,7 +232,11 @@ export function useMediaEngine({
       onFlashHint?.(`${formattedDelta} (${formattedTarget})`, 1000)
     }
 
-    timeStore?.updateTime(target, v.duration || duration)
+    timeStore?.updateTime(
+      target,
+      v.duration || duration,
+      extractPlayedRanges(v),
+    )
     pendingSeekTargetRef.current = target
     seekLockExpiryRef.current = Date.now() + 1500
 
@@ -973,7 +994,11 @@ export function useMediaEngine({
       if (now - lastUiProgressRef.current >= 250 || floor !== lastUiFloor) {
         lastUiProgressRef.current = now
         lastUiFloor = floor
-        timeStore?.updateTime(t, Number.isFinite(d) && d > 0 ? d : 0)
+        timeStore?.updateTime(
+          t,
+          Number.isFinite(d) && d > 0 ? d : 0,
+          extractPlayedRanges(video),
+        )
         if (Number.isFinite(d) && d > 0) setDuration(d)
       }
 
@@ -1063,6 +1088,11 @@ export function useMediaEngine({
       pendingSeekTargetRef.current = null
       isSeekingRef.current = false
       lastSkipTRef.current = video.currentTime
+      timeStore?.updateTime(
+        video.currentTime,
+        video.duration || 0,
+        extractPlayedRanges(video),
+      )
       if (
         video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA ||
         bufferedAhead(video) > 0
