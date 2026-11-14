@@ -346,6 +346,22 @@ test('WatchStatsRepository & Stats Routes Integration', async (t) => {
     assert.equal(blockedPlayRes.deduped, true, 'Exceeded new device must be marked as deduped and blocked')
     assert.equal(watchStatsRepo.getPlayStats(90001).totalPlayCount, currentPlayCount, 'Play count must not increase for rate-limited new devices')
 
+    // 4.1 Empty IP rate limit test: 21 empty IP requests into 'unknown' bucket, the 21st must be blocked
+    for (let i = 1; i <= 20; i++) {
+      const hex = (1000 + i).toString(16).padStart(32, '0')
+      const res = watchStatsRepo.recordDeviceActive({
+        deviceId: `dev_${hex}`,
+        clientIp: '', // empty IP defaults to 'unknown' bucket
+      })
+      assert.equal(res.success, true)
+      assert.equal(res.deduped, false, `Device ${i} with empty IP should pass`)
+    }
+    const emptyIp21Res = watchStatsRepo.recordDeviceActive({
+      deviceId: 'dev_00000000000000000000000000000021',
+      clientIp: '',
+    })
+    assert.equal(emptyIp21Res.deduped, true, 'The 21st new device with empty IP must be rate-limited into unknown bucket')
+
     // 5. Verify getDailyStats includes playDevices
     const dailyStats = watchStatsRepo.getDailyStats()
     assert.ok(typeof dailyStats.dau === 'number')

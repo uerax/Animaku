@@ -137,13 +137,14 @@ export class WatchStatsRepository {
    * Check if an IP has exceeded the new devices registration rate limit (20/hour).
    */
   private checkIpNewDeviceRate(clientIp: string, now: number): boolean {
-    const isLocal = !clientIp || clientIp === '127.0.0.1' || clientIp === '::1'
+    const targetIp = clientIp?.trim() || 'unknown'
+    const isLocal = targetIp === '127.0.0.1' || targetIp === '::1'
     if (process.env.NODE_ENV !== 'production' && isLocal) return true
-    if (!clientIp) return true
-    let bucket = this.ipNewDeviceTracker.get(clientIp)
+
+    let bucket = this.ipNewDeviceTracker.get(targetIp)
     if (!bucket || now - bucket.windowStart >= 60 * 60 * 1000) {
       bucket = { count: 1, windowStart: now }
-      this.ipNewDeviceTracker.set(clientIp, bucket)
+      this.ipNewDeviceTracker.set(targetIp, bucket)
       return true
     }
     if (bucket.count >= MAX_NEW_DEVICES_PER_IP_HOURLY) {
