@@ -1108,7 +1108,7 @@ function AdminDashboard() {
         title="站点日活与流量监控"
         summary={
           dailyStats
-            ? `${dailyStats.isToday ? '今日实时' : dailyStats.date} · DAU: ${dailyStats.dau.toLocaleString()} · 播放: ${dailyStats.totalViews.toLocaleString()}`
+            ? `${dailyStats.isToday ? '今日实时' : dailyStats.date} · 访问(DAU): ${dailyStats.dau.toLocaleString()} · 点播设备: ${(dailyStats.playDevices ?? dailyStats.dau).toLocaleString()} · 播放: ${dailyStats.totalViews.toLocaleString()}`
             : '查看每日活跃与点播走势'
         }
         isOpen={openSections['stats-daily']}
@@ -1190,17 +1190,28 @@ function AdminDashboard() {
             <p className="text-xs font-medium text-rose-500">{statsError}</p>
           )}
 
-          {/* 4 个核心 KPI 卡片 */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          {/* 5 个核心 KPI 卡片 */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
             <div className="rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] p-3 shadow-xs">
               <div className="flex items-center justify-between text-[11px] text-[var(--kz-fg-muted)]">
-                <span>当日日活 (DAU)</span>
+                <span>当日访问设备 (DAU)</span>
                 <span>📱</span>
               </div>
               <div className="mt-1 text-xl sm:text-2xl font-bold tracking-tight text-[var(--kz-fg)] font-mono">
                 {dailyStats ? dailyStats.dau.toLocaleString() : '-'}
               </div>
-              <div className="mt-1 text-[10px] text-[var(--kz-fg-dim)]">独立活跃客户端设备</div>
+              <div className="mt-1 text-[10px] text-[var(--kz-fg-dim)]">全站活跃设备数</div>
+            </div>
+
+            <div className="rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] p-3 shadow-xs">
+              <div className="flex items-center justify-between text-[11px] text-[var(--kz-fg-muted)]">
+                <span>当日点播设备</span>
+                <span>📺</span>
+              </div>
+              <div className="mt-1 text-xl sm:text-2xl font-bold tracking-tight text-cyan-400 font-mono">
+                {dailyStats ? (dailyStats.playDevices ?? dailyStats.dau).toLocaleString() : '-'}
+              </div>
+              <div className="mt-1 text-[10px] text-[var(--kz-fg-dim)]">有效起播设备数</div>
             </div>
 
             <div className="rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] p-3 shadow-xs">
@@ -1225,7 +1236,7 @@ function AdminDashboard() {
               <div className="mt-1 text-[10px] text-[var(--kz-fg-dim)]">有效点播总次数</div>
             </div>
 
-            <div className="rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] p-3 shadow-xs">
+            <div className="rounded-xl border border-[var(--kz-border)] bg-[var(--kz-bg)] p-3 shadow-xs col-span-2 sm:col-span-1">
               <div className="flex items-center justify-between text-[11px] text-[var(--kz-fg-muted)]">
                 <span>当日访问 PV</span>
                 <span>🌐</span>
@@ -1274,7 +1285,7 @@ function AdminDashboard() {
                           void loadDailyStats(item.date)
                         }}
                         className="group flex flex-1 flex-col items-center justify-end h-full min-w-[20px] cursor-pointer"
-                        title={`${item.date}\nDAU: ${item.dau.toLocaleString()} 人\n播放: ${item.totalViews.toLocaleString()} 次`}
+                        title={`${item.date}\n访问设备(DAU): ${item.dau.toLocaleString()} 台\n点播设备: ${(item.playDevices ?? item.dau).toLocaleString()} 台\n播放: ${item.totalViews.toLocaleString()} 次`}
                       >
                         <div className="relative w-full flex justify-center items-end h-full">
                           <div
@@ -1299,6 +1310,13 @@ function AdminDashboard() {
                     )
                   })
                 })()}
+              </div>
+
+              <div className="flex items-center gap-1.5 text-[10px] text-[var(--kz-fg-dim)] pt-2 border-t border-[var(--kz-border)]/50">
+                <span>💡</span>
+                <span>
+                  <strong>指标口径说明：</strong>“访问设备”代表全站活跃设备 (DAU)，“点播设备”代表产生有效播放 (≥3秒) 的设备。两指标分立呈现，既支持广告投放商审计全站流量，又准确度量内容消费转化。
+                </span>
               </div>
             </div>
           )}

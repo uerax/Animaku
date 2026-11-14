@@ -33,6 +33,7 @@ export interface AnimePlayStats {
 export interface DailyActiveMetric {
   date: string
   dau: number
+  playDevices?: number
   newDevices: number
   totalViews: number
   updatedAt: number
@@ -43,6 +44,7 @@ export interface AdminDailyStatsResponse {
   date: string
   isToday: boolean
   dau: number
+  playDevices?: number
   newDevices: number
   totalViews: number
   todayHits: number

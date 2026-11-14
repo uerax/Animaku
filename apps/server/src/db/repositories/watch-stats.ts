@@ -12,6 +12,9 @@ const DEFAULT_FLUSH_INTERVAL_MS = 60 * 1000
 /** Maximum pending items before forcing an early micro-batch flush */
 const MAX_PENDING_WATERMARK = 1000
 
+/** Maximum new devices allowed to register from the same IP within a 1-hour window to protect SQLite & memory */
+const MAX_NEW_DEVICES_PER_IP_HOURLY = 20
+
 export interface RecordPlayParams {
   deviceId: string
   bangumiId: number
@@ -36,6 +39,7 @@ interface PendingDeviceUpdate {
   fingerprint?: string
   lastIp: string
   lastSeenAt: number
+  lastPlayedAt?: number
   playIncrement: number
 }
 
@@ -45,6 +49,12 @@ export class WatchStatsRepository {
 
   /** In-memory active device heartbeat deduplication: deviceId -> lastHeartbeatTimestamp */
   private activeDeviceCache = new Map<string, number>()
+
+  /** In-memory IP new-device registration rate tracker: IP -> { count, windowStart } */
+  private ipNewDeviceTracker = new Map<string, { count: number; windowStart: number }>()
+
+  /** Known device IDs cache to quickly distinguish new vs returning devices (LRU-like size guard) */
+  private knownDeviceIds = new Set<string>()
 
   /** Pending batch views increment per bangumiId: bangumiId -> delta */
   private pendingTotalViews = new Map<number, number>()
@@ -90,8 +100,55 @@ export class WatchStatsRepository {
           this.activeDeviceCache.delete(devId)
         }
       }
+      for (const [ip, item] of this.ipNewDeviceTracker.entries()) {
+        if (now - item.windowStart > 60 * 60 * 1000) {
+          this.ipNewDeviceTracker.delete(ip)
+        }
+      }
+      if (this.knownDeviceIds.size > 100_000) {
+        this.knownDeviceIds.clear()
+      }
     }, 5 * 60 * 1000)
     this.cleanupTimer.unref()
+  }
+
+  /**
+   * Fast cache & db lookup to determine whether a device has been seen before.
+   */
+  private isDeviceKnown(deviceId: string): boolean {
+    if (this.knownDeviceIds.has(deviceId) || this.pendingDevices.has(deviceId)) {
+      return true
+    }
+    if (!isDatabaseActive()) return true
+    try {
+      const stmt = prepareStatement('SELECT 1 FROM devices WHERE device_id = ? LIMIT 1;')
+      const row = stmt.get(deviceId)
+      if (row) {
+        this.knownDeviceIds.add(deviceId)
+        return true
+      }
+      return false
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Check if an IP has exceeded the new devices registration rate limit (20/hour).
+   */
+  private checkIpNewDeviceRate(clientIp: string, now: number): boolean {
+    if (!clientIp || clientIp === '127.0.0.1' || clientIp === 'localhost') return true
+    let bucket = this.ipNewDeviceTracker.get(clientIp)
+    if (!bucket || now - bucket.windowStart >= 60 * 60 * 1000) {
+      bucket = { count: 1, windowStart: now }
+      this.ipNewDeviceTracker.set(clientIp, bucket)
+      return true
+    }
+    if (bucket.count >= MAX_NEW_DEVICES_PER_IP_HOURLY) {
+      return false
+    }
+    bucket.count += 1
+    return true
   }
 
   private resolveFlushIntervalMs(): number {
@@ -155,6 +212,12 @@ export class WatchStatsRepository {
     }
     this.activeDeviceCache.set(cleanDeviceId, now)
 
+    // Rate-limit new device creations per IP (e.g. max 20 new devices/hour) to guard SQLite against DoS
+    const isKnown = this.isDeviceKnown(cleanDeviceId)
+    if (!isKnown && !this.checkIpNewDeviceRate(clientIp, now)) {
+      return { success: true, deduped: true }
+    }
+
     // Buffer device update (playIncrement = 0 means pure heartbeat, not a play view)
     const existingDev = this.pendingDevices.get(cleanDeviceId)
     if (existingDev) {
@@ -170,6 +233,7 @@ export class WatchStatsRepository {
         lastSeenAt: now,
         playIncrement: 0,
       })
+      this.knownDeviceIds.add(cleanDeviceId)
     }
 
     // Check watermark threshold for early flush
@@ -226,18 +290,24 @@ export class WatchStatsRepository {
     const existingDev = this.pendingDevices.get(cleanDeviceId)
     if (existingDev) {
       existingDev.lastSeenAt = now
+      existingDev.lastPlayedAt = now
       existingDev.lastIp = clientIp || existingDev.lastIp
       existingDev.playIncrement += 1
       if (fingerprint && !existingDev.fingerprint) {
         existingDev.fingerprint = fingerprint
       }
     } else {
-      this.pendingDevices.set(cleanDeviceId, {
-        fingerprint,
-        lastIp: clientIp || '127.0.0.1',
-        lastSeenAt: now,
-        playIncrement: 1,
-      })
+      const isKnown = this.isDeviceKnown(cleanDeviceId)
+      if (isKnown || this.checkIpNewDeviceRate(clientIp, now)) {
+        this.pendingDevices.set(cleanDeviceId, {
+          fingerprint,
+          lastIp: clientIp || '127.0.0.1',
+          lastSeenAt: now,
+          lastPlayedAt: now,
+          playIncrement: 1,
+        })
+        this.knownDeviceIds.add(cleanDeviceId)
+      }
     }
 
     // 4. Update memory cache of total views for instant client responses
@@ -317,11 +387,12 @@ export class WatchStatsRepository {
       if (devicesToFlush.size > 0) {
         const deviceUpsert = prepareStatement(`
           INSERT INTO devices (
-            device_id, fingerprint, first_seen_at, last_seen_at, last_ip, total_plays
-          ) VALUES (?, ?, ?, ?, ?, ?)
+            device_id, fingerprint, first_seen_at, last_seen_at, last_played_at, last_ip, total_plays
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(device_id) DO UPDATE SET
             fingerprint = COALESCE(excluded.fingerprint, devices.fingerprint),
             last_seen_at = excluded.last_seen_at,
+            last_played_at = COALESCE(excluded.last_played_at, devices.last_played_at),
             last_ip = excluded.last_ip,
             total_plays = devices.total_plays + excluded.total_plays;
         `)
@@ -331,6 +402,7 @@ export class WatchStatsRepository {
             update.fingerprint || null,
             update.lastSeenAt,
             update.lastSeenAt,
+            update.lastPlayedAt || null,
             update.lastIp,
             update.playIncrement,
           )
@@ -373,23 +445,26 @@ export class WatchStatsRepository {
       try {
         const todayStartMs = this.getTodayStartTimestamp(now)
         const dauRow = db.prepare('SELECT COUNT(*) as c FROM devices WHERE last_seen_at >= ?;').get(todayStartMs) as { c?: number } | undefined
+        const playDevRow = db.prepare('SELECT COUNT(*) as c FROM devices WHERE last_played_at >= ?;').get(todayStartMs) as { c?: number } | undefined
         const newDevRow = db.prepare('SELECT COUNT(*) as c FROM devices WHERE first_seen_at >= ?;').get(todayStartMs) as { c?: number } | undefined
         const viewsRow = db.prepare('SELECT SUM(views) as s FROM anime_daily_views WHERE date = ?;').get(todayStr) as { s?: number } | undefined
 
         const dau = Number(dauRow?.c || 0)
+        const playDevices = Number(playDevRow?.c || 0)
         const newDevices = Number(newDevRow?.c || 0)
         const totalViews = Number(viewsRow?.s || 0)
 
         const dailyStatsUpsert = prepareStatement(`
-          INSERT INTO daily_active_stats (date, dau, new_devices, total_views, updated_at)
-          VALUES (?, ?, ?, ?, ?)
+          INSERT INTO daily_active_stats (date, dau, play_devices, new_devices, total_views, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?)
           ON CONFLICT(date) DO UPDATE SET
             dau = excluded.dau,
+            play_devices = excluded.play_devices,
             new_devices = excluded.new_devices,
             total_views = excluded.total_views,
             updated_at = excluded.updated_at;
         `)
-        dailyStatsUpsert.run(todayStr, dau, newDevices, totalViews, now)
+        dailyStatsUpsert.run(todayStr, dau, playDevices, newDevices, totalViews, now)
       } catch (err) {
         console.error('[db:watch-stats] daily_active_stats update error:', err)
       }
@@ -567,6 +642,7 @@ export class WatchStatsRepository {
         date: safeDate,
         isToday,
         dau: 0,
+        playDevices: 0,
         newDevices: 0,
         totalViews: 0,
         todayHits: 0,
@@ -584,14 +660,17 @@ export class WatchStatsRepository {
 
       const db = getDatabase()
 
-      // 1. 获取目标日期的活跃指标
+      // 1. 获取目标日期的活跃指标 (包含全站访问 DAU 与实际点播设备 play_devices)
       const targetRow = db
-        .prepare('SELECT dau, new_devices, total_views, updated_at FROM daily_active_stats WHERE date = ?;')
-        .get(safeDate) as { dau?: number; new_devices?: number; total_views?: number; updated_at?: number } | undefined
+        .prepare('SELECT dau, play_devices, new_devices, total_views, updated_at FROM daily_active_stats WHERE date = ?;')
+        .get(safeDate) as { dau?: number; play_devices?: number; new_devices?: number; total_views?: number; updated_at?: number } | undefined
 
       const dau = Number(targetRow?.dau || 0)
-      const newDevices = Number(targetRow?.new_devices || 0)
+      const rawPlay = Number(targetRow?.play_devices || 0)
       const totalViews = Number(targetRow?.total_views || 0)
+      // 若历史数据尚未独立记录点播设备，但存在播放量，优雅回退至当时的 dau
+      const playDevices = rawPlay > 0 ? rawPlay : (totalViews > 0 ? dau : 0)
+      const newDevices = Number(targetRow?.new_devices || 0)
       const updatedAt = Number(targetRow?.updated_at || now)
 
       // 2. 目标日期的 IP hits（PV）
@@ -608,7 +687,7 @@ export class WatchStatsRepository {
       const startTrendDate = this.getDateDaysAgo(13, now)
       const trendRows = db
         .prepare(`
-          SELECT date, dau, new_devices, total_views, updated_at
+          SELECT date, dau, play_devices, new_devices, total_views, updated_at
           FROM daily_active_stats
           WHERE date >= ?
           ORDER BY date ASC;
@@ -616,6 +695,7 @@ export class WatchStatsRepository {
         .all(startTrendDate) as Array<{
           date: string
           dau: number
+          play_devices?: number
           new_devices: number
           total_views: number
           updated_at: number
@@ -623,11 +703,16 @@ export class WatchStatsRepository {
 
       const trendMap = new Map<string, DailyActiveMetric>()
       for (const row of trendRows) {
+        const tDau = Number(row.dau || 0)
+        const tViews = Number(row.total_views || 0)
+        const tRawPlay = Number(row.play_devices || 0)
+        const tPlay = tRawPlay > 0 ? tRawPlay : (tViews > 0 ? tDau : 0)
         trendMap.set(row.date, {
           date: row.date,
-          dau: Number(row.dau || 0),
+          dau: tDau,
+          playDevices: tPlay,
           newDevices: Number(row.new_devices || 0),
-          totalViews: Number(row.total_views || 0),
+          totalViews: tViews,
           updatedAt: Number(row.updated_at || 0),
         })
       }
@@ -639,6 +724,7 @@ export class WatchStatsRepository {
         const item = trendMap.get(d) || {
           date: d,
           dau: 0,
+          playDevices: 0,
           newDevices: 0,
           totalViews: 0,
           updatedAt: now,
@@ -651,6 +737,7 @@ export class WatchStatsRepository {
         date: safeDate,
         isToday,
         dau,
+        playDevices,
         newDevices,
         totalViews,
         todayHits,

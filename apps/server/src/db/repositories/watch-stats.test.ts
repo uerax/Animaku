@@ -11,7 +11,7 @@ test('WatchStatsRepository & Stats Routes Integration', async (t) => {
   const db = getDatabase({ path: ':memory:', wal: false })
   initSchema(db)
 
-  await t.test('Migration v7 created all required telemetry tables', () => {
+  await t.test('Migration v7-v9 created all required telemetry tables and columns', () => {
     const tables = db
       .prepare("SELECT name FROM sqlite_master WHERE type='table';")
       .all()
@@ -21,6 +21,12 @@ test('WatchStatsRepository & Stats Routes Integration', async (t) => {
     assert.ok(tables.includes('daily_active_stats'), 'daily_active_stats table must exist')
     assert.ok(tables.includes('anime_total_views'), 'anime_total_views table must exist')
     assert.ok(tables.includes('anime_daily_views'), 'anime_daily_views table must exist')
+
+    const devCols = db.prepare('PRAGMA table_info(devices);').all().map((c: any) => c.name)
+    assert.ok(devCols.includes('last_played_at'), 'devices table must have last_played_at column')
+
+    const dauCols = db.prepare('PRAGMA table_info(daily_active_stats);').all().map((c: any) => c.name)
+    assert.ok(dauCols.includes('play_devices'), 'daily_active_stats table must have play_devices column')
   })
 
   await t.test('recordPlayView deduplicates within 10-minute window per device', () => {
@@ -272,6 +278,68 @@ test('WatchStatsRepository & Stats Routes Integration', async (t) => {
     assert.ok(subRes.headers.get('Cache-Control')?.includes('s-maxage=300'))
     const subData = (await subRes.json()) as any
     assert.equal(subData.data.bangumiId, 90001)
+  })
+
+  await t.test('Anti-spam guard: filters bots, invalid device IDs, and rate limits new devices per IP', async () => {
+    // 1. Crawler bot User-Agent should be silently ignored (not stored in DB)
+    const botDevId = 'dev_11111111111111111111111111111111'
+    const botReq = new Request('http://localhost/ping', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+      },
+      body: JSON.stringify({ deviceId: botDevId }),
+    })
+    const botRes = await statsRoutes.fetch(botReq)
+    assert.equal(botRes.status, 200)
+    const botJson = (await botRes.json()) as any
+    assert.equal(botJson.ok, true)
+
+    watchStatsRepo.flushSync()
+    const botDbRow = db.prepare('SELECT * FROM devices WHERE device_id = ?').get(botDevId)
+    assert.equal(botDbRow, undefined, 'Crawler bot device must not be inserted into database')
+
+    // 2. Malformed device ID should be silently ignored
+    const malformedReq = new Request('http://localhost/ping', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0',
+      },
+      body: JSON.stringify({ deviceId: 'illegal_payload_device_id_hack' }),
+    })
+    const malformedRes = await statsRoutes.fetch(malformedReq)
+    assert.equal(malformedRes.status, 200)
+    const malformedJson = (await malformedRes.json()) as any
+    assert.equal(malformedJson.ok, true)
+
+    watchStatsRepo.flushSync()
+    const malformedRow = db.prepare('SELECT * FROM devices WHERE device_id = ?').get('illegal_payload_device_id_hack')
+    assert.equal(malformedRow, undefined, 'Malformed device ID must not be inserted')
+
+    // 3. Single IP rate limit: max 20 new devices per IP hourly
+    const spammerIp = '198.51.100.99'
+    for (let i = 1; i <= 25; i++) {
+      const hex = i.toString(16).padStart(32, '0')
+      const spamDevId = `dev_${hex}`
+      watchStatsRepo.recordDeviceActive({
+        deviceId: spamDevId,
+        clientIp: spammerIp,
+      })
+    }
+    watchStatsRepo.flushSync()
+
+    const registeredSpamDevices = db
+      .prepare('SELECT count(*) as cnt FROM devices WHERE last_ip = ?')
+      .get(spammerIp) as any
+    assert.equal(registeredSpamDevices.cnt, 20, 'Only the first 20 new devices from the same IP should be registered')
+
+    // 4. Verify getDailyStats includes playDevices
+    const dailyStats = watchStatsRepo.getDailyStats()
+    assert.ok(typeof dailyStats.dau === 'number')
+    assert.ok(typeof dailyStats.playDevices === 'number')
+    assert.ok(dailyStats.dau >= dailyStats.playDevices)
   })
 
   watchStatsRepo.destroy()

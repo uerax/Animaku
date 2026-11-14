@@ -8,11 +8,33 @@ import type {
   RecordDeviceActiveResponse,
 } from '@animaku/shared'
 import { watchStatsRepo } from '../db'
-import { getClientIp } from '../lib/logger'
+import { getClientIp, parseClientDevice } from '../lib/logger'
 import { clientRemoteAddress } from '../lib/access'
 import { setRankingsCdnHeaders } from '../lib/cdn-cache-headers'
 
 export const statsRoutes = new Hono()
+
+const DEVICE_ID_REGEX = /^dev_[0-9a-fA-F]{32}$/
+const DEV_TEST_REGEX = /^dev_[a-zA-Z0-9_]{6,64}$/
+
+export function isValidDeviceId(id?: string | null): boolean {
+  if (!id || typeof id !== 'string') return false
+  const trimmed = id.trim()
+  if (DEVICE_ID_REGEX.test(trimmed)) return true
+  // 在非生产环境下（如测试用例或开发环境），允许带 dev_ 前缀的测试标识
+  if (process.env.NODE_ENV !== 'production' && DEV_TEST_REGEX.test(trimmed)) return true
+  return false
+}
+
+export function isCrawlerOrBot(ua?: string | null): boolean {
+  if (!ua || !ua.trim()) {
+    // 浏览器在生产环境下正常访问 100% 携带 User-Agent；无 UA 请求视为爬虫或裸 socket 脚本
+    // 本地单元测试与开发调试中若未模拟 UA 则予以放行
+    return process.env.NODE_ENV === 'production'
+  }
+  const device = parseClientDevice(ua)
+  return device.type === 'bot' || device.type === 'script'
+}
 
 function resolveIp(c: Context): string {
   const ip = getClientIp(c.req)
@@ -66,6 +88,19 @@ async function handleRecordView(c: Context) {
 
     const clientIp = resolveIp(c)
     const deviceId = extractDeviceId(c, body as unknown as Record<string, unknown>)
+    const ua = c.req.header('user-agent')
+
+    // 爬虫/自动化脚本过滤，以及非法设备 ID 格式校验过滤（静默成功返回，阻断伪造数据与落库开销）
+    if (isCrawlerOrBot(ua) || !isValidDeviceId(deviceId)) {
+      const resp: RecordPlayViewResponse = {
+        success: true,
+        playCount: 1,
+        totalPlayCount: 1,
+        deduped: true,
+      }
+      return c.json(resp)
+    }
+
     const fingerprint = c.req.header('x-browser-fingerprint') || (typeof body.fingerprint === 'string' ? body.fingerprint : undefined)
 
     // Record view in memory buffer (instant microsecond response, 0 DB locking)
@@ -102,6 +137,16 @@ async function handlePingActive(c: Context) {
       .catch(() => null)
     const clientIp = resolveIp(c)
     const deviceId = extractDeviceId(c, body as unknown as Record<string, unknown>)
+    const ua = c.req.header('user-agent')
+
+    // 爬虫/自动化脚本过滤，以及非法设备 ID 格式校验过滤（静默成功返回，阻断伪造数据与落库开销）
+    if (isCrawlerOrBot(ua) || !isValidDeviceId(deviceId)) {
+      const resp: RecordDeviceActiveResponse = {
+        ok: true,
+      }
+      return c.json(resp)
+    }
+
     const fingerprint =
       c.req.header('x-browser-fingerprint') ||
       (typeof body?.fingerprint === 'string' ? body.fingerprint : undefined)

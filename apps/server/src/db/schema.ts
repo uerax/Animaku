@@ -216,6 +216,24 @@ const MIGRATIONS: Migration[] = [
       `)
     },
   },
+  {
+    version: 9,
+    name: 'devices_last_played_at_and_play_devices',
+    up: (db) => {
+      // 1. Add last_played_at to devices
+      try {
+        db.exec(`ALTER TABLE devices ADD COLUMN last_played_at INTEGER;`)
+      } catch {}
+      // 2. Add play_devices to daily_active_stats
+      try {
+        db.exec(`ALTER TABLE daily_active_stats ADD COLUMN play_devices INTEGER NOT NULL DEFAULT 0;`)
+      } catch {}
+      // 3. Index for fast play devices count
+      try {
+        db.exec(`CREATE INDEX IF NOT EXISTS idx_devices_last_played ON devices(last_played_at);`)
+      } catch {}
+    },
+  },
 ]
 
 /**
