@@ -529,6 +529,7 @@ export function VideoPlayer({
         if (video) {
           skipBusyRef.current = true
           lastSkipTRef.current = decision.targetTime
+          resetPlayTick(decision.targetTime)
           video.currentTime = decision.targetTime
           if (decision.hint) {
             flashSkipHint(decision.hint)

@@ -62,9 +62,9 @@ export const SUPER_RESOLUTION_MODES: readonly SuperResolutionMode[] = [
 
 /**
  * Minimum history position in seconds before continue-play seeks on mount.
- * Prevents jarring jumps for brief accidental clicks / intros (<15s).
+ * Prevents jarring jumps for brief accidental clicks / intros (<3s).
  */
-export const CONTINUE_PLAY_MIN_THRESHOLD_SEC = 15
+export const CONTINUE_PLAY_MIN_THRESHOLD_SEC = 3
 
 /**
  * Seconds before video end considered "already finished" for resume seeking.

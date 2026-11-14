@@ -1,6 +1,12 @@
 import { Hono, type Context } from 'hono'
 import { createHash } from 'node:crypto'
-import type { RecordPlayViewRequest, RecordPlayViewResponse, AnimePlayStats } from '@animaku/shared'
+import type {
+  RecordPlayViewRequest,
+  RecordPlayViewResponse,
+  AnimePlayStats,
+  RecordDeviceActiveRequest,
+  RecordDeviceActiveResponse,
+} from '@animaku/shared'
 import { watchStatsRepo } from '../db'
 import { getClientIp } from '../lib/logger'
 import { clientRemoteAddress } from '../lib/access'
@@ -83,6 +89,42 @@ async function handleRecordView(c: Context) {
     return c.json({ error: 'server_error', message: '记录播放统计失败' }, 500)
   }
 }
+
+async function handlePingActive(c: Context) {
+  try {
+    // 强制声明绝不缓存该响应（保证无论是 CDN 边缘还是浏览器都不进行缓存）
+    c.header('Cache-Control', 'private, no-cache, no-store, must-revalidate')
+    c.header('CDN-Cache-Control', 'no-store')
+    c.header('Cloudflare-CDN-Cache-Control', 'no-store')
+
+    const body = await c.req
+      .json<RecordDeviceActiveRequest & { clientUid?: string; fingerprint?: string }>()
+      .catch(() => null)
+    const clientIp = resolveIp(c)
+    const deviceId = extractDeviceId(c, body as unknown as Record<string, unknown>)
+    const fingerprint =
+      c.req.header('x-browser-fingerprint') ||
+      (typeof body?.fingerprint === 'string' ? body.fingerprint : undefined)
+
+    const result = watchStatsRepo.recordDeviceActive({
+      deviceId,
+      clientIp,
+      fingerprint,
+    })
+
+    const resp: RecordDeviceActiveResponse = {
+      ok: result.success,
+    }
+    return c.json(resp)
+  } catch (err) {
+    console.error('[routes:stats] ping active error:', err)
+    return c.json({ ok: false }, 500)
+  }
+}
+
+// Global active device heartbeat endpoint (CDN bypass guaranteed via POST + no-store)
+statsRoutes.post('/ping', handlePingActive)
+statsRoutes.post('/active', handlePingActive)
 
 // Single + Plural route alias support (/view & /views)
 statsRoutes.post('/view', handleRecordView)

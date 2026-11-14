@@ -1,4 +1,8 @@
-import type { RecordPlayViewResponse, AnimePlayStats } from '@animaku/shared'
+import type {
+  RecordPlayViewResponse,
+  AnimePlayStats,
+  RecordDeviceActiveResponse,
+} from '@animaku/shared'
 import { useSettingsStore } from '../stores/settings'
 import { getCachedBrowserFingerprint } from './fingerprint'
 import { getDeviceId } from './client-identity'
@@ -114,6 +118,13 @@ export async function api<T>(
 }
 
 export const statsApi = {
+  pingActive: () =>
+    api<RecordDeviceActiveResponse>('/api/stats/ping', {
+      method: 'POST',
+      body: JSON.stringify({
+        deviceId: getDeviceId(),
+      }),
+    }),
   recordPlayView: (bangumiId: number, episode?: number) =>
     api<RecordPlayViewResponse>('/api/stats/view', {
       method: 'POST',

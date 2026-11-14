@@ -5,9 +5,17 @@ export interface RecordPlayViewRequest {
 
 /**
  * Continuous uninterrupted playback duration required before reporting a valid play view.
- * Prevents inflated play metrics from short bounces (<15s).
+ * Prevents inflated play metrics from short bounces (<3s) while reducing friction for users.
  */
-export const STATS_VALID_PLAY_THRESHOLD_SEC = 15
+export const STATS_VALID_PLAY_THRESHOLD_SEC = 3
+
+export interface RecordDeviceActiveRequest {
+  deviceId?: string
+}
+
+export interface RecordDeviceActiveResponse {
+  ok: boolean
+}
 
 export interface RecordPlayViewResponse {
   success: boolean

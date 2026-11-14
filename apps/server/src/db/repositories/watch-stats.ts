@@ -20,6 +20,12 @@ export interface RecordPlayParams {
   clientIp: string
 }
 
+export interface RecordDeviceActiveParams {
+  deviceId: string
+  clientIp: string
+  fingerprint?: string
+}
+
 export interface WatchRecordResult {
   success: boolean
   deduped: boolean
@@ -36,6 +42,9 @@ interface PendingDeviceUpdate {
 export class WatchStatsRepository {
   /** In-memory deduplication cache: `${deviceId}::${bangumiId}::${episode}` -> lastReportTimestamp */
   private dedupCache = new Map<string, number>()
+
+  /** In-memory active device heartbeat deduplication: deviceId -> lastHeartbeatTimestamp */
+  private activeDeviceCache = new Map<string, number>()
 
   /** Pending batch views increment per bangumiId: bangumiId -> delta */
   private pendingTotalViews = new Map<number, number>()
@@ -76,6 +85,11 @@ export class WatchStatsRepository {
           this.dedupCache.delete(key)
         }
       }
+      for (const [devId, ts] of this.activeDeviceCache.entries()) {
+        if (now - ts > DEDUP_WINDOW_MS) {
+          this.activeDeviceCache.delete(devId)
+        }
+      }
     }, 5 * 60 * 1000)
     this.cleanupTimer.unref()
   }
@@ -112,6 +126,58 @@ export class WatchStatsRepository {
       clearInterval(this.cleanupTimer)
       this.cleanupTimer = null
     }
+  }
+
+  /**
+   * Record a device active heartbeat in memory (DAU / New Device telemetry),
+   * deduplicating within a 10-minute sliding window to ensure ultra-low overhead (<0.1ms).
+   */
+  recordDeviceActive(params: RecordDeviceActiveParams): { success: boolean; deduped: boolean } {
+    const { deviceId, clientIp, fingerprint } = params
+    if (!deviceId || typeof deviceId !== 'string') {
+      return { success: false, deduped: false }
+    }
+
+    const cleanDeviceId = deviceId.trim()
+    if (!cleanDeviceId) {
+      return { success: false, deduped: false }
+    }
+
+    // 0. 未开启数据库时（DB_ENABLED=false），直接返回成功
+    if (!isDatabaseActive()) {
+      return { success: true, deduped: false }
+    }
+
+    const now = Date.now()
+    const lastActive = this.activeDeviceCache.get(cleanDeviceId)
+    if (lastActive && now - lastActive < DEDUP_WINDOW_MS) {
+      return { success: true, deduped: true }
+    }
+    this.activeDeviceCache.set(cleanDeviceId, now)
+
+    // Buffer device update (playIncrement = 0 means pure heartbeat, not a play view)
+    const existingDev = this.pendingDevices.get(cleanDeviceId)
+    if (existingDev) {
+      existingDev.lastSeenAt = now
+      existingDev.lastIp = clientIp || existingDev.lastIp
+      if (fingerprint && !existingDev.fingerprint) {
+        existingDev.fingerprint = fingerprint
+      }
+    } else {
+      this.pendingDevices.set(cleanDeviceId, {
+        fingerprint,
+        lastIp: clientIp || '127.0.0.1',
+        lastSeenAt: now,
+        playIncrement: 0,
+      })
+    }
+
+    // Check watermark threshold for early flush
+    if (this.pendingDevices.size >= MAX_PENDING_WATERMARK) {
+      setImmediate(() => this.flushSync())
+    }
+
+    return { success: true, deduped: false }
   }
 
   /**

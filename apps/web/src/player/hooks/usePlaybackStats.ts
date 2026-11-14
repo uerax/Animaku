@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import type Hls from 'hls.js'
 import { STATS_VALID_PLAY_THRESHOLD_SEC } from '@animaku/shared'
+import { statsApi } from '../../lib/api'
 import { useWatchedStore } from '../../stores/watched'
 
 export interface UsePlaybackStatsOptions {
@@ -28,7 +29,7 @@ export function usePlaybackStats({
   const lastSaveRef = useRef(0)
   const playSecAccumulatedRef = useRef<number>(0)
   const playViewReportedRef = useRef<boolean>(false)
-  const lastPlaySecTickRef = useRef<number>(0)
+  const lastPlaySecTickRef = useRef<number | null>(null)
 
   const [fps, setFps] = useState(0)
   const [droppedFrames, setDroppedFrames] = useState(0)
@@ -42,12 +43,13 @@ export function usePlaybackStats({
   const [videoCodec, setVideoCodec] = useState('')
   const [audioCodec, setAudioCodec] = useState('')
 
-  // 重置统计指标
+  // 重置统计指标：仅在番剧 ID 或集数发生真实改变时重置，
+  // 同一集内发生画质切换或备用视频源重试（activeSrc 变化）时不重置已累积的时长和上报状态
   useEffect(() => {
     playSecAccumulatedRef.current = 0
     playViewReportedRef.current = false
-    lastPlaySecTickRef.current = 0
-  }, [bangumiId, episodeNumber, episodeIndex, activeSrc])
+    lastPlaySecTickRef.current = null
+  }, [bangumiId, episodeNumber])
 
   // Periodic FPS & quality sampling
   useEffect(() => {
@@ -86,14 +88,14 @@ export function usePlaybackStats({
   }, [activeSrc, videoRef, hlsRef])
 
   /**
-   * 在 timeupdate 时调用：累加有效播放时长并在满 15s 时上报、完播兜底与周期保存历史
+   * 在 timeupdate 时调用：累加有效播放时长并在满 3s 时上报、完播兜底与周期保存历史
    */
   const handleTimeUpdateStats = (t: number, d: number, isSeeking: boolean) => {
     const video = videoRef.current
     if (!video) return
     const now = Date.now()
 
-    // 累加实际有效播放时长并在满 15s 时上报播放统计、标记已看并首次正式写入观看历史
+    // 累加实际有效播放时长并在满 3s 时上报播放统计、标记已看并首次正式写入观看历史
     if (
       !playViewReportedRef.current &&
       bangumiId &&
@@ -101,22 +103,26 @@ export function usePlaybackStats({
       !video.paused &&
       !isSeeking
     ) {
-      const lastTick = lastPlaySecTickRef.current || t
-      const tickDelta = t - lastTick
-      if (tickDelta > 0 && tickDelta <= 2.5) {
-        playSecAccumulatedRef.current += tickDelta
-        if (playSecAccumulatedRef.current >= STATS_VALID_PLAY_THRESHOLD_SEC) {
-          playViewReportedRef.current = true
-          const epNum = typeof episodeNumber === 'number' ? episodeNumber : 0
-          useWatchedStore.getState().markWatched(bangumiId, epNum)
-          lastSaveRef.current = now
-          onProgressRef.current?.(t, d)
+      if (lastPlaySecTickRef.current !== null) {
+        const tickDelta = t - lastPlaySecTickRef.current
+        // 自然播放判定：单步帧增量处于合理区间 (0 < tickDelta <= 2.5s)
+        // 若发生快速点击进度条(Seek)或跳过OP，tickDelta 超出 2.5s，不累加该跳跃跨度，但下一帧紧接着自然累加
+        if (tickDelta > 0 && tickDelta <= 2.5) {
+          playSecAccumulatedRef.current += tickDelta
+          if (playSecAccumulatedRef.current >= STATS_VALID_PLAY_THRESHOLD_SEC) {
+            playViewReportedRef.current = true
+            const epNum = typeof episodeNumber === 'number' ? episodeNumber : 0
+            void statsApi.recordPlayView(bangumiId, epNum).catch(() => {})
+            useWatchedStore.getState().markWatched(bangumiId, epNum)
+            lastSaveRef.current = now
+            onProgressRef.current?.(t, d)
+          }
         }
       }
     }
     lastPlaySecTickRef.current = t
 
-    // 完播兜底：单集播放接近末尾（>= 85% 且视频时长有效）自动记录已看（纯客户端选集标记，严禁在未满 15s 自然播放前虚增服务端播放量）
+    // 完播标记：单集播放接近末尾（>= 85% 且视频时长有效）自动记录已看（纯客户端选集状态）
     if (
       bangumiId &&
       bangumiId > 0 &&
@@ -127,7 +133,7 @@ export function usePlaybackStats({
       useWatchedStore.getState().markWatched(bangumiId, episodeNumber)
     }
 
-    // 周期保存历史进度：仅在达到有效播放门槛（满 15s）后，每 10s 同步一次最新进度
+    // 周期保存历史进度：仅在达到有效播放门槛（满 3s）后，每 10s 同步一次最新进度
     if (playViewReportedRef.current && now - lastSaveRef.current >= 10_000) {
       lastSaveRef.current = now
       onProgressRef.current?.(t, d)
@@ -135,19 +141,24 @@ export function usePlaybackStats({
   }
 
   /**
-   * 在暂停时调用：仅在满 15s 后保存当前进度
+   * 在暂停时调用：仅在满 3s 后保存当前进度，并重置帧增量对齐基准
    */
   const handlePauseStats = (t: number, d: number) => {
+    lastPlaySecTickRef.current = null
     if (playViewReportedRef.current && Number.isFinite(d) && d > 0) {
       onProgressRef.current?.(t, d)
     }
   }
 
   /**
-   * 在完播（ended）时调用：标记已看
+   * 在完播（ended）时调用：兜底触发有效播放上报（兼容泡面番/超短剧/彩蛋快速看完）并标记已看
    */
   const handleEndedStats = () => {
     if (bangumiId && bangumiId > 0 && typeof episodeNumber === 'number') {
+      if (!playViewReportedRef.current) {
+        playViewReportedRef.current = true
+        void statsApi.recordPlayView(bangumiId, episodeNumber).catch(() => {})
+      }
       useWatchedStore.getState().markWatched(bangumiId, episodeNumber)
     }
   }

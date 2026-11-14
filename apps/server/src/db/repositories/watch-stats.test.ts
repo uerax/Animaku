@@ -62,6 +62,32 @@ test('WatchStatsRepository & Stats Routes Integration', async (t) => {
     assert.equal(r3.totalPlayCount, r1.totalPlayCount + 1)
   })
 
+  await t.test('recordDeviceActive tracks active devices without play counts and deduplicates', () => {
+    const devId = 'dev_test_active_only_001'
+    const a1 = watchStatsRepo.recordDeviceActive({
+      deviceId: devId,
+      clientIp: '5.6.7.8',
+      fingerprint: 'fp_heartbeat',
+    })
+    assert.equal(a1.success, true)
+    assert.equal(a1.deduped, false)
+
+    // Immediate second heartbeat on same device -> deduped
+    const a2 = watchStatsRepo.recordDeviceActive({
+      deviceId: devId,
+      clientIp: '5.6.7.8',
+    })
+    assert.equal(a2.success, true)
+    assert.equal(a2.deduped, true)
+
+    // Flush and verify that total_plays remains 0
+    watchStatsRepo.flushSync()
+    const row = db.prepare('SELECT * FROM devices WHERE device_id = ?').get(devId) as any
+    assert.ok(row)
+    assert.equal(row.total_plays, 0)
+    assert.equal(row.fingerprint, 'fp_heartbeat')
+  })
+
   await t.test('flushSync atomically commits batch into SQLite tables in single transaction', () => {
     const devId = 'dev_test_flush_002'
     const bgmId = 70002
@@ -192,6 +218,22 @@ test('WatchStatsRepository & Stats Routes Integration', async (t) => {
     assert.equal(res2.status, 200)
     const data2 = (await res2.json()) as any
     assert.equal(data2.success, true)
+
+    // 2.1 Test POST /ping (active heartbeat with CDN no-store)
+    const pingReq = new Request('http://localhost/ping', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Device-ID': 'dev_ping_001',
+      },
+      body: JSON.stringify({ deviceId: 'dev_ping_001' }),
+    })
+    const pingRes = await statsRoutes.fetch(pingReq)
+    assert.equal(pingRes.status, 200)
+    assert.ok(pingRes.headers.get('Cache-Control')?.includes('no-store'))
+    assert.equal(pingRes.headers.get('CDN-Cache-Control'), 'no-store')
+    const pingData = (await pingRes.json()) as any
+    assert.equal(pingData.ok, true)
 
     // 3. Test GET /rank?type=today
     const rankReq = new Request('http://localhost/rank?type=today&limit=5')
