@@ -309,4 +309,77 @@ describe('视频源防滥用方案 v2 端到端集成验收测试 (E2E)', () => 
     assert.equal(allowedCount, 10)
     assert.equal(blockedCount, 5)
   })
+
+  // 8. 修复验证：伪造回环头 X-Forwarded-For: ::1 无法绕过限频
+  it('验收 8 [防回环头伪造]: 客户端请求头伪造 X-Forwarded-For: ::1，第 16 次依然被 429 拦截', async () => {
+    for (let i = 1; i <= 15; i++) {
+      const res = await app.request('/api/source/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-forwarded-for': '::1' },
+        body: JSON.stringify({ source: 'cycani', keyword: `spoof_kw_${i}` }),
+      })
+      assert.equal(res.status, 200)
+    }
+
+    // 第 16 次：由于回环豁免已彻底从视频源限流器移除，伪造 ::1 同样被拦截！
+    const res16 = await app.request('/api/source/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-forwarded-for': '::1' },
+      body: JSON.stringify({ source: 'cycani', keyword: 'spoof_kw_16' }),
+    })
+    assert.equal(res16.status, 429)
+    const json = (await res16.json()) as { error: string }
+    assert.equal(json.error, 'source_rate_limited')
+  })
+
+  // 9. 修复验证：429 攻击者发 refresh 无法驱逐已有缓存，且不消耗 30 秒冷却
+  it('验收 9 [防缓存驱逐 DoS]: 被限流为 429 的请求带 refresh=1 时，旧缓存完好保留且不消耗冷却', async () => {
+    const attackerIp = '203.0.113.199'
+    const normalUserIp = '203.0.113.200'
+    const detailUrl = 'https://example.com/anime/detail-anti-eviction'
+
+    // 1. 正常用户预热选集，写入缓存
+    const r1 = await app.request('/api/source/chapters', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-forwarded-for': normalUserIp },
+      body: JSON.stringify({ source: 'cycani', url: detailUrl }),
+    })
+    assert.equal(r1.status, 200)
+    assert.equal(r1.headers.get('X-Cache'), 'MISS')
+
+    // 2. 攻击者消耗完自己的 15 次选集限额
+    for (let i = 1; i <= 15; i++) {
+      await app.request('/api/source/chapters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-forwarded-for': attackerIp },
+        body: JSON.stringify({ source: 'cycani', url: `https://example.com/anime/fake-${i}` }),
+      })
+    }
+
+    // 3. 攻击者发起恶意攻击：带 refresh=1 试图驱逐 detailUrl 的已有缓存
+    const attackRes = await app.request('/api/source/chapters?refresh=1', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-forwarded-for': attackerIp },
+      body: JSON.stringify({ source: 'cycani', url: detailUrl }),
+    })
+    assert.equal(attackRes.status, 429) // 攻击者被 429 拦截
+
+    // 4. 关键验证：正常用户再次访问 detailUrl，旧缓存完好无损，依然命中 HIT！
+    const normalRes = await app.request('/api/source/chapters', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-forwarded-for': normalUserIp },
+      body: JSON.stringify({ source: 'cycani', url: detailUrl }),
+    })
+    assert.equal(normalRes.status, 200)
+    assert.equal(normalRes.headers.get('X-Cache'), 'HIT')
+
+    // 5. 关键验证：未超限的正常用户带 refresh=1 依然可以成功穿透刷新，未被攻击者占用冷却
+    const normalRefreshRes = await app.request('/api/source/chapters?refresh=1', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-forwarded-for': normalUserIp },
+      body: JSON.stringify({ source: 'cycani', url: detailUrl }),
+    })
+    assert.equal(normalRefreshRes.status, 200)
+    assert.equal(normalRefreshRes.headers.get('X-Cache'), 'MISS')
+  })
 })

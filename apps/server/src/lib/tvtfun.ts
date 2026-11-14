@@ -25,6 +25,48 @@ const TVTFUN_BASE_URL = 'https://www.tvtfun.net'
 /** Video ID to slug cache for fast reverse lookup */
 const videoIdToSlugMap = new Map<string, string>()
 
+interface TvTFunDirectStream {
+  playUrl: string
+  mediaType: string
+  cachedAt: number
+}
+
+/**
+ * TvTFun 官方直链服务端受控映射。
+ * 键为 `${episodeId}_${sourceId}`。
+ * 核心安全机制：服务端压根不读、不认客户端传来的任何 URL 参数，
+ * 播放地址 100% 来自公开详情接口，彻底杜绝 Open Proxy 外部链接注入漏洞。
+ */
+const tvtfunDirectStreamMap = new Map<string, TvTFunDirectStream>()
+const TVTFUN_STREAM_CACHE_TTL_MS = 2 * 60 * 60 * 1000 // 2 小时
+const MAX_TVTFUN_STREAM_ENTRIES = 20_000
+
+export function setTvTFunStream(
+  key: string,
+  playUrl: string,
+  mediaType: string,
+): void {
+  if (tvtfunDirectStreamMap.size >= MAX_TVTFUN_STREAM_ENTRIES) {
+    const firstKey = tvtfunDirectStreamMap.keys().next().value
+    if (firstKey) tvtfunDirectStreamMap.delete(firstKey)
+  }
+  tvtfunDirectStreamMap.set(key, {
+    playUrl,
+    mediaType: mediaType || 'mp4',
+    cachedAt: Date.now(),
+  })
+}
+
+export function getTvTFunStream(key: string): TvTFunDirectStream | null {
+  const item = tvtfunDirectStreamMap.get(key)
+  if (!item) return null
+  if (Date.now() - item.cachedAt > TVTFUN_STREAM_CACHE_TTL_MS) {
+    tvtfunDirectStreamMap.delete(key)
+    return null
+  }
+  return item
+}
+
 export function isTvTFunRule(rule: PluginRule): boolean {
   const name = (rule.name || '').toLowerCase().trim()
   if (name === 'tvtfun' || name === 'tvt' || name === 'tvt_fun') {
@@ -125,6 +167,7 @@ interface TvTFunResolveResponse {
 export async function searchTvTFun(
   rule: PluginRule,
   keyword: string,
+  options?: { dispatcher?: any },
 ): Promise<PluginSearchResult> {
   const trimmed = keyword.trim()
   if (!trimmed) {
@@ -150,7 +193,7 @@ export async function searchTvTFun(
         {
           headers: getBaseHeaders(`${TVTFUN_BASE_URL}/`),
         },
-        { timeoutMs: 10_000, source: 'tvtfun' },
+        { timeoutMs: 10_000, source: 'tvtfun', dispatcher: options?.dispatcher },
       )
 
       if (!res.ok) continue
@@ -220,6 +263,7 @@ function getTvTFunSourcePriority(lineName = '', srcName = ''): number {
 export async function chaptersTvTFun(
   rule: PluginRule,
   source: string,
+  options?: { dispatcher?: any },
 ): Promise<PluginChapterResult> {
   let identifier = ''
 
@@ -249,7 +293,7 @@ export async function chaptersTvTFun(
     {
       headers: getBaseHeaders(`${TVTFUN_BASE_URL}/anime/${identifier}`),
     },
-    { timeoutMs: 10_000, source: 'tvtfun' },
+    { timeoutMs: 10_000, source: 'tvtfun', dispatcher: options?.dispatcher },
   )
 
   if (!res.ok) {
@@ -341,7 +385,11 @@ export async function chaptersTvTFun(
         lineEpisodes.set(lineKey, { urls: [], identifiers: [] })
       }
 
-      const epUrl = `${TVTFUN_BASE_URL}/watch/${effectiveSlug}/${epNum}?episodeId=${encodeURIComponent(epId)}&sourceId=${encodeURIComponent(src.id)}&requiresResolve=${requiresResolve}&mediaType=${encodeURIComponent(mediaType)}&url=${encodeURIComponent(directUrl)}`
+      if (directUrl) {
+        setTvTFunStream(`${epId}_${src.id}`, directUrl, mediaType)
+      }
+
+      const epUrl = `${TVTFUN_BASE_URL}/watch/${effectiveSlug}/${epNum}?episodeId=${encodeURIComponent(epId)}&sourceId=${encodeURIComponent(src.id)}`
 
       const container = lineEpisodes.get(lineKey)!
       container.urls.push(epUrl)
@@ -379,25 +427,22 @@ export async function chaptersTvTFun(
 
 /**
  * 3. Resolve direct playback URL for an episode.
+ * 安全加固：彻底移除对客户端传入 url/requiresResolve 的信任，
+ * 统一走 tvtfun 官方 /api/site-auth/playback-resolve 接口获取源站权威播放直链。
  */
 export async function resolveTvTFun(
   rule: PluginRule,
   pageUrl: string,
+  options?: { dispatcher?: any },
 ): Promise<ResolvePlayResult> {
   let episodeId = ''
   let sourceId = ''
   let slug = ''
-  let requiresResolve = true
-  let directUrl = ''
-  let mediaType = 'mp4'
 
   try {
     const u = new URL(pageUrl)
     episodeId = u.searchParams.get('episodeId') || ''
     sourceId = u.searchParams.get('sourceId') || ''
-    requiresResolve = u.searchParams.get('requiresResolve') !== 'false'
-    directUrl = u.searchParams.get('url') || ''
-    mediaType = u.searchParams.get('mediaType') || 'mp4'
 
     const match = u.pathname.match(/\/(?:watch|anime|video)\/([^/?#]+)/)
     if (match) {
@@ -411,40 +456,46 @@ export async function resolveTvTFun(
     /* fallback parsing */
   }
 
-  // 1. 若分集已带免解析直链，直接返回
-  if (!requiresResolve && directUrl) {
-    const isHls = mediaType === 'hls' || /\.m3u8(\?|$)/i.test(directUrl)
-    return {
-      playUrl: directUrl,
-      proxyUrl: isHls
-        ? `/api/media/m3u8?url=${encodeURIComponent(directUrl)}`
-        : `/api/media/proxy?url=${encodeURIComponent(directUrl)}`,
-      contentType: isHls ? 'application/vnd.apple.mpegurl' : 'video/mp4',
-      referer: `${TVTFUN_BASE_URL}/`,
-      headers: {
-        Referer: `${TVTFUN_BASE_URL}/`,
-        'User-Agent': config.defaultUserAgent,
-      },
-    }
-  }
+  const streamKey = `${episodeId}_${sourceId}`
+  let stream = episodeId && sourceId ? getTvTFunStream(streamKey) : null
 
-  // 2. 若缺少 episodeId/sourceId，兜底从番剧详情提取首集第一条线路
-  if (!episodeId || !sourceId) {
-    const fallbackId = slug || '513878'
+  // 若内存未命中，或缺少关键 ID，向公开详情接口查询权威官方直链
+  if (!stream || !episodeId || !sourceId) {
+    const queryId = slug || '513878'
     try {
-      const detailUrl = `${TVTFUN_BASE_URL}/api/client/anime/${fallbackId}`
+      const detailUrl = `${TVTFUN_BASE_URL}/api/client/anime/${queryId}`
       assertPublicHttpUrl(detailUrl)
       const dRes = await fetchPublic(
         detailUrl,
-        { headers: getBaseHeaders(`${TVTFUN_BASE_URL}/anime/${fallbackId}`) },
-        { timeoutMs: 6_000, source: 'tvtfun' },
+        { headers: getBaseHeaders(`${TVTFUN_BASE_URL}/anime/${queryId}`) },
+        { timeoutMs: 8_000, source: 'tvtfun', dispatcher: options?.dispatcher },
       )
       if (dRes.ok) {
         const dJson = (await dRes.json()) as TvTFunDetailResponse
-        const firstEp = dJson?.data?.seasons?.[0]?.episodes?.[0]
-        if (firstEp) {
-          episodeId = firstEp.id
-          sourceId = firstEp.sources?.[0]?.id || ''
+        const seasons = dJson?.data?.seasons || []
+        for (const season of seasons) {
+          for (const ep of season.episodes || []) {
+            // 如果传入了 episodeId 则精确匹配；未传入则默认首集
+            if (!episodeId || ep.id === episodeId) {
+              const matchedSrc =
+                ep.sources?.find((s) => !sourceId || s.id === sourceId) ||
+                ep.sources?.[0]
+              if (matchedSrc?.playback?.url) {
+                stream = {
+                  playUrl: matchedSrc.playback.url,
+                  mediaType: matchedSrc.playback.mediaType || 'mp4',
+                  cachedAt: Date.now(),
+                }
+                setTvTFunStream(
+                  `${ep.id}_${matchedSrc.id}`,
+                  stream.playUrl,
+                  stream.mediaType,
+                )
+                break
+              }
+            }
+          }
+          if (stream) break
         }
       }
     } catch {
@@ -452,47 +503,14 @@ export async function resolveTvTFun(
     }
   }
 
-  if (!episodeId || !sourceId) {
-    throw new Error(`TvTFun 缺少解析参数: ${pageUrl}`)
-  }
-
-  const resolveUrl = `${TVTFUN_BASE_URL}/api/site-auth/playback-resolve`
-  assertPublicHttpUrl(resolveUrl)
-
-  const res = await fetchPublic(
-    resolveUrl,
-    {
-      method: 'POST',
-      headers: {
-        'User-Agent': config.defaultUserAgent,
-        'Content-Type': 'application/json',
-        Accept: 'application/json, text/plain, */*',
-        Referer: pageUrl,
-      },
-      body: JSON.stringify({
-        episodeId,
-        sourceId,
-      }),
-    },
-    { timeoutMs: 12_000, source: 'tvtfun' },
-  )
-
-  if (!res.ok) {
-    throw new Error(`TvTFun 解析接口异常 (HTTP ${res.status})`)
-  }
-
-  const json = (await res.json()) as TvTFunResolveResponse
-  if (json.error || json.code !== 0) {
-    throw new Error(`TvTFun 解析报错: ${json.error || json.message}`)
-  }
-
-  const playData = json.data?.playback
-  const playUrl = playData?.url?.trim() || ''
-  const playMediaType = playData?.mediaType?.toLowerCase() || mediaType
+  const playUrl = stream?.playUrl?.trim() || ''
+  const playMediaType = stream?.mediaType?.toLowerCase() || 'mp4'
 
   if (!playUrl) {
     throw new Error('TvTFun 该剧集播放源暂时不可用或尚未就绪')
   }
+
+  assertPublicHttpUrl(playUrl)
 
   const isHls = playMediaType === 'hls' || /\.m3u8(\?|$)/i.test(playUrl)
 

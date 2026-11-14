@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { PluginMeta } from '@animaku/shared'
-import { mergeOrderWithNewPlugins } from './plugins'
+import { mergeOrderWithNewPlugins, seedFromDefaults } from './plugins'
 
 function makeMockPlugin(name: string, weight: number): PluginMeta {
   return {
@@ -56,3 +56,15 @@ test('mergeOrderWithNewPlugins: inserts middle-weight plugin at appropriate weig
   // 'animoe' (57) should be after 'cycani' (59) and before 'omofun' (50)
   assert.deepEqual(merged, ['xifan-next', 'cycani', 'animoe', 'omofun'])
 })
+
+test('seedFromDefaults: marks tvtfun as disabled by default and other builtins enabled', () => {
+  const defaults = seedFromDefaults()
+  const tvtfun = defaults.find((p) => p.name.toLowerCase() === 'tvtfun')
+  assert.ok(tvtfun, 'tvtfun should be present in default plugins')
+  assert.equal(tvtfun.enabled, false, 'tvtfun must be disabled by default')
+
+  const cycani = defaults.find((p) => p.name.toLowerCase() === 'cycani')
+  assert.ok(cycani, 'cycani should be present in default plugins')
+  assert.equal(cycani.enabled, true, 'cycani should be enabled by default')
+})
+

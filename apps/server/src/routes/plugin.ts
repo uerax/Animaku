@@ -217,13 +217,12 @@ pluginRoutes.post('/resolve', async (c) => {
   const key = pluginCacheKey('resolve', rule, pageUrl.replace(/\/+$/, ''))
   const bypass = wantsCacheBypass(c)
   try {
-    if (bypass) cacheDelete(key)
-    else {
+    if (!bypass) {
       const cached = cacheGet<Awaited<ReturnType<typeof resolvePlay>>>(key)
       if (cached) return c.json({ data: cached }, 200, cacheHeaders(true))
     }
 
-    // 缓存未命中时对解析请求计次限频
+    // 缓存未命中或请求 bypass 时对解析请求计次限频
     const sourceId = resolveBuiltinSourceId(rule)
     const upstreamKey = sourceId || resolveUpstreamKey(rule)
     const clientIp = resolveIp(c)
@@ -238,6 +237,11 @@ pluginRoutes.post('/resolve', async (c) => {
         },
         429,
       )
+    }
+
+    // 限频通过后：若为 bypass 请求才删除旧缓存
+    if (bypass) {
+      cacheDelete(key)
     }
 
     // Single-flight: concurrent resolves for same page share one upstream parse.

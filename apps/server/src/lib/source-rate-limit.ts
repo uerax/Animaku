@@ -1,5 +1,3 @@
-import { isLoopbackIp } from './private-host'
-
 export type SourceOpKind = 'search' | 'chapters' | 'resolve'
 
 export interface SourceRateLimitResult {
@@ -81,17 +79,8 @@ export function checkSourceRateLimit(
   const limits = getSourceRateLimits()
   const limit = limits[kind] ?? 15
 
-  // 本地回环地址（开发与健康检查）免限
-  if (!ip || isLoopbackIp(ip)) {
-    return {
-      allowed: true,
-      remaining: limit,
-      retryAfterSec: 0,
-      limit,
-    }
-  }
-
-  const normalizedIp = ip.trim().toLowerCase()
+  // 彻底移除回环豁免：无论来源是否为 127.0.0.1、::1 或外部伪造头，统一按 IP 计入滑动窗口
+  const normalizedIp = (ip || 'unknown').trim().toLowerCase()
   const normalizedKey = upstreamKey.trim().toLowerCase()
   const storeKey = `${normalizedIp}|${normalizedKey}|${kind}`
 

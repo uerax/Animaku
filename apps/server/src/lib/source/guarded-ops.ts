@@ -49,6 +49,7 @@ export function buildSourceCacheKey(
  */
 const chaptersRefreshCooldownMap = new Map<string, number>()
 const CHAPTERS_REFRESH_COOLDOWN_MS = 30_000
+const MAX_COOLDOWN_ENTRIES = 50_000
 
 const cooldownPruneTimer = setInterval(() => {
   const now = Date.now()
@@ -60,15 +61,33 @@ const cooldownPruneTimer = setInterval(() => {
 }, CHAPTERS_REFRESH_COOLDOWN_MS)
 cooldownPruneTimer.unref()
 
-export function canBypassChapters(
+export function isChapterInCooldown(
   cacheKey: string,
   now: number = Date.now(),
 ): boolean {
   const lastTime = chaptersRefreshCooldownMap.get(cacheKey)
-  if (lastTime && now - lastTime < CHAPTERS_REFRESH_COOLDOWN_MS) {
-    return false
+  return Boolean(lastTime && now - lastTime < CHAPTERS_REFRESH_COOLDOWN_MS)
+}
+
+export function recordChapterCooldown(
+  cacheKey: string,
+  now: number = Date.now(),
+): void {
+  if (chaptersRefreshCooldownMap.size >= MAX_COOLDOWN_ENTRIES) {
+    const firstKey = chaptersRefreshCooldownMap.keys().next().value
+    if (firstKey) chaptersRefreshCooldownMap.delete(firstKey)
   }
   chaptersRefreshCooldownMap.set(cacheKey, now)
+}
+
+export function canBypassChapters(
+  cacheKey: string,
+  now: number = Date.now(),
+): boolean {
+  if (isChapterInCooldown(cacheKey, now)) {
+    return false
+  }
+  recordChapterCooldown(cacheKey, now)
   return true
 }
 
@@ -113,15 +132,13 @@ export async function guardedOp<T>(
       // 搜索强制忽略 refresh，避免全站刷屏爬虫穿透
       effectiveBypass = false
     } else if (kind === 'chapters') {
-      // 选集 30 秒内仅允许绕过一次
-      effectiveBypass = canBypassChapters(cacheKey)
+      // 选集检查是否处于 30 秒冷却期内（不在冷却期才允许尝试 bypass，暂不记录冷却位）
+      effectiveBypass = !isChapterInCooldown(cacheKey)
     }
   }
 
-  // 2. 查缓存（命中缓存不记限额、不打源站）
-  if (effectiveBypass) {
-    cacheDelete(cacheKey)
-  } else {
+  // 2. 查缓存（非 bypass 请求若命中缓存，不记限额、不打源站直接返回）
+  if (!effectiveBypass) {
     const memHit = cacheGet<T>(cacheKey)
     if (memHit !== undefined) {
       const data = reformatResult ? reformatResult(memHit) : memHit
@@ -130,6 +147,8 @@ export async function guardedOp<T>(
   }
 
   // 3. 检查每用户每源限次 (改动 B)
+  // 核心安全时序：必须在真正向源站发包前检查！
+  // 若超限抛出 429，旧缓存绝不被删除，且不记录 30 秒冷却，彻底杜绝 Cache Eviction DoS
   const rateLimitResult = checkSourceRateLimit(clientIp, upstreamKey, kind)
   if (!rateLimitResult.allowed) {
     throw new SourceRateLimitError({
@@ -138,6 +157,14 @@ export async function guardedOp<T>(
       kind,
       upstreamKey,
     })
+  }
+
+  // 4. 限频校验通过后：若为合法 bypass 请求，安全删除旧缓存并正式计入 30 秒冷却
+  if (effectiveBypass) {
+    cacheDelete(cacheKey)
+    if (kind === 'chapters') {
+      recordChapterCooldown(cacheKey)
+    }
   }
 
   // 4. 熔断短路检查（服务端 upstreamKey）

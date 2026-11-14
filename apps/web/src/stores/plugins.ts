@@ -49,7 +49,8 @@ migrateLocalStorageKey('animaku-plugins', [
 /** v43: add akianime (akianime.cc) built-in with weight 58 & tune source weights */
 /** v44: add huazi (huazidm.com) built-in with weight 58 (same as akianime) */
 /** v45: add jzacg (jzacg.com) built-in with weight 58 */
-export const PLUGIN_DEFAULTS_VERSION = 45
+/** v46: disable tvtfun by default due to upstream turnstile captcha */
+export const PLUGIN_DEFAULTS_VERSION = 46
 
 interface PluginState {
   plugins: PluginMeta[]
@@ -89,10 +90,12 @@ function toMeta(
         ? 'anibaka'
         : 'kazumi'
       : source
+  const rawRule = rule as unknown as { enabled?: boolean }
+  const effectiveEnabled = typeof rawRule.enabled === 'boolean' ? rawRule.enabled : enabled
   return {
     ...rule,
     id: `${baseKey}-${origin}`,
-    enabled,
+    enabled: effectiveEnabled,
     proxy: rule.requiresFullMediaProxy === true ? true : undefined,
     importedAt: Date.now(),
     source,
@@ -101,10 +104,12 @@ function toMeta(
 
 export function seedFromDefaults(): PluginMeta[] {
   const list = DEFAULT_PLUGIN_RULES.map((raw) => {
+    const rawObj = raw as { enabled?: boolean; name?: string }
+    const defaultEnabled = rawObj.enabled ?? true
     try {
-      return toMeta(parsePluginRule(raw), 'builtin', true)
+      return toMeta(parsePluginRule(raw), 'builtin', defaultEnabled)
     } catch {
-      return toMeta(raw as PluginRule, 'builtin', true)
+      return toMeta(raw as PluginRule, 'builtin', defaultEnabled)
     }
   }).filter(
       (p) =>
@@ -444,6 +449,7 @@ export const usePluginStore = create<PluginState>()(
             'bimi',
             'akianime',
             'huazi',
+            'jzacg',
           ].map((s) => s.toLowerCase()),
         )
         const onlyLegacyBuiltins = plugins.every(
@@ -489,9 +495,11 @@ export const usePluginStore = create<PluginState>()(
           if (p.source !== 'builtin' && p.source !== undefined) return p
           const seed = seedByName.get(p.name.toLowerCase())
           if (!seed) return p
+          const isTvtfun = p.name.toLowerCase() === 'tvtfun'
+          const enabled = isTvtfun && ver < 46 ? false : (p.enabled ?? seed.enabled)
           return {
             ...seed,
-            enabled: p.enabled ?? seed.enabled,
+            enabled,
             adBlockerMode: p.adBlockerMode ?? seed.adBlockerMode ?? 'none',
             proxy: p.proxy ?? (seed.requiresFullMediaProxy === true ? true : undefined),
             importedAt: p.importedAt ?? seed.importedAt,
